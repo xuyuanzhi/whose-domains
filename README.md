@@ -1,4 +1,4 @@
-# wesite
+# introduce
 
 A Spring Boot 3 platform for domain research and webmaster tooling — 20+ online tools including WHOIS lookup, DNS analysis, SSL inspection, domain valuation, and bulk search, plus a blog and admin backend.
 
