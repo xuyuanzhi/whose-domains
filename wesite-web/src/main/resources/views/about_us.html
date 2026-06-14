@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+
+	<main>
+		<section class="hero">
+			<div class="container">
+				<div class="hero-content">
+					<h1>About Whose Domains</h1>
+					<p>At Whose Domains, we believe that accessing accurate domain information should be as simple, fast, and reliable as entering a web address.</p>
+				</div>
+			</div>
+		</section>
+
+		<div class="container">
+	        <article class="about-us" itemscope itemtype="https://schema.org/AboutPage">
+	            <h2>Our Mission</h2>
+	            <p>A significant barrier has long existed in the domain world: critical data was either hidden behind complex, unwieldy tools or priced as a luxury only large corporations could afford.</p>
+	            <p>Our mission is to break down this barrier. We are committed to democratizing domain intelligence by delivering powerful tools—once exclusive to large enterprises—to every domain investor, cybersecurity professional, legal advisor, and entrepreneur. We empower everyone with data-driven decision-making.</p>
+	
+	            <h2>Our Story</h2>
+	            <p>In 2025, a seasoned programmer identified a key industry paradox: existing domain tools left a vast gap between simplicity and professional capability. Individual researchers and small teams had to choose between limited functionality or prohibitively expensive professional services.</p>
+	            <p>Thus, Whose Domains was born. We built a platform from the ground up to combine enterprise-grade data accuracy with an intuitive user experience. Today, we proudly serve a diverse global community, from independent developers to Fortune 500 companies, providing essential domain intelligence.</p>
+	
+	            <h2>Our Values</h2>
+	            <ul class="values">
+	                <li class="value-card">
+	                    <h3>Accuracy First</h3>
+	                    <p>We prioritize data accuracy above all else, maintaining direct connections with registry operators and implementing rigorous data validation processes.</p>
+	                </li>
+	                <li class="value-card">
+	                    <h3>Performance</h3>
+	                    <p>Our infrastructure is optimized for speed, ensuring you get WHOIS results in seconds, not minutes.</p>
+	                </li>
+	                <li class="value-card">
+	                    <h3>Privacy & Security</h3>
+	                    <p>We respect user privacy and implement industry-leading security measures to protect your data and queries.</p>
+	                </li>
+	                <li class="value-card">
+	                    <h3>Global Reach</h3>
+	                    <p>We support all major TLDs and country-code domains, providing truly global domain intelligence.</p>
+	                </li>
+	            </ul>
+	
+	            <h2>Technology</h2>
+	            <p>Our platform is built on a modern, cloud-native architecture designed for high reliability and seamless scalability. By maintaining direct API connections with primary domain registries and employing intelligent caching strategies, we deliver fast and accurate results while strictly adhering to registry rate limits.</p>
+	
+	            <h2>Looking Forward</h2>
+	            <p>The domain landscape is constantly evolving, and we are committed to leading the way. Our product roadmap includes:</p>
+	            <ul class="roadmap">
+	                <li>Enhanced Domain Monitoring: Featuring real-time alerts and comprehensive change tracking.</li>
+	                <li>Expanded Historical Data Archives: Enabling deep analysis of domain history and ownership changes.</li>
+	                <li>Innovative Portfolio Management Tools: Assisting holders of large domain portfolios with asset management, valuation, and strategic planning.</li>
+	            </ul>
+	
+	            <p><b>We believe transparent information is fundamental to a healthy internet. We are honored to be your trusted partner in navigating the domain world.</b></p>
+	        </article>
+    	</div>
+    </main>
+
+    <footer th:replace="~{template::template_footer}"></footer>
+</body>
+</html>

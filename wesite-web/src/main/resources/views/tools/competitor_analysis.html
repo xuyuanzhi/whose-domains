@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <!-- Floating decorative shapes -->
+    <div class="floating-shape shape-1"></div>
+    <div class="floating-shape shape-2"></div>
+
+    <header th:replace="~{template::template_header}"></header>
+
+    <main>
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="container">
+            <div class="hero-content">
+                <h1>Competitor Analysis & Comparison</h1>
+                <p>Compare multiple domains side-by-side to benchmark SEO performance, security posture, and technical quality against your competitors.</p>
+                <div id="domainInputsWrapper">
+                    <div class="domain-input-row" id="domainRow0">
+                        <span class="domain-label">Your Domain</span>
+                        <input type="text" class="search-input domain-field" id="domainField0" placeholder="yourdomain.com" autocomplete="off" autocapitalize="none" spellcheck="false" inputmode="url">
+                    </div>
+                    <div class="domain-input-row" id="domainRow1">
+                        <span class="domain-label">Competitor 1</span>
+                        <input type="text" class="search-input domain-field" id="domainField1" placeholder="competitor1.com" autocomplete="off" autocapitalize="none" spellcheck="false" inputmode="url">
+                    </div>
+                    <div class="domain-input-row" id="domainRow2">
+                        <span class="domain-label">Competitor 2</span>
+                        <input type="text" class="search-input domain-field" id="domainField2" placeholder="competitor2.com (optional)" autocomplete="off" autocapitalize="none" spellcheck="false" inputmode="url">
+                    </div>
+                    <div class="domain-input-row hidden" id="domainRow3">
+                        <span class="domain-label">Competitor 3</span>
+                        <input type="text" class="search-input domain-field" id="domainField3" placeholder="competitor3.com (optional)" autocomplete="off" autocapitalize="none" spellcheck="false" inputmode="url">
+                    </div>
+                </div>
+                <div class="search-actions">
+                    <button class="search-btn" id="analyzeBtn"><i class="fas fa-chart-bar"></i> Compare Domains</button>
+                    <button class="add-btn" id="addCompetitorBtn"><i class="fas fa-plus"></i> Add Competitor</button>
+                </div>
+                <p class="example-text">Enter 2–4 domains to compare SEO, speed, security and more in a unified scorecard.</p>
+            </div>
+        </div>
+    </section>
+
+    <div th:replace="~{template::ad_banner_top}"></div>
+
+<!-- Results Section -->
+    <section class="results-section tool-results" id="resultsSection">
+        <div class="container">
+            <div class="results-header">
+                <h2>Comparison Results</h2>
+                <button class="reset-btn" onclick="resetAnalysis()">New Comparison</button>
+            </div>
+
+            <!-- Scorecard Summary -->
+            <div id="scorecardRow" class="scorecard-row"></div>
+
+            <!-- Comparison Table -->
+            <div class="comparison-table-wrapper">
+                <table class="comparison-table" id="comparisonTable">
+                    <thead id="comparisonHead"></thead>
+                    <tbody id="comparisonBody"></tbody>
+                </table>
+            </div>
+
+            <!-- Winner Summary -->
+            <div class="recommendations-section" id="winnerSection">
+                <h3><i class="fas fa-trophy"></i> Competitive Summary</h3>
+                <ul id="winnerList"></ul>
+            </div>
+        </div>
+    </section>
+
+    <div th:replace="~{template::ad_banner_bottom}"></div>
+    </main>
+    <div th:replace="~{fragments/related-tools::related(slug='competitor-analysis')}"></div>
+
+    <footer th:replace="~{template::template_footer}"></footer>
+
+<style>
+.domain-input-row { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+.domain-label { min-width:110px; font-size:.85rem; color:#aaa; text-align:right; }
+.domain-field { flex:1; }
+.search-actions { display:flex; gap:12px; margin-top:14px; flex-wrap:wrap; justify-content:center; align-items:center; }
+.search-actions .search-btn { flex:0 0 auto; width:auto; min-width:180px; height:48px; padding:0 28px; box-sizing:border-box; }
+.add-btn { flex:0 0 auto; width:auto; min-width:150px; height:48px; box-sizing:border-box; background:transparent; border:2px solid var(--accent,#4f8ef7); color:var(--accent,#4f8ef7); padding:0 22px; border-radius:8px; font-size:.95rem; cursor:pointer; display:inline-flex; align-items:center; gap:8px; }
+.add-btn:hover { background:var(--accent,#4f8ef7); color:#fff; }
+.hidden { display:none !important; }
+
+/* Scorecard */
+.scorecard-row { display:flex; gap:16px; flex-wrap:wrap; margin-bottom:24px; }
+.scorecard { flex:1; min-width:160px; background:var(--card-bg,#1e2230); border-radius:12px; padding:18px; text-align:center; border:1px solid rgba(255,255,255,.08); }
+.scorecard .sc-domain { font-size:.8rem; color:#aaa; margin-bottom:6px; word-break:break-all; }
+.scorecard .sc-score { font-size:2.2rem; font-weight:700; }
+.scorecard .sc-label { font-size:.75rem; color:#aaa; }
+.score-great { color:#4ade80; }
+.score-ok    { color:#facc15; }
+.score-poor  { color:#f87171; }
+
+/* Comparison Table */
+.comparison-table-wrapper { overflow-x:auto; margin-bottom:24px; }
+.comparison-table { width:100%; border-collapse:collapse; font-size:.88rem; }
+.comparison-table th, .comparison-table td { padding:10px 14px; border-bottom:1px solid rgba(255,255,255,.07); text-align:center; }
+.comparison-table th { background:rgba(255,255,255,.05); font-weight:600; }
+.comparison-table td:first-child { text-align:left; color:#aaa; font-size:.82rem; white-space:nowrap; }
+.comparison-table th:first-child { text-align:left; }
+.cell-win  { font-weight:700; }
+.badge-good { background:#166534; color:#4ade80; padding:2px 8px; border-radius:4px; font-size:.8rem; }
+.badge-warn { background:#713f12; color:#facc15; padding:2px 8px; border-radius:4px; font-size:.8rem; }
+.badge-bad  { background:#7f1d1d; color:#f87171; padding:2px 8px; border-radius:4px; font-size:.8rem; }
+.badge-na   { background:rgba(255,255,255,.06); color:#888; padding:2px 8px; border-radius:4px; font-size:.8rem; }
+
+.competitive-insights h4 { margin:14px 0 6px; color:#ccc; }
+</style>
+
+<script>
+var nextRow = 3;
+var maxRows = 4;
+
+document.getElementById('addCompetitorBtn').addEventListener('click', function() {
+    var row = document.getElementById('domainRow' + nextRow);
+    if (row) {
+        row.classList.remove('hidden');
+        nextRow++;
+    }
+    if (nextRow >= maxRows) this.style.display = 'none';
+});
+
+document.getElementById('analyzeBtn').addEventListener('click', performComparison);
+document.addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') performComparison();
+});
+
+function resetAnalysis() {
+    document.getElementById('resultsSection').classList.remove('active');
+    for (var i = 0; i < maxRows; i++) {
+        var f = document.getElementById('domainField' + i);
+        if (f) f.value = '';
+    }
+    document.getElementById('domainField0').focus();
+}
+
+async function performComparison() {
+    var domains = [];
+    for (var i = 0; i < maxRows; i++) {
+        var f = document.getElementById('domainField' + i);
+        if (f && f.value.trim()) domains.push(f.value.trim().replace(/^https?:\/\//i,'').replace(/\/.*$/,''));
+    }
+    if (domains.length < 2) { alert('Please enter at least 2 domains to compare.'); return; }
+
+    showLoader();
+    document.getElementById('resultsSection').classList.remove('active');
+
+    try {
+        document.getElementById('loaderText').textContent = 'Analyzing ' + domains.length + ' domains (0/' + domains.length + ')...';
+        var results = [];
+        for (var i = 0; i < domains.length; i++) {
+            document.getElementById('loaderText').textContent = 'Analyzing ' + domains[i] + ' (' + (i+1) + '/' + domains.length + ')...';
+            try {
+                var resp = await fetch('/api/tools/analyze/' + encodeURIComponent(domains[i]));
+                var json = await resp.json();
+                results.push({ domain: domains[i], data: (json.code === 0 && json.data) ? json.data : null });
+            } catch(e) {
+                results.push({ domain: domains[i], data: null });
+            }
+        }
+        renderComparison(results);
+        document.getElementById('resultsSection').classList.add('active');
+    } finally {
+        hideLoader();
+    }
+}
+
+function calcAge(dateStr) {
+    if (!dateStr) return null;
+    var d = new Date(dateStr);
+    if (isNaN(d)) return null;
+    var diff = Date.now() - d;
+    var years = Math.floor(diff / (1000*60*60*24*365));
+    var months = Math.floor((diff % (1000*60*60*24*365)) / (1000*60*60*24*30));
+    if (years > 0) return years + ' yr' + (years > 1 ? 's' : '') + (months ? ' ' + months + ' mo' : '');
+    return months + ' mo';
+}
+
+function badge(ok, y, n) {
+    if (ok === null || ok === undefined) return '<span class="badge-na">N/A</span>';
+    return ok ? '<span class="badge-good">' + (y||'Yes') + '</span>' : '<span class="badge-bad">' + (n||'No') + '</span>';
+}
+function badgeWarn(ok, y, n) {
+    if (ok === null || ok === undefined) return '<span class="badge-na">N/A</span>';
+    return ok ? '<span class="badge-good">' + (y||'Yes') + '</span>' : '<span class="badge-warn">' + (n||'Missing') + '</span>';
+}
+function scoreColor(s) {
+    if (s === null || s === undefined) return 'score-ok';
+    return s >= 70 ? 'score-great' : (s >= 40 ? 'score-ok' : 'score-poor');
+}
+function overallScore(data) {
+    if (!data) return 0;
+    var tech = data.technical || {}, seo = data.seo || {}, sec = (data.security || {});
+    var hdrs = sec.securityHeaders || {};
+    var score = 0;
+    if (tech.hasValidSsl) score += 20;
+    if (tech.responseTimeMs > 0 && tech.responseTimeMs < 1000) score += 15;
+    else if (tech.responseTimeMs >= 1000 && tech.responseTimeMs < 2000) score += 8;
+    if (seo.titleOptimal) score += 10;
+    if (seo.metaDescriptionOptimal) score += 10;
+    if (seo.hasH1) score += 8;
+    if (seo.hasOpenGraph) score += 8;
+    if (seo.hasStructuredData) score += 8;
+    if (seo.hasViewport) score += 6;
+    if (hdrs.securityScore !== undefined) score += Math.round(hdrs.securityScore * 0.15);
+    return Math.min(score, 100);
+}
+
+function renderComparison(results) {
+    var n = results.length;
+
+    // ── Scorecard ────────────────────────────────────
+    var scHTML = '';
+    var scores = results.map(function(r) { return overallScore(r.data); });
+    var maxScore = Math.max.apply(null, scores);
+    for (var i = 0; i < n; i++) {
+        var cls = scoreColor(scores[i]);
+        var label = i === 0 ? 'Your Domain' : 'Competitor ' + i;
+        scHTML += '<div class="scorecard">' +
+            '<div class="sc-domain">' + results[i].domain + '</div>' +
+            '<div class="sc-score ' + cls + '">' + scores[i] + '</div>' +
+            '<div class="sc-label">/ 100' + (scores[i] === maxScore ? ' 🏆' : '') + '</div>' +
+            '<div class="sc-label" style="margin-top:4px">' + label + '</div>' +
+            '</div>';
+    }
+    document.getElementById('scorecardRow').innerHTML = scHTML;
+
+    // ── Comparison Table ─────────────────────────────
+    // Header
+    var headHTML = '<tr><th>Metric</th>';
+    for (var i = 0; i < n; i++) {
+        headHTML += '<th>' + results[i].domain + (i === 0 ? '<br><small style="color:#aaa;font-weight:400">Your Domain</small>' : '') + '</th>';
+    }
+    headHTML += '</tr>';
+    document.getElementById('comparisonHead').innerHTML = headHTML;
+
+    // Helper: build a row, marking winner cell
+    function row(label, vals, winFn, renderFn) {
+        // vals: array of raw values (one per domain, null if no data)
+        // winFn: function(vals) => index of winner, or -1
+        // renderFn: function(val) => html string
+        var winIdx = winFn ? winFn(vals) : -1;
+        var html = '<tr><td>' + label + '</td>';
+        for (var i = 0; i < n; i++) {
+            var cellClass = (i === winIdx) ? ' class="cell-win"' : '';
+            html += '<td' + cellClass + '>' + (renderFn ? renderFn(vals[i], i === winIdx) : (vals[i] !== null && vals[i] !== undefined ? vals[i] : '-')) + '</td>';
+        }
+        html += '</tr>';
+        return html;
+    }
+
+    var rows = '';
+
+    // ─ Domain Info ─
+    rows += '<tr><td colspan="' + (n+1) + '" style="padding:12px 14px 4px;color:#6b7280;font-size:.78rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Domain</td></tr>';
+    rows += row('Domain Age',
+        results.map(function(r){ return r.data ? calcAge((r.data.basicInfo||{}).registrationDate) : null; }),
+        null,
+        function(v){ return v || '<span class="badge-na">N/A</span>'; }
+    );
+    rows += row('Registrar',
+        results.map(function(r){ return r.data ? (r.data.basicInfo||{}).registrar : null; }),
+        null,
+        function(v){ return v || '-'; }
+    );
+
+    // ─ Technical ─
+    rows += '<tr><td colspan="' + (n+1) + '" style="padding:12px 14px 4px;color:#6b7280;font-size:.78rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Technical</td></tr>';
+    // SSL
+    var sslVals = results.map(function(r){ return r.data ? !!(r.data.technical||{}).hasValidSsl : null; });
+    rows += row('SSL Certificate', sslVals,
+        function(vs){ var w=-1; vs.forEach(function(v,i){ if(v===true && w===-1) w=i; }); return w; },
+        function(v){ return badge(v, 'Valid', 'Invalid'); }
+    );
+    // Response Time
+    var rtVals = results.map(function(r){ return r.data ? (r.data.technical||{}).responseTimeMs : null; });
+    rows += row('Response Time', rtVals,
+        function(vs){
+            var best=-1, bestVal=Infinity;
+            vs.forEach(function(v,i){ if(v > 0 && v < bestVal){ bestVal=v; best=i; } });
+            return best;
+        },
+        function(v, isWin){
+            if (v === null || v <= 0) return '<span class="badge-na">N/A</span>';
+            var cls = v < 1000 ? 'badge-good' : (v < 2000 ? 'badge-warn' : 'badge-bad');
+            return '<span class="' + cls + '">' + v + ' ms</span>';
+        }
+    );
+    // Hosting
+    rows += row('Hosting Provider',
+        results.map(function(r){ return r.data ? (r.data.technical||{}).hostingProvider : null; }),
+        null, function(v){ return v || '-'; }
+    );
+    // Server software
+    rows += row('Server Software',
+        results.map(function(r){ return r.data ? (r.data.technical||{}).serverSoftware : null; }),
+        null, function(v){ return v || '-'; }
+    );
+    // Server location
+    rows += row('Server Location',
+        results.map(function(r){ return r.data ? (r.data.technical||{}).serverLocation : null; }),
+        null, function(v){ return v || '-'; }
+    );
+
+    // ─ SEO ─
+    rows += '<tr><td colspan="' + (n+1) + '" style="padding:12px 14px 4px;color:#6b7280;font-size:.78rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em">SEO On-Page</td></tr>';
+    var titleOptVals = results.map(function(r){ return r.data ? !!(r.data.seo||{}).titleOptimal : null; });
+    rows += row('Title Tag', titleOptVals,
+        function(vs){ var w=-1; vs.forEach(function(v,i){ if(v===true && w===-1) w=i; }); return w; },
+        function(v){ return badge(v, 'Optimal', 'Needs work'); }
+    );
+    var mdVals = results.map(function(r){ return r.data ? !!(r.data.seo||{}).metaDescriptionOptimal : null; });
+    rows += row('Meta Description', mdVals,
+        function(vs){ var w=-1; vs.forEach(function(v,i){ if(v===true && w===-1) w=i; }); return w; },
+        function(v){ return badge(v, 'Optimal', 'Needs work'); }
+    );
+    var h1Vals = results.map(function(r){ return r.data ? !!(r.data.seo||{}).hasH1 : null; });
+    rows += row('H1 Tag', h1Vals,
+        function(vs){ var w=-1; vs.forEach(function(v,i){ if(v===true && w===-1) w=i; }); return w; },
+        function(v){ return badge(v, 'Present', 'Missing'); }
+    );
+    var ogVals = results.map(function(r){ return r.data ? !!(r.data.seo||{}).hasOpenGraph : null; });
+    rows += row('Open Graph', ogVals,
+        function(vs){ var w=-1; vs.forEach(function(v,i){ if(v===true && w===-1) w=i; }); return w; },
+        function(v){ return badge(v, 'Present', 'Missing'); }
+    );
+    var sdVals = results.map(function(r){ return r.data ? !!(r.data.seo||{}).hasStructuredData : null; });
+    rows += row('Structured Data', sdVals,
+        function(vs){ var w=-1; vs.forEach(function(v,i){ if(v===true && w===-1) w=i; }); return w; },
+        function(v){ return badge(v, 'Present', 'Missing'); }
+    );
+    var vpVals = results.map(function(r){ return r.data ? !!(r.data.seo||{}).hasViewport : null; });
+    rows += row('Viewport Tag', vpVals,
+        function(vs){ var w=-1; vs.forEach(function(v,i){ if(v===true && w===-1) w=i; }); return w; },
+        function(v){ return badge(v, 'Present', 'Missing'); }
+    );
+    // Internal links count
+    var ilVals = results.map(function(r){ return r.data ? ((r.data.seo||{}).internalLinks || 0) : null; });
+    rows += row('Internal Links', ilVals,
+        function(vs){
+            var best=-1, bestVal=-1;
+            vs.forEach(function(v,i){ if(v !== null && v > bestVal){ bestVal=v; best=i; } });
+            return best;
+        },
+        function(v){ return v !== null ? v : '-'; }
+    );
+
+    // ─ Security ─
+    rows += '<tr><td colspan="' + (n+1) + '" style="padding:12px 14px 4px;color:#6b7280;font-size:.78rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Security Headers</td></tr>';
+    var secScoreVals = results.map(function(r){
+        var hdrs = r.data ? ((r.data.security||{}).securityHeaders||{}) : {};
+        return (hdrs.securityScore !== undefined) ? hdrs.securityScore : null;
+    });
+    rows += row('Security Score', secScoreVals,
+        function(vs){
+            var best=-1, bestVal=-1;
+            vs.forEach(function(v,i){ if(v !== null && v > bestVal){ bestVal=v; best=i; } });
+            return best;
+        },
+        function(v){
+            if (v === null) return '<span class="badge-na">N/A</span>';
+            var cls = v >= 70 ? 'badge-good' : (v >= 40 ? 'badge-warn' : 'badge-bad');
+            return '<span class="' + cls + '">' + v + '/100</span>';
+        }
+    );
+    function secHeaderRow(label, key) {
+        var vals = results.map(function(r){
+            var hdrs = r.data ? ((r.data.security||{}).securityHeaders||{}) : {};
+            return (hdrs[key] !== undefined) ? !!hdrs[key] : null;
+        });
+        return row(label, vals,
+            function(vs){ var w=-1; vs.forEach(function(v,i){ if(v===true && w===-1) w=i; }); return w; },
+            function(v){ return badgeWarn(v, 'Enabled', 'Missing'); }
+        );
+    }
+    rows += secHeaderRow('HSTS', 'strictTransportSecurity');
+    rows += secHeaderRow('Content-Security-Policy', 'contentSecurityPolicy');
+    rows += secHeaderRow('X-Frame-Options', 'xFrameOptions');
+    rows += secHeaderRow('X-Content-Type-Options', 'xContentTypeOptions');
+
+    // Overall Score row
+    rows += '<tr><td colspan="' + (n+1) + '" style="padding:12px 14px 4px;color:#6b7280;font-size:.78rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Overall</td></tr>';
+    rows += row('Composite Score', scores,
+        function(vs){ var best=-1, bestVal=-1; vs.forEach(function(v,i){ if(v>bestVal){bestVal=v;best=i;} }); return best; },
+        function(v, isWin){
+            var cls = v >= 70 ? 'badge-good' : (v >= 40 ? 'badge-warn' : 'badge-bad');
+            return '<span class="' + cls + '">' + v + '/100' + (isWin ? ' 🏆' : '') + '</span>';
+        }
+    );
+
+    document.getElementById('comparisonBody').innerHTML = rows;
+
+    // ── Winner Summary ───────────────────────────────
+    var winnerIdx = scores.indexOf(Math.max.apply(null, scores));
+    var winnerDomain = results[winnerIdx].domain;
+    var yourScore = scores[0];
+    var summary = [];
+    summary.push('<strong>' + winnerDomain + '</strong> leads with a composite score of <strong>' + scores[winnerIdx] + '/100</strong>.');
+    if (winnerIdx !== 0) {
+        var gap = scores[winnerIdx] - yourScore;
+        summary.push('Your domain (' + results[0].domain + ') scores ' + yourScore + '/100 — ' + gap + ' points behind the leader.');
+    } else {
+        summary.push('Your domain leads the competition! 🎉');
+    }
+    // Specific tips for your domain
+    var yourData = results[0].data;
+    if (yourData) {
+        var yourTech = yourData.technical || {}, yourSeo = yourData.seo || {}, yourHdrs = (yourData.security||{}).securityHeaders || {};
+        if (!yourTech.hasValidSsl) summary.push('Priority: Add a valid SSL certificate to your domain.');
+        if (!yourSeo.hasOpenGraph)    summary.push('Quick win: Add Open Graph meta tags to improve social sharing.');
+        if (!yourSeo.hasStructuredData) summary.push('Quick win: Implement JSON-LD structured data for richer search results.');
+        if (!yourHdrs.strictTransportSecurity) summary.push('Security: Enable HSTS to force HTTPS connections.');
+        if (!yourHdrs.contentSecurityPolicy) summary.push('Security: Add Content-Security-Policy header to prevent XSS.');
+    }
+    document.getElementById('winnerList').innerHTML = summary.map(function(s){ return '<li>' + s + '</li>'; }).join('');
+}
+</script>
+</body>
+</html>

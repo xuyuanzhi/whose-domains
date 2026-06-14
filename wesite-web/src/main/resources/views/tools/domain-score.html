@@ -1,0 +1,207 @@
+﻿<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+    <main>
+    <section class="hero">
+        <div class="container">
+            <div class="hero-content">
+                <h1>📊 Domain Health Score</h1>
+                <p>Get a comprehensive health grade for any domain — covering SSL, DNS, email security, security headers, and domain age.</p>
+            </div>
+        </div>
+    </section>
+
+    <div th:replace="~{template::ad_banner_top}"></div>
+
+    <div class="container" style="max-width:960px;">
+
+    <!-- Search -->
+    <div style="background:var(--card-bg); border-radius:10px; padding:25px; margin-bottom:30px; border:1px solid var(--glass-border);">
+        <div style="display:flex; gap:10px;">
+            <input type="text" id="domainInput" placeholder="Enter a domain name, e.g. example.com"
+                   autocomplete="off" autocapitalize="none" spellcheck="false" inputmode="url"
+                   style="flex:1; padding:10px 14px; border:1px solid var(--glass-border); border-radius:6px; font-size:15px; background:rgba(255,255,255,0.06); color:#e2e8f0; outline:none;">
+            <button onclick="scoreDomain()" id="scoreBtn"
+                    style="padding:10px 25px; background:var(--primary); color:#080c18; border:none; border-radius:6px; font-size:15px; font-weight:600; cursor:pointer;">
+                Score
+            </button>
+        </div>
+    </div>
+
+    <div id="loading" style="display:none; text-align:center; padding:40px; color:var(--gray);">⏳ Analyzing domain... This may take up to 30 seconds.</div>
+    <div id="errorMsg" style="display:none; background:rgba(255,82,82,0.12); color:#ff5252; padding:15px; border-radius:8px; margin-bottom:20px; border:1px solid rgba(255,82,82,0.2);"></div>
+
+    <!-- Results -->
+    <div id="results" style="display:none;">
+
+        <!-- Grade card -->
+        <div style="display:flex; gap:25px; margin-bottom:30px; flex-wrap:wrap;">
+            <div id="gradeCard" style="background:var(--card-bg); border:1px solid var(--glass-border); border-radius:14px; padding:30px 40px; text-align:center; min-width:160px;">
+                <div style="font-size:13px; color:var(--gray); margin-bottom:5px;">Overall Grade</div>
+                <div id="grade" style="font-size:64px; font-weight:800; line-height:1;">A</div>
+                <div id="totalScore" style="font-size:16px; color:var(--gray); margin-top:5px;">85 / 100</div>
+            </div>
+            <div style="flex:1; min-width:280px;">
+                <div id="categoryBars"></div>
+            </div>
+        </div>
+
+        <!-- Recommendations -->
+        <div id="recsSection" style="display:none; margin-bottom:30px;">
+            <h2 style="font-size:20px; margin-bottom:12px; color:var(--primary);">💡 Recommendations</h2>
+            <ul id="recsList" style="padding-left:20px; line-height:1.8; font-size:14px; color:var(--darker);"></ul>
+        </div>
+
+        <!-- Category Details -->
+        <div id="detailsSection"></div>
+    </div>
+
+    <!-- Info -->
+    <div style="margin-top:40px; border-top:1px solid var(--border); padding-top:25px;">
+        <h2 style="font-size:20px; margin-bottom:12px; color:var(--darker);">How Domain Scoring Works</h2>
+        <p style="font-size:14px; color:var(--gray); line-height:1.7;">
+            Our scoring algorithm evaluates five critical dimensions of domain health:
+            <b style="color:var(--darker);">Domain Age</b> (15%) — older domains are more trusted;
+            <b style="color:var(--darker);">SSL/HTTPS</b> (25%) — encryption and HSTS configuration;
+            <b style="color:var(--darker);">Email Security</b> (20%) — SPF, DKIM, and DMARC records;
+            <b style="color:var(--darker);">Security Headers</b> (20%) — XSS protection, CSP, and more;
+            <b style="color:var(--darker);">DNS Configuration</b> (20%) — nameserver redundancy, IPv6, DNSSEC.
+            Each dimension is scored 0-100 and weighted to produce a final grade from A+ to F.
+        </p>
+    </div>
+</div>
+
+<script>
+function scoreDomain() {
+    var domain = document.getElementById('domainInput').value.trim();
+    if (!domain) { showError('Please enter a domain name.'); return; }
+
+    document.getElementById('loading').style.display = 'block';
+    document.getElementById('results').style.display = 'none';
+    document.getElementById('errorMsg').style.display = 'none';
+    document.getElementById('scoreBtn').disabled = true;
+
+    fetch('/api/tools/score/' + encodeURIComponent(domain))
+        .then(function(r) { return r.json(); })
+        .then(function(json) {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('scoreBtn').disabled = false;
+            if (json.code !== 0) { showError(json.msg); return; }
+            renderResults(json.data);
+        })
+        .catch(function() {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('scoreBtn').disabled = false;
+            showError('Network error. Please try again.');
+        });
+}
+
+function renderResults(data) {
+    // Grade
+    document.getElementById('grade').innerText = data.grade;
+    document.getElementById('grade').style.color = data.gradeColor;
+    var gc = document.getElementById('gradeCard');
+    if (data.totalScore >= 80) gc.style.background = 'rgba(0,230,118,0.08)';
+    else if (data.totalScore >= 60) gc.style.background = 'rgba(255,171,0,0.08)';
+    else gc.style.background = 'rgba(255,82,82,0.08)';
+    gc.style.border = '1px solid ' + (data.totalScore >= 80 ? 'rgba(0,230,118,0.2)' : data.totalScore >= 60 ? 'rgba(255,171,0,0.2)' : 'rgba(255,82,82,0.2)');
+    document.getElementById('totalScore').innerText = data.totalScore + ' / 100';
+
+    // Category bars
+    var cats = data.categories;
+    var barsHtml = '';
+    var catKeys = ['domainAge', 'ssl', 'emailSecurity', 'securityHeaders', 'dnsConfiguration'];
+    for (var i = 0; i < catKeys.length; i++) {
+        var cat = cats[catKeys[i]];
+        if (!cat) continue;
+        var s = cat.score || 0;
+        var color = s >= 80 ? '#00e676' : s >= 60 ? '#ffab00' : '#ff5252';
+        barsHtml += '<div style="margin-bottom:12px;">' +
+            '<div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:3px;">' +
+            '<span style="color:var(--darker);">' + escapeHtml(cat.label) + ' <span style="color:var(--gray);">(' + (cat.weight||'') + ')</span></span>' +
+            '<span style="font-weight:600; color:' + color + ';">' + s + '/100</span></div>' +
+            '<div style="background:rgba(255,255,255,0.08); border-radius:4px; height:8px; overflow:hidden;">' +
+            '<div style="width:' + s + '%; height:100%; background:' + color + '; border-radius:4px; transition:width 0.5s;"></div>' +
+            '</div></div>';
+    }
+    document.getElementById('categoryBars').innerHTML = barsHtml;
+
+    // Recommendations
+    var recs = data.recommendations || [];
+    if (recs.length > 0) {
+        var recsHtml = '';
+        for (var j = 0; j < recs.length; j++) {
+            recsHtml += '<li style="margin-bottom:6px; color:var(--darker);">' + escapeHtml(recs[j]) + '</li>';
+        }
+        document.getElementById('recsList').innerHTML = recsHtml;
+        document.getElementById('recsSection').style.display = 'block';
+    } else {
+        document.getElementById('recsSection').style.display = 'none';
+    }
+
+    // Category detail tables
+    var detailsHtml = '<h2 style="font-size:20px; margin-bottom:15px; color:var(--darker);">Detailed Results</h2>';
+    for (var k = 0; k < catKeys.length; k++) {
+        var c = cats[catKeys[k]];
+        if (!c) continue;
+        var sc = c.score || 0;
+        var scColor = sc >= 80 ? '#00e676' : sc >= 60 ? '#ffab00' : '#ff5252';
+        detailsHtml += '<div style="margin-bottom:20px; background:var(--card-bg); border-radius:8px; padding:15px; border:1px solid var(--glass-border);">';
+        detailsHtml += '<h3 style="font-size:16px; margin-bottom:10px; color:var(--darker);">' + escapeHtml(c.label) + ' — <span style="color:' + scColor + ';">' + sc + '/100</span></h3>';
+        detailsHtml += '<table style="width:100%; font-size:13px; border-collapse:collapse;">';
+        var keys = Object.keys(c);
+        for (var m = 0; m < keys.length; m++) {
+            var key = keys[m];
+            if (['label','weight','score','recommendations','note'].indexOf(key) >= 0) continue;
+            var val = c[key];
+            var valHtml = '';
+            if (typeof val === 'boolean') {
+                valHtml = val ? '<span style="color:#00e676;">✅ Yes</span>' : '<span style="color:#ff5252;">❌ No</span>';
+            } else {
+                valHtml = escapeHtml(String(val));
+            }
+            detailsHtml += '<tr style="border-bottom:1px solid rgba(255,255,255,0.06);">' +
+                '<td style="padding:6px 10px; color:var(--gray); width:200px; min-width:200px; max-width:200px; word-break:break-word;">' + escapeHtml(key) + '</td>' +
+                '<td style="padding:6px 10px; font-weight:500; color:var(--darker); word-break:break-word;">' + valHtml + '</td></tr>';
+        }
+        if (c.note) {
+            detailsHtml += '<tr><td colspan="2" style="padding:6px 10px; color:var(--gray); font-style:italic;">' + escapeHtml(c.note) + '</td></tr>';
+        }
+        detailsHtml += '</table></div>';
+    }
+    document.getElementById('detailsSection').innerHTML = detailsHtml;
+
+    document.getElementById('results').style.display = 'block';
+}
+
+function showError(msg) {
+    document.getElementById('errorMsg').innerText = msg;
+    document.getElementById('errorMsg').style.display = 'block';
+}
+
+function escapeHtml(s) {
+    if (!s) return '';
+    var d = document.createElement('div');
+    d.appendChild(document.createTextNode(s));
+    return d.innerHTML;
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('domainInput').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') scoreDomain();
+    });
+    var params = new URLSearchParams(window.location.search);
+    if (params.get('d')) {
+        document.getElementById('domainInput').value = params.get('d');
+        scoreDomain();
+    }
+});
+</script>
+    <div th:replace="~{template::ad_banner_bottom}"></div>
+    </main>        <div th:replace="~{fragments/related-tools::related(slug='domain-score')}"></div>
+    
+    <footer th:replace="~{template::template_footer}"></footer>
+</body>
+</html>

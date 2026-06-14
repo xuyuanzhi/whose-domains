@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+
+    <main>
+        <div class="container">
+            <div class="info-page">
+                <nav class="breadcrumb">
+                    <a href="/">Home</a> &gt; 
+                    <a href="/help-center">Help Center</a> &gt; 
+                    <span>What is a Domain Name</span>
+                </nav>
+
+                <article class="info-content" itemscope itemtype="https://schema.org/Article">
+                    <h1>What is a Domain Name?</h1>
+                    
+                    <div class="info-section">
+                        <h2>Understanding Domain Names</h2>
+                        <p>A domain name is a human-readable address that identifies a website on the internet. It serves as a convenient way for people to find and access websites without having to remember complex numerical IP addresses.</p>
+                        
+                        <h3>How Domain Names Work</h3>
+                        <p>When you type a domain name into your browser, the Domain Name System (DNS) translates it into an IP address that computers use to locate web servers. This process happens in milliseconds and is essential for how the internet functions.</p>
+                        
+                        <div class="info-example">
+                            <strong>Example:</strong> When you type "example.com" into your browser, DNS translates it to an IP address like "93.184.216.34" so your computer can connect to the correct server.
+                        </div>
+
+                        <h3>Components of a Domain Name</h3>
+                        <ul>
+                            <li><strong>Second-Level Domain (SLD):</strong> The main part of the domain (e.g., "example" in example.com)</li>
+                            <li><strong>Top-Level Domain (TLD):</strong> The extension (e.g., ".com", ".org", ".net")</li>
+                            <li><strong>Subdomain:</strong> Optional prefix (e.g., "www" in www.example.com)</li>
+                        </ul>
+
+                        <h3>Why Domain Names Matter</h3>
+                        <p>Domain names are crucial for:</p>
+                        <ul>
+                            <li><strong>Brand Identity:</strong> Your domain name is often the first impression of your brand</li>
+                            <li><strong>Memorability:</strong> Easy-to-remember names help users return to your site</li>
+                            <li><strong>Credibility:</strong> A professional domain name builds trust with visitors</li>
+                            <li><strong>SEO:</strong> Domain names can impact search engine rankings</li>
+                        </ul>
+
+                        <h3>Types of Domain Names</h3>
+                        <p>Domain names can be categorized by their TLD:</p>
+                        <ul>
+                            <li><strong>Generic TLDs (gTLDs):</strong> .com, .org, .net, .info</li>
+                            <li><strong>Country Code TLDs (ccTLDs):</strong> .cn (China), .uk (United Kingdom), .jp (Japan)</li>
+                            <li><strong>Sponsored TLDs (sTLDs):</strong> .edu (education), .gov (government), .mil (military)</li>
+                            <li><strong>New gTLDs:</strong> .app, .blog, .shop, .tech</li>
+                        </ul>
+                    </div>
+
+                    <div class="info-navigation">
+                        <a href="/help-center" class="btn btn-secondary">&larr; Back to Help Center</a>
+                        <a href="/info/domain-structure-and-tlds" class="btn btn-primary">Next: Domain Structure and TLDs &rarr;</a>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </main>
+
+    <footer th:replace="~{template::template_footer}"></footer>
+</body>
+</html>

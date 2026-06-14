@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+
+    <main>
+        <div class="container">
+            <div class="info-page">
+                <nav class="breadcrumb">
+                    <a href="/">Home</a> &gt; 
+                    <a href="/help-center">Help Center</a> &gt; 
+                    <span>What is an SSL/TLS Certificate</span>
+                </nav>
+
+                <article class="info-content" itemscope itemtype="https://schema.org/Article">
+                    <h1>What is an SSL/TLS Certificate?</h1>
+                    
+                    <div class="info-section">
+                        <h2>Understanding SSL/TLS Certificates</h2>
+                        <p>An SSL/TLS certificate is a digital certificate that authenticates a website's identity and enables an encrypted connection between a web server and a browser. SSL stands for Secure Sockets Layer, while TLS (Transport Layer Security) is its more modern and secure successor.</p>
+                        
+                        <div class="info-box">
+                            <strong>Key Point:</strong> When you see the padlock icon and "https://" in your browser's address bar, it means the website is using an SSL/TLS certificate to secure the connection.
+                        </div>
+
+                        <h3>How SSL/TLS Works</h3>
+                        <p>SSL/TLS certificates use a cryptographic protocol to establish a secure connection through a process called the "SSL/TLS handshake":</p>
+                        <ol>
+                            <li><strong>Client Hello:</strong> Your browser connects to the server and requests identification</li>
+                            <li><strong>Server Hello:</strong> The server sends its SSL/TLS certificate containing the public key</li>
+                            <li><strong>Certificate Verification:</strong> Your browser verifies the certificate with a trusted Certificate Authority (CA)</li>
+                            <li><strong>Key Exchange:</strong> A symmetric session key is created for encrypting data</li>
+                            <li><strong>Encrypted Communication:</strong> All data exchanged is encrypted using the session key</li>
+                        </ol>
+
+                        <h3>Why SSL/TLS Certificates Matter</h3>
+                        <ul>
+                            <li><strong>Data Encryption:</strong> Protects sensitive information like passwords, credit card numbers, and personal data during transmission</li>
+                            <li><strong>Authentication:</strong> Verifies that you're connecting to the legitimate website, not an impostor</li>
+                            <li><strong>Trust:</strong> The padlock icon builds visitor confidence and trust</li>
+                            <li><strong>SEO Benefits:</strong> Google uses HTTPS as a ranking signal, so secured sites may rank higher</li>
+                            <li><strong>Compliance:</strong> Required for PCI DSS compliance and many data protection regulations</li>
+                            <li><strong>Browser Warnings:</strong> Browsers now mark HTTP sites as "Not Secure," deterring visitors</li>
+                        </ul>
+
+                        <h3>SSL vs TLS: What's the Difference?</h3>
+                        <p>While people often use "SSL" colloquially, modern websites actually use TLS:</p>
+                        <ul>
+                            <li><strong>SSL 1.0–3.0:</strong> Original protocols, now deprecated due to security vulnerabilities</li>
+                            <li><strong>TLS 1.0–1.1:</strong> Improved versions, also now deprecated</li>
+                            <li><strong>TLS 1.2:</strong> Widely supported and considered secure</li>
+                            <li><strong>TLS 1.3:</strong> Latest version with improved security and performance</li>
+                        </ul>
+
+                        <h3>Who Issues SSL/TLS Certificates?</h3>
+                        <p>Certificates are issued by Certificate Authorities (CAs), which are trusted organizations that verify the identity of certificate applicants:</p>
+                        <ul>
+                            <li><strong>Let's Encrypt:</strong> Free, automated, open CA</li>
+                            <li><strong>DigiCert:</strong> Premium CA for enterprise use</li>
+                            <li><strong>Sectigo (Comodo):</strong> Wide range of certificate types</li>
+                            <li><strong>GlobalSign:</strong> Enterprise and IoT certificates</li>
+                            <li><strong>GoDaddy:</strong> Popular registrar also offering certificates</li>
+                        </ul>
+
+                        <h3>What's Inside an SSL/TLS Certificate?</h3>
+                        <ul>
+                            <li>Domain name the certificate was issued for</li>
+                            <li>The person, organization, or device it was issued to</li>
+                            <li>The Certificate Authority that issued it</li>
+                            <li>The CA's digital signature</li>
+                            <li>Issue date and expiration date</li>
+                            <li>The public key</li>
+                            <li>SSL/TLS version</li>
+                        </ul>
+
+                        <div class="info-box">
+                            <strong>Tip:</strong> You can check any website's SSL/TLS certificate by clicking the padlock icon in your browser's address bar, or use our <a href="/tools/ssl-checker">SSL Checker tool</a>.
+                        </div>
+                    </div>
+
+                    <div class="info-navigation">
+                        <a href="/info/preventing-domain-fraud" class="btn btn-secondary">&larr; Previous: Preventing Domain Fraud</a>
+                        <a href="/info/types-of-ssl-certificates" class="btn btn-primary">Next: Types of SSL Certificates &rarr;</a>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </main>
+
+    <footer th:replace="~{template::template_footer}"></footer>
+</body>
+</html>

@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<!--/* Related Tools Fragment
+     Usage: <div th:replace="~{fragments/related-tools::related(slug='whois-lookup')}"></div>
+     slug values: whois-lookup | dns-analyzer | ssl-checker | domain-availability |
+                  bulk-domain-search | domain-history | domain-score | reverse-ip |
+                  domain-analyzer | competitor-analysis | rdap-lookup | related-domains |
+                  whois-compare | my-ip-address | json-formatter | timezone-converter |
+                  email-checker | domain-valuation | port-checker | ping-test
+*/-->
+<div th:fragment="related(slug)" class="related-tools-section">
+    <div class="container">
+        <div class="related-tools-header">
+            <span class="related-tools-title">Related Tools</span>
+            <a href="/tools" class="related-tools-all">Browse all tools <i class="fas fa-arrow-right"></i></a>
+        </div>
+
+        <div class="rel-tools-grid">
+
+            <!-- WHOIS Lookup -->
+            <th:block th:if="${slug == 'whois-lookup'}">
+                <a href="/tools/rdap-lookup"         class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-layer-group"></i></span><span class="rel-tool-info"><span class="rel-tool-name">RDAP Lookup</span><span class="rel-tool-desc">Modern WHOIS alternative</span></span></a>
+                <a href="/tools/whois-compare"       class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-columns"></i></span><span class="rel-tool-info"><span class="rel-tool-name">WHOIS Compare</span><span class="rel-tool-desc">Compare two domains side-by-side</span></span></a>
+                <a href="/tools/domain-history"      class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-history"></i></span><span class="rel-tool-info"><span class="rel-tool-name">WHOIS History</span><span class="rel-tool-desc">Track ownership changes</span></span></a>
+                <a href="/tools/domain-availability" class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-check-circle"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Availability Check</span><span class="rel-tool-desc">Is the domain for sale?</span></span></a>
+                <a href="/tools/domain-score"        class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-star"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Domain Health Score</span><span class="rel-tool-desc">SEO & technical metrics</span></span></a>
+            </th:block>
+
+            <!-- DNS Analyzer -->
+            <th:block th:if="${slug == 'dns-analyzer'}">
+                <a href="/tools/ssl-checker"   class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-lock"></i></span><span class="rel-tool-info"><span class="rel-tool-name">SSL Checker</span><span class="rel-tool-desc">Verify certificate validity</span></span></a>
+                <a href="/tools/domain-score"  class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-star"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Domain Health Score</span><span class="rel-tool-desc">SEO & technical metrics</span></span></a>
+                <a href="/tools/whois-lookup"  class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-search"></i></span><span class="rel-tool-info"><span class="rel-tool-name">WHOIS Lookup</span><span class="rel-tool-desc">Registration info & contacts</span></span></a>
+                <a href="/tools/reverse-ip"    class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-exchange-alt"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Reverse IP Lookup</span><span class="rel-tool-desc">Find domains on same server</span></span></a>
+                <a href="/tools/ping-test"     class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-satellite-dish"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Ping Test</span><span class="rel-tool-desc">Check host reachability</span></span></a>
+            </th:block>
+
+            <!-- SSL Checker -->
+            <th:block th:if="${slug == 'ssl-checker'}">
+                <a href="/tools/dns-analyzer"  class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-server"></i></span><span class="rel-tool-info"><span class="rel-tool-name">DNS Analyzer</span><span class="rel-tool-desc">Inspect DNS records</span></span></a>
+                <a href="/tools/domain-score"  class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-star"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Domain Health Score</span><span class="rel-tool-desc">SEO & technical metrics</span></span></a>
+                <a href="/tools/whois-lookup"  class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-search"></i></span><span class="rel-tool-info"><span class="rel-tool-name">WHOIS Lookup</span><span class="rel-tool-desc">Registration info & contacts</span></span></a>
+                <a href="/tools/port-checker"  class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-plug"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Port Checker</span><span class="rel-tool-desc">Check open ports (443, 80…)</span></span></a>
+                <a href="/tools/ping-test"     class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-satellite-dish"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Ping Test</span><span class="rel-tool-desc">Check host reachability</span></span></a>
+            </th:block>
+
+            <!-- Domain Availability -->
+            <th:block th:if="${slug == 'domain-availability'}">
+                <a href="/tools/bulk-domain-search" class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-list"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Bulk Domain Search</span><span class="rel-tool-desc">Check hundreds at once</span></span></a>
+                <a href="/tools/whois-lookup"       class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-search"></i></span><span class="rel-tool-info"><span class="rel-tool-name">WHOIS Lookup</span><span class="rel-tool-desc">Registration info & contacts</span></span></a>
+                <a href="/tools/domain-history"     class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-history"></i></span><span class="rel-tool-info"><span class="rel-tool-name">WHOIS History</span><span class="rel-tool-desc">Track ownership changes</span></span></a>
+                <a href="/tools/domain-valuation"   class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-gem"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Domain Valuation</span><span class="rel-tool-desc">Estimate domain value</span></span></a>
+                <a href="/tools/domain-score"       class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-star"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Domain Health Score</span><span class="rel-tool-desc">SEO & technical metrics</span></span></a>
+            </th:block>
+
+            <!-- Bulk Domain Search -->
+            <th:block th:if="${slug == 'bulk-domain-search'}">
+                <a href="/tools/domain-availability" class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-check-circle"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Availability Check</span><span class="rel-tool-desc">Is the domain for sale?</span></span></a>
+                <a href="/tools/whois-lookup"        class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-search"></i></span><span class="rel-tool-info"><span class="rel-tool-name">WHOIS Lookup</span><span class="rel-tool-desc">Registration info & contacts</span></span></a>
+                <a href="/tools/whois-compare"       class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-columns"></i></span><span class="rel-tool-info"><span class="rel-tool-name">WHOIS Compare</span><span class="rel-tool-desc">Compare two domains side-by-side</span></span></a>
+                <a href="/tools/domain-score"        class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-star"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Domain Health Score</span><span class="rel-tool-desc">SEO & technical metrics</span></span></a>
+                <a href="/tools/domain-valuation"    class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-gem"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Domain Valuation</span><span class="rel-tool-desc">Estimate domain value</span></span></a>
+            </th:block>
+
+            <!-- Domain History -->
+            <th:block th:if="${slug == 'domain-history'}">
+                <a href="/tools/whois-lookup"        class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-search"></i></span><span class="rel-tool-info"><span class="rel-tool-name">WHOIS Lookup</span><span class="rel-tool-desc">Registration info & contacts</span></span></a>
+                <a href="/tools/rdap-lookup"         class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-layer-group"></i></span><span class="rel-tool-info"><span class="rel-tool-name">RDAP Lookup</span><span class="rel-tool-desc">Modern WHOIS alternative</span></span></a>
+                <a href="/tools/whois-compare"       class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-columns"></i></span><span class="rel-tool-info"><span class="rel-tool-name">WHOIS Compare</span><span class="rel-tool-desc">Compare two domains side-by-side</span></span></a>
+                <a href="/tools/domain-availability" class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-check-circle"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Availability Check</span><span class="rel-tool-desc">Is the domain for sale?</span></span></a>
+                <a href="/tools/domain-score"        class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-star"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Domain Health Score</span><span class="rel-tool-desc">SEO & technical metrics</span></span></a>
+            </th:block>
+
+            <!-- Domain Score -->
+            <th:block th:if="${slug == 'domain-score'}">
+                <a href="/tools/ssl-checker"      class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-lock"></i></span><span class="rel-tool-info"><span class="rel-tool-name">SSL Checker</span><span class="rel-tool-desc">Verify certificate validity</span></span></a>
+                <a href="/tools/dns-analyzer"     class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-server"></i></span><span class="rel-tool-info"><span class="rel-tool-name">DNS Analyzer</span><span class="rel-tool-desc">Inspect DNS records</span></span></a>
+                <a href="/tools/whois-lookup"     class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-search"></i></span><span class="rel-tool-info"><span class="rel-tool-name">WHOIS Lookup</span><span class="rel-tool-desc">Registration info & contacts</span></span></a>
+                <a href="/tools/email-checker"    class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-envelope-open-text"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Email Checker</span><span class="rel-tool-desc">Validate MX, SPF, DKIM</span></span></a>
+                <a href="/tools/domain-valuation" class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-gem"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Domain Valuation</span><span class="rel-tool-desc">Estimate domain value</span></span></a>
+            </th:block>
+
+            <!-- Reverse IP -->
+            <th:block th:if="${slug == 'reverse-ip'}">
+                <a href="/tools/dns-analyzer"        class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-server"></i></span><span class="rel-tool-info"><span class="rel-tool-name">DNS Analyzer</span><span class="rel-tool-desc">Inspect DNS records</span></span></a>
+                <a href="/tools/whois-lookup"        class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-search"></i></span><span class="rel-tool-info"><span class="rel-tool-name">WHOIS Lookup</span><span class="rel-tool-desc">Registration info & contacts</span></span></a>
+                <a href="/tools/related-domains"     class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-project-diagram"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Related Domains</span><span class="rel-tool-desc">Discover linked domains</span></span></a>
+                <a href="/tools/competitor-analysis" class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-chess-knight"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Competitor Analysis</span><span class="rel-tool-desc">Analyse competitor sites</span></span></a>
+                <a href="/tools/my-ip-address"       class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-network-wired"></i></span><span class="rel-tool-info"><span class="rel-tool-name">My IP Address</span><span class="rel-tool-desc">Your public IP & location</span></span></a>
+            </th:block>
+
+            <!-- Domain Analyzer -->
+            <th:block th:if="${slug == 'domain-analyzer'}">
+                <a href="/tools/competitor-analysis" class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-chess-knight"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Competitor Analysis</span><span class="rel-tool-desc">Analyse competitor sites</span></span></a>
+                <a href="/tools/domain-score"        class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-star"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Domain Health Score</span><span class="rel-tool-desc">SEO & technical metrics</span></span></a>
+                <a href="/tools/dns-analyzer"        class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-server"></i></span><span class="rel-tool-info"><span class="rel-tool-name">DNS Analyzer</span><span class="rel-tool-desc">Inspect DNS records</span></span></a>
+                <a href="/tools/domain-valuation"    class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-gem"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Domain Valuation</span><span class="rel-tool-desc">Estimate domain value</span></span></a>
+                <a href="/tools/related-domains"     class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-project-diagram"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Related Domains</span><span class="rel-tool-desc">Discover linked domains</span></span></a>
+            </th:block>
+
+            <!-- Competitor Analysis -->
+            <th:block th:if="${slug == 'competitor-analysis'}">
+                <a href="/tools/domain-analyzer"     class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-chart-bar"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Domain Analyzer</span><span class="rel-tool-desc">Full domain research suite</span></span></a>
+                <a href="/tools/related-domains"     class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-project-diagram"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Related Domains</span><span class="rel-tool-desc">Discover linked domains</span></span></a>
+                <a href="/tools/reverse-ip"          class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-exchange-alt"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Reverse IP Lookup</span><span class="rel-tool-desc">Find domains on same server</span></span></a>
+                <a href="/tools/whois-compare"       class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-columns"></i></span><span class="rel-tool-info"><span class="rel-tool-name">WHOIS Compare</span><span class="rel-tool-desc">Compare two domains side-by-side</span></span></a>
+                <a href="/tools/domain-score"        class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-star"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Domain Health Score</span><span class="rel-tool-desc">SEO & technical metrics</span></span></a>
+            </th:block>
+
+            <!-- RDAP Lookup -->
+            <th:block th:if="${slug == 'rdap-lookup'}">
+                <a href="/tools/whois-lookup"        class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-search"></i></span><span class="rel-tool-info"><span class="rel-tool-name">WHOIS Lookup</span><span class="rel-tool-desc">Registration info & contacts</span></span></a>
+                <a href="/tools/domain-history"      class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-history"></i></span><span class="rel-tool-info"><span class="rel-tool-name">WHOIS History</span><span class="rel-tool-desc">Track ownership changes</span></span></a>
+                <a href="/tools/whois-compare"       class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-columns"></i></span><span class="rel-tool-info"><span class="rel-tool-name">WHOIS Compare</span><span class="rel-tool-desc">Compare two domains side-by-side</span></span></a>
+                <a href="/tools/domain-availability" class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-check-circle"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Availability Check</span><span class="rel-tool-desc">Is the domain for sale?</span></span></a>
+                <a href="/tools/dns-analyzer"        class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-server"></i></span><span class="rel-tool-info"><span class="rel-tool-name">DNS Analyzer</span><span class="rel-tool-desc">Inspect DNS records</span></span></a>
+            </th:block>
+
+            <!-- Related Domains -->
+            <th:block th:if="${slug == 'related-domains'}">
+                <a href="/tools/reverse-ip"          class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-exchange-alt"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Reverse IP Lookup</span><span class="rel-tool-desc">Find domains on same server</span></span></a>
+                <a href="/tools/competitor-analysis" class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-chess-knight"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Competitor Analysis</span><span class="rel-tool-desc">Analyse competitor sites</span></span></a>
+                <a href="/tools/whois-lookup"        class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-search"></i></span><span class="rel-tool-info"><span class="rel-tool-name">WHOIS Lookup</span><span class="rel-tool-desc">Registration info & contacts</span></span></a>
+                <a href="/tools/whois-compare"       class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-columns"></i></span><span class="rel-tool-info"><span class="rel-tool-name">WHOIS Compare</span><span class="rel-tool-desc">Compare two domains side-by-side</span></span></a>
+                <a href="/tools/domain-analyzer"     class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-chart-bar"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Domain Analyzer</span><span class="rel-tool-desc">Full domain research suite</span></span></a>
+            </th:block>
+
+            <!-- WHOIS Compare -->
+            <th:block th:if="${slug == 'whois-compare'}">
+                <a href="/tools/whois-lookup"        class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-search"></i></span><span class="rel-tool-info"><span class="rel-tool-name">WHOIS Lookup</span><span class="rel-tool-desc">Registration info & contacts</span></span></a>
+                <a href="/tools/rdap-lookup"         class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-layer-group"></i></span><span class="rel-tool-info"><span class="rel-tool-name">RDAP Lookup</span><span class="rel-tool-desc">Modern WHOIS alternative</span></span></a>
+                <a href="/tools/domain-history"      class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-history"></i></span><span class="rel-tool-info"><span class="rel-tool-name">WHOIS History</span><span class="rel-tool-desc">Track ownership changes</span></span></a>
+                <a href="/tools/related-domains"     class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-project-diagram"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Related Domains</span><span class="rel-tool-desc">Discover linked domains</span></span></a>
+                <a href="/tools/bulk-domain-search"  class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-list"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Bulk Domain Search</span><span class="rel-tool-desc">Check hundreds at once</span></span></a>
+            </th:block>
+
+            <!-- My IP Address -->
+            <th:block th:if="${slug == 'my-ip-address'}">
+                <a href="/tools/reverse-ip"   class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-exchange-alt"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Reverse IP Lookup</span><span class="rel-tool-desc">Find domains on same server</span></span></a>
+                <a href="/tools/dns-analyzer" class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-server"></i></span><span class="rel-tool-info"><span class="rel-tool-name">DNS Analyzer</span><span class="rel-tool-desc">Inspect DNS records</span></span></a>
+                <a href="/tools/ping-test"    class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-satellite-dish"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Ping Test</span><span class="rel-tool-desc">Check host reachability</span></span></a>
+                <a href="/tools/port-checker" class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-plug"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Port Checker</span><span class="rel-tool-desc">Check open TCP ports</span></span></a>
+                <a href="/tools/whois-lookup" class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-search"></i></span><span class="rel-tool-info"><span class="rel-tool-name">WHOIS Lookup</span><span class="rel-tool-desc">Registration info & contacts</span></span></a>
+            </th:block>
+
+            <!-- JSON Formatter -->
+            <th:block th:if="${slug == 'json-formatter'}">
+                <a href="/tools/rdap-lookup"        class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-layer-group"></i></span><span class="rel-tool-info"><span class="rel-tool-name">RDAP Lookup</span><span class="rel-tool-desc">Modern WHOIS alternative</span></span></a>
+                <a href="/tools/whois-lookup"       class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-search"></i></span><span class="rel-tool-info"><span class="rel-tool-name">WHOIS Lookup</span><span class="rel-tool-desc">Registration info & contacts</span></span></a>
+                <a href="/tools/dns-analyzer"       class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-server"></i></span><span class="rel-tool-info"><span class="rel-tool-name">DNS Analyzer</span><span class="rel-tool-desc">Inspect DNS records</span></span></a>
+                <a href="/tools/timezone-converter" class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-clock"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Timezone Converter</span><span class="rel-tool-desc">Convert times globally</span></span></a>
+                <a href="/tools/domain-score"       class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-star"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Domain Health Score</span><span class="rel-tool-desc">SEO & technical metrics</span></span></a>
+            </th:block>
+
+            <!-- Timezone Converter -->
+            <th:block th:if="${slug == 'timezone-converter'}">
+                <a href="/tools/json-formatter" class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-code"></i></span><span class="rel-tool-info"><span class="rel-tool-name">JSON Formatter</span><span class="rel-tool-desc">Format & validate JSON</span></span></a>
+                <a href="/tools/my-ip-address"  class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-network-wired"></i></span><span class="rel-tool-info"><span class="rel-tool-name">My IP Address</span><span class="rel-tool-desc">Your public IP & location</span></span></a>
+                <a href="/tools/whois-lookup"   class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-search"></i></span><span class="rel-tool-info"><span class="rel-tool-name">WHOIS Lookup</span><span class="rel-tool-desc">Registration info & contacts</span></span></a>
+                <a href="/tools/ping-test"      class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-satellite-dish"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Ping Test</span><span class="rel-tool-desc">Check host reachability</span></span></a>
+                <a href="/tools/domain-score"   class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-star"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Domain Health Score</span><span class="rel-tool-desc">SEO & technical metrics</span></span></a>
+            </th:block>
+
+            <!-- Email Checker -->
+            <th:block th:if="${slug == 'email-checker'}">
+                <a href="/tools/dns-analyzer"        class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-server"></i></span><span class="rel-tool-info"><span class="rel-tool-name">DNS Analyzer</span><span class="rel-tool-desc">Inspect DNS records</span></span></a>
+                <a href="/tools/domain-score"        class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-star"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Domain Health Score</span><span class="rel-tool-desc">SEO & technical metrics</span></span></a>
+                <a href="/tools/whois-lookup"        class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-search"></i></span><span class="rel-tool-info"><span class="rel-tool-name">WHOIS Lookup</span><span class="rel-tool-desc">Registration info & contacts</span></span></a>
+                <a href="/tools/ssl-checker"         class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-lock"></i></span><span class="rel-tool-info"><span class="rel-tool-name">SSL Checker</span><span class="rel-tool-desc">Verify certificate validity</span></span></a>
+                <a href="/tools/domain-availability" class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-check-circle"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Availability Check</span><span class="rel-tool-desc">Is the domain for sale?</span></span></a>
+            </th:block>
+
+            <!-- Domain Valuation -->
+            <th:block th:if="${slug == 'domain-valuation'}">
+                <a href="/tools/domain-availability" class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-check-circle"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Availability Check</span><span class="rel-tool-desc">Is the domain for sale?</span></span></a>
+                <a href="/tools/domain-score"        class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-star"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Domain Health Score</span><span class="rel-tool-desc">SEO & technical metrics</span></span></a>
+                <a href="/tools/domain-history"      class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-history"></i></span><span class="rel-tool-info"><span class="rel-tool-name">WHOIS History</span><span class="rel-tool-desc">Track ownership changes</span></span></a>
+                <a href="/tools/whois-lookup"        class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-search"></i></span><span class="rel-tool-info"><span class="rel-tool-name">WHOIS Lookup</span><span class="rel-tool-desc">Registration info & contacts</span></span></a>
+                <a href="/tools/bulk-domain-search"  class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-list"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Bulk Domain Search</span><span class="rel-tool-desc">Check hundreds at once</span></span></a>
+            </th:block>
+
+            <!-- Port Checker -->
+            <th:block th:if="${slug == 'port-checker'}">
+                <a href="/tools/ping-test"     class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-satellite-dish"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Ping Test</span><span class="rel-tool-desc">Check host reachability</span></span></a>
+                <a href="/tools/dns-analyzer"  class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-server"></i></span><span class="rel-tool-info"><span class="rel-tool-name">DNS Analyzer</span><span class="rel-tool-desc">Inspect DNS records</span></span></a>
+                <a href="/tools/ssl-checker"   class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-lock"></i></span><span class="rel-tool-info"><span class="rel-tool-name">SSL Checker</span><span class="rel-tool-desc">Verify certificate validity</span></span></a>
+                <a href="/tools/my-ip-address" class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-network-wired"></i></span><span class="rel-tool-info"><span class="rel-tool-name">My IP Address</span><span class="rel-tool-desc">Your public IP & location</span></span></a>
+                <a href="/tools/reverse-ip"    class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-exchange-alt"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Reverse IP Lookup</span><span class="rel-tool-desc">Find domains on same server</span></span></a>
+            </th:block>
+
+            <!-- Ping Test -->
+            <th:block th:if="${slug == 'ping-test'}">
+                <a href="/tools/port-checker"  class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-plug"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Port Checker</span><span class="rel-tool-desc">Check open TCP ports</span></span></a>
+                <a href="/tools/dns-analyzer"  class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-server"></i></span><span class="rel-tool-info"><span class="rel-tool-name">DNS Analyzer</span><span class="rel-tool-desc">Inspect DNS records</span></span></a>
+                <a href="/tools/ssl-checker"   class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-lock"></i></span><span class="rel-tool-info"><span class="rel-tool-name">SSL Checker</span><span class="rel-tool-desc">Verify certificate validity</span></span></a>
+                <a href="/tools/my-ip-address" class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-network-wired"></i></span><span class="rel-tool-info"><span class="rel-tool-name">My IP Address</span><span class="rel-tool-desc">Your public IP & location</span></span></a>
+                <a href="/tools/domain-score"  class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-star"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Domain Health Score</span><span class="rel-tool-desc">SEO & technical metrics</span></span></a>
+            </th:block>
+
+            <!-- Fallback -->
+            <th:block th:if="${slug == null or (
+                slug != 'whois-lookup' and slug != 'dns-analyzer' and slug != 'ssl-checker' and
+                slug != 'domain-availability' and slug != 'bulk-domain-search' and slug != 'domain-history' and
+                slug != 'domain-score' and slug != 'reverse-ip' and slug != 'domain-analyzer' and
+                slug != 'competitor-analysis' and slug != 'rdap-lookup' and slug != 'related-domains' and
+                slug != 'whois-compare' and slug != 'my-ip-address' and slug != 'json-formatter' and
+                slug != 'timezone-converter' and slug != 'email-checker' and slug != 'domain-valuation' and
+                slug != 'port-checker' and slug != 'ping-test')}">
+                <a href="/tools/whois-lookup"        class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-search"></i></span><span class="rel-tool-info"><span class="rel-tool-name">WHOIS Lookup</span><span class="rel-tool-desc">Registration info & contacts</span></span></a>
+                <a href="/tools/dns-analyzer"        class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-server"></i></span><span class="rel-tool-info"><span class="rel-tool-name">DNS Analyzer</span><span class="rel-tool-desc">Inspect DNS records</span></span></a>
+                <a href="/tools/ssl-checker"         class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-lock"></i></span><span class="rel-tool-info"><span class="rel-tool-name">SSL Checker</span><span class="rel-tool-desc">Verify certificate validity</span></span></a>
+                <a href="/tools/domain-score"        class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-star"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Domain Health Score</span><span class="rel-tool-desc">SEO & technical metrics</span></span></a>
+                <a href="/tools/domain-availability" class="rel-tool-card"><span class="rel-tool-icon"><i class="fas fa-check-circle"></i></span><span class="rel-tool-info"><span class="rel-tool-name">Availability Check</span><span class="rel-tool-desc">Is the domain for sale?</span></span></a>
+            </th:block>
+
+        </div>
+    </div>
+</div>
+</body>
+</html>

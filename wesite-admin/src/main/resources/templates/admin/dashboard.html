@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+
+    <main>
+        <div class="container">
+            <div class="admin-panel">
+                <h1>Admin Dashboard</h1>
+                
+                <div class="dashboard-stats">
+                    <div class="stat-card">
+                        <h3>Total Contacts</h3>
+                        <p id="totalContacts">Loading...</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Today's Contacts</h3>
+                        <p id="todaysContacts">Loading...</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Pending Reviews</h3>
+                        <p id="pendingReviews">0</p>
+                    </div>
+                </div>
+                
+                <div class="quick-actions">
+                    <h2>Quick Actions</h2>
+                    <div class="actions-grid">
+                        <a href="/admin/contacts" class="action-card">
+                            <h3>Manage Contacts</h3>
+                            <p>View and manage contact form submissions</p>
+                        </a>
+                        <a href="#" class="action-card">
+                            <h3>System Settings</h3>
+                            <p>Configure system parameters</p>
+                        </a>
+                        <a href="#" class="action-card">
+                            <h3>User Management</h3>
+                            <p>Manage user accounts</p>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer th:replace="~{template::template_footer}"></footer>
+    
+    <script th:src="@{/static/js/jquery.min.js}"></script>
+    <script>
+        $(document).ready(function() {
+            loadDashboardStats();
+        });
+        
+        function loadDashboardStats() {
+            // Load total contacts
+            $.get('/admin/contacts/stats', function(response) {
+                if (response.code === 0) {
+                    $('#totalContacts').text(response.data.total || 0);
+                    $('#todaysContacts').text(response.data.today || 0);
+                }
+            });
+        }
+    </script>
+</body>
+</html>

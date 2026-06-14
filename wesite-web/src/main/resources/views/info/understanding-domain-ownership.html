@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+
+    <main>
+        <div class="container">
+            <div class="info-page">
+                <nav class="breadcrumb">
+                    <a href="/">Home</a> &gt; 
+                    <a href="/help-center">Help Center</a> &gt; 
+                    <span>Understanding Domain Ownership</span>
+                </nav>
+
+                <article class="info-content" itemscope itemtype="https://schema.org/Article">
+                    <h1>Understanding Domain Ownership</h1>
+                    
+                    <div class="info-section">
+                        <h2>What Does Domain Ownership Mean?</h2>
+                        <p>Domain ownership gives you the exclusive right to use a specific domain name for a defined period. However, it's important to understand that you're actually leasing the domain, not permanently owning it.</p>
+                        
+                        <h3>Domain Ownership Rights</h3>
+                        <p>As a domain owner (registrant), you have the right to:</p>
+                        <ul>
+                            <li>Use the domain for websites, email, and other services</li>
+                            <li>Transfer the domain to another registrar</li>
+                            <li>Sell or lease the domain to others</li>
+                            <li>Configure DNS settings and nameservers</li>
+                            <li>Update contact information</li>
+                            <li>Enable or disable privacy protection</li>
+                            <li>Lock or unlock the domain for transfers</li>
+                        </ul>
+
+                        <h3>Domain Ownership Responsibilities</h3>
+                        <p>With ownership comes responsibilities:</p>
+                        <ul>
+                            <li><strong>Renewal:</strong> Pay renewal fees to maintain ownership</li>
+                            <li><strong>Accurate Information:</strong> Keep contact details current in WHOIS</li>
+                            <li><strong>Compliance:</strong> Follow registrar and ICANN policies</li>
+                            <li><strong>Security:</strong> Protect your domain from unauthorized access</li>
+                            <li><strong>Legal:</strong> Ensure domain use doesn't violate laws or trademarks</li>
+                        </ul>
+
+                        <h3>Verifying Domain Ownership</h3>
+                        <p>You can verify domain ownership through:</p>
+                        <ul>
+                            <li><strong>WHOIS Lookup:</strong> Check the registrant information in WHOIS database</li>
+                            <li><strong>Registrar Account:</strong> Log into your registrar account</li>
+                            <li><strong>Email Verification:</strong> Receive emails at the domain's email addresses</li>
+                            <li><strong>DNS Control:</strong> Demonstrate ability to modify DNS records</li>
+                            <li><strong>File Upload:</strong> Upload verification files to the website</li>
+                        </ul>
+
+                        <h3>Domain Ownership Disputes</h3>
+                        <p>Disputes can arise over domain ownership. Common scenarios include:</p>
+                        <ul>
+                            <li><strong>Trademark Infringement:</strong> Domain conflicts with a trademark</li>
+                            <li><strong>Cybersquatting:</strong> Bad-faith registration of trademarked names</li>
+                            <li><strong>Expired Domains:</strong> Disputes over dropped domains</li>
+                            <li><strong>Unauthorized Transfers:</strong> Domain transferred without owner consent</li>
+                        </ul>
+                        <p>Disputes are typically resolved through:</p>
+                        <ul>
+                            <li>ICANN's Uniform Domain-Name Dispute-Resolution Policy (UDRP)</li>
+                            <li>Legal proceedings</li>
+                            <li>Direct negotiation between parties</li>
+                        </ul>
+
+                        <h3>Protecting Your Domain Ownership</h3>
+                        <ul>
+                            <li><strong>Enable Domain Lock:</strong> Prevent unauthorized transfers</li>
+                            <li><strong>Use Strong Passwords:</strong> Secure your registrar account</li>
+                            <li><strong>Enable Two-Factor Authentication:</strong> Add extra security layer</li>
+                            <li><strong>Keep Contact Info Updated:</strong> Receive important notifications</li>
+                            <li><strong>Enable Auto-Renewal:</strong> Prevent accidental expiration</li>
+                            <li><strong>Monitor Expiration Dates:</strong> Set calendar reminders</li>
+                            <li><strong>Use Privacy Protection:</strong> Hide personal information from public WHOIS</li>
+                        </ul>
+
+                        <h3>Transferring Domain Ownership</h3>
+                        <p>To transfer ownership to another party:</p>
+                        <ol>
+                            <li>Unlock the domain at your current registrar</li>
+                            <li>Obtain the authorization (EPP) code</li>
+                            <li>Provide the code to the new owner</li>
+                            <li>New owner initiates transfer at their registrar</li>
+                            <li>Approve the transfer via email confirmation</li>
+                            <li>Wait for transfer completion (5-7 days)</li>
+                        </ol>
+                    </div>
+
+                    <div class="info-navigation">
+                        <a href="/info/how-domain-registration-works" class="btn btn-secondary">&larr; Previous: How Domain Registration Works</a>
+                        <a href="/info/what-is-whois" class="btn btn-primary">Next: What is WHOIS &rarr;</a>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </main>
+
+    <footer th:replace="~{template::template_footer}"></footer>
+</body>
+</html>

@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+    <main>
+        <section class="hero">
+            <div class="container">
+                <div class="hero-content">
+                    <h1>Ping Test</h1>
+                    <p>Check if any website or server is online and measure its response time. Dual-probe: ICMP + HTTP HEAD check.</p>
+                    <div class="search-container">
+                        <input type="text" id="hostInput" class="search-input"
+                               placeholder="Enter hostname or IP (e.g. google.com)"
+                               autocomplete="off" autocapitalize="none" spellcheck="false">
+                        <button id="pingBtn" class="search-btn">
+                            <i class="fas fa-satellite-dish"></i> Ping
+                        </button>
+                    </div>
+                    <div class="example-text">Try: google.com, cloudflare.com, 1.1.1.1</div>
+                </div>
+            </div>
+        </section>
+
+        <div th:replace="~{template::ad_banner_top}"></div>
+
+        <div class="container" style="max-width:800px;">
+<div id="resultsSection" class="results-section">
+
+                <!-- Status hero -->
+                <div class="result-card" style="text-align:center; padding:40px 24px;">
+                    <div id="statusIcon" style="font-size:56px; margin-bottom:16px;"></div>
+                    <div id="statusText" style="font-size:1.8rem;font-weight:800;margin-bottom:8px;"></div>
+                    <div id="hostDisplay" style="font-size:1rem;color:var(--gray);margin-bottom:8px;"></div>
+                    <div id="ipDisplay" style="font-size:13px;color:var(--gray);"></div>
+                    <div id="speedBadge" style="margin-top:16px;"></div>
+                </div>
+
+                <!-- Probe results -->
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                    <div class="result-card" style="text-align:center;padding:24px;">
+                        <div style="font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--gray);margin-bottom:10px;">ICMP Ping</div>
+                        <div id="icmpStatus" style="font-size:1.8rem;margin-bottom:6px;"></div>
+                        <div id="icmpMs" style="font-size:13px;color:var(--gray);"></div>
+                    </div>
+                    <div class="result-card" style="text-align:center;padding:24px;">
+                        <div style="font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--gray);margin-bottom:10px;">HTTP Check</div>
+                        <div id="httpStatus" style="font-size:1.8rem;margin-bottom:6px;"></div>
+                        <div id="httpMs" style="font-size:13px;color:var(--gray);"></div>
+                    </div>
+                </div>
+
+                <!-- Details table -->
+                <div class="result-card">
+                    <h3 style="margin-bottom:14px;"><i class="fas fa-info-circle"></i> Details</h3>
+                    <div id="detailsTable"></div>
+                </div>
+
+                <button class="search-again" onclick="reset()">
+                    <i class="fas fa-sync-alt"></i> Ping Again
+                </button>
+            </div>
+        </div>
+    </main>
+
+        <div th:replace="~{fragments/related-tools::related(slug='ping-test')}"></div>
+    <footer th:replace="~{template::template_footer}"></footer>
+
+    <script>
+        var hostInput = document.getElementById('hostInput');
+        document.getElementById('pingBtn').addEventListener('click', doPing);
+        hostInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') doPing(); });
+
+        var params = new URLSearchParams(window.location.search);
+        if (params.get('host')) { hostInput.value = params.get('host'); doPing(); }
+
+        async function doPing() {
+            var host = hostInput.value.trim();
+            if (!host) return;
+            showLoader('Pinging host...');
+            document.getElementById('resultsSection').classList.remove('active');
+            try {
+                var r = await fetch('/api/tools/ping', {
+                    method: 'POST',
+                    headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({host: host})
+                });
+                var json = await r.json();
+                if (json.code === 0) renderResult(json.data);
+                else alert(json.msg || 'Ping failed');
+            } catch(e) { alert('Network error'); }
+            finally { hideLoader(); }
+        }
+
+        function renderResult(d) {
+            var online = d.online;
+            document.getElementById('statusIcon').textContent = online ? '✅' : '❌';
+            document.getElementById('statusText').textContent = online ? 'Online' : 'Offline / Unreachable';
+            document.getElementById('statusText').style.color = online ? '#69f0ae' : '#ff5252';
+            document.getElementById('hostDisplay').textContent = d.host;
+            document.getElementById('ipDisplay').textContent = d.resolvedIp ? 'Resolved IP: ' + d.resolvedIp : '';
+
+            // Speed badge
+            var speedColors = { Excellent:'#69f0ae', Good:'#64ffda', Fair:'#ffc107', Slow:'#ff8a65', 'N/A':'var(--gray)' };
+            var sc = speedColors[d.speed] || 'var(--gray)';
+            if (d.speed && d.speed !== 'N/A') {
+                document.getElementById('speedBadge').innerHTML =
+                    '<span style="padding:5px 18px;border-radius:20px;font-weight:700;background:' + sc + '22;color:' + sc + ';">' +
+                    d.speed + (d.avgResponseMs ? ' — ' + d.avgResponseMs + ' ms avg' : '') + '</span>';
+            }
+
+            // ICMP
+            document.getElementById('icmpStatus').textContent = d.icmpReachable ? '✅' : '❌';
+            document.getElementById('icmpMs').textContent = d.icmpResponseMs != null ? d.icmpResponseMs + ' ms' : '—';
+
+            // HTTP
+            var httpOk = d.httpReachable;
+            document.getElementById('httpStatus').innerHTML = httpOk
+                ? '✅' + (d.httpStatus ? ' <small style="font-size:.7em;color:var(--gray);">HTTP ' + d.httpStatus + '</small>' : '')
+                : '❌';
+            document.getElementById('httpMs').textContent = d.httpResponseMs != null ? d.httpResponseMs + ' ms' : '—';
+
+            // Details
+            document.getElementById('detailsTable').innerHTML =
+                '<table style="width:100%;border-collapse:collapse;">' +
+                row('Host', d.host) +
+                row('Resolved IP', d.resolvedIp || '—') +
+                row('ICMP Reachable', d.icmpReachable ? 'Yes' : 'No') +
+                row('ICMP Response', d.icmpResponseMs != null ? d.icmpResponseMs + ' ms' : '—') +
+                row('HTTP Reachable', d.httpReachable ? 'Yes' : 'No') +
+                row('HTTP Status Code', d.httpStatus || '—') +
+                row('HTTP Response', d.httpResponseMs != null ? d.httpResponseMs + ' ms' : '—') +
+                row('Avg Response', d.avgResponseMs != null ? d.avgResponseMs + ' ms' : '—') +
+                row('Speed Rating', d.speed || '—') +
+                '</table>';
+
+            document.getElementById('resultsSection').classList.add('active');
+            document.getElementById('resultsSection').scrollIntoView({behavior:'smooth'});
+        }
+
+        function row(k, v) {
+            return '<tr style="border-bottom:1px solid rgba(255,255,255,0.06);">' +
+                '<td style="padding:10px 0;color:var(--gray);width:40%;">' + k + '</td>' +
+                '<td style="padding:10px 0;font-weight:600;">' + v + '</td></tr>';
+        }
+
+        function reset() {
+            hostInput.value = '';
+            document.getElementById('resultsSection').classList.remove('active');
+            hostInput.focus();
+        }
+    </script>
+</body>
+</html>

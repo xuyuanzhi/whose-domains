@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+    <main>
+    <section class="hero">
+        <div class="container">
+            <div class="hero-content">
+                <h1>Expiring Domains – Find Domains About to Expire</h1>
+                <p>Browse domains expiring soon and discover premium domain names before they become available. A valuable resource for domain investors, brand protection teams, and businesses monitoring the domain market.</p>
+            </div>
+        </div>
+    </section>
+
+    <div class="container">
+
+    <!-- Filters -->
+    <div class="expiring-filters">
+        <div class="expiring-filters-row">
+            <div class="expiring-filter-group">
+                <label>Expiring Within</label>
+                <select id="daysSelect" class="expiring-select">
+                    <option value="7">7 days</option>
+                    <option value="14">14 days</option>
+                    <option value="30" selected>30 days</option>
+                    <option value="60">60 days</option>
+                    <option value="90">90 days</option>
+                </select>
+            </div>
+            <button onclick="loadDomains(1)" class="search-btn" style="height:38px; padding:0 20px; font-size:14px;">
+                <i class="fas fa-search"></i> Search
+            </button>
+        </div>
+    </div>
+
+    <div id="loading" class="expiring-loading">
+        <div class="spinner" style="width:36px; height:36px; border-width:3px;"></div>
+        <span>Loading domains...</span>
+    </div>
+    <div id="errorMsg" class="expiring-error"></div>
+
+    <!-- Results -->
+    <div id="results" style="display:none;">
+        <div class="expiring-total-info" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+            <div id="totalInfo"></div>
+            <div style="display:flex; gap:8px;">
+                <button type="button" onclick="exportDomains('csv')" class="export-btn export-btn-csv"><i class="fas fa-file-csv"></i> Export CSV</button>
+                <button type="button" onclick="exportDomains('json')" class="export-btn export-btn-json"><i class="fas fa-code"></i> Export JSON</button>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <table class="expiring-table" id="domainTable">
+                <thead>
+                    <tr>
+                        <th>Domain</th>
+                        <th>Expiry Date</th>
+                        <th style="text-align:center;">Days Left</th>
+                        <th>Registrar</th>
+                        <th>Created</th>
+                    </tr>
+                </thead>
+                <tbody id="domainBody"></tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        <div id="pagination" class="expiring-pagination"></div>
+    </div>
+
+    <!-- Info -->
+    <div class="expiring-info-section">
+        <h2>Why Monitor Expiring Domains?</h2>
+        <div class="expiring-info-grid">
+            <div class="expiring-info-card">
+                <div class="expiring-info-icon"><i class="fas fa-coins"></i></div>
+                <h3>Domain Investment</h3>
+                <p>Discover valuable expired domains with existing backlinks, traffic history, and domain authority. Register premium .com, .net, and .org domains at base registration price the moment they drop — before they go to auction.</p>
+            </div>
+            <div class="expiring-info-card">
+                <div class="expiring-info-icon"><i class="fas fa-shield-alt"></i></div>
+                <h3>Brand Protection</h3>
+                <p>Monitor expiring domains similar to your brand name or trademark. Act before competitors or typosquatters register lookalike domains once they expire and become available for registration.</p>
+            </div>
+            <div class="expiring-info-card">
+                <div class="expiring-info-icon"><i class="fas fa-chart-line"></i></div>
+                <h3>Market Research</h3>
+                <p>Analyze domain expiry patterns across TLDs, registrars, and industries to identify market trends. Use expiring domain data for competitive intelligence and domain portfolio strategy.</p>
+            </div>
+        </div>
+    </div>
+    <!-- FAQ Section -->
+    <div class="expiring-faq-section">
+        <h2>Frequently Asked Questions</h2>
+        <div class="faq-grid">
+            <details class="faq-item" open>
+                <summary class="faq-question">What are expiring domains?</summary>
+                <p>Expiring domains are registered domain names whose owners have not renewed them before the expiration date. After expiring, domains enter a grace period, then a redemption period, before finally being released back into the public pool for anyone to register.</p>
+            </details>
+            <details class="faq-item">
+                <summary class="faq-question">How can I register an expiring domain?</summary>
+                <p>Monitor the domain's expiry date and attempt to register it through any accredited domain registrar as soon as it is released. For high-value domains, consider using a domain drop-catching service that submits registration requests in the first seconds after a domain drops.</p>
+            </details>
+            <details class="faq-item">
+                <summary class="faq-question">What is domain drop catching?</summary>
+                <p>Domain drop catching (also called domain sniping) is the practice of registering a domain name immediately after it expires and becomes available. Specialized services submit high-speed registration requests at the exact moment a domain is deleted from the registry.</p>
+            </details>
+            <details class="faq-item">
+                <summary class="faq-question">Why do domains expire?</summary>
+                <p>Domains expire when the registrant fails to renew before the expiration date, often due to forgotten renewal reminders, outdated payment information, or a deliberate decision not to keep the domain. Registrars typically send multiple renewal notices before expiry.</p>
+            </details>
+            <details class="faq-item">
+                <summary class="faq-question">How far in advance can I find expiring domains?</summary>
+                <p>Our tool lets you browse domains expiring within the next 7, 14, 30, 60, or 90 days. Monitoring domains 30–90 days out gives you time to research their history, backlink profile, and value before deciding whether to attempt registration.</p>
+            </details>
+        </div>
+    </div>
+</div>
+
+<style>
+.export-btn {
+    padding: 6px 14px;
+    font-size: 13px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    border: 1px solid transparent;
+}
+.export-btn-csv { background: rgba(22,163,74,0.15); color: #4ade80; border-color: rgba(22,163,74,0.3); }
+.export-btn-json { background: rgba(37,99,235,0.15); color: #60a5fa; border-color: rgba(37,99,235,0.3); }
+.expiring-faq-section { margin: 40px 0; }
+.expiring-faq-section h2 { font-size: 1.5rem; font-weight: 700; margin-bottom: 20px; }
+</style>
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "What are expiring domains?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Expiring domains are registered domain names whose owners have not renewed them before the expiration date. After expiring, domains enter a grace period, then a redemption period, before finally being released back into the public pool for anyone to register."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How can I register an expiring domain?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Monitor the domain's expiry date and attempt to register it through any accredited domain registrar as soon as it is released. For high-value domains, consider using a domain drop-catching service that submits registration requests in the first seconds after a domain drops."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What is domain drop catching?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Domain drop catching (also called domain sniping) is the practice of registering a domain name immediately after it expires and becomes available. Specialized services submit high-speed registration requests at the exact moment a domain is deleted from the registry."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Why do domains expire?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Domains expire when the registrant fails to renew before the expiration date, often due to forgotten renewal reminders, outdated payment information, or a deliberate decision not to keep the domain. Registrars typically send multiple renewal notices before expiry."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How far in advance can I find expiring domains?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Our tool lets you browse domains expiring within the next 7, 14, 30, 60, or 90 days. Monitoring domains 30–90 days out gives you time to research their history, backlink profile, and value before deciding whether to attempt registration."
+      }
+    }
+  ]
+}
+</script>
+
+<script>
+var currentPage = 1;
+
+function loadDomains(page) {
+    currentPage = page;
+    var days = document.getElementById('daysSelect').value;
+
+    document.getElementById('loading').style.display = 'flex';
+    document.getElementById('results').style.display = 'none';
+    document.getElementById('errorMsg').style.display = 'none';
+
+    var url = '/api/expiring-domains?days=' + days + '&page=' + page;
+
+    fetch(url)
+        .then(function(r) { return r.json(); })
+        .then(function(json) {
+            document.getElementById('loading').style.display = 'none';
+            if (json.code !== 0) { showError(json.msg); return; }
+            renderResults(json.data);
+        })
+        .catch(function() {
+            document.getElementById('loading').style.display = 'none';
+            showError('Network error.');
+        });
+}
+
+function renderResults(data) {
+    _lastExpiringData = data;
+    document.getElementById('totalInfo').innerText = 'Found ' + data.total + ' domains expiring within ' + data.days + ' days';
+
+    var tbody = document.getElementById('domainBody');
+    tbody.innerHTML = '';
+
+    var domains = data.domains || [];
+    for (var i = 0; i < domains.length; i++) {
+        var d = domains[i];
+        var daysLeft = d.daysLeft != null ? d.daysLeft : '-';
+        var urgencyClass = daysLeft <= 7 ? 'urgency-critical' : daysLeft <= 30 ? 'urgency-warning' : 'urgency-safe';
+
+        var tr = document.createElement('tr');
+        tr.innerHTML = '<td><a href="/domain/' + encodeURIComponent(d.name) + '">' + escapeHtml(d.name) + '</a></td>' +
+            '<td>' + escapeHtml(d.expiryDate || '-') + '</td>' +
+            '<td style="text-align:center;" class="' + urgencyClass + '">' + daysLeft + '</td>' +
+            '<td class="text-small">' + escapeHtml(d.registrar || '-') + '</td>' +
+            '<td class="text-small">' + escapeHtml(d.creationDate || '-') + '</td>';
+        tbody.appendChild(tr);
+    }
+
+    // Pagination
+    var pag = document.getElementById('pagination');
+    pag.innerHTML = '';
+    if (data.totalPages > 1) {
+        for (var p = 1; p <= Math.min(data.totalPages, 10); p++) {
+            var btn = document.createElement('button');
+            btn.innerText = p;
+            btn.className = 'expiring-page-btn' + (p === currentPage ? ' active' : '');
+            btn.setAttribute('data-page', p);
+            btn.onclick = function() { loadDomains(parseInt(this.getAttribute('data-page'))); };
+            pag.appendChild(btn);
+        }
+    }
+
+    document.getElementById('results').style.display = 'block';
+}
+
+function showError(msg) {
+    document.getElementById('errorMsg').innerText = msg;
+    document.getElementById('errorMsg').style.display = 'block';
+}
+
+function escapeHtml(s) {
+    if (!s) return '';
+    var d = document.createElement('div');
+    d.appendChild(document.createTextNode(s));
+    return d.innerHTML;
+}
+
+var _lastExpiringData = null;
+function exportDomains(format) {
+    if (!_lastExpiringData) { alert('Please load domains first.'); return; }
+    var domains = _lastExpiringData.domains || [];
+    var days = _lastExpiringData.days || '';
+    if (format === 'csv') {
+        var lines = ['"Domain","Expiry Date","Days Left","Registrar","Created Date"'];
+        domains.forEach(function(d) {
+            lines.push(['"'+(d.name||'').replace(/"/g,'""')+'"',
+                        '"'+(d.expiryDate||'').replace(/"/g,'""')+'"',
+                        '"'+(d.daysLeft!=null?d.daysLeft:'')+'"',
+                        '"'+(d.registrar||'').replace(/"/g,'""')+'"',
+                        '"'+(d.creationDate||'').replace(/"/g,'""')+'"'].join(','));
+        });
+        downloadFile(lines.join('\r\n'), 'expiring-domains-' + days + 'days.csv', 'text/csv');
+    } else {
+        downloadFile(JSON.stringify(_lastExpiringData, null, 2), 'expiring-domains-' + days + 'days.json', 'application/json');
+    }
+}
+function downloadFile(content, filename, mime) {
+    var blob = new Blob([content], { type: mime });
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+
+// Auto-load on page open
+document.addEventListener('DOMContentLoaded', function() { loadDomains(1); });
+</script>
+    </main>
+    <footer th:replace="~{template::template_footer}"></footer>
+</body>
+</html>

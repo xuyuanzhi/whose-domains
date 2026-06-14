@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <div class="floating-shape shape-1"></div>
+    <div class="floating-shape shape-2"></div>
+    <header th:replace="~{template::template_header}"></header>
+
+    <main>
+        <section class="hero">
+            <div class="container">
+                <div class="hero-content">
+                    <h1><i class="fas fa-network-wired" style="color:var(--primary);margin-right:10px"></i>Port Checker</h1>
+                    <p>Check if TCP ports are open or closed on any host or IP address. Test web, database, SSH, mail, and custom ports instantly.</p>
+                    <div class="search-container">
+                        <input type="text" id="hostInput" class="search-input"
+                               placeholder="Enter hostname or IP (e.g. example.com or 1.2.3.4)"
+                               autocomplete="off" autocapitalize="none" spellcheck="false">
+                        <button id="checkBtn" class="search-btn">
+                            <i class="fas fa-satellite-dish"></i> Check Ports
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <div th:replace="~{template::ad_banner_top}"></div>
+
+        <section class="content-section">
+            <div class="container pc-wrap">
+
+                <!-- Port Selection Card -->
+                <div class="pc-card pc-select-card">
+                    <div class="pc-card-header">
+                        <i class="fas fa-sliders-h"></i> Port Selection
+                    </div>
+                    <div class="pc-card-body">
+                        <div class="pc-presets">
+                            <button class="pc-preset active" data-preset="web">
+                                <i class="fas fa-globe"></i> Web
+                                <span class="pc-preset-ports">80, 443, 8080, 8443</span>
+                            </button>
+                            <button class="pc-preset" data-preset="db">
+                                <i class="fas fa-database"></i> Database
+                                <span class="pc-preset-ports">3306, 5432, 1433, 27017…</span>
+                            </button>
+                            <button class="pc-preset" data-preset="remote">
+                                <i class="fas fa-terminal"></i> Remote
+                                <span class="pc-preset-ports">22, 3389, 23</span>
+                            </button>
+                            <button class="pc-preset" data-preset="mail">
+                                <i class="fas fa-envelope"></i> Mail
+                                <span class="pc-preset-ports">25, 465, 587, 993…</span>
+                            </button>
+                            <button class="pc-preset" data-preset="custom">
+                                <i class="fas fa-pencil-alt"></i> Custom
+                                <span class="pc-preset-ports">Define your own</span>
+                            </button>
+                        </div>
+
+                        <div id="customPortsRow" class="pc-custom-row" style="display:none;">
+                            <label class="pc-custom-label"><i class="fas fa-list-ol"></i> Custom Ports</label>
+                            <input type="text" id="customPorts" class="pc-custom-input"
+                                   placeholder="Comma-separated (e.g. 8080, 9000, 3000) — max 20">
+                        </div>
+
+                        <div class="pc-tags-label">Selected ports:</div>
+                        <div id="portsList" class="pc-tags"></div>
+                    </div>
+                </div>
+
+<!-- Results -->
+                <div id="resultsSection" class="results-section">
+
+                    <!-- Summary stats -->
+                    <div class="pc-stats">
+                        <div class="pc-stat-card pc-stat-open">
+                            <div class="pc-stat-num" id="openCount">0</div>
+                            <div class="pc-stat-label"><i class="fas fa-circle"></i> Open</div>
+                        </div>
+                        <div class="pc-stat-card pc-stat-closed">
+                            <div class="pc-stat-num" id="closedCount">0</div>
+                            <div class="pc-stat-label"><i class="fas fa-circle"></i> Closed</div>
+                        </div>
+                        <div class="pc-stat-card pc-stat-host">
+                            <div class="pc-stat-num pc-stat-host-val" id="hostDisplay">—</div>
+                            <div class="pc-stat-label"><i class="fas fa-server"></i> Host</div>
+                        </div>
+                    </div>
+
+                    <!-- Table -->
+                    <div class="pc-card">
+                        <div class="pc-card-header">
+                            <i class="fas fa-list-ul"></i> Port Results
+                        </div>
+                        <div class="pc-table-wrap">
+                            <table class="pc-table">
+                                <thead>
+                                    <tr>
+                                        <th>Port</th>
+                                        <th>Service</th>
+                                        <th>Status</th>
+                                        <th>Response</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="portsTableBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <button class="reset-btn" onclick="reset()">
+                        <i class="fas fa-sync-alt"></i> Check Again
+                    </button>
+                </div>
+
+            </div>
+        </section>
+
+        <div th:replace="~{template::ad_banner_bottom}"></div>
+    </main>
+
+    <div th:replace="~{fragments/related-tools::related(slug='port-checker')}"></div>
+    <footer th:replace="~{template::template_footer}"></footer>
+
+<style>
+.pc-wrap { max-width: 860px; }
+
+/* ── Preset buttons ─────────────────────────────── */
+.pc-card {
+    background: var(--card-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+.pc-card-header {
+    padding: 14px 22px;
+    background: rgba(0,229,255,.04);
+    border-bottom: 1px solid var(--glass-border);
+    font-size: .88rem; font-weight: 700; color: var(--primary);
+    display: flex; align-items: center; gap: 8px;
+}
+.pc-card-body { padding: 22px; }
+
+.pc-presets {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px;
+    margin-bottom: 20px;
+}
+.pc-preset {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 5px; padding: 14px 10px;
+    background: rgba(255,255,255,.04);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius);
+    color: #94a3b8; font-size: .82rem; font-weight: 600;
+    cursor: pointer; transition: var(--transition);
+    text-align: center;
+}
+.pc-preset i { font-size: 1.15rem; margin-bottom: 2px; }
+.pc-preset-ports { font-size: .7rem; font-weight: 400; color: #64748b; margin-top: 2px; }
+.pc-preset:hover {
+    border-color: rgba(0,229,255,.35);
+    color: #e2e8f0;
+    background: rgba(0,229,255,.05);
+}
+.pc-preset.active {
+    border-color: var(--primary);
+    background: rgba(0,229,255,.1);
+    color: var(--primary);
+    box-shadow: 0 0 12px rgba(0,229,255,.15);
+}
+.pc-preset.active .pc-preset-ports { color: rgba(0,229,255,.7); }
+
+/* Custom input */
+.pc-custom-row { margin-bottom: 16px; }
+.pc-custom-label {
+    display: flex; align-items: center; gap: 6px;
+    font-size: .78rem; font-weight: 600; color: #64748b;
+    text-transform: uppercase; letter-spacing: .06em;
+    margin-bottom: 8px;
+}
+.pc-custom-input {
+    width: 100%; max-width: 480px;
+    padding: 10px 14px;
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    background: rgba(255,255,255,.05);
+    color: #e2e8f0; font-size: .9rem; outline: none;
+    transition: var(--transition);
+}
+.pc-custom-input:focus { border-color: var(--primary); background: rgba(0,229,255,.04); }
+
+/* Port tags */
+.pc-tags-label { font-size: .75rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 10px; }
+.pc-tags { display: flex; flex-wrap: wrap; gap: 8px; }
+.pc-tag {
+    background: rgba(0,229,255,.08);
+    border: 1px solid rgba(0,229,255,.2);
+    color: var(--primary);
+    padding: 4px 12px; border-radius: 20px;
+    font-size: .8rem; font-weight: 700;
+}
+
+/* ── Stats ──────────────────────────────────────── */
+.pc-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr 2fr;
+    gap: 14px;
+}
+.pc-stat-card {
+    background: var(--card-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius);
+    padding: 20px 24px;
+    text-align: center;
+}
+.pc-stat-num {
+    font-size: 2.2rem; font-weight: 800; line-height: 1.1;
+    margin-bottom: 6px;
+}
+.pc-stat-label { font-size: .75rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: .06em; }
+.pc-stat-label i { font-size: 7px; vertical-align: middle; margin-right: 4px; }
+.pc-stat-open  { border-color: rgba(105,240,174,.2); }
+.pc-stat-open  .pc-stat-num   { color: #69f0ae; }
+.pc-stat-open  .pc-stat-label i { color: #69f0ae; }
+.pc-stat-closed { border-color: rgba(255,82,82,.2); }
+.pc-stat-closed .pc-stat-num  { color: #ff5252; }
+.pc-stat-closed .pc-stat-label i { color: #ff5252; }
+.pc-stat-host  .pc-stat-num   { color: #e2e8f0; }
+.pc-stat-host-val { font-size: 1.1rem !important; word-break: break-all; }
+
+/* ── Table ──────────────────────────────────────── */
+.pc-table-wrap { overflow-x: auto; }
+.pc-table {
+    width: 100%; border-collapse: collapse; font-size: .88rem;
+}
+.pc-table th {
+    padding: 11px 16px; text-align: left;
+    font-size: .75rem; font-weight: 700; color: #64748b;
+    text-transform: uppercase; letter-spacing: .06em;
+    border-bottom: 1px solid var(--glass-border);
+    white-space: nowrap;
+}
+.pc-table td { padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,.04); }
+.pc-table tr:last-child td { border-bottom: none; }
+.pc-table tr:hover td { background: rgba(255,255,255,.02); }
+
+.pc-port-num  { font-weight: 800; color: #e2e8f0; font-size: .95rem; }
+.pc-service   { color: #94a3b8; font-size: .85rem; }
+.pc-response  { color: #64748b; font-size: .82rem; font-family: monospace; }
+
+.pc-badge-open {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(105,240,174,.1); border: 1px solid rgba(105,240,174,.25);
+    color: #69f0ae; padding: 3px 12px; border-radius: 20px;
+    font-size: .78rem; font-weight: 700;
+}
+.pc-badge-closed {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(255,82,82,.1); border: 1px solid rgba(255,82,82,.2);
+    color: #ff5252; padding: 3px 12px; border-radius: 20px;
+    font-size: .78rem; font-weight: 700;
+}
+.pc-badge-open i, .pc-badge-closed i { font-size: 7px; }
+
+/* Responsive */
+@media (max-width: 768px) {
+    .pc-presets { grid-template-columns: repeat(3, 1fr); }
+    .pc-stats   { grid-template-columns: 1fr 1fr; }
+    .pc-stat-host { grid-column: span 2; }
+}
+@media (max-width: 480px) {
+    .pc-presets { grid-template-columns: 1fr 1fr; }
+}
+</style>
+
+<script>
+    var PRESETS = {
+        web:    [80, 443, 8080, 8443],
+        db:     [3306, 5432, 1433, 27017, 6379, 1521],
+        remote: [22, 3389, 23],
+        mail:   [25, 465, 587, 110, 143, 993, 995]
+    };
+    var currentPorts  = PRESETS.web.slice();
+    var currentPreset = 'web';
+
+    renderPortTags();
+
+    // Preset click
+    document.querySelectorAll('.pc-preset').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.pc-preset').forEach(function(b) { b.classList.remove('active'); });
+            this.classList.add('active');
+            currentPreset = this.getAttribute('data-preset');
+            document.getElementById('customPortsRow').style.display = currentPreset === 'custom' ? '' : 'none';
+            currentPorts = PRESETS[currentPreset] ? PRESETS[currentPreset].slice() : [];
+            renderPortTags();
+        });
+    });
+
+    function renderPortTags() {
+        document.getElementById('portsList').innerHTML = currentPorts.map(function(p) {
+            return '<span class="pc-tag">' + p + '</span>';
+        }).join('');
+        if (currentPorts.length === 0 && currentPreset === 'custom') {
+            document.getElementById('portsList').innerHTML = '<span style="color:#64748b;font-size:.82rem;">Enter ports above then click Check Ports</span>';
+        }
+    }
+
+    document.getElementById('hostInput').addEventListener('keydown', function(e) { if (e.key === 'Enter') doCheck(); });
+    document.getElementById('checkBtn').addEventListener('click', doCheck);
+
+    var params = new URLSearchParams(window.location.search);
+    if (params.get('host')) { document.getElementById('hostInput').value = params.get('host'); doCheck(); }
+
+    async function doCheck() {
+        var host = document.getElementById('hostInput').value.trim();
+        if (!host) { document.getElementById('hostInput').focus(); return; }
+
+        var ports = currentPorts.slice();
+        if (currentPreset === 'custom') {
+            var custom = document.getElementById('customPorts').value;
+            ports = custom.split(',').map(function(p) { return parseInt(p.trim()); })
+                .filter(function(p) { return !isNaN(p) && p > 0 && p <= 65535; }).slice(0, 20);
+            // update tags
+            currentPorts = ports;
+            renderPortTags();
+        }
+        if (ports.length === 0) { alert('Please select or enter at least one valid port.'); return; }
+
+        showLoader('Checking ports…');
+        document.getElementById('resultsSection').classList.remove('active');
+        try {
+            var r = await fetch('/api/tools/port-check', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ host: host, ports: ports })
+            });
+            var json = await r.json();
+            if (json.code === 0) renderResult(json.data);
+            else alert(json.msg || 'Check failed.');
+        } catch(e) {
+            alert('Network error. Please try again.');
+        } finally {
+            hideLoader();
+        }
+    }
+
+    function renderResult(d) {
+        document.getElementById('openCount').textContent   = d.openCount;
+        document.getElementById('closedCount').textContent = d.closedCount;
+        document.getElementById('hostDisplay').textContent = d.host;
+
+        document.getElementById('portsTableBody').innerHTML = d.ports.map(function(p) {
+            var statusHtml = p.open
+                ? '<span class="pc-badge-open"><i class="fas fa-circle"></i> Open</span>'
+                : '<span class="pc-badge-closed"><i class="fas fa-circle"></i> Closed</span>';
+            var resp = (p.responseMs != null) ? p.responseMs + ' ms' : '—';
+            var respColor = p.responseMs < 200 ? '#69f0ae' : (p.responseMs < 800 ? '#facc15' : '#ff5252');
+            return '<tr>' +
+                '<td class="pc-port-num">' + p.port + '</td>' +
+                '<td class="pc-service">' + (p.service || '—') + '</td>' +
+                '<td>' + statusHtml + '</td>' +
+                '<td class="pc-response" style="color:' + (p.open ? respColor : '#64748b') + '">' + resp + '</td>' +
+                '</tr>';
+        }).join('');
+
+        document.getElementById('resultsSection').classList.add('active');
+        document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function reset() {
+    	document.getElementById('resultsSection').classList.remove('active');
+        document.getElementById('hostInput').value = '';
+        document.getElementById('hostInput').focus();
+    }
+</script>
+</body>
+</html>

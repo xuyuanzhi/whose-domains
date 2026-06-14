@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <div class="floating-shape shape-1"></div>
+    <div class="floating-shape shape-2"></div>
+    <header th:replace="~{template::template_header}"></header>
+
+    <main>
+        <section class="hero">
+            <div class="container">
+                <div class="hero-content">
+                    <h1>XML Formatter & Validator</h1>
+                    <p>Format, validate, and minify XML documents with syntax highlighting. Detect errors instantly and explore structure in a collapsible tree view.</p>
+                </div>
+            </div>
+        </section>
+
+        <div th:replace="~{template::ad_banner_top}"></div>
+
+        <div class="container">
+            <!-- Toolbar -->
+            <div class="jf-toolbar">
+                <div class="jf-toolbar-left">
+                    <button class="jf-btn jf-btn-primary" id="formatBtn"><i class="fas fa-indent"></i> Format</button>
+                    <button class="jf-btn jf-btn-secondary" id="minifyBtn"><i class="fas fa-compress-alt"></i> Minify</button>
+                    <button class="jf-btn jf-btn-ghost" id="validateBtn"><i class="fas fa-check"></i> Validate</button>
+                    <div class="jf-separator"></div>
+                    <label class="jf-label">Indent</label>
+                    <select id="indentSelect" class="jf-select">
+                        <option value="2" selected>2 spaces</option>
+                        <option value="4">4 spaces</option>
+                        <option value="tab">Tab</option>
+                    </select>
+                </div>
+                <div class="jf-toolbar-right">
+                    <button class="jf-btn jf-btn-ghost" id="clearBtn"><i class="fas fa-trash-alt"></i> Clear</button>
+                    <button class="jf-btn jf-btn-ghost" id="loadSampleBtn"><i class="fas fa-flask"></i> Sample</button>
+                </div>
+            </div>
+
+            <!-- Status Bar -->
+            <div id="statusBar" class="jf-status idle">
+                <i class="fas fa-info-circle"></i>
+                <span id="statusText">Paste or type XML, then click Format</span>
+            </div>
+
+            <!-- Panels -->
+            <div class="jf-panels">
+                <div class="jf-panel">
+                    <div class="jf-panel-header">
+                        <span class="jf-panel-title"><i class="fas fa-keyboard"></i> Input</span>
+                        <div class="jf-panel-actions">
+                            <span class="jf-char-count" id="inputCount">0 chars</span>
+                            <button class="jf-icon-btn" title="Paste from clipboard" id="pasteBtn"><i class="fas fa-paste"></i></button>
+                        </div>
+                    </div>
+                    <textarea id="xmlInput" class="jf-textarea" placeholder="&lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot;?&gt;&#10;&lt;root&gt;Paste your XML here...&lt;/root&gt;"
+                        spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"></textarea>
+                </div>
+
+                <div class="jf-panel">
+                    <div class="jf-panel-header">
+                        <span class="jf-panel-title"><i class="fas fa-code"></i> Output</span>
+                        <div class="jf-panel-actions">
+                            <div class="jf-view-toggle">
+                                <button class="jf-toggle-btn active" id="btnRaw">Raw</button>
+                                <button class="jf-toggle-btn" id="btnTree">Tree</button>
+                            </div>
+                            <button class="jf-icon-btn" title="Copy output" id="copyBtn"><i class="fas fa-copy"></i></button>
+                            <button class="jf-icon-btn" title="Download XML" id="downloadBtn"><i class="fas fa-download"></i></button>
+                        </div>
+                    </div>
+                    <div class="jf-output-wrap">
+                        <pre id="xmlOutput" class="jf-output"><span class="jf-placeholder">Formatted XML will appear here...</span></pre>
+                        <div id="treeOutput" class="jf-tree" style="display:none;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stats Bar -->
+            <div id="statsBar" class="jf-stats" style="display:none;">
+                <div class="jf-stat"><i class="fas fa-layer-group"></i> <strong id="statLines">0</strong> <span>lines</span></div>
+                <div class="jf-stat"><i class="fas fa-weight"></i> <strong id="statSize">0 B</strong> <span>size</span></div>
+                <div class="jf-stat"><i class="fas fa-tags"></i> <strong id="statTags">0</strong> <span>elements</span></div>
+                <div class="jf-stat"><i class="fas fa-sitemap"></i> <strong id="statDepth">0</strong> <span>depth</span></div>
+                <div class="jf-stat"><i class="fas fa-at"></i> <strong id="statAttrs">0</strong> <span>attributes</span></div>
+            </div>
+        </div>
+
+        <div th:replace="~{template::ad_banner_bottom}"></div>
+    </main>
+    <div th:replace="~{fragments/related-tools::related(slug='xml-formatter')}"></div>
+
+    <footer th:replace="~{template::template_footer}"></footer>
+
+<style>
+.jf-toolbar {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+    padding: 12px 16px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 12px 12px 0 0; border-bottom: none;
+}
+.jf-toolbar-left  { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex: 1; }
+.jf-toolbar-right { display: flex; align-items: center; gap: 8px; }
+.jf-separator { width: 1px; height: 24px; background: rgba(255,255,255,0.1); margin: 0 4px; }
+.jf-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 14px; border-radius: 8px; font-size: 0.85rem;
+    font-weight: 600; border: none; cursor: pointer; transition: all 0.15s; white-space: nowrap;
+}
+.jf-btn-primary  { background: #64ffda; color: #0a0f1e; }
+.jf-btn-primary:hover  { background: #4dd8b8; }
+.jf-btn-secondary { background: rgba(100,163,218,0.15); color: #64a3da; border: 1px solid rgba(100,163,218,0.25); }
+.jf-btn-secondary:hover { background: rgba(100,163,218,0.25); }
+.jf-btn-ghost { background: rgba(255,255,255,0.06); color: #94a3b8; border: 1px solid rgba(255,255,255,0.08); }
+.jf-btn-ghost:hover { background: rgba(255,255,255,0.1); color: #e2e8f0; }
+.jf-icon-btn {
+    width: 30px; height: 30px; border-radius: 6px; border: none;
+    background: rgba(255,255,255,0.06); color: #94a3b8; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.8rem; transition: all 0.15s; flex-shrink: 0;
+}
+.jf-icon-btn:hover { background: rgba(255,255,255,0.12); color: #e2e8f0; }
+.jf-icon-btn.copied { background: rgba(0,230,118,0.15); color: #00e676; }
+.jf-label { font-size: 0.8rem; color: #64748b; white-space: nowrap; }
+.jf-select {
+    padding: 5px 10px; border-radius: 6px; font-size: 0.82rem;
+    background: rgba(255,255,255,0.06); color: #cbd5e1;
+    border: 1px solid rgba(255,255,255,0.1); cursor: pointer; outline: none;
+}
+.jf-select:focus { border-color: rgba(100,255,218,0.4); }
+.jf-status {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 16px; font-size: 0.84rem; font-weight: 500;
+    border-left: 1px solid rgba(255,255,255,0.07);
+    border-right: 1px solid rgba(255,255,255,0.07); transition: all 0.2s;
+}
+.jf-status.idle    { background: rgba(255,255,255,0.02); color: #64748b; }
+.jf-status.success { background: rgba(0,230,118,0.08); color: #4ade80; }
+.jf-status.error   { background: rgba(255,82,82,0.08); color: #ff7070; }
+.jf-status.warn    { background: rgba(255,171,0,0.08); color: #ffab00; }
+.jf-panels {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 0;
+    border: 1px solid rgba(255,255,255,0.07); border-top: none; min-height: 420px;
+}
+@media (max-width: 768px) { .jf-panels { grid-template-columns: 1fr; } }
+.jf-panel { display: flex; flex-direction: column; border-right: 1px solid rgba(255,255,255,0.07); }
+.jf-panel:last-child { border-right: none; }
+.jf-panel-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 14px; background: rgba(255,255,255,0.025);
+    border-bottom: 1px solid rgba(255,255,255,0.07); flex-shrink: 0;
+}
+.jf-panel-title { font-size: 0.8rem; font-weight: 600; color: #64748b; display: flex; align-items: center; gap: 6px; }
+.jf-panel-actions { display: flex; align-items: center; gap: 6px; }
+.jf-char-count { font-size: 0.75rem; color: #475569; }
+.jf-view-toggle { display: flex; border-radius: 6px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); }
+.jf-toggle-btn {
+    padding: 3px 10px; font-size: 0.75rem; font-weight: 600; cursor: pointer;
+    background: transparent; border: none; color: #64748b; transition: all 0.15s;
+}
+.jf-toggle-btn.active { background: rgba(100,255,218,0.15); color: #64ffda; }
+.jf-toggle-btn:hover:not(.active) { background: rgba(255,255,255,0.06); color: #94a3b8; }
+.jf-textarea {
+    flex: 1; width: 100%; min-height: 380px; padding: 14px;
+    background: #0d1117; color: #e2e8f0; border: none; outline: none; resize: none;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+    font-size: 13px; line-height: 1.6; tab-size: 2;
+}
+.jf-textarea:focus { background: #0a0f1e; }
+.jf-textarea::placeholder { color: #334155; }
+.jf-output-wrap { flex: 1; overflow: auto; position: relative; }
+.jf-output {
+    margin: 0; padding: 14px; background: #0d1117; color: #e2e8f0;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+    font-size: 13px; line-height: 1.6; white-space: pre-wrap; word-break: break-all; min-height: 380px;
+}
+.jf-placeholder { color: #334155; font-style: italic; }
+
+/* XML Syntax Colors */
+.xml-tag     { color: #7ee787; }
+.xml-tagname { color: #7ee787; }
+.xml-attr    { color: #79b8ff; }
+.xml-attrval { color: #a5d6ff; }
+.xml-text    { color: #e2e8f0; }
+.xml-comment { color: #8b949e; font-style: italic; }
+.xml-cdata   { color: #f0c050; }
+.xml-pi      { color: #d2a8ff; }
+.xml-entity  { color: #f8c555; }
+.xml-punct   { color: #8b949e; }
+.xml-error   { color: #ff7070; background: rgba(255,82,82,0.1); padding: 1px 3px; border-radius: 2px; }
+
+.jf-stats {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 0;
+    border: 1px solid rgba(255,255,255,0.07); border-top: none;
+    border-radius: 0 0 12px 12px; overflow: hidden;
+}
+.jf-stat {
+    flex: 1; display: flex; align-items: center; gap: 6px;
+    padding: 8px 16px; font-size: 0.8rem;
+    background: rgba(255,255,255,0.02);
+    border-right: 1px solid rgba(255,255,255,0.06);
+    color: #64748b; white-space: nowrap;
+}
+.jf-stat:last-child { border-right: none; }
+.jf-stat i { color: #4f6070; font-size: 0.75rem; }
+.jf-stat strong { color: #94a3b8; }
+
+/* Tree view */
+.jf-tree {
+    padding: 14px; min-height: 380px; overflow: auto;
+    background: #0d1117; font-size: 13px; line-height: 1.8;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+}
+.jf-tree-node { padding-left: 20px; }
+.jf-tree-toggle { cursor: pointer; user-select: none; color: #64748b; padding: 0 4px; border-radius: 3px; }
+.jf-tree-toggle:hover { background: rgba(255,255,255,0.06); color: #94a3b8; }
+.jf-tree-el   { color: #7ee787; }
+.jf-tree-attr-name { color: #79b8ff; }
+.jf-tree-attr-val  { color: #a5d6ff; }
+.jf-tree-text  { color: #cbd5e1; font-style: italic; }
+.jf-tree-comm  { color: #8b949e; font-style: italic; }
+.jf-tree-meta  { color: #475569; font-size: 0.75rem; margin-left: 4px; }
+</style>
+
+<script th:inline="none">
+(function() {
+    var inputEl   = document.getElementById('xmlInput');
+    var outputEl  = document.getElementById('xmlOutput');
+    var treeEl    = document.getElementById('treeOutput');
+    var statusBar = document.getElementById('statusBar');
+    var statsBar  = document.getElementById('statsBar');
+    var inputCount = document.getElementById('inputCount');
+    var currentMode = 'raw';
+    var lastFormatted = '';
+    var lastDoc = null;
+
+    document.getElementById('formatBtn').onclick   = doFormat;
+    document.getElementById('minifyBtn').onclick   = doMinify;
+    document.getElementById('validateBtn').onclick = doValidate;
+    document.getElementById('clearBtn').onclick    = doClear;
+    document.getElementById('copyBtn').onclick     = doCopy;
+    document.getElementById('downloadBtn').onclick = doDownload;
+    document.getElementById('loadSampleBtn').onclick = loadSample;
+    document.getElementById('pasteBtn').onclick    = doPaste;
+    document.getElementById('btnRaw').onclick      = function() { setMode('raw'); };
+    document.getElementById('btnTree').onclick     = function() { setMode('tree'); };
+
+    inputEl.addEventListener('input', function() {
+        inputCount.textContent = inputEl.value.length.toLocaleString() + ' chars';
+    });
+    inputEl.addEventListener('paste', function() {
+        setTimeout(function() { inputCount.textContent = inputEl.value.length.toLocaleString() + ' chars'; doFormat(); }, 50);
+    });
+    inputEl.addEventListener('keydown', function(e) {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); doFormat(); }
+        if (e.key === 'Tab') {
+            e.preventDefault();
+            var s = this.selectionStart, end = this.selectionEnd;
+            this.value = this.value.substring(0, s) + '  ' + this.value.substring(end);
+            this.selectionStart = this.selectionEnd = s + 2;
+        }
+    });
+
+    // ── Parse XML ──────────────────────────────────────
+    function parseXml(str) {
+        var parser = new DOMParser();
+        var doc = parser.parseFromString(str, 'application/xml');
+        var err = doc.querySelector('parsererror');
+        if (err) throw new Error(err.textContent.replace(/\s+/g, ' ').trim().substring(0, 200));
+        return doc;
+    }
+
+    // ── Format ──────────────────────────────────────────
+    function doFormat() {
+        var input = inputEl.value.trim();
+        if (!input) { setStatus('idle', 'Paste or type XML, then click Format'); return; }
+        try {
+            var doc = parseXml(input);
+            lastDoc = doc;
+            var indent = getIndent();
+            var formatted = serializeXml(doc, indent);
+            lastFormatted = formatted;
+            renderOutput(formatted);
+            updateStats(doc, formatted);
+            setStatus('success', '✓ Valid XML — formatted successfully');
+            statsBar.style.display = 'flex';
+        } catch (e) {
+            setStatus('error', '✗ Invalid XML — ' + e.message.substring(0, 150));
+            lastDoc = null; statsBar.style.display = 'none';
+        }
+    }
+
+    function doMinify() {
+        var input = inputEl.value.trim();
+        if (!input) { setStatus('idle', 'Nothing to minify'); return; }
+        try {
+            var doc = parseXml(input);
+            lastDoc = doc;
+            var minified = new XMLSerializer().serializeToString(doc).replace(/>\s+</g, '><').trim();
+            lastFormatted = minified;
+            renderRaw(minified);
+            setStatus('success', '✓ Minified — ' + formatBytes(new Blob([minified]).size));
+            updateStats(doc, minified);
+            statsBar.style.display = 'flex';
+        } catch (e) {
+            setStatus('error', '✗ Invalid XML — ' + e.message.substring(0, 150));
+        }
+    }
+
+    function doValidate() {
+        var input = inputEl.value.trim();
+        if (!input) { setStatus('idle', 'Nothing to validate'); return; }
+        try {
+            var doc = parseXml(input);
+            var tags = doc.querySelectorAll('*').length;
+            setStatus('success', '✓ Valid XML — ' + tags + ' element' + (tags !== 1 ? 's' : '') + ' found');
+        } catch (e) {
+            setStatus('error', '✗ Invalid XML — ' + e.message.substring(0, 150));
+        }
+    }
+
+    function doClear() {
+        inputEl.value = ''; lastDoc = null; lastFormatted = '';
+        outputEl.innerHTML = '<span class="jf-placeholder">Formatted XML will appear here...</span>';
+        treeEl.innerHTML = ''; statsBar.style.display = 'none';
+        inputCount.textContent = '0 chars';
+        setStatus('idle', 'Paste or type XML, then click Format');
+    }
+
+    function doCopy() {
+        if (!lastFormatted) return;
+        navigator.clipboard.writeText(lastFormatted).then(function() {
+            var btn = document.getElementById('copyBtn');
+            btn.classList.add('copied');
+            btn.innerHTML = '<i class="fas fa-check"></i>';
+            setTimeout(function() { btn.classList.remove('copied'); btn.innerHTML = '<i class="fas fa-copy"></i>'; }, 2000);
+        });
+    }
+
+    function doDownload() {
+        if (!lastFormatted) return;
+        var blob = new Blob([lastFormatted], { type: 'application/xml' });
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob); a.download = 'formatted.xml';
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    }
+
+    function doPaste() {
+        navigator.clipboard.readText().then(function(text) {
+            inputEl.value = text;
+            inputCount.textContent = text.length.toLocaleString() + ' chars';
+            doFormat();
+        }).catch(function() {
+            inputEl.focus();
+            setStatus('warn', 'Click in the input box and paste manually (Ctrl+V)');
+        });
+    }
+
+    function loadSample() {
+        inputEl.value = '<?xml version="1.0" encoding="UTF-8"?>\n<bookstore>\n  <book category="cooking">\n    <title lang="en">Everyday Italian</title>\n    <author>Giada De Laurentiis</author>\n    <year>2005</year>\n    <price>30.00</price>\n  </book>\n  <book category="children">\n    <title lang="en">Harry Potter</title>\n    <author>J K. Rowling</author>\n    <year>2005</year>\n    <price>29.99</price>\n  </book>\n  <!-- Add more books here -->\n</bookstore>';
+        inputCount.textContent = inputEl.value.length.toLocaleString() + ' chars';
+        doFormat();
+    }
+
+    // ── Render ──────────────────────────────────────────
+    function renderOutput(formatted) {
+        lastFormatted = formatted;
+        if (currentMode === 'raw') renderRaw(formatted);
+        else if (lastDoc) renderTree(lastDoc);
+    }
+
+    function renderRaw(str) {
+        outputEl.innerHTML = syntaxHighlightXml(escHtml(str));
+    }
+
+    function setMode(mode) {
+        currentMode = mode;
+        document.getElementById('btnRaw').classList.toggle('active', mode === 'raw');
+        document.getElementById('btnTree').classList.toggle('active', mode === 'tree');
+        outputEl.style.display = mode === 'raw' ? 'block' : 'none';
+        treeEl.style.display   = mode === 'tree' ? 'block' : 'none';
+        if (mode === 'tree' && lastDoc) renderTree(lastDoc);
+        if (mode === 'raw' && lastFormatted) renderRaw(lastFormatted);
+    }
+
+    // ── XML Serializer ─────────────────────────────────
+    function serializeXml(node, indent, depth) {
+        depth = depth || 0;
+        var pad = typeof indent === 'string' ? indent.repeat(depth) : ' '.repeat(indent * depth);
+        var childPad = typeof indent === 'string' ? indent.repeat(depth + 1) : ' '.repeat(indent * (depth + 1));
+        var out = '';
+        switch (node.nodeType) {
+            case 9: // Document
+                for (var i = 0; i < node.childNodes.length; i++) out += serializeXml(node.childNodes[i], indent, depth);
+                break;
+            case 1: // Element
+                var tag = node.nodeName;
+                var attrs = '';
+                for (var j = 0; j < node.attributes.length; j++) {
+                    var a = node.attributes[j];
+                    attrs += ' ' + a.name + '="' + a.value.replace(/&/g,'&amp;').replace(/"/g,'&quot;') + '"';
+                }
+                var children = node.childNodes;
+                var hasElementChild = false;
+                for (var k = 0; k < children.length; k++) if (children[k].nodeType === 1 || children[k].nodeType === 4 || children[k].nodeType === 8) { hasElementChild = true; break; }
+                var textOnly = !hasElementChild && children.length === 1 && children[0].nodeType === 3;
+                if (children.length === 0) {
+                    out += pad + '<' + tag + attrs + '/>\n';
+                } else if (textOnly) {
+                    out += pad + '<' + tag + attrs + '>' + children[0].nodeValue + '</' + tag + '>\n';
+                } else {
+                    out += pad + '<' + tag + attrs + '>\n';
+                    for (var c = 0; c < children.length; c++) out += serializeXml(children[c], indent, depth + 1);
+                    out += pad + '</' + tag + '>\n';
+                }
+                break;
+            case 3: // Text
+                var txt = node.nodeValue.trim();
+                if (txt) out += childPad + txt + '\n';
+                break;
+            case 4: // CDATA
+                out += pad + '<![CDATA[' + node.nodeValue + ']]>\n';
+                break;
+            case 7: // ProcessingInstruction
+                out += pad + '<?' + node.nodeName + ' ' + node.nodeValue + '?>\n';
+                break;
+            case 8: // Comment
+                out += pad + '<!--' + node.nodeValue + '-->\n';
+                break;
+        }
+        return out;
+    }
+
+    // ── Syntax Highlight ───────────────────────────────
+    function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+    function syntaxHighlightXml(escaped) {
+        // Unescape for processing, then re-apply color spans
+        return escaped
+            // Comments
+            .replace(/(&lt;!--[\s\S]*?--&gt;)/g, '<span class="xml-comment">$1</span>')
+            // CDATA
+            .replace(/(&lt;!\[CDATA\[[\s\S]*?]]&gt;)/g, '<span class="xml-cdata">$1</span>')
+            // Processing instructions
+            .replace(/(&lt;\?[\s\S]*?\?&gt;)/g, '<span class="xml-pi">$1</span>')
+            // Self-closing tags
+            .replace(/(&lt;\/?)([a-zA-Z_:][\w:.-]*)([^&]*?)(\/?&gt;)/g, function(m, open, name, rest, close) {
+                var attrsHtml = rest.replace(/([a-zA-Z_:][\w:.-]*)=(&quot;[^&]*?&quot;|'[^']*?')/g,
+                    '<span class="xml-attr">$1</span>=<span class="xml-attrval">$2</span>');
+                return '<span class="xml-punct">' + open + '</span><span class="xml-tagname">' + name + '</span>' + attrsHtml + '<span class="xml-punct">' + close + '</span>';
+            });
+    }
+
+    // ── Tree ───────────────────────────────────────────
+    function renderTree(doc) {
+        treeEl.innerHTML = buildXmlTree(doc);
+        treeEl.querySelectorAll('.jf-tree-toggle').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var node = this.parentElement.querySelector('.jf-tree-node');
+                var col = node.style.display === 'none';
+                node.style.display = col ? '' : 'none';
+                this.textContent = col ? '▾' : '▸';
+            });
+        });
+    }
+
+    function buildXmlTree(node, depth) {
+        depth = depth || 0;
+        var out = '';
+        switch (node.nodeType) {
+            case 9:
+                for (var i = 0; i < node.childNodes.length; i++) out += buildXmlTree(node.childNodes[i], depth);
+                break;
+            case 1:
+                var tag = node.nodeName;
+                var attrStr = '';
+                for (var j = 0; j < node.attributes.length; j++) {
+                    var a = node.attributes[j];
+                    attrStr += ' <span class="jf-tree-attr-name">' + escHtml(a.name) + '</span>=<span class="jf-tree-attr-val">"' + escHtml(a.value) + '"</span>';
+                }
+                var kids = Array.from(node.childNodes).filter(function(n) { return n.nodeType !== 3 || n.nodeValue.trim(); });
+                var count = node.querySelectorAll ? node.querySelectorAll('*').length : 0;
+                if (kids.length === 0) {
+                    out += '<div>&lt;<span class="jf-tree-el">' + tag + '</span>' + attrStr + '/&gt;</div>';
+                } else {
+                    out += '<div>&lt;<span class="jf-tree-toggle">▾</span><span class="jf-tree-el">' + tag + '</span>' + attrStr + '&gt;' +
+                        (count > 0 ? '<span class="jf-tree-meta">' + count + ' child' + (count !== 1 ? 'ren' : '') + '</span>' : '') +
+                        '<div class="jf-tree-node">';
+                    for (var c = 0; c < node.childNodes.length; c++) out += buildXmlTree(node.childNodes[c], depth + 1);
+                    out += '</div>&lt;/<span class="jf-tree-el">' + tag + '</span>&gt;</div>';
+                }
+                break;
+            case 3:
+                var txt = node.nodeValue.trim();
+                if (txt) out += '<div><span class="jf-tree-text">"' + escHtml(txt) + '"</span></div>';
+                break;
+            case 4:
+                out += '<div><span class="jf-tree-cdata">&lt;![CDATA[' + escHtml(node.nodeValue) + ']]&gt;</span></div>';
+                break;
+            case 8:
+                out += '<div><span class="jf-tree-comm">&lt;!--' + escHtml(node.nodeValue) + '--&gt;</span></div>';
+                break;
+            case 7:
+                out += '<div><span class="xml-pi">&lt;?' + escHtml(node.nodeName) + ' ' + escHtml(node.nodeValue) + '?&gt;</span></div>';
+                break;
+        }
+        return out;
+    }
+
+    // ── Stats ───────────────────────────────────────────
+    function updateStats(doc, formatted) {
+        var allEls = doc.querySelectorAll('*');
+        var attrCount = 0;
+        allEls.forEach(function(el) { attrCount += el.attributes.length; });
+        var depth = getXmlDepth(doc.documentElement, 0);
+        document.getElementById('statLines').textContent = formatted.split('\n').length.toLocaleString();
+        document.getElementById('statSize').textContent = formatBytes(new Blob([formatted]).size);
+        document.getElementById('statTags').textContent = allEls.length.toLocaleString();
+        document.getElementById('statDepth').textContent = depth;
+        document.getElementById('statAttrs').textContent = attrCount.toLocaleString();
+    }
+
+    function getXmlDepth(el, d) {
+        if (!el || el.nodeType !== 1) return d;
+        var max = d;
+        var children = el.childNodes;
+        for (var i = 0; i < children.length; i++) {
+            if (children[i].nodeType === 1) { var nd = getXmlDepth(children[i], d + 1); if (nd > max) max = nd; }
+        }
+        return max;
+    }
+
+    // ── Utils ───────────────────────────────────────────
+    function getIndent() { var v = document.getElementById('indentSelect').value; return v === 'tab' ? '\t' : parseInt(v); }
+    function formatBytes(b) { if (b < 1024) return b + ' B'; if (b < 1048576) return (b/1024).toFixed(1) + ' KB'; return (b/1048576).toFixed(2) + ' MB'; }
+    function setStatus(type, msg) {
+        statusBar.className = 'jf-status ' + type;
+        var icon = type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : type === 'warn' ? 'fa-exclamation-triangle' : 'fa-info-circle';
+        statusBar.innerHTML = '<i class="fas ' + icon + '"></i> <span>' + msg + '</span>';
+    }
+
+    // URL param
+    (function() {
+        var p = new URLSearchParams(window.location.search);
+        var d = p.get('d') || p.get('xml');
+        if (d) { try { inputEl.value = decodeURIComponent(d); doFormat(); } catch(e){} }
+    })();
+})();
+</script>
+</body>
+</html>

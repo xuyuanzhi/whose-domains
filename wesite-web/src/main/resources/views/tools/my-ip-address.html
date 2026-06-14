@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <div class="floating-shape shape-1"></div>
+    <div class="floating-shape shape-2"></div>
+
+    <header th:replace="~{template::template_header}"></header>
+
+    <main>
+        <!-- Hero -->
+        <section class="hero">
+            <div class="container">
+                <div class="hero-content">
+                    <h1><i class="fas fa-globe" style="color:var(--primary);margin-right:10px"></i>What Is My IP Address?</h1>
+                    <p>Instantly see your public IP address along with location, ISP, timezone, and privacy details.</p>
+                </div>
+            </div>
+        </section>
+
+        <div th:replace="~{template::ad_banner_top}"></div>
+
+        <section class="content-section">
+            <div class="container">
+
+                <!-- ── IP Hero Card ── -->
+                <div class="ip-hero-card">
+                    <div class="ip-hero-left">
+                        <div class="ip-hero-label">
+                            <i class="fas fa-satellite-dish"></i> Your Public IP Address
+                        </div>
+                        <div class="ip-hero-value" id="ipAddress"
+                             th:text="${ipInfo?.ipAddress} ?: 'Unavailable'">Loading…</div>
+                        <div class="ip-hero-meta">
+                            <span class="ip-type-badge" id="ipTypeBadge"
+                                  th:text="${ipInfo?.ipType} ?: ''"></span>
+                            <span class="ip-location-line" id="locationLine"
+                                  th:if="${ipInfo?.city != null or ipInfo?.country != null}">
+                                    <span th:text="${(ipInfo?.city != null ? ipInfo.city + ', ' : '') + (ipInfo?.country ?: '')}"></span>
+                            </span>
+                        </div>
+                    </div>
+                    <div class="ip-hero-right">
+                        <button class="ip-copy-btn" id="copyBtn" title="Copy IP to clipboard"
+                                th:attr="data-ip=${ipInfo?.ipAddress}">
+                            <i class="fas fa-copy"></i> Copy
+                        </button>
+                        <button class="ip-refresh-btn" id="refreshBtn" title="Refresh">
+                            <i class="fas fa-sync-alt"></i> Refresh
+                        </button>
+                        <div class="ip-security-badge"
+                             th:classappend="${ipInfo != null and (ipInfo.isProxy == true or ipInfo.isVPN == true or ipInfo.isTor == true) ? 'sec-warn' : 'sec-safe'}"
+                             id="secBadge">
+                            <span th:if="${ipInfo != null and (ipInfo.isProxy == true or ipInfo.isVPN == true or ipInfo.isTor == true)}">
+                                <i class="fas fa-exclamation-triangle"></i> VPN / Proxy Detected
+                            </span>
+                            <span th:unless="${ipInfo != null and (ipInfo.isProxy == true or ipInfo.isVPN == true or ipInfo.isTor == true)}">
+                                <i class="fas fa-shield-alt"></i> No Proxy / VPN Detected
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── Quick Info Cards ── -->
+                <div class="ip-quick-grid">
+                    <div class="ip-quick-card">
+                        <div class="iq-icon"><i class="fas fa-map-marker-alt"></i></div>
+                        <div class="iq-body">
+                            <div class="iq-label">Location</div>
+                            <div class="iq-value" th:text="${(ipInfo?.city != null ? ipInfo.city + ', ' : '') + (ipInfo?.region != null ? ipInfo.region + ', ' : '') + (ipInfo?.country ?: '-')}">-</div>
+                        </div>
+                    </div>
+                    <div class="ip-quick-card">
+                        <div class="iq-icon"><i class="fas fa-network-wired"></i></div>
+                        <div class="iq-body">
+                            <div class="iq-label">ISP</div>
+                            <div class="iq-value" th:text="${ipInfo?.isp ?: '-'}">-</div>
+                        </div>
+                    </div>
+                    <div class="ip-quick-card">
+                        <div class="iq-icon"><i class="fas fa-clock"></i></div>
+                        <div class="iq-body">
+                            <div class="iq-label">Timezone</div>
+                            <div class="iq-value" th:text="${ipInfo?.timezone ?: '-'}">-</div>
+                        </div>
+                    </div>
+                    <div class="ip-quick-card">
+                        <div class="iq-icon"><i class="fas fa-flag"></i></div>
+                        <div class="iq-body">
+                            <div class="iq-label">Country</div>
+                            <div class="iq-value" th:text="${ipInfo?.country ?: '-'}">-</div>
+                        </div>
+                    </div>
+                    <div class="ip-quick-card">
+                        <div class="iq-icon"><i class="fas fa-crosshairs"></i></div>
+                        <div class="iq-body">
+                            <div class="iq-label">Coordinates</div>
+                            <div class="iq-value" th:text="${ipInfo?.latitude != null and ipInfo?.longitude != null ? ipInfo.latitude + ', ' + ipInfo.longitude : '-'}">-</div>
+                        </div>
+                    </div>
+                    <div class="ip-quick-card">
+                        <div class="iq-icon"><i class="fas fa-server"></i></div>
+                        <div class="iq-body">
+                            <div class="iq-label">ASN</div>
+                            <div class="iq-value" th:text="${ipInfo?.asn ?: '-'}">-</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── Detailed Info ── -->
+                <div class="ip-detail-section">
+                    <div class="ip-detail-heading">
+                        <h2>Full IP Details</h2>
+                        <p>Complete network, location, and security information for your IP address</p>
+                    </div>
+                    <div class="ip-detail-groups">
+
+                        <div class="ip-detail-group">
+                            <div class="ip-dg-header"><i class="fas fa-info-circle"></i> Basic Information</div>
+                            <div class="ip-dg-body">
+                                <div class="ip-dg-row">
+                                    <span class="ip-dg-label">IP Address</span>
+                                    <span class="ip-dg-val" th:text="${ipInfo?.ipAddress ?: '-'}">-</span>
+                                </div>
+                                <div class="ip-dg-row">
+                                    <span class="ip-dg-label">IP Version</span>
+                                    <span class="ip-dg-val" th:text="${ipInfo?.ipType ?: '-'}">-</span>
+                                </div>
+                                <div class="ip-dg-row">
+                                    <span class="ip-dg-label">ISP</span>
+                                    <span class="ip-dg-val" th:text="${ipInfo?.isp ?: '-'}">-</span>
+                                </div>
+                                <div class="ip-dg-row">
+                                    <span class="ip-dg-label">ASN</span>
+                                    <span class="ip-dg-val" th:text="${ipInfo?.asn ?: '-'}">-</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="ip-detail-group">
+                            <div class="ip-dg-header"><i class="fas fa-map-marked-alt"></i> Location</div>
+                            <div class="ip-dg-body">
+                                <div class="ip-dg-row">
+                                    <span class="ip-dg-label">Country</span>
+                                    <span class="ip-dg-val" th:text="${ipInfo?.country ?: '-'}">-</span>
+                                </div>
+                                <div class="ip-dg-row">
+                                    <span class="ip-dg-label">Region</span>
+                                    <span class="ip-dg-val" th:text="${ipInfo?.region ?: '-'}">-</span>
+                                </div>
+                                <div class="ip-dg-row">
+                                    <span class="ip-dg-label">City</span>
+                                    <span class="ip-dg-val" th:text="${ipInfo?.city ?: '-'}">-</span>
+                                </div>
+                                <div class="ip-dg-row">
+                                    <span class="ip-dg-label">Postal Code</span>
+                                    <span class="ip-dg-val" th:text="${ipInfo?.postalCode ?: '-'}">-</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="ip-detail-group">
+                            <div class="ip-dg-header"><i class="fas fa-compass"></i> Coordinates &amp; Time</div>
+                            <div class="ip-dg-body">
+                                <div class="ip-dg-row">
+                                    <span class="ip-dg-label">Latitude</span>
+                                    <span class="ip-dg-val" th:text="${ipInfo?.latitude ?: '-'}">-</span>
+                                </div>
+                                <div class="ip-dg-row">
+                                    <span class="ip-dg-label">Longitude</span>
+                                    <span class="ip-dg-val" th:text="${ipInfo?.longitude ?: '-'}">-</span>
+                                </div>
+                                <div class="ip-dg-row">
+                                    <span class="ip-dg-label">Timezone</span>
+                                    <span class="ip-dg-val" th:text="${ipInfo?.timezone ?: '-'}">-</span>
+                                </div>
+                                <div class="ip-dg-row">
+                                    <span class="ip-dg-label">Accuracy Radius</span>
+                                    <span class="ip-dg-val" th:text="${ipInfo?.accuracyRadius != null ? ipInfo.accuracyRadius + ' km' : '-'}">-</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="ip-detail-group">
+                            <div class="ip-dg-header"><i class="fas fa-user-shield"></i> Privacy &amp; Security</div>
+                            <div class="ip-dg-body">
+                                <div class="ip-dg-row">
+                                    <span class="ip-dg-label">Proxy</span>
+                                    <span class="ip-dg-val" th:if="${ipInfo?.isProxy != null}">
+                                        <span th:if="${ipInfo.isProxy}" class="badge-bad">Yes</span>
+                                        <span th:unless="${ipInfo.isProxy}" class="badge-good">No</span>
+                                    </span>
+                                    <span class="ip-dg-val" th:unless="${ipInfo?.isProxy != null}">-</span>
+                                </div>
+                                <div class="ip-dg-row">
+                                    <span class="ip-dg-label">VPN</span>
+                                    <span class="ip-dg-val" th:if="${ipInfo?.isVPN != null}">
+                                        <span th:if="${ipInfo.isVPN}" class="badge-bad">Yes</span>
+                                        <span th:unless="${ipInfo.isVPN}" class="badge-good">No</span>
+                                    </span>
+                                    <span class="ip-dg-val" th:unless="${ipInfo?.isVPN != null}">-</span>
+                                </div>
+                                <div class="ip-dg-row">
+                                    <span class="ip-dg-label">Tor Exit Node</span>
+                                    <span class="ip-dg-val" th:if="${ipInfo?.isTor != null}">
+                                        <span th:if="${ipInfo.isTor}" class="badge-bad">Yes</span>
+                                        <span th:unless="${ipInfo.isTor}" class="badge-good">No</span>
+                                    </span>
+                                    <span class="ip-dg-val" th:unless="${ipInfo?.isTor != null}">-</span>
+                                </div>
+                                <div class="ip-dg-row">
+                                    <span class="ip-dg-label">Hosting Provider</span>
+                                    <span class="ip-dg-val" th:if="${ipInfo?.isHosting != null}">
+                                        <span th:if="${ipInfo.isHosting}" class="badge-warn">Yes</span>
+                                        <span th:unless="${ipInfo.isHosting}" class="badge-good">No</span>
+                                    </span>
+                                    <span class="ip-dg-val" th:unless="${ipInfo?.isHosting != null}">-</span>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <div th:replace="~{template::ad_banner_bottom}"></div>
+    </main>
+
+    <div th:replace="~{fragments/related-tools::related(slug='my-ip-address')}"></div>
+    <footer th:replace="~{template::template_footer}"></footer>
+
+<script>
+    // Copy IP
+    document.getElementById('copyBtn').addEventListener('click', function() {
+        var ip = this.getAttribute('data-ip') || document.getElementById('ipAddress').textContent.trim();
+        if (!ip || ip === 'Unavailable') return;
+        navigator.clipboard.writeText(ip).then(function() {
+            var btn = document.getElementById('copyBtn');
+            btn.classList.add('copied');
+            btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+            setTimeout(function() {
+                btn.classList.remove('copied');
+                btn.innerHTML = '<i class="fas fa-copy"></i> Copy';
+            }, 2000);
+        });
+    });
+
+    // Refresh
+    document.getElementById('refreshBtn').addEventListener('click', function() {
+        var icon = this.querySelector('i');
+        icon.style.transition = 'transform .4s';
+        icon.style.transform = 'rotate(360deg)';
+        setTimeout(function() { window.location.reload(); }, 300);
+    });
+</script>
+</body>
+</html>

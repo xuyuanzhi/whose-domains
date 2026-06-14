@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+
+    <main>
+        <!-- Hero -->
+        <section class="hero">
+            <div class="container">
+                <div class="hero-content">
+                    <h1><i class="fas fa-globe-americas" style="margin-right:12px;color:var(--primary);"></i>Top-Level Domains</h1>
+                    <p>The authoritative directory of all Internet TLDs — generic (gTLD), country-code (ccTLD), and new domain extensions. Browse registry details, WHOIS servers, and registered domains.</p>
+                    <div class="search-container" style="max-width:480px;">
+                        <input type="text" id="tldSearch" class="search-input"
+                               placeholder="Filter TLDs… e.g. com, io, uk"
+                               autocomplete="off">
+                        <button class="search-btn" id="filterBtn">
+                            <i class="fas fa-filter"></i> Filter
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <div th:replace="~{template::ad_banner_top}"></div>
+
+        <div class="container">
+
+            <!-- Stats bar -->
+            <div class="tlds-stats-bar">
+                <div class="tlds-stat">
+                    <span class="tlds-stat-num" id="totalCount" th:text="${list.size()}">0</span>
+                    <span class="tlds-stat-label">Total TLDs</span>
+                </div>
+                <div class="tlds-stat">
+                    <span class="tlds-stat-num" id="gtldCount"
+                          th:text="${#lists.size(list.?[type != null and (type == 'generic' or type == 'generic-restricted' or type == 'sponsored')])}">0</span>
+                    <span class="tlds-stat-label">Generic (gTLD)</span>
+                </div>
+                <div class="tlds-stat">
+                    <span class="tlds-stat-num" id="cctldCount"
+                          th:text="${#lists.size(list.?[type != null and type == 'country-code'])}">0</span>
+                    <span class="tlds-stat-label">Country-Code (ccTLD)</span>
+                </div>
+                <div class="tlds-stat">
+                    <span class="tlds-stat-num" id="visibleCount" th:text="${list.size()}">0</span>
+                    <span class="tlds-stat-label">Showing</span>
+                </div>
+            </div>
+
+            <!-- Type filter chips -->
+            <div class="tlds-type-filters">
+                <button class="tlds-chip active" data-type="all">All</button>
+                <button class="tlds-chip" data-type="generic">Generic (gTLD)</button>
+                <button class="tlds-chip" data-type="country-code">Country-Code (ccTLD)</button>
+                <button class="tlds-chip" data-type="sponsored">Sponsored</button>
+                <button class="tlds-chip" data-type="infrastructure">Infrastructure</button>
+            </div>
+
+            <!-- TLD card grid -->
+            <div class="tlds-grid" id="tldGrid">
+                <a th:each="tld : ${list}"
+                   th:href="@{/domain/{name}(name=${tld.name})}"
+                   class="tld-card"
+                   th:attr="data-name=${tld.name},data-type=${tld.type != null ? tld.type : 'generic'}">
+                    <span class="tld-card-name" th:text="${tld.displayName}"></span>
+                    <span class="tld-card-type" th:text="${tld.type != null ? tld.type : 'generic'}"></span>
+                </a>
+            </div>
+
+            <!-- No-results placeholder -->
+            <div id="noResults" style="display:none; text-align:center; padding:60px 20px; color:var(--gray);">
+                <i class="fas fa-search" style="font-size:36px; margin-bottom:16px; display:block; opacity:.4;"></i>
+                <p style="font-size:16px;">No TLDs match your search.</p>
+                <button class="btn btn-outline btn-sm" style="margin-top:12px;" id="clearBtn">Clear Filter</button>
+            </div>
+
+            <!-- SEO info section -->
+            <div class="tlds-seo-section">
+                <h2>About Top-Level Domains</h2>
+                <div class="tlds-seo-grid">
+                    <div class="tlds-seo-card">
+                        <div class="tlds-seo-icon"><i class="fas fa-globe"></i></div>
+                        <h3>Generic TLDs (gTLD)</h3>
+                        <p>Open-registration extensions like <strong>.com</strong>, <strong>.net</strong>, <strong>.org</strong>, and newer ones like <strong>.io</strong> and <strong>.app</strong>, managed by ICANN-accredited registries.</p>
+                    </div>
+                    <div class="tlds-seo-card">
+                        <div class="tlds-seo-icon"><i class="fas fa-flag"></i></div>
+                        <h3>Country-Code TLDs (ccTLD)</h3>
+                        <p>Two-letter extensions assigned to countries and territories — <strong>.uk</strong>, <strong>.de</strong>, <strong>.jp</strong>, <strong>.au</strong>. They signal geographic relevance and boost local SEO.</p>
+                    </div>
+                    <div class="tlds-seo-card">
+                        <div class="tlds-seo-icon"><i class="fas fa-building"></i></div>
+                        <h3>Sponsored TLDs (sTLD)</h3>
+                        <p>Restricted extensions for specific communities: <strong>.gov</strong> for US government, <strong>.edu</strong> for accredited institutions, <strong>.mil</strong> for military. Eligibility requirements apply.</p>
+                    </div>
+                    <div class="tlds-seo-card">
+                        <div class="tlds-seo-icon"><i class="fas fa-cog"></i></div>
+                        <h3>Infrastructure TLD</h3>
+                        <p><strong>.arpa</strong> is the sole infrastructure TLD, reserved for technical internet functions such as reverse DNS lookups and protocol address-to-name resolution.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- FAQ (SEO) -->
+            <div class="tlds-faq">
+                <h2>Frequently Asked Questions</h2>
+                <div class="faq-grid">
+                    <details class="faq-item">
+                        <summary><h3>How many top-level domains exist?</h3></summary>
+                        <p>As of 2025, ICANN's root zone database lists over 1,500 active TLDs — including legacy gTLDs like .com and .net, hundreds of new gTLDs introduced since 2013 (e.g. .app, .shop, .cloud), and around 300 country-code TLDs. This page lists all currently active delegations.</p>
+                    </details>
+                    <details class="faq-item">
+                        <summary><h3>What is the difference between a gTLD and a ccTLD?</h3></summary>
+                        <p>A gTLD (generic top-level domain) is generally open to anyone worldwide — examples include .com, .org, .net, .io, and .app. A ccTLD (country-code TLD) is a two-letter extension assigned to a specific country or territory (e.g. .uk for the United Kingdom, .de for Germany) and may have local residency or presence requirements.</p>
+                    </details>
+                    <details class="faq-item">
+                        <summary><h3>Which TLD is best for SEO?</h3></summary>
+                        <p>Google treats all gTLDs equally in global search rankings. Country-code TLDs (ccTLDs) may provide a geographic relevance signal for local searches. .com remains the most widely recognised and trusted extension internationally. Ultimately, content quality, backlinks, and site authority matter far more than TLD choice for SEO.</p>
+                    </details>
+                    <details class="faq-item">
+                        <summary><h3>How can I look up WHOIS for a TLD?</h3></summary>
+                        <p>Click any TLD card above to view its full registry profile, including the sponsoring organisation, official WHOIS server, RDAP endpoint, and registration dates. For individual domain lookups, use our <a href="/tools/whois-lookup">WHOIS Lookup</a> or <a href="/tools/rdap-lookup">RDAP Lookup</a> tool.</p>
+                    </details>
+                    <details class="faq-item">
+                        <summary><h3>Who manages TLDs and what is ICANN?</h3></summary>
+                        <p>ICANN (Internet Corporation for Assigned Names and Numbers) is the non-profit that coordinates the global DNS and delegates each TLD to a registry operator. For example, Verisign operates .com and .net, while Public Interest Registry operates .org. Country-code TLDs are managed by designated national organisations.</p>
+                    </details>
+                </div>
+            </div>
+
+        </div><!-- /.container -->
+
+        <!-- JSON-LD: ItemList -->
+        <script type="application/ld+json" th:inline="javascript">
+        {
+          "@context": "https://schema.org",
+          "@type": "ItemList",
+          "name": "Top-Level Domains (TLD) Directory",
+          "description": "Authoritative directory of all Internet top-level domains including gTLD, ccTLD, and new extensions.",
+          "url": "https://whose.domains/top-level-domains",
+          "numberOfItems": /*[[${list.size()}]]*/ 0
+        }
+        </script>
+        <!-- JSON-LD: FAQPage -->
+        <script type="application/ld+json">
+        {
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          "mainEntity": [
+            { "@type": "Question", "name": "How many top-level domains exist?",
+              "acceptedAnswer": { "@type": "Answer", "text": "As of 2025, ICANN's root zone database lists over 1,500 active TLDs including legacy gTLDs, new gTLDs, and about 300 ccTLDs." } },
+            { "@type": "Question", "name": "What is the difference between a gTLD and a ccTLD?",
+              "acceptedAnswer": { "@type": "Answer", "text": "A gTLD is open to anyone worldwide (e.g. .com, .org, .io). A ccTLD is a two-letter extension assigned to a specific country (e.g. .uk, .de) and may have local requirements." } },
+            { "@type": "Question", "name": "Which TLD is best for SEO?",
+              "acceptedAnswer": { "@type": "Answer", "text": "Google treats all gTLDs equally. ccTLDs provide geographic signals. .com is most globally trusted. Content quality and backlinks matter most." } },
+            { "@type": "Question", "name": "Who manages TLDs and what is ICANN?",
+              "acceptedAnswer": { "@type": "Answer", "text": "ICANN coordinates the global DNS and delegates each TLD to a registry operator. Verisign manages .com, Public Interest Registry manages .org, and national organisations manage ccTLDs." } }
+          ]
+        }
+        </script>
+        <!-- JSON-LD: BreadcrumbList -->
+        <script type="application/ld+json">
+        {
+          "@context": "https://schema.org",
+          "@type": "BreadcrumbList",
+          "itemListElement": [
+            { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://whose.domains/" },
+            { "@type": "ListItem", "position": 2, "name": "Top-Level Domains", "item": "https://whose.domains/top-level-domains" }
+          ]
+        }
+        </script>
+
+    </main>
+
+    <footer th:replace="~{template::template_footer}"></footer>
+
+    <script>
+    (function () {
+        var _activeType = 'all';
+        var _searchVal  = '';
+
+        function applyFilter() {
+            var cards = document.querySelectorAll('#tldGrid .tld-card');
+            var shown = 0;
+            var q = _searchVal.replace(/^\./, ''); // strip leading dot
+            cards.forEach(function (card) {
+                var name = (card.getAttribute('data-name') || '').toLowerCase();
+                var type = (card.getAttribute('data-type') || '').toLowerCase();
+                var matchSearch = !q || name.indexOf(q) !== -1;
+                var matchType   = _activeType === 'all'
+                    || type === _activeType
+                    || (_activeType === 'generic' && (type === 'generic' || type === 'generic-restricted' || type === 'new generic'));
+                var show = matchSearch && matchType;
+                card.style.display = show ? '' : 'none';
+                if (show) shown++;
+            });
+            document.getElementById('visibleCount').textContent = shown;
+            document.getElementById('noResults').style.display = (shown === 0) ? 'block' : 'none';
+        }
+
+        // Search input
+        var searchInput = document.getElementById('tldSearch');
+        searchInput.addEventListener('input', function () {
+            _searchVal = this.value.toLowerCase().trim();
+            applyFilter();
+        });
+        searchInput.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') { _searchVal = this.value.toLowerCase().trim(); applyFilter(); }
+        });
+        document.getElementById('filterBtn').addEventListener('click', function () {
+            _searchVal = searchInput.value.toLowerCase().trim();
+            applyFilter();
+        });
+
+        // Type chips
+        document.querySelectorAll('.tlds-chip').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                document.querySelectorAll('.tlds-chip').forEach(function (b) { b.classList.remove('active'); });
+                this.classList.add('active');
+                _activeType = this.getAttribute('data-type');
+                applyFilter();
+            });
+        });
+
+        // Clear button
+        document.getElementById('clearBtn').addEventListener('click', function () {
+            _searchVal  = '';
+            _activeType = 'all';
+            searchInput.value = '';
+            document.querySelectorAll('.tlds-chip').forEach(function (b, i) { b.classList.toggle('active', i === 0); });
+            applyFilter();
+        });
+    })();
+    </script>
+</body>
+</html>

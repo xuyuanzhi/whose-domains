@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+
+    <main>
+        <div class="container">
+            <div class="info-page">
+                <nav class="breadcrumb">
+                    <a href="/">Home</a> &gt; 
+                    <a href="/help-center">Help Center</a> &gt; 
+                    <span>Domain Age Checker Guide</span>
+                </nav>
+
+                <article class="info-content" itemscope itemtype="https://schema.org/Article">
+                    <h1>How to Check Domain Age &amp; Why It Matters</h1>
+                    
+                    <div class="info-section">
+                        <h2>Understanding Domain Age</h2>
+                        <p>Domain age refers to how long a domain name has been registered and active. It's an important metric for SEO analysis, domain investment, trust evaluation, and competitive research.</p>
+
+                        <h3>Why Domain Age Matters</h3>
+
+                        <h4>SEO Impact</h4>
+                        <ul>
+                            <li>Older domains may have accumulated backlinks and authority over time</li>
+                            <li>Google's algorithms consider domain history as a trust signal</li>
+                            <li>New domains often go through a "sandbox" period with limited rankings</li>
+                            <li>Domain age alone doesn't guarantee rankings — content and links matter more</li>
+                        </ul>
+
+                        <h4>Trust and Credibility</h4>
+                        <ul>
+                            <li>Older domains are generally perceived as more trustworthy</li>
+                            <li>Newly registered domains are more commonly associated with spam or phishing</li>
+                            <li>Financial institutions and security tools flag very new domains</li>
+                        </ul>
+
+                        <h4>Domain Investment</h4>
+                        <ul>
+                            <li>Older domains with clean histories command higher prices</li>
+                            <li>Age contributes to perceived authority and value</li>
+                            <li>Historical backlink profiles accumulated over years add significant value</li>
+                        </ul>
+
+                        <h3>How to Check Domain Age</h3>
+
+                        <h4>WHOIS Lookup</h4>
+                        <p>The most reliable method — check the "Creation Date" or "Registered On" field in WHOIS results.</p>
+                        <ul>
+                            <li>Use our <a href="/">WHOIS lookup tool</a> to instantly check any domain's creation date</li>
+                            <li>Also shows registration, update, and expiration dates</li>
+                            <li>Some ccTLDs may not expose creation dates</li>
+                        </ul>
+
+                        <h4>Internet Archive (Wayback Machine)</h4>
+                        <p>Shows when a domain was first crawled and what content it hosted over time. Useful when WHOIS history is limited.</p>
+
+                        <h4>Domain History Tools</h4>
+                        <p>Use our <a href="/tools/domain-history">Domain History tool</a> to see historical WHOIS data and how the domain has changed over time.</p>
+
+                        <h3>Domain Age vs. Index Age</h3>
+                        <ul>
+                            <li><strong>Registration age:</strong> When the domain was first registered (WHOIS creation date)</li>
+                            <li><strong>Index age:</strong> When Google first crawled and indexed the domain</li>
+                            <li><strong>Content age:</strong> When meaningful content was first published</li>
+                            <li>A domain registered in 2005 but only developed in 2024 has limited SEO benefit from age</li>
+                        </ul>
+
+                        <h3>Red Flags in Domain Age Analysis</h3>
+                        <ul>
+                            <li>Domain age resets if it expires and is re-registered by a new owner</li>
+                            <li>Recently dropped and re-registered domains may carry penalties</li>
+                            <li>Check for gaps in registration history that indicate the domain was dropped</li>
+                            <li>Verify the domain wasn't previously used for spam or malware</li>
+                        </ul>
+
+                        <div class="info-box">
+                            <strong>Quick Check:</strong> Enter any domain in our <a href="/">WHOIS lookup</a> to instantly see its registration date, age, and full WHOIS history.
+                        </div>
+                    </div>
+
+                    <div class="info-navigation">
+                        <a href="/info/domain-forwarding-and-redirects" class="btn btn-secondary">&larr; Previous: Domain Forwarding &amp; Redirects</a>
+                        <a href="/info/reverse-whois-lookup" class="btn btn-primary">Next: Reverse WHOIS Lookup &rarr;</a>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </main>
+
+    <footer th:replace="~{template::template_footer}"></footer>
+</body>
+</html>

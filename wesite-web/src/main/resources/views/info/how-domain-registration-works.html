@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+
+    <main>
+        <div class="container">
+            <div class="info-page">
+                <nav class="breadcrumb">
+                    <a href="/">Home</a> &gt; 
+                    <a href="/help-center">Help Center</a> &gt; 
+                    <span>How Domain Registration Works</span>
+                </nav>
+
+                <article class="info-content" itemscope itemtype="https://schema.org/Article">
+                    <h1>How Domain Registration Works</h1>
+                    
+                    <div class="info-section">
+                        <h2>The Domain Registration Process</h2>
+                        <p>Domain registration is the process of acquiring a domain name for your website. Understanding this process helps you make informed decisions about your online presence.</p>
+                        
+                        <h3>Key Players in Domain Registration</h3>
+                        <ul>
+                            <li><strong>ICANN (Internet Corporation for Assigned Names and Numbers):</strong> The nonprofit organization that coordinates the global domain name system</li>
+                            <li><strong>Registry:</strong> Organizations that manage specific TLDs (e.g., Verisign manages .com)</li>
+                            <li><strong>Registrar:</strong> Companies authorized to sell domain names to the public</li>
+                            <li><strong>Registrant:</strong> The person or organization that registers the domain</li>
+                        </ul>
+
+                        <h3>Registration Steps</h3>
+                        <ol>
+                            <li><strong>Choose a Domain Name:</strong> Select a name that represents your brand or purpose</li>
+                            <li><strong>Check Availability:</strong> Use a WHOIS lookup tool to verify the domain is available</li>
+                            <li><strong>Select a Registrar:</strong> Choose an accredited domain registrar</li>
+                            <li><strong>Provide Contact Information:</strong> Submit registrant details (name, email, address)</li>
+                            <li><strong>Choose Registration Period:</strong> Select how long to register (1-10 years)</li>
+                            <li><strong>Complete Payment:</strong> Pay the registration fee</li>
+                            <li><strong>Configure DNS:</strong> Set up nameservers to point to your hosting</li>
+                        </ol>
+
+                        <h3>Registration Period</h3>
+                        <p>Domains can be registered for 1 to 10 years. Consider:</p>
+                        <ul>
+                            <li><strong>Longer periods:</strong> Lock in current rates, show commitment</li>
+                            <li><strong>Shorter periods:</strong> More flexibility, lower upfront cost</li>
+                            <li><strong>Auto-renewal:</strong> Enable to prevent accidental expiration</li>
+                        </ul>
+
+                        <h3>Domain Registration Information</h3>
+                        <p>When you register a domain, you must provide:</p>
+                        <ul>
+                            <li><strong>Registrant Contact:</strong> Owner information</li>
+                            <li><strong>Administrative Contact:</strong> Person managing the domain</li>
+                            <li><strong>Technical Contact:</strong> Person handling technical issues</li>
+                            <li><strong>Billing Contact:</strong> Person responsible for payments</li>
+                        </ul>
+                        <p>This information is stored in the WHOIS database and is publicly accessible (unless privacy protection is enabled).</p>
+
+                        <h3>After Registration</h3>
+                        <p>Once registered:</p>
+                        <ul>
+                            <li>You have exclusive rights to use the domain for the registration period</li>
+                            <li>You can configure DNS settings to point to your website</li>
+                            <li>You can set up email addresses using your domain</li>
+                            <li>You must renew before expiration to maintain ownership</li>
+                        </ul>
+
+                        <h3>Important Considerations</h3>
+                        <ul>
+                            <li><strong>Trademark:</strong> Ensure your domain doesn't infringe on trademarks</li>
+                            <li><strong>Privacy Protection:</strong> Consider WHOIS privacy to protect personal information</li>
+                            <li><strong>Domain Lock:</strong> Enable transfer lock to prevent unauthorized transfers</li>
+                            <li><strong>Renewal Reminders:</strong> Set up alerts to avoid accidental expiration</li>
+                        </ul>
+                    </div>
+
+                    <div class="info-navigation">
+                        <a href="/info/domain-structure-and-tlds" class="btn btn-secondary">&larr; Previous: Domain Structure and TLDs</a>
+                        <a href="/info/understanding-domain-ownership" class="btn btn-primary">Next: Understanding Domain Ownership &rarr;</a>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </main>
+
+    <footer th:replace="~{template::template_footer}"></footer>
+</body>
+</html>

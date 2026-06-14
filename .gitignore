@@ -1,0 +1,86 @@
+# Build output
+target/
+build/
+out/
+*.class
+*.jar
+*.war
+*.ear
+*.nar
+
+# Maven
+.mvn/
+mvnw
+mvnw.cmd
+dependency-reduced-pom.xml
+
+# IDE - IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# IDE - Eclipse / STS
+.project
+.classpath
+.settings/
+.factorypath
+.springBeans
+.apt_generated/
+.sts4-cache/
+
+# IDE - VS Code
+.vscode/
+
+# IDE - NetBeans
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Logs
+logs/
+*.log
+*.log.*
+
+# Environment / secrets — NEVER commit real config
+application-dev.properties
+application-prod.properties
+application-mac.properties
+application-local.properties
+*-secret.properties
+*.env
+.env
+.env.*
+
+# Local data / uploads
+uploads/
+tmp/
+temp/
+*.sqlite
+*.db
+
+# Node (if any frontend tooling)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+
+# Misc
+*.swp
+*.swo
+*~
+*.bak
+*.orig

@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+    <main>
+    <section class="hero">
+        <div class="container">
+            <div class="hero-content">
+                <h1>📘 API Documentation</h1>
+                <p>Free RESTful APIs for domain research. Access WHOIS data, DNS records, domain scoring, and more programmatically.</p>
+            </div>
+        </div>
+    </section>
+
+    <div class="container" style="max-width:960px;">
+
+    <div style="background:rgba(0,229,255,0.05); border-left:4px solid var(--primary); padding:15px 20px; border-radius:0 8px 8px 0; margin-bottom:30px; font-size:14px;">
+        <b>Base URL:</b> <code style="background:rgba(0,229,255,0.1); padding:2px 6px; border-radius:3px;">https://whose.domains</code><br/>
+        <b>Rate Limit:</b> 5-10 requests per minute per IP (varies by endpoint)<br/>
+        <b>Format:</b> All responses are JSON
+    </div>
+
+    <!-- TOC -->
+    <div style="background:var(--card-bg); border-radius:10px; padding:20px; margin-bottom:30px;">
+        <div style="font-weight:700; margin-bottom:10px;">Endpoints</div>
+        <ul style="list-style:none; padding:0; margin:0; font-size:14px; line-height:2;">
+            <li>🔍 <a href="#domain-lookup" style="color:var(--primary); text-decoration:none;">Domain Lookup</a></li>
+            <li>📊 <a href="#domain-score" style="color:var(--primary); text-decoration:none;">Domain Health Score</a></li>
+            <li>🆚 <a href="#whois-compare" style="color:var(--primary); text-decoration:none;">WHOIS Compare</a></li>
+            <li>🔗 <a href="#related-domains" style="color:var(--primary); text-decoration:none;">Related Domains</a></li>
+            <li>🌐 <a href="#dns-analysis" style="color:var(--primary); text-decoration:none;">DNS Analysis</a></li>
+            <li>🔬 <a href="#domain-analysis" style="color:var(--primary); text-decoration:none;">Domain Analysis (SEO, Security, Technical)</a></li>
+            <li>📜 <a href="#domain-history" style="color:var(--primary); text-decoration:none;">WHOIS History &amp; Diff</a></li>
+            <li>📥 <a href="#domain-report" style="color:var(--primary); text-decoration:none;">Domain Report Export</a></li>
+            <li>⏰ <a href="#expiring-domains" style="color:var(--primary); text-decoration:none;">Expiring Domains</a></li>
+            <li>🖥️ <a href="#reverse-ip" style="color:var(--primary); text-decoration:none;">Reverse IP Lookup</a></li>
+            <li>📦 <a href="#bulk-search" style="color:var(--primary); text-decoration:none;">Bulk Domain Search</a></li>
+        </ul>
+    </div>
+
+    <!-- Domain Lookup -->
+    <div id="domain-lookup" class="api-section" style="margin-bottom:35px; border-bottom:1px solid var(--glass-border); padding-bottom:30px;">
+        <h2 style="font-size:20px;">🔍 Domain Lookup</h2>
+        <div class="api-endpoint" style="background:rgba(255,255,255,0.04); padding:12px 16px; border-radius:6px; margin:10px 0; font-family:monospace; font-size:14px;">
+            <span style="background:var(--success); color:#fff; padding:2px 8px; border-radius:3px; font-size:12px; margin-right:8px;">POST</span>
+            /domain/{domainName}/search
+        </div>
+        <p style="font-size:14px; color:#7a8ba0;">Looks up domain WHOIS information. Triggers a fresh WHOIS query if data is not cached. Returns RDAP URL if applicable.</p>
+        <div style="font-size:13px; margin-top:8px;">
+            <b>Path Parameter:</b> <code>domainName</code> - Full domain name (e.g., <code>example.com</code>)<br/>
+            <b>Response:</b> <code>{"code":0, "data": {"rdapUrl": "..."}}</code> on success
+        </div>
+    </div>
+
+    <!-- Domain Score -->
+    <div id="domain-score" class="api-section" style="margin-bottom:35px; border-bottom:1px solid var(--glass-border); padding-bottom:30px;">
+        <h2 style="font-size:20px;">📊 Domain Health Score</h2>
+        <div class="api-endpoint" style="background:rgba(255,255,255,0.04); padding:12px 16px; border-radius:6px; margin:10px 0; font-family:monospace; font-size:14px;">
+            <span style="background:var(--primary); color:#fff; padding:2px 8px; border-radius:3px; font-size:12px; margin-right:8px;">GET</span>
+            /api/tools/score/{domainName}
+        </div>
+        <p style="font-size:14px; color:#7a8ba0;">Comprehensive domain health scoring (0-100) with grade (A+ to F). Evaluates SSL, DNS, email security (SPF/DKIM/DMARC), security headers, and domain age.</p>
+        <div style="font-size:13px; margin-top:8px;">
+            <b>Response fields:</b> <code>totalScore</code>, <code>grade</code>, <code>categories</code> (each with score and recommendations)
+        </div>
+    </div>
+
+    <!-- WHOIS Compare -->
+    <div id="whois-compare" class="api-section" style="margin-bottom:35px; border-bottom:1px solid var(--glass-border); padding-bottom:30px;">
+        <h2 style="font-size:20px;">🆚 WHOIS Compare</h2>
+        <div class="api-endpoint" style="background:rgba(255,255,255,0.04); padding:12px 16px; border-radius:6px; margin:10px 0; font-family:monospace; font-size:14px;">
+            <span style="background:var(--primary); color:#fff; padding:2px 8px; border-radius:3px; font-size:12px; margin-right:8px;">GET</span>
+            /api/tools/compare?domain1={d1}&amp;domain2={d2}
+        </div>
+        <p style="font-size:14px; color:#7a8ba0;">Compare two domains side by side — registration data, DNS, ownership. Includes a similarity score (0-100) indicating likelihood of same ownership.</p>
+        <div style="font-size:13px; margin-top:8px;">
+            <b>Parameters:</b> <code>domain1</code>, <code>domain2</code><br/>
+            <b>Response:</b> Profiles for both domains, field-by-field differences, similarity score
+        </div>
+    </div>
+
+    <!-- Related Domains -->
+    <div id="related-domains" class="api-section" style="margin-bottom:35px; border-bottom:1px solid var(--glass-border); padding-bottom:30px;">
+        <h2 style="font-size:20px;">🔗 Related Domains Discovery</h2>
+        <div class="api-endpoint" style="background:rgba(255,255,255,0.04); padding:12px 16px; border-radius:6px; margin:10px 0; font-family:monospace; font-size:14px;">
+            <span style="background:var(--primary); color:#fff; padding:2px 8px; border-radius:3px; font-size:12px; margin-right:8px;">GET</span>
+            /api/tools/related/{domainName}
+        </div>
+        <p style="font-size:14px; color:#7a8ba0;">Discover domains sharing the same registrant organization, email, nameservers, IP, or registrar. Powerful for brand protection and cybersecurity investigations.</p>
+        <div style="font-size:13px; margin-top:8px;">
+            <b>Response categories:</b> <code>sameRegistrantOrg</code>, <code>sameRegistrantEmail</code>, <code>sameIp</code>, <code>sameNameServer</code>, <code>sameRegistrar</code>
+        </div>
+    </div>
+
+    <!-- DNS Analysis -->
+    <div id="dns-analysis" class="api-section" style="margin-bottom:35px; border-bottom:1px solid var(--glass-border); padding-bottom:30px;">
+        <h2 style="font-size:20px;">🌐 DNS Analysis</h2>
+        <div class="api-endpoint" style="background:rgba(255,255,255,0.04); padding:12px 16px; border-radius:6px; margin:10px 0; font-family:monospace; font-size:14px;">
+            <span style="background:var(--primary); color:#fff; padding:2px 8px; border-radius:3px; font-size:12px; margin-right:8px;">GET</span>
+            /api/tools/dns-analyze/{domainName}
+        </div>
+        <p style="font-size:14px; color:#7a8ba0;">Deep DNS analysis: NS, A, AAAA, MX, TXT, SOA, CNAME records. Also checks SPF, DMARC, DKIM and detects configuration issues.</p>
+    </div>
+
+    <!-- Domain Analysis -->
+    <div id="domain-analysis" class="api-section" style="margin-bottom:35px; border-bottom:1px solid var(--glass-border); padding-bottom:30px;">
+        <h2 style="font-size:20px;">🔬 Domain Analysis</h2>
+        <div class="api-endpoint" style="background:rgba(255,255,255,0.04); padding:12px 16px; border-radius:6px; margin:10px 0; font-family:monospace; font-size:14px;">
+            <span style="background:var(--primary); color:#fff; padding:2px 8px; border-radius:3px; font-size:12px; margin-right:8px;">GET</span>
+            /api/tools/analyze/{domainName}
+        </div>
+        <p style="font-size:14px; color:#7a8ba0;">Full domain analysis including technical metrics (response time, SSL, server software, open ports), SEO analysis (title, meta, headings, links, Open Graph), and security assessment (security headers, security.txt, SSL details).</p>
+    </div>
+
+    <!-- Domain History -->
+    <div id="domain-history" class="api-section" style="margin-bottom:35px; border-bottom:1px solid var(--glass-border); padding-bottom:30px;">
+        <h2 style="font-size:20px;">📜 WHOIS History &amp; Diff</h2>
+        <div class="api-endpoint" style="background:rgba(255,255,255,0.04); padding:12px 16px; border-radius:6px; margin:10px 0; font-family:monospace; font-size:14px;">
+            <span style="background:var(--primary); color:#fff; padding:2px 8px; border-radius:3px; font-size:12px; margin-right:8px;">GET</span>
+            /api/domain-history/snapshots/{domainName}
+        </div>
+        <p style="font-size:14px; color:#7a8ba0;">List all WHOIS snapshots for a domain.</p>
+        <div class="api-endpoint" style="background:rgba(255,255,255,0.04); padding:12px 16px; border-radius:6px; margin:10px 0; font-family:monospace; font-size:14px;">
+            <span style="background:var(--primary); color:#fff; padding:2px 8px; border-radius:3px; font-size:12px; margin-right:8px;">GET</span>
+            /api/domain-history/diff?id1={id1}&amp;id2={id2}
+        </div>
+        <p style="font-size:14px; color:#7a8ba0;">Compare two WHOIS snapshots and see field-by-field changes.</p>
+        <div class="api-endpoint" style="background:rgba(255,255,255,0.04); padding:12px 16px; border-radius:6px; margin:10px 0; font-family:monospace; font-size:14px;">
+            <span style="background:var(--primary); color:#fff; padding:2px 8px; border-radius:3px; font-size:12px; margin-right:8px;">GET</span>
+            /api/domain-history/latest-diff/{domainName}
+        </div>
+        <p style="font-size:14px; color:#7a8ba0;">Automatically compare the two most recent snapshots of a domain.</p>
+    </div>
+
+    <!-- Domain Report -->
+    <div id="domain-report" class="api-section" style="margin-bottom:35px; border-bottom:1px solid var(--glass-border); padding-bottom:30px;">
+        <h2 style="font-size:20px;">📥 Domain Report Export</h2>
+        <div class="api-endpoint" style="background:rgba(255,255,255,0.04); padding:12px 16px; border-radius:6px; margin:10px 0; font-family:monospace; font-size:14px;">
+            <span style="background:var(--primary); color:#fff; padding:2px 8px; border-radius:3px; font-size:12px; margin-right:8px;">GET</span>
+            /api/domain-report/{domainName}
+        </div>
+        <p style="font-size:14px; color:#7a8ba0;">Download a comprehensive JSON report including WHOIS, registrant, DNS records, subdomains, and WHOIS history snapshots. Response has <code>Content-Disposition: attachment</code> header.</p>
+    </div>
+
+    <!-- Expiring Domains -->
+    <div id="expiring-domains" class="api-section" style="margin-bottom:35px; border-bottom:1px solid var(--glass-border); padding-bottom:30px;">
+        <h2 style="font-size:20px;">⏰ Expiring Domains</h2>
+        <div class="api-endpoint" style="background:rgba(255,255,255,0.04); padding:12px 16px; border-radius:6px; margin:10px 0; font-family:monospace; font-size:14px;">
+            <span style="background:var(--primary); color:#fff; padding:2px 8px; border-radius:3px; font-size:12px; margin-right:8px;">GET</span>
+            /api/expiring-domains?days={days}&amp;page={page}&amp;tld={tld}
+        </div>
+        <p style="font-size:14px; color:#7a8ba0;">List domains expiring within a specified number of days. Supports TLD filtering and pagination.</p>
+        <div style="font-size:13px; margin-top:8px;">
+            <b>Parameters:</b> <code>days</code> (1-365, default 30), <code>page</code> (default 1), <code>tld</code> (optional, e.g. "com")
+        </div>
+    </div>
+
+    <!-- Reverse IP -->
+    <div id="reverse-ip" class="api-section" style="margin-bottom:35px; border-bottom:1px solid var(--glass-border); padding-bottom:30px;">
+        <h2 style="font-size:20px;">🖥️ Reverse IP Lookup</h2>
+        <div class="api-endpoint" style="background:rgba(255,255,255,0.04); padding:12px 16px; border-radius:6px; margin:10px 0; font-family:monospace; font-size:14px;">
+            <span style="background:var(--primary); color:#fff; padding:2px 8px; border-radius:3px; font-size:12px; margin-right:8px;">GET</span>
+            /api/tools/reverse-ip/{ip}?page={page}
+        </div>
+        <p style="font-size:14px; color:#7a8ba0;">Find all domains hosted on a given IPv4 address. Includes GeoIP and ASN information.</p>
+    </div>
+
+    <!-- Bulk Search -->
+    <div id="bulk-search" class="api-section" style="margin-bottom:35px;">
+        <h2 style="font-size:20px;">📦 Bulk Domain Search</h2>
+        <div class="api-endpoint" style="background:rgba(255,255,255,0.04); padding:12px 16px; border-radius:6px; margin:10px 0; font-family:monospace; font-size:14px;">
+            <span style="background:var(--success); color:#fff; padding:2px 8px; border-radius:3px; font-size:12px; margin-right:8px;">POST</span>
+            /api/tools/bulk-search
+        </div>
+        <p style="font-size:14px; color:#7a8ba0;">Check up to 100 domains at once for availability, WHOIS info, or DNS status.</p>
+        <div style="font-size:13px; margin-top:8px;">
+            <b>Request Body (JSON):</b><br/>
+            <code style="background:rgba(255,255,255,0.04); padding:8px 12px; display:block; margin-top:5px; border-radius:4px; white-space:pre;">{"domains": ["example.com", "test.org"], "searchType": "availability"}</code>
+            <br/><b>searchType options:</b> <code>availability</code>, <code>whois</code>, <code>dns</code>
+        </div>
+    </div>
+
+    <!-- Response format -->
+    <div style="margin-top:20px; background:var(--card-bg); border-radius:10px; padding:20px;">
+        <h2 style="font-size:20px; margin-bottom:12px;">Response Format</h2>
+        <p style="font-size:14px; color:#7a8ba0; margin-bottom:10px;">All API responses follow this structure:</p>
+        <code style="background:rgba(255,255,255,0.04); padding:12px 16px; display:block; border-radius:6px; font-size:13px; white-space:pre; overflow-x:auto;">{
+  "code": 0,       // 0 = success, 400 = error
+  "msg": "...",     // Error message (if any)
+  "data": { ... }   // Response payload
+}</code>
+    </div>
+</div>
+    </main>
+    <footer th:replace="~{template::template_footer}"></footer>
+</body>
+</html>

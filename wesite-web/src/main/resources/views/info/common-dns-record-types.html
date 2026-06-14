@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+
+    <main>
+        <div class="container">
+            <div class="info-page">
+                <nav class="breadcrumb">
+                    <a href="/">Home</a> &gt; 
+                    <a href="/help-center">Help Center</a> &gt; 
+                    <span>Common DNS Record Types</span>
+                </nav>
+
+                <article class="info-content" itemscope itemtype="https://schema.org/Article">
+                    <h1>Common DNS Record Types Explained</h1>
+                    
+                    <div class="info-section">
+                        <h2>Understanding DNS Records</h2>
+                        <p>DNS records are instructions stored on authoritative nameservers that tell the DNS system how to handle requests for a domain. Each record type serves a specific purpose.</p>
+
+                        <h3>Essential DNS Record Types</h3>
+
+                        <h4>A Record (Address Record)</h4>
+                        <p>Maps a domain name to an IPv4 address.</p>
+                        <div class="info-example">
+                            <strong>Example:</strong> example.com → 93.184.216.34
+                        </div>
+                        <ul>
+                            <li>Most fundamental DNS record type</li>
+                            <li>Points domain directly to a server IP</li>
+                            <li>Multiple A records enable round-robin load balancing</li>
+                        </ul>
+
+                        <h4>AAAA Record (IPv6 Address Record)</h4>
+                        <p>Maps a domain name to an IPv6 address.</p>
+                        <div class="info-example">
+                            <strong>Example:</strong> example.com → 2606:2800:220:1:248:1893:25c8:1946
+                        </div>
+                        <ul>
+                            <li>Identical function to A record but for IPv6</li>
+                            <li>Increasingly important as IPv6 adoption grows</li>
+                        </ul>
+
+                        <h4>CNAME Record (Canonical Name)</h4>
+                        <p>Creates an alias that points one domain to another domain.</p>
+                        <div class="info-example">
+                            <strong>Example:</strong> www.example.com → example.com
+                        </div>
+                        <ul>
+                            <li>Cannot coexist with other record types for the same name</li>
+                            <li>Cannot be used at the zone apex (root domain)</li>
+                            <li>Commonly used for www subdomains and CDN configurations</li>
+                        </ul>
+
+                        <h4>MX Record (Mail Exchange)</h4>
+                        <p>Specifies the mail servers responsible for receiving email for the domain.</p>
+                        <div class="info-example">
+                            <strong>Example:</strong> example.com MX 10 mail.example.com
+                        </div>
+                        <ul>
+                            <li>Priority value determines which server to try first (lower = higher priority)</li>
+                            <li>Multiple MX records provide mail server redundancy</li>
+                            <li>Must point to an A or AAAA record, not a CNAME</li>
+                        </ul>
+
+                        <h4>TXT Record (Text Record)</h4>
+                        <p>Stores arbitrary text data, commonly used for verification and security.</p>
+                        <ul>
+                            <li><strong>SPF:</strong> Specifies authorized mail servers (e.g., "v=spf1 include:_spf.google.com ~all")</li>
+                            <li><strong>DKIM:</strong> Email authentication via digital signatures</li>
+                            <li><strong>DMARC:</strong> Email authentication policy</li>
+                            <li><strong>Domain Verification:</strong> Prove domain ownership to third-party services</li>
+                        </ul>
+
+                        <h4>NS Record (Nameserver)</h4>
+                        <p>Delegates a domain to specific authoritative nameservers.</p>
+                        <div class="info-example">
+                            <strong>Example:</strong> example.com NS ns1.provider.com
+                        </div>
+                        <ul>
+                            <li>Usually set at the registrar level</li>
+                            <li>Minimum of 2 nameservers recommended for redundancy</li>
+                        </ul>
+
+                        <h4>SOA Record (Start of Authority)</h4>
+                        <p>Contains administrative information about the DNS zone.</p>
+                        <ul>
+                            <li>Primary nameserver for the zone</li>
+                            <li>Email address of the zone administrator</li>
+                            <li>Serial number, refresh, retry, expire, and minimum TTL values</li>
+                        </ul>
+
+                        <h4>PTR Record (Pointer Record)</h4>
+                        <p>Maps an IP address to a domain name (reverse DNS lookup).</p>
+                        <ul>
+                            <li>Opposite of an A record</li>
+                            <li>Important for email deliverability</li>
+                            <li>Used in reverse DNS zones</li>
+                        </ul>
+
+                        <h4>SRV Record (Service Record)</h4>
+                        <p>Specifies the location of specific services (host and port).</p>
+                        <ul>
+                            <li>Used by VoIP, XMPP, and other protocols</li>
+                            <li>Includes priority, weight, port, and target</li>
+                        </ul>
+
+                        <h4>CAA Record (Certificate Authority Authorization)</h4>
+                        <p>Specifies which Certificate Authorities may issue certificates for the domain.</p>
+                        <ul>
+                            <li>Prevents unauthorized certificate issuance</li>
+                            <li>CAs are required to check CAA records before issuing</li>
+                        </ul>
+
+                        <div class="info-box">
+                            <strong>Explore:</strong> Use our <a href="/tools/dns-analyzer">DNS Analyzer</a> to view all DNS records for any domain in real time.
+                        </div>
+                    </div>
+
+                    <div class="info-navigation">
+                        <a href="/info/how-dns-works" class="btn btn-secondary">&larr; Previous: How DNS Works</a>
+                        <a href="/info/dns-propagation-explained" class="btn btn-primary">Next: DNS Propagation Explained &rarr;</a>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </main>
+
+    <footer th:replace="~{template::template_footer}"></footer>
+</body>
+</html>

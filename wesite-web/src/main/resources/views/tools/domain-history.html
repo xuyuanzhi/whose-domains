@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+
+	<main>
+		<section class="hero">
+			<div class="container">
+				<div class="hero-content">
+					<h1>Domain History</h1>
+					<p>Check historical records for a domain including past ownership, nameservers, and status changes.</p>
+					
+					<div class="search-container">
+						<input type="text" id="domainInput" class="search-input" placeholder="Enter domain name (e.g., example.com)" autocomplete="off" autocapitalize="none" spellcheck="false" inputmode="url">
+						<button id="searchBtn" class="search-btn">
+							<i class="fas fa-history"></i>
+							Check History
+						</button>
+					</div>
+					<div class="example-text">
+						Try: google.com, github.com, or yourdomain.com
+					</div>
+				</div>
+			</div>
+		</section>
+
+		<div th:replace="~{template::ad_banner_top}"></div>
+
+		<div class="container">
+			<!-- Diff Results Section -->
+			<div id="diffSection" class="result-card full-width" style="display:none; margin-top:20px;">
+				<h3><i class="fas fa-exchange-alt"></i> Snapshot Comparison</h3>
+				<div id="diffSummary" style="margin-bottom:15px;"></div>
+				<table class="history-table" id="diffTable">
+					<thead>
+						<tr>
+							<th>Field</th>
+							<th>Older Value</th>
+							<th>Newer Value</th>
+							<th>Change</th>
+						</tr>
+					</thead>
+					<tbody id="diffTableBody"></tbody>
+				</table>
+				<div id="noDiffMessage" style="display:none; padding:20px; text-align:center; color:var(--gray);">
+					No changes detected between these two snapshots.
+				</div>
+			</div>
+
+
+			<div id="resultsSection" class="results-section">
+				<div class="results-header">
+					<h2 class="domain-name">
+						<span id="domainNameDisplay"></span>
+						<span class="domain-status">History Available</span>
+					</h2>
+					<button id="searchAgainBtn" class="search-again">
+						<i class="fas fa-sync-alt"></i>
+						New Search
+					</button>
+				</div>
+
+				<div class="results-flex">
+					<div class="result-card">
+						<h3><i class="fas fa-calendar-alt"></i> Historical Dates</h3>
+						<div class="info-row">
+							<span class="info-label">First Seen</span>
+							<span class="info-value" id="firstSeen">-</span>
+						</div>
+						<div class="info-row">
+							<span class="info-label">Last Updated</span>
+							<span class="info-value" id="lastUpdated">-</span>
+						</div>
+						<div class="info-row">
+							<span class="info-label">Total Records</span>
+							<span class="info-value" id="totalRecords">-</span>
+						</div>
+					</div>
+
+					<div class="result-card">
+						<h3><i class="fas fa-server"></i> Nameserver Changes</h3>
+						<div id="nameserverChanges">
+							<!-- Nameserver history will be populated dynamically -->
+						</div>
+					</div>
+
+					<div class="result-card">
+						<h3><i class="fas fa-building"></i> Registrar Changes</h3>
+						<div id="registrarChanges">
+							<!-- Registrar history will be populated dynamically -->
+						</div>
+					</div>
+
+					<div class="result-card">
+						<h3><i class="fas fa-chart-line"></i> Status Timeline</h3>
+						<div id="statusTimeline">
+							<!-- Status timeline will be populated dynamically -->
+						</div>
+					</div>
+
+					<div class="result-card full-width">
+						<h3><i class="fas fa-stream"></i> Change Timeline</h3>
+						<div id="timelineContainer" style="padding:8px 0 0;"></div>
+					</div>
+
+					<div class="result-card full-width">
+						<h3><i class="fas fa-table"></i> Historical Records</h3>
+						<div class="compare-controls" style="margin-bottom:15px;">
+							<button id="compareBtn" class="search-btn" style="font-size:14px;padding:8px 16px;" disabled>
+								<i class="fas fa-exchange-alt"></i> Compare Selected (0/2)
+							</button>
+							<span style="font-size:13px;color:var(--gray);margin-left:10px;">Select 2 snapshots to compare</span>
+						</div>
+						<div class="history-table-container">
+							<table id="historyTable" class="history-table">
+								<thead>
+									<tr>
+										<th style="width:40px;"><input type="checkbox" disabled title="Select rows to compare"></th>
+										<th>Date</th>
+										<th>Registrar</th>
+										<th>Expiry Date</th>
+										<th>Nameservers</th>
+										<th>Registrant</th>
+									</tr>
+								</thead>
+								<tbody id="historyTableBody">
+									<!-- History records will be populated dynamically -->
+								</tbody>
+							</table>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+		<div th:replace="~{template::ad_banner_bottom}"></div>
+	</main>        <div th:replace="~{fragments/related-tools::related(slug='domain-history')}"></div>
+    
+
+    <footer th:replace="~{template::template_footer}"></footer>
+    
+    <script>
+        const domainInput = document.getElementById('domainInput');
+        const searchBtn = document.getElementById('searchBtn');
+        const resultsSection = document.getElementById('resultsSection');
+        const searchAgainBtn = document.getElementById('searchAgainBtn');
+        const domainNameDisplay = document.getElementById('domainNameDisplay');
+        const compareBtn = document.getElementById('compareBtn');
+
+        // Result elements
+        const resultElements = {
+            firstSeen: document.getElementById('firstSeen'),
+            lastUpdated: document.getElementById('lastUpdated'),
+            totalRecords: document.getElementById('totalRecords'),
+            nameserverChanges: document.getElementById('nameserverChanges'),
+            registrarChanges: document.getElementById('registrarChanges'),
+            statusTimeline: document.getElementById('statusTimeline'),
+            historyTableBody: document.getElementById('historyTableBody')
+        };
+
+        let selectedSnapshots = []; // Track selected snapshot IDs for comparison
+
+        // Event Listeners
+        searchBtn.addEventListener('click', performDomainHistory);
+        domainInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') performDomainHistory();
+        });
+
+        // Auto-fill from query parameter
+        (function() {
+            var params = new URLSearchParams(window.location.search);
+            if (params.get('d')) {
+                domainInput.value = params.get('d');
+                performDomainHistory();
+            }
+        })();
+
+        searchAgainBtn.addEventListener('click', function() {
+            resultsSection.classList.remove('active');
+            clearResults();
+            domainInput.value = '';
+            domainInput.focus();
+        });
+        compareBtn.addEventListener('click', compareSnapshots);
+
+        // Functions
+        async function performDomainHistory() {
+            const domain = domainInput.value.trim().toLowerCase();
+            
+            if (!domain) {
+                showNotification('Please enter a domain name', 'warning');
+                return;
+            }
+            
+            if (!isValidDomain(domain)) {
+                showNotification('Please enter a valid domain name (e.g., example.com)', 'warning');
+                return;
+            }
+            
+            showLoader('Retrieving domain history...');
+            searchBtn.disabled = true;
+            
+            try {
+                const response = await fetch('/api/domain-history/snapshots/' + encodeURIComponent(domain));
+                const json = await response.json();
+                
+                if (json.code === 0 && json.data) {
+                    displayDomainHistory(json.data, domain);
+                } else {
+                    clearResults();
+                    showNotification(json.msg || 'No history found for this domain', 'warning');
+                }
+            } catch (error) {
+                console.error('Domain history lookup error:', error);
+                showNotification('An error occurred during lookup', 'error');
+            } finally {
+                hideLoader();
+                searchBtn.disabled = false;
+            }
+        }
+
+        function clearResults() {
+            document.getElementById('diffSection').style.display = 'none';
+            document.getElementById('timelineContainer').innerHTML = '';
+            resultElements.firstSeen.textContent = '-';
+            resultElements.lastUpdated.textContent = '-';
+            resultElements.totalRecords.textContent = '-';
+            resultElements.nameserverChanges.innerHTML = '';
+            resultElements.registrarChanges.innerHTML = '';
+            resultElements.statusTimeline.innerHTML = '';
+            resultElements.historyTableBody.innerHTML = '';
+            selectedSnapshots = [];
+            updateCompareBtn();
+        }
+
+        function displayDomainHistory(snapshots, domain) {
+            domainNameDisplay.textContent = domain;
+            selectedSnapshots = [];
+            updateCompareBtn();
+            document.getElementById('diffSection').style.display = 'none';
+            
+            if (!snapshots || snapshots.length === 0) {
+                resultElements.firstSeen.textContent = '-';
+                resultElements.lastUpdated.textContent = '-';
+                resultElements.totalRecords.textContent = '0';
+                resultElements.nameserverChanges.innerHTML = '<div class="info-row"><span class="info-label">No records</span><span class="info-value">-</span></div>';
+                resultElements.registrarChanges.innerHTML = '<div class="info-row"><span class="info-label">No records</span><span class="info-value">-</span></div>';
+                resultElements.statusTimeline.innerHTML = '<div class="info-row"><span class="info-label">No records</span><span class="info-value">-</span></div>';
+                resultElements.historyTableBody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--gray);padding:24px;">No historical snapshots found.</td></tr>';
+                document.getElementById('timelineContainer').innerHTML = '<p style="color:var(--gray);padding:16px;">No snapshots available.</p>';
+                resultsSection.classList.add('active');
+                resultsSection.scrollIntoView({ behavior: 'smooth' });
+                return;
+            }
+            
+            // Summary
+            resultElements.firstSeen.textContent = snapshots[snapshots.length - 1].snapshotTime || '-';
+            resultElements.lastUpdated.textContent = snapshots[0].snapshotTime || '-';
+            resultElements.totalRecords.textContent = snapshots.length;
+            
+            // Track unique nameservers and registrars
+            const nsChanges = [];
+            const regChanges = [];
+            let prevNs = null, prevReg = null;
+            
+            // snapshots are in DESC order, reverse for chronological
+            const chronological = [...snapshots].reverse();
+            chronological.forEach(s => {
+                if (s.nameServers && s.nameServers !== prevNs) {
+                    nsChanges.push({ date: s.snapshotTime, nameservers: s.nameServers });
+                    prevNs = s.nameServers;
+                }
+                if (s.registrar && s.registrar !== prevReg) {
+                    regChanges.push({ date: s.snapshotTime, registrar: s.registrar });
+                    prevReg = s.registrar;
+                }
+            });
+            
+            // Nameserver changes
+            const nsContainer = resultElements.nameserverChanges;
+            nsContainer.innerHTML = '';
+            if (nsChanges.length === 0) {
+                nsContainer.innerHTML = '<div class="info-row"><span class="info-label">No changes</span><span class="info-value">-</span></div>';
+            } else {
+                nsChanges.slice(-5).forEach(c => {
+                    nsContainer.innerHTML += `<div class="info-row"><span class="info-label">${c.date}</span><span class="info-value">${c.nameservers}</span></div>`;
+                });
+            }
+            
+            // Registrar changes
+            const regContainer = resultElements.registrarChanges;
+            regContainer.innerHTML = '';
+            if (regChanges.length === 0) {
+                regContainer.innerHTML = '<div class="info-row"><span class="info-label">No changes</span><span class="info-value">-</span></div>';
+            } else {
+                regChanges.forEach(c => {
+                    regContainer.innerHTML += `<div class="info-row"><span class="info-label">${c.date}</span><span class="info-value">${c.registrar}</span></div>`;
+                });
+            }
+            
+            // Status timeline - show expiry date changes
+            const statusContainer = resultElements.statusTimeline;
+            statusContainer.innerHTML = '';
+            let prevExpiry = null;
+            const expiryChanges = [];
+            chronological.forEach(s => {
+                if (s.expiryDate && s.expiryDate !== prevExpiry) {
+                    expiryChanges.push({ date: s.snapshotTime, expiry: s.expiryDate });
+                    prevExpiry = s.expiryDate;
+                }
+            });
+            if (expiryChanges.length === 0) {
+                statusContainer.innerHTML = '<div class="info-row"><span class="info-label">No expiry changes</span><span class="info-value">-</span></div>';
+            } else {
+                expiryChanges.forEach(c => {
+                    statusContainer.innerHTML += `<div class="info-row"><span class="info-label">${c.date}</span><span class="info-value">Expires: ${c.expiry}</span></div>`;
+                });
+            }
+            
+            // Populate history table
+            const tbody = resultElements.historyTableBody;
+            tbody.innerHTML = '';
+            snapshots.forEach(s => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td><input type="checkbox" class="snapshot-cb" data-id="${s.id}" onchange="onSnapshotSelect(this)"></td>
+                    <td>${s.snapshotTime || '-'}</td>
+                    <td>${s.registrar || '-'}</td>
+                    <td>${s.expiryDate || '-'}</td>
+                    <td>${s.nameServers || '-'}</td>
+                    <td>${s.registrantOrg || '-'} ${s.registrantCountry ? '(' + s.registrantCountry + ')' : ''}</td>
+                `;
+                tbody.appendChild(row);
+            });
+            
+            resultsSection.classList.add('active');
+            resultsSection.scrollIntoView({ behavior: 'smooth' });
+
+            // Render CSS timeline
+            renderTimeline(snapshots);
+        }
+
+        function renderTimeline(snapshots) {
+            var container = document.getElementById('timelineContainer');
+            if (!snapshots || snapshots.length === 0) {
+                container.innerHTML = '<p style="color:var(--gray);padding:16px;">No snapshots available.</p>';
+                return;
+            }
+
+            // Detect changes between consecutive snapshots (chronological)
+            var chrono = snapshots.slice().reverse();
+            var events = [];
+            for (var i = 0; i < chrono.length; i++) {
+                var s = chrono[i];
+                var prev = i > 0 ? chrono[i-1] : null;
+                var tags = [];
+                if (!prev) {
+                    tags.push({ label: 'First Snapshot', color: '#64ffda' });
+                } else {
+                    if (prev.registrar !== s.registrar && s.registrar) tags.push({ label: 'Registrar Change', color: '#ffc107' });
+                    if (prev.nameServers !== s.nameServers && s.nameServers) tags.push({ label: 'DNS Change', color: '#64b4ff' });
+                    if (prev.expiryDate !== s.expiryDate && s.expiryDate) tags.push({ label: 'Expiry Updated', color: '#aed581' });
+                    if (prev.registrantOrg !== s.registrantOrg && s.registrantOrg) tags.push({ label: 'Registrant Change', color: '#ce93d8' });
+                    if (prev.domainStatus !== s.domainStatus && s.domainStatus) tags.push({ label: 'Status Change', color: '#ff8a65' });
+                    if (tags.length === 0) tags.push({ label: 'Snapshot', color: 'rgba(255,255,255,0.3)' });
+                }
+                events.push({ snapshot: s, tags: tags });
+            }
+
+            var html = '<div class="tl-wrap">';
+            events.forEach(function(ev, idx) {
+                var s = ev.snapshot;
+                var isLast = idx === events.length - 1;
+                var tagsHtml = ev.tags.map(function(t) {
+                    return '<span class="tl-tag" style="background:' + t.color + '22;color:' + t.color + ';border:1px solid ' + t.color + '55;">' + t.label + '</span>';
+                }).join('');
+                html += '<div class="tl-item">' +
+                    '<div class="tl-line-wrap"><div class="tl-dot"></div>' + (isLast ? '' : '<div class="tl-line"></div>') + '</div>' +
+                    '<div class="tl-body">' +
+                    '<div class="tl-date">' + (s.snapshotTime || '—') + '</div>' +
+                    '<div class="tl-tags">' + tagsHtml + '</div>' +
+                    '<div class="tl-details">' +
+                    (s.registrar ? '<span class="tl-detail"><i class="fas fa-building"></i> ' + esc(s.registrar) + '</span>' : '') +
+                    (s.nameServers ? '<span class="tl-detail"><i class="fas fa-server"></i> ' + esc(s.nameServers.split(',')[0]) + (s.nameServers.split(',').length > 1 ? ' +' + (s.nameServers.split(',').length-1) : '') + '</span>' : '') +
+                    (s.expiryDate ? '<span class="tl-detail"><i class="fas fa-calendar-times"></i> Exp: ' + esc(s.expiryDate) + '</span>' : '') +
+                    '</div>' +
+                    '<button class="tl-diff-btn" onclick="selectForDiff(\'' + s.id + '\', this)"><i class="fas fa-code-branch"></i> Select for diff</button>' +
+                    '</div></div>';
+            });
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        var diffSelections = [];
+        function selectForDiff(id, btn) {
+            var idx = diffSelections.indexOf(id);
+            if (idx >= 0) {
+                diffSelections.splice(idx, 1);
+                btn.classList.remove('tl-diff-active');
+            } else {
+                if (diffSelections.length >= 2) {
+                    var oldBtn = document.getElementById('timelineContainer').querySelector('[data-diff-id="' + diffSelections.shift() + '"]');
+                    if (oldBtn) oldBtn.classList.remove('tl-diff-active');
+                }
+                diffSelections.push(id);
+                btn.classList.add('tl-diff-active');
+            }
+            btn.setAttribute('data-diff-id', id);
+            if (diffSelections.length === 2) {
+                selectedSnapshots = diffSelections.slice();
+                updateCompareBtn();
+                compareSnapshots();
+            }
+        }
+
+        function esc(s) {
+            if (!s) return '';
+            var d = document.createElement('div');
+            d.appendChild(document.createTextNode(s));
+            return d.innerHTML;
+        }
+        
+        function onSnapshotSelect(checkbox) {
+            const id = checkbox.dataset.id;
+            if (checkbox.checked) {
+                if (selectedSnapshots.length >= 2) {
+                    checkbox.checked = false;
+                    showNotification('You can only select 2 snapshots to compare', 'warning');
+                    return;
+                }
+                selectedSnapshots.push(id);
+            } else {
+                selectedSnapshots = selectedSnapshots.filter(s => s !== id);
+            }
+            updateCompareBtn();
+        }
+        
+        function updateCompareBtn() {
+            compareBtn.innerHTML = `<i class="fas fa-exchange-alt"></i> Compare Selected (${selectedSnapshots.length}/2)`;
+            compareBtn.disabled = selectedSnapshots.length !== 2;
+        }
+        
+        async function compareSnapshots() {
+            if (selectedSnapshots.length !== 2) return;
+            
+            showLoader('Retrieving domain history...');
+            compareBtn.disabled = true;
+            
+            try {
+                const response = await fetch(`/api/domain-history/diff?id1=${encodeURIComponent(selectedSnapshots[0])}&id2=${encodeURIComponent(selectedSnapshots[1])}`);
+                const json = await response.json();
+                
+                if (json.code === 0 && json.data) {
+                    displayDiff(json.data);
+                } else {
+                    showNotification(json.msg || 'Diff comparison failed', 'error');
+                }
+            } catch (error) {
+                console.error('Diff error:', error);
+                showNotification('An error occurred during comparison', 'error');
+            } finally {
+                hideLoader();
+                compareBtn.disabled = selectedSnapshots.length !== 2;
+            }
+        }
+        
+        function displayDiff(data) {
+            const diffSection = document.getElementById('diffSection');
+            const diffSummary = document.getElementById('diffSummary');
+            const diffTableBody = document.getElementById('diffTableBody');
+            const noDiffMsg = document.getElementById('noDiffMessage');
+            
+            diffSummary.innerHTML = `
+                <div style="display:flex; gap:20px; flex-wrap:wrap; font-size:13.5px; color:var(--gray); background:rgba(255,255,255,0.03); border:1px solid var(--glass-border); border-radius:var(--radius-sm); padding:12px 16px;">
+                    <div><span style="color:#6b7a90;font-weight:600;">Older:</span> <span style="color:#c0c8d8;">${data.olderSnapshot.snapshotTime}</span> &mdash; ${data.olderSnapshot.registrar || 'Unknown registrar'}</div>
+                    <div><span style="color:#6b7a90;font-weight:600;">Newer:</span> <span style="color:#c0c8d8;">${data.newerSnapshot.snapshotTime}</span> &mdash; ${data.newerSnapshot.registrar || 'Unknown registrar'}</div>
+                    <div><span style="color:var(--warning);font-weight:700;">${data.totalChanges} change${data.totalChanges !== 1 ? 's' : ''}</span> detected</div>
+                </div>
+            `;
+            
+            diffTableBody.innerHTML = '';
+            
+            if (!data.hasChanges) {
+                document.getElementById('diffTable').style.display = 'none';
+                noDiffMsg.style.display = 'block';
+            } else {
+                document.getElementById('diffTable').style.display = 'table';
+                noDiffMsg.style.display = 'none';
+                
+                data.changes.forEach(c => {
+                    const row = document.createElement('tr');
+                    let typeColor = c.type === 'added' ? 'var(--success, green)' : (c.type === 'removed' ? 'var(--danger, red)' : 'var(--warning, orange)');
+                    let typeIcon = c.type === 'added' ? '➕' : (c.type === 'removed' ? '➖' : '✏️');
+                    row.innerHTML = `
+                        <td><strong>${c.field}</strong></td>
+                        <td style="color:var(--gray); word-break:break-all;">${c.oldValue}</td>
+                        <td style="word-break:break-all;">${c.newValue}</td>
+                        <td style="color:${typeColor}; font-weight:600;">${typeIcon} ${c.type}</td>
+                    `;
+                    diffTableBody.appendChild(row);
+                });
+            }
+            
+            diffSection.style.display = 'block';
+            diffSection.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function isValidDomain(domain) {
+            const domainRegex = /^(?:(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)\.)+[a-z]{2,}$/i;
+            return domainRegex.test(domain);
+        }
+
+        function showNotification(message, type) {
+            const notification = document.createElement('div');
+            notification.textContent = message;
+            notification.style.position = 'fixed';
+            notification.style.top = '20px';
+            notification.style.right = '20px';
+            notification.style.padding = '15px 20px';
+            notification.style.borderRadius = 'var(--radius)';
+            notification.style.color = 'white';
+            notification.style.fontWeight = '600';
+            notification.style.zIndex = '1000';
+            notification.style.boxShadow = 'var(--shadow)';
+            notification.style.transform = 'translateX(150%)';
+            notification.style.transition = 'transform 0.3s ease';
+            
+            if (type === 'warning') {
+                notification.style.background = 'var(--warning)';
+            } else if (type === 'error') {
+                notification.style.background = 'var(--danger)';
+            } else {
+                notification.style.background = 'var(--primary)';
+            }
+            
+            document.body.appendChild(notification);
+            setTimeout(() => { notification.style.transform = 'translateX(0)'; }, 100);
+            setTimeout(() => {
+                notification.style.transform = 'translateX(150%)';
+                setTimeout(() => { document.body.removeChild(notification); }, 300);
+            }, 3000);
+        }
+    </script>
+
+
+</body>
+</html>

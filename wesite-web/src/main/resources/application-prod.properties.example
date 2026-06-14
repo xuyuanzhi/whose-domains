@@ -1,0 +1,63 @@
+# Copy this file to application-prod.properties and fill in your values.
+# Values referenced via ${ENV_VAR} can also be supplied as environment variables.
+
+#server
+server.port = 8080
+server.servlet.context-path = /
+server.tomcat.max-threads=200
+server.tomcat.min-spare-threads=20
+server.tomcat.accept-count=100
+server.tomcat.max-connections=10000
+server.tomcat.connection-timeout=5000
+
+#database
+spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
+spring.datasource.url=${WD_DB_URL:jdbc:mysql://localhost:3306/wesitedb?allowMultiQueries=true&useUnicode=true&characterEncoding=UTF-8&useSSL=false&autoreconnect=true&cachePrepStmts=true&useServerPrepStmts=true&prepStmtCacheSize=250&prepStmtCacheSqlLimit=2048}
+spring.datasource.username=${WD_DB_USERNAME:your-db-username}
+spring.datasource.password=${WD_DB_PASSWORD:your-db-password}
+
+#hikari connection pool
+spring.datasource.hikari.minimum-idle=10
+spring.datasource.hikari.maximum-pool-size=30
+spring.datasource.hikari.idle-timeout=300000
+spring.datasource.hikari.max-lifetime=1800000
+spring.datasource.hikari.connection-timeout=10000
+spring.datasource.hikari.validation-timeout=3000
+spring.datasource.hikari.leak-detection-threshold=60000
+
+#maxmind GeoIP2 database paths — download from https://www.maxmind.com/
+maxmind.city.file.path = /path/to/GeoLite2-City.mmdb
+maxmind.asn.file.path = /path/to/GeoLite2-ASN.mmdb
+
+#sitemap output directory (must be writable)
+sitemap.root = /var/www/sitemap/
+
+#redis
+spring.data.redis.host = 127.0.0.1
+spring.data.redis.port = 6379
+spring.data.redis.password = ${REDIS_PASSWORD:}
+spring.data.redis.timeout=3000
+spring.data.redis.lettuce.pool.max-active=50
+spring.data.redis.lettuce.pool.max-idle=20
+spring.data.redis.lettuce.pool.min-idle=5
+spring.data.redis.lettuce.pool.max-wait=3000
+
+#thymeleaf cache (override dev default)
+spring.thymeleaf.cache=true
+
+#gzip compression
+server.compression.enabled=true
+server.compression.mime-types=text/html,text/xml,text/plain,text/css,text/javascript,application/javascript,application/json,image/svg+xml
+server.compression.min-response-size=1024
+
+#static resource cache (1 year)
+spring.web.resources.cache.cachecontrol.max-age=31536000
+spring.web.resources.cache.cachecontrol.cache-public=true
+
+#logging
+logging.level.root=WARN
+logging.level.info.wesite=INFO
+logging.level.org.springframework.web=WARN
+
+#shared secret between web and admin for internal blog endpoints
+blog.internal.secret = ${BLOG_INTERNAL_SECRET:change-me-to-a-long-random-string}

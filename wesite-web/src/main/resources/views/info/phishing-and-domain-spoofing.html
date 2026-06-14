@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+
+    <main>
+        <div class="container">
+            <div class="info-page">
+                <nav class="breadcrumb">
+                    <a href="/">Home</a> &gt; 
+                    <a href="/help-center">Help Center</a> &gt; 
+                    <span>Phishing &amp; Domain Spoofing</span>
+                </nav>
+
+                <article class="info-content" itemscope itemtype="https://schema.org/Article">
+                    <h1>Phishing &amp; Domain Spoofing Detection</h1>
+                    
+                    <div class="info-section">
+                        <h2>Recognizing and Defending Against Domain-Based Attacks</h2>
+                        <p>Phishing and domain spoofing are among the most common cyber attacks. Attackers create fake domains or emails that mimic legitimate organizations to steal credentials, install malware, or commit fraud.</p>
+
+                        <h3>Types of Domain Spoofing</h3>
+
+                        <h4>Lookalike Domains (Typosquatting)</h4>
+                        <p>Registering domains similar to legitimate ones:</p>
+                        <ul>
+                            <li><strong>Character substitution:</strong> g00gle.com (zeros instead of 'o's)</li>
+                            <li><strong>Missing characters:</strong> gogle.com</li>
+                            <li><strong>Extra characters:</strong> googgle.com</li>
+                            <li><strong>Adjacent key typos:</strong> goofle.com</li>
+                            <li><strong>Different TLD:</strong> google.co (instead of .com)</li>
+                        </ul>
+
+                        <h4>Homograph Attacks (IDN Spoofing)</h4>
+                        <p>Using international characters that look identical to ASCII letters:</p>
+                        <ul>
+                            <li>Cyrillic 'а' (U+0430) looks identical to Latin 'a' (U+0061)</li>
+                            <li>Greek 'ο' (U+03BF) looks identical to Latin 'o' (U+006F)</li>
+                            <li>Modern browsers display the punycode (xn--) version to alert users</li>
+                        </ul>
+
+                        <h4>Subdomain Spoofing</h4>
+                        <ul>
+                            <li>paypal.com.malicious-site.com</li>
+                            <li>secure-login.apple.com.fake-domain.net</li>
+                            <li>Users may see the trusted brand name and miss the actual domain</li>
+                        </ul>
+
+                        <h3>How to Detect Phishing Domains</h3>
+
+                        <h4>Check the Domain Carefully</h4>
+                        <ul>
+                            <li>Look at the full URL, not just the beginning</li>
+                            <li>Check for subtle character differences</li>
+                            <li>Verify the TLD is correct</li>
+                            <li>Use our <a href="/">WHOIS lookup</a> to check domain registration details</li>
+                        </ul>
+
+                        <h4>Inspect the SSL Certificate</h4>
+                        <ul>
+                            <li>Click the padlock icon to view certificate details</li>
+                            <li>Phishing sites often use free DV certificates</li>
+                            <li>Check if the organization name matches expectations</li>
+                            <li>Use our <a href="/tools/ssl-checker">SSL Checker</a> for detailed analysis</li>
+                        </ul>
+
+                        <h4>Check Domain Age and Registration</h4>
+                        <ul>
+                            <li>Phishing domains are typically very recently registered</li>
+                            <li>WHOIS privacy on a domain claiming to be a major brand is suspicious</li>
+                            <li>Check the registrant information matches the expected organization</li>
+                        </ul>
+
+                        <h3>Protecting Your Domain from Being Spoofed</h3>
+                        <ul>
+                            <li><strong>Register common variations:</strong> Secure typos and different TLDs of your domain</li>
+                            <li><strong>Implement DMARC:</strong> Prevent email spoofing of your domain</li>
+                            <li><strong>Monitor for lookalikes:</strong> Use brand monitoring services</li>
+                            <li><strong>Use EV certificates:</strong> Provide higher visual trust indicators</li>
+                            <li><strong>Educate users:</strong> Train employees and customers to recognize phishing</li>
+                            <li><strong>Report abuse:</strong> File takedown requests for phishing domains</li>
+                        </ul>
+
+                        <h3>Red Flags to Watch For</h3>
+                        <ul>
+                            <li>Urgent or threatening language ("Your account will be closed!")</li>
+                            <li>Unexpected requests for login credentials or personal information</li>
+                            <li>Generic greetings instead of your name</li>
+                            <li>Mismatched sender email and display name</li>
+                            <li>Suspicious attachments or links</li>
+                            <li>Poor grammar or spelling</li>
+                        </ul>
+
+                        <div class="info-box">
+                            <strong>Quick Check:</strong> When in doubt about a domain, use our <a href="/">WHOIS lookup tool</a> to check its registration date, registrant, and DNS details. Newly registered domains mimicking well-known brands are almost always phishing.
+                        </div>
+                    </div>
+
+                    <div class="info-navigation">
+                        <a href="/info/email-authentication-spf-dkim-dmarc" class="btn btn-secondary">&larr; Previous: SPF, DKIM &amp; DMARC</a>
+                        <a href="/info/typosquatting-protection" class="btn btn-primary">Next: Typosquatting Protection &rarr;</a>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </main>
+
+    <footer th:replace="~{template::template_footer}"></footer>
+</body>
+</html>

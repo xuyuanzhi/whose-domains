@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+
+    <main>
+        <section class="hero">
+            <div class="container">
+                <div class="hero-content">
+                    <h1>Domain Availability Checker</h1>
+                    <p>Instantly check if a domain name is available for registration across multiple extensions. Find the perfect domain for your next project.</p>
+                </div>
+            </div>
+        </section>
+
+        <div th:replace="~{template::ad_banner_top}"></div>
+
+        <section class="content-section">
+            <div class="container">
+                <div class="tool-container">
+                    <div class="tool-header">
+                        <h2>Domain Availability Tool</h2>
+                        <p>Enter a domain name and check its availability across various extensions.</p>
+                    </div>
+
+                    <div class="tool-content">
+                        <div class="input-controls-container">
+                            <div class="input-section">
+                                <label for="domainInput">Domain Name:</label>
+                                <input type="text" id="domainInput" placeholder="Enter domain name (e.g., mybrand)" autocomplete="off" autocapitalize="none" spellcheck="false" inputmode="url" />
+                            </div>
+
+                            <div class="input-section">
+                                <label for="domainExtension">Extension:</label>
+                                <select id="domainExtension">
+                                    <option value=".com">.com</option>
+                                    <option value=".net">.net</option>
+                                    <option value=".org">.org</option>
+                                    <option value=".info">.info</option>
+                                    <option value=".biz">.biz</option>
+                                    <option value=".co">.co</option>
+                                    <option value=".io">.io</option>
+                                    <option value=".ai">.ai</option>
+                                    <option value=".dev">.dev</option>
+                                    <option value=".app">.app</option>
+                                    <option value=".xyz">.xyz</option>
+                                    <option value=".tech">.tech</option>
+                                    <option value=".store">.store</option>
+                                </select>
+                            </div>
+
+                            <div class="input-section" style="align-self:end;">
+                                <button id="checkBtn" class="check-btn">
+                                    <i class="fas fa-check-circle"></i> Check Availability
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="example-text" style="margin-bottom: 24px; text-align: center;">
+                            Try examples: mybrand, startupidea, mybusiness
+                        </div>
+
+<div id="resultsSection" class="results-section">
+                            <div class="results-header">
+                                <div class="results-header-left">
+                                    <span class="domain-display" id="domainNameDisplay"></span>
+                                    <span class="status-badge" id="overallStatus">Available</span>
+                                </div>
+                                <div style="display:flex;gap:10px;align-items:center;">
+                                    <button id="monitorBtn" onclick="toggleWatch()" style="display:none;">
+                                        <span id="monitorBtnText">Monitor</span>
+                                    </button>
+                                    <button onclick="shareResult()" style="display:inline-flex;padding:7px 16px;border-radius:20px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.06);color:#94a3b8;font-size:13px;cursor:pointer;align-items:center;gap:6px;"><i class="fas fa-share-alt" style="font-size:12px;"></i> <span id="shareBtnText">Share</span></button>
+                                    <button id="searchAgainBtn" class="search-again">
+                                        <i class="fas fa-sync-alt"></i> New Search
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="results-grid">
+                                <div class="result-card">
+                                    <h3><i class="fas fa-globe"></i> Extension Availability</h3>
+                                    <div id="extensionResults" class="scrollable"></div>
+                                </div>
+
+                                <div class="result-card accent">
+                                    <h3><i class="fas fa-chart-bar"></i> Extension Details</h3>
+                                    <div id="extensionDetails" class="scrollable"></div>
+                                </div>
+
+                                <div class="result-card warning">
+                                    <h3><i class="fas fa-lightbulb"></i> Similar Domains</h3>
+                                    <div id="alternatives" class="scrollable"></div>
+                                </div>
+
+                                <div class="result-card secondary">
+                                    <h3><i class="fas fa-info-circle"></i> Domain Tips</h3>
+                                    <ul class="tips-list">
+                                        <li><i class="fas fa-check-circle"></i><span>Choose a memorable and easy-to-spell name</span></li>
+                                        <li><i class="fas fa-check-circle"></i><span>Consider using keywords related to your business</span></li>
+                                        <li><i class="fas fa-check-circle"></i><span>Avoid hyphens and numbers when possible</span></li>
+                                        <li><i class="fas fa-check-circle"></i><span>Check social media handle availability</span></li>
+                                        <li><i class="fas fa-check-circle"></i><span>Consider multiple domain extensions for brand protection</span></li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        <div th:replace="~{template::ad_banner_bottom}"></div>
+    </main>        <div th:replace="~{fragments/related-tools::related(slug='domain-availability')}"></div>
+    
+
+    <footer th:replace="~{template::template_footer}"></footer>
+    
+    <script>
+        // ── Global scope: needed by inline onclick handlers ──
+        var _watchingDomain = null;
+
+        function showMonitorBtn(domain) {
+            _watchingDomain = domain;
+            // monitor button is hidden on this page
+        }
+
+        function toggleWatch() {
+            if (!_watchingDomain) return;
+            if (document.getElementById('monitorBtnText').textContent.indexOf('Watching') >= 0) {
+                window.location.href = '/user/watchlist'; return;
+            }
+            var m = document.cookie.match('(?:^|;)\\s*token=([^;]*)');
+            if (!m) {
+                if (typeof openAuthModal === 'function') { openAuthModal('login'); }
+                else { window.location.href = '/?login=1'; }
+                return;
+            }
+            fetch('/api/domain-watch/watch', {
+                method:'POST', credentials:'include',
+                headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({domainName: _watchingDomain, notifyType: 3})
+            }).then(function(r){return r.json();}).then(function(d){
+                if(d.code===0){
+                    document.getElementById('monitorBtnText').textContent = 'Watching ✓';
+                    var btn=document.getElementById('monitorBtn');
+                    btn.style.borderColor='rgba(76,175,80,0.5)';
+                    btn.style.color='#4caf50';
+                    showNotification('🔔 Now monitoring ' + _watchingDomain, 'success');
+                } else if(d.code===-401||d.code===401){
+                    openAuthModal('login');
+                } else {
+                    showNotification(d.msg||'Failed to add watch.', 'error');
+                }
+            }).catch(function(){showNotification('Network error.','error');});
+        }
+
+        function shareResult() {
+            var domainInput = document.getElementById('domainInput');
+            var d = domainInput ? domainInput.value.trim() : ''; if (!d) return;
+            var ext = document.getElementById('domainExtension').value;
+            var url = window.location.origin + '/tools/domain-availability?d=' + encodeURIComponent(d + ext);
+            var t = document.getElementById('shareBtnText');
+            (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject()).then(function(){
+                t.textContent='Copied!'; setTimeout(function(){t.textContent='Share';},2000);
+            }).catch(function(){ window.prompt('Copy link:', url); });
+        }
+
+        function showNotification(message, type) {
+            var notification = document.createElement('div');
+            notification.textContent = message;
+            notification.style.position = 'fixed';
+            notification.style.top = '20px';
+            notification.style.right = '20px';
+            notification.style.padding = '15px 20px';
+            notification.style.borderRadius = 'var(--radius)';
+            notification.style.color = 'white';
+            notification.style.fontWeight = '600';
+            notification.style.zIndex = '1000';
+            notification.style.boxShadow = 'var(--shadow)';
+            notification.style.transform = 'translateX(150%)';
+            notification.style.transition = 'transform 0.3s ease';
+            notification.style.background = type === 'warning' ? 'var(--warning)' : type === 'error' ? 'var(--danger)' : 'var(--primary)';
+            document.body.appendChild(notification);
+            setTimeout(function() { notification.style.transform = 'translateX(0)'; }, 100);
+            setTimeout(function() {
+                notification.style.transform = 'translateX(150%)';
+                setTimeout(function() { document.body.removeChild(notification); }, 300);
+            }, 3000);
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            var domainInput = document.getElementById('domainInput');
+            var domainExtension = document.getElementById('domainExtension');
+            var checkBtn = document.getElementById('checkBtn');
+            var resultsSection = document.getElementById('resultsSection');
+            var searchAgainBtn = document.getElementById('searchAgainBtn');
+            var domainNameDisplay = document.getElementById('domainNameDisplay');
+            var overallStatus = document.getElementById('overallStatus');
+            var extensionResultsEl = document.getElementById('extensionResults');
+            var extensionDetailsEl = document.getElementById('extensionDetails');
+            var alternativesEl = document.getElementById('alternatives');
+
+            checkBtn.addEventListener('click', checkDomainAvailability);
+            domainInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') checkDomainAvailability();
+            });
+            
+            searchAgainBtn.addEventListener('click', function() {
+                resultsSection.classList.remove('active');
+                domainInput.value = '';
+                domainExtension.value = '.com';
+                domainInput.focus();
+            });
+
+            async function checkDomainAvailability() {
+                var domain = domainInput.value.trim();
+                var extension = domainExtension.value;
+                if (!domain) { showNotification('Please enter a domain name', 'warning'); return; }
+                if (!isValidDomainLabel(domain)) { showNotification('Please enter a valid domain name (letters, numbers, hyphens only)', 'warning'); return; }
+                showLoader();
+                try {
+                    var response = await fetch('/tools/domain-availability/check', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ domain: domain, extension: extension })
+                    });
+                    var result = await response.json();
+                    if (result.code !== 0) { showNotification(result.msg || 'Failed to check domain availability', 'error'); return; }
+                    displayAvailabilityResults(result.data, domain + extension);
+                } catch (error) {
+                    console.error('Domain availability check error:', error);
+                    showNotification('An error occurred during availability check', 'error');
+                } finally {
+                    hideLoader();
+                }
+            }
+
+            function displayAvailabilityResults(data, fullDomain) {
+                domainNameDisplay.textContent = fullDomain;
+                var isAvailable = data.available;
+                overallStatus.textContent = isAvailable ? 'Available' : 'Taken';
+                overallStatus.className = 'status-badge ' + (isAvailable ? 'available' : 'taken');
+                populateExtensionResults(data.extensions || []);
+                populateExtensionDetails(data.extensions || []);
+                populateAlternatives(data.alternatives || []);
+                resultsSection.classList.add('active');
+                resultsSection.scrollIntoView({ behavior: 'smooth' });
+                if (!isAvailable) {
+                    showMonitorBtn(fullDomain);
+                } else {
+                    document.getElementById('monitorBtn').style.display = 'none';
+                }
+            }
+
+            function populateExtensionResults(results) {
+                extensionResultsEl.innerHTML = '';
+                if (!results || results.length === 0) {
+                    extensionResultsEl.innerHTML = '<div class="ext-row" style="justify-content:center;color:var(--gray);">No extension data</div>';
+                    return;
+                }
+                results.forEach(function(item) {
+                    var row = document.createElement('div');
+                    row.className = 'ext-row';
+                    var icon = item.available ? 'check-circle' : 'times-circle';
+                    var iconColor = item.available ? 'var(--success)' : 'var(--danger)';
+                    var statusText = item.available ? 'Available' : 'Taken';
+                    var statusCls = item.available ? 'available' : 'taken';
+                    row.innerHTML = '<span class="ext-name"><i class="fas fa-' + icon + '" style="color:' + iconColor + '"></i>' + escapeHtml(item.extension) + '</span>' +
+                        '<span class="ext-status ' + statusCls + '">' + statusText + '</span>';
+                    extensionResultsEl.appendChild(row);
+                });
+            }
+
+            function populateExtensionDetails(details) {
+                extensionDetailsEl.innerHTML = '';
+                if (!details || details.length === 0) {
+                    extensionDetailsEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--gray);">No details available</div>';
+                    return;
+                }
+                details.forEach(function(item) {
+                    var div = document.createElement('div');
+                    div.className = 'ext-detail';
+                    var icon = item.available ? 'check-circle' : 'times-circle';
+                    var iconColor = item.available ? 'var(--success)' : 'var(--danger)';
+                    var statusText = item.available ? 'Available' : 'Taken';
+                    var statusCls = item.available ? 'available' : 'taken';
+                    div.innerHTML = '<div class="ext-detail-header">' +
+                        '<span class="ext-name"><i class="fas fa-' + icon + '" style="color:' + iconColor + '"></i>' + escapeHtml(item.extension) + '</span>' +
+                        '<span class="ext-status ' + statusCls + '">' + statusText + '</span>' +
+                        '</div>' +
+                        '<div class="ext-detail-meta"><span>Popularity: ' + escapeHtml(item.popularity || 'Unknown') + '</span></div>' +
+                        '<div class="ext-detail-meta"><span>' + escapeHtml(item.description || '') + '</span></div>';
+                    extensionDetailsEl.appendChild(div);
+                });
+            }
+
+            function populateAlternatives(alternatives) {
+                alternativesEl.innerHTML = '';
+                if (!alternatives || alternatives.length === 0) {
+                    alternativesEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--gray);">No alternatives found</div>';
+                    return;
+                }
+                alternatives.forEach(function(alt) {
+                    var row = document.createElement('div');
+                    row.className = 'ext-row';
+                    var icon = alt.available ? 'check-circle' : 'times-circle';
+                    var iconColor = alt.available ? 'var(--success)' : 'var(--danger)';
+                    var statusText = alt.available ? 'Available' : 'Taken';
+                    var statusCls = alt.available ? 'available' : 'taken';
+                    row.innerHTML = '<span class="ext-name" style="flex:1;word-break:break-all;"><i class="fas fa-' + icon + '" style="color:' + iconColor + '"></i>' + escapeHtml(alt.domain) + '</span>' +
+                        '<span class="ext-status ' + statusCls + '">' + statusText + '</span>';
+                    alternativesEl.appendChild(row);
+                });
+            }
+
+            function escapeHtml(str) {
+                if (!str) return '';
+                var div = document.createElement('div');
+                div.appendChild(document.createTextNode(str));
+                return div.innerHTML;
+            }
+
+            function isValidDomainLabel(domain) {
+                var regex = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$/;
+                return regex.test(domain) && domain.length <= 63;
+            }
+
+            // Auto-run from ?d= URL param
+            (function() {
+                var p = new URLSearchParams(window.location.search);
+                var d = p.get('d') || p.get('domain');
+                if (d) { domainInput.value = d.trim(); checkDomainAvailability(); }
+            })();
+        });
+    </script>
+</body>
+</html>

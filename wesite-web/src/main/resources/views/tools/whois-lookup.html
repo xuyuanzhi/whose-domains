@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+<style id="whois-styles">
+/* ── Skeleton Loader ──────────────────────────────── */
+.skeleton-card {
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    padding: 24px;
+    border: 1px solid var(--glass-border);
+    margin-bottom: 20px;
+}
+.skeleton {
+    background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s infinite;
+    border-radius: 6px;
+    height: 16px;
+    flex: 1;
+}
+.skeleton.medium { max-width: 55%; }
+.skeleton-title { height: 22px; max-width: 40%; margin-bottom: 20px; }
+.skeleton-row { display: flex; justify-content: space-between; gap: 20px; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+@keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
+/* ── Results Actions ──────────────────────────────── */
+.results-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.action-btn {
+    background: transparent;
+    color: var(--primary);
+    border: 1px solid rgba(0,229,255,0.3);
+    padding: 10px 18px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 14px;
+    transition: var(--transition);
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    white-space: nowrap;
+}
+.action-btn:hover {
+    background: rgba(0,229,255,0.08);
+    border-color: var(--primary);
+    box-shadow: 0 0 12px rgba(0,229,255,0.2);
+}
+
+/* ── Data Source Badge ────────────────────────────── */
+.data-source {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--card-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-sm);
+    padding: 10px 18px;
+    font-size: 13px;
+    color: #7a8ba0;
+}
+.data-source.whois { border-left: 3px solid var(--primary); }
+.data-source.rdap  { border-left: 3px solid var(--secondary); }
+.data-source i { color: var(--primary); }
+.data-source strong { color: #c8d4e0; }
+
+/* ── Raw WHOIS Section ────────────────────────────── */
+.raw-whois-section {
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    border: 1px solid var(--glass-border);
+    overflow: hidden;
+}
+.raw-whois-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 22px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.raw-whois-header h3 {
+    color: var(--primary);
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin: 0;
+}
+.raw-whois-text {
+    background: #07090f;
+    color: #9ab0cc;
+    font-family: 'Courier New', monospace;
+    font-size: 12.5px;
+    line-height: 1.7;
+    padding: 20px 22px;
+    margin: 0;
+    max-height: 420px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+.no-whois-text {
+    padding: 28px 22px;
+    color: #5a6a80;
+    font-size: 13.5px;
+    line-height: 1.8;
+    text-align: center;
+}
+.no-whois-text i { color: var(--primary); margin-right: 6px; opacity: 0.7; }
+.copy-btn {
+    background: transparent;
+    color: var(--primary);
+    border: 1px solid rgba(0,229,255,0.25);
+    padding: 7px 16px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    transition: var(--transition);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.copy-btn:hover { background: rgba(0,229,255,0.08); border-color: var(--primary); }
+.copy-btn.copied { color: var(--success); border-color: rgba(0,230,118,0.4); }
+
+/* ── SEO Content Section ──────────────────────────── */
+.seo-content-section {
+    background: #06090f;
+    border-top: 1px solid rgba(255,255,255,0.04);
+    padding: 60px 0 80px;
+    margin-top: 40px;
+}
+.seo-block {
+    margin-bottom: 56px;
+}
+.seo-block:last-child { margin-bottom: 0; }
+.seo-block > h2 {
+    font-size: 1.55rem;
+    font-weight: 800;
+    color: #e2e8f0;
+    margin-bottom: 28px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.seo-block > h2 i { color: var(--primary); font-size: 1.2rem; }
+
+/* How-to list */
+.how-to-list {
+    list-style: none;
+    counter-reset: how-to;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+.how-to-list li {
+    counter-increment: how-to;
+    background: var(--card-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-sm);
+    padding: 16px 20px 16px 60px;
+    position: relative;
+    color: #9ab0cc;
+    line-height: 1.6;
+    font-size: 15px;
+}
+.how-to-list li::before {
+    content: counter(how-to);
+    position: absolute;
+    left: 18px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 28px;
+    height: 28px;
+    background: rgba(0,229,255,0.1);
+    border: 1px solid rgba(0,229,255,0.25);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--primary);
+    text-align: center;
+    line-height: 28px;
+}
+.how-to-list li strong { color: #e2e8f0; }
+.how-to-list li code, .how-to-list li kbd {
+    background: rgba(0,229,255,0.08);
+    border: 1px solid rgba(0,229,255,0.15);
+    border-radius: 4px;
+    padding: 1px 7px;
+    font-size: 0.88em;
+    color: var(--primary);
+}
+
+/* Use-case grid */
+.use-case-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 18px;
+}
+.use-case-card {
+    background: var(--card-bg);
+    border: 1px solid var(--glass-border);
+    border-top: 2px solid rgba(0,229,255,0.2);
+    border-radius: var(--radius);
+    padding: 24px 20px;
+    transition: var(--transition);
+}
+.use-case-card:hover {
+    border-top-color: var(--primary);
+    box-shadow: 0 0 20px rgba(0,229,255,0.07), var(--shadow);
+    transform: translateY(-2px);
+}
+.use-case-card > i {
+    font-size: 1.7rem;
+    color: var(--primary);
+    margin-bottom: 14px;
+    display: block;
+    opacity: 0.85;
+}
+.use-case-card h3 {
+    font-size: 15px;
+    font-weight: 700;
+    color: #e2e8f0;
+    margin-bottom: 8px;
+}
+.use-case-card p { color: #7a8ba0; font-size: 13.5px; line-height: 1.65; }
+
+/* Concepts grid */
+.concepts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 18px;
+}
+.concept-card {
+    background: var(--card-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius);
+    padding: 24px 22px;
+}
+.concept-card h3 {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--primary);
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(0,229,255,0.1);
+}
+.concept-card p {
+    color: #7a8ba0;
+    font-size: 13.5px;
+    line-height: 1.75;
+    margin-bottom: 10px;
+}
+.concept-card p:last-child { margin-bottom: 0; }
+.concept-card code {
+    background: rgba(0,229,255,0.08);
+    border: 1px solid rgba(0,229,255,0.15);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 0.88em;
+    color: var(--primary);
+}
+
+/* FAQ */
+.faq-list { display: flex; flex-direction: column; gap: 10px; }
+.faq-item {
+    background: var(--card-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    transition: var(--transition);
+}
+.faq-item[open] { border-color: rgba(0,229,255,0.2); }
+.faq-item summary {
+    padding: 18px 22px;
+    cursor: pointer;
+    font-weight: 600;
+    color: #c8d4e0;
+    font-size: 15px;
+    list-style: none;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    user-select: none;
+    transition: color 0.2s;
+}
+.faq-item summary::-webkit-details-marker { display: none; }
+.faq-item summary::after {
+    content: '+';
+    color: var(--primary);
+    font-size: 1.3rem;
+    font-weight: 400;
+    flex-shrink: 0;
+    transition: transform 0.25s;
+}
+.faq-item[open] summary::after { content: '−'; }
+.faq-item summary:hover { color: #e2e8f0; }
+.faq-item p {
+    padding: 0 22px 18px;
+    color: #7a8ba0;
+    font-size: 14px;
+    line-height: 1.75;
+    margin: 0;
+}
+.faq-item em { color: #c8d4e0; font-style: italic; }
+
+/* ── Responsive ───────────────────────────────────── */
+@media (max-width: 768px) {
+    .results-header { flex-direction: column; align-items: flex-start; gap: 14px; }
+    .results-grid { grid-template-columns: 1fr; }
+    .use-case-grid { grid-template-columns: 1fr; }
+    .concepts-grid { grid-template-columns: 1fr; }
+    .seo-block > h2 { font-size: 1.3rem; }
+    .domain-name { font-size: 20px; flex-wrap: wrap; }
+    .results-actions { width: 100%; }
+}
+</style>
+    <header th:replace="~{template::template_header}"></header>
+
+	<main>
+		<section class="hero">
+			<div class="container">
+				<div class="hero-content">
+					<h1>WHOIS Lookup</h1>
+					<p>Get detailed registration information for any domain name. Enter a domain to see its registrar, registration date, expiration date, and more.</p>
+					
+					<div class="search-container">
+						<input type="text" id="domainInput" class="search-input" placeholder="Enter domain name (e.g., example.com)" autocomplete="off" autocapitalize="none" spellcheck="false" inputmode="url">
+						<button id="searchBtn" class="search-btn">
+							<i class="fas fa-search"></i>
+							Lookup
+						</button>
+					</div>
+					<div class="example-text">
+						Try: google.com, github.com, or yourdomain.com
+					</div>
+				</div>
+			</div>
+		</section>
+
+		<div th:replace="~{template::ad_banner_top}"></div>
+
+		<div class="container">
+			<!-- Skeleton loading screen (replaces full-page spinner) -->
+			<div id="skeletonLoader" style="display:none;">
+				<div class="skeleton-card">
+					<div class="skeleton skeleton-title"></div>
+					<div class="skeleton-row"><div class="skeleton"></div><div class="skeleton"></div></div>
+					<div class="skeleton-row"><div class="skeleton"></div><div class="skeleton"></div></div>
+					<div class="skeleton-row"><div class="skeleton"></div><div class="skeleton"></div></div>
+					<div class="skeleton-row"><div class="skeleton medium"></div><div class="skeleton"></div></div>
+				</div>
+				<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+					<div class="skeleton-card">
+						<div class="skeleton skeleton-title"></div>
+						<div class="skeleton-row"><div class="skeleton"></div><div class="skeleton"></div></div>
+						<div class="skeleton-row"><div class="skeleton"></div><div class="skeleton"></div></div>
+					</div>
+					<div class="skeleton-card">
+						<div class="skeleton skeleton-title"></div>
+						<div class="skeleton-row"><div class="skeleton"></div><div class="skeleton"></div></div>
+						<div class="skeleton-row"><div class="skeleton"></div><div class="skeleton"></div></div>
+					</div>
+				</div>
+			</div>
+
+			<div id="resultsSection" class="results-section">
+				<div class="results-header">
+					<h2 class="domain-name">
+						<span id="domainNameDisplay"></span>
+						<span class="domain-status">Registered</span>
+					</h2>
+					<div class="results-actions">
+						<button id="shareBtn" class="action-btn" onclick="shareResult()">
+						    <i class="fas fa-share-alt"></i> <span id="shareBtnText">Share</span>
+						</button>
+						<button id="searchAgainBtn" class="search-again">
+							<i class="fas fa-sync-alt"></i>
+							New Search
+						</button>
+					</div>
+				</div>
+
+				<div id="dataSource" class="data-source whois" style="display:none;">
+					<i class="fas fa-network-wired"></i>
+					<span>Data from WHOIS server: <strong id="whoisServerName">-</strong> (Port 43 Protocol)</span>
+				</div>
+
+				<div class="results-grid">
+					<div class="result-card">
+						<h3><i class="fas fa-calendar-alt"></i> Registration Information</h3>
+						<div class="info-row">
+							<span class="info-label">Registrar</span>
+							<span class="info-value" id="registrar">-</span>
+						</div>
+						<div class="info-row">
+							<span class="info-label">Registration Date</span>
+							<span class="info-value" id="registrationDate">-</span>
+						</div>
+						<div class="info-row">
+							<span class="info-label">Expiration Date</span>
+							<span class="info-value" id="expirationDate">-</span>
+						</div>
+						<div class="info-row">
+							<span class="info-label">Status</span>
+							<span class="info-value" id="domainStatus">-</span>
+						</div>
+					</div>
+
+					<div class="result-card">
+						<h3><i class="fas fa-server"></i> Nameservers</h3>
+						<div class="info-row">
+							<span class="info-label">Nameserver 1</span>
+							<span class="info-value" id="nameserver1">-</span>
+						</div>
+						<div class="info-row">
+							<span class="info-label">Nameserver 2</span>
+							<span class="info-value" id="nameserver2">-</span>
+						</div>
+						<div class="info-row">
+							<span class="info-label">Nameserver 3</span>
+							<span class="info-value" id="nameserver3">-</span>
+						</div>
+						<div class="info-row">
+							<span class="info-label">Nameserver 4</span>
+							<span class="info-value" id="nameserver4">-</span>
+						</div>
+					</div>
+
+					<div class="result-card">
+						<h3><i class="fas fa-user"></i> Registrant Contact</h3>
+						<div class="info-row">
+							<span class="info-label">Organization</span>
+							<span class="info-value" id="registrantOrg">-</span>
+						</div>
+						<div class="info-row">
+							<span class="info-label">Name</span>
+							<span class="info-value" id="registrantName">-</span>
+						</div>
+						<div class="info-row">
+							<span class="info-label">Email</span>
+							<span class="info-value" id="registrantEmail">-</span>
+						</div>
+						<div class="info-row">
+							<span class="info-label">Phone</span>
+							<span class="info-value" id="registrantPhone">-</span>
+						</div>
+					</div>
+
+					<div class="result-card">
+						<h3><i class="fas fa-users"></i> Administrative Contact</h3>
+						<div class="info-row">
+							<span class="info-label">Organization</span>
+							<span class="info-value" id="adminOrg">-</span>
+						</div>
+						<div class="info-row">
+							<span class="info-label">Name</span>
+							<span class="info-value" id="adminName">-</span>
+						</div>
+						<div class="info-row">
+							<span class="info-label">Email</span>
+							<span class="info-value" id="adminEmail">-</span>
+						</div>
+						<div class="info-row">
+							<span class="info-label">Phone</span>
+							<span class="info-value" id="adminPhone">-</span>
+						</div>
+					</div>
+
+					<div class="result-card">
+						<h3><i class="fas fa-tools"></i> Technical Contact</h3>
+						<div class="info-row">
+							<span class="info-label">Organization</span>
+							<span class="info-value" id="techOrg">-</span>
+						</div>
+						<div class="info-row">
+							<span class="info-label">Name</span>
+							<span class="info-value" id="techName">-</span>
+						</div>
+						<div class="info-row">
+							<span class="info-label">Email</span>
+							<span class="info-value" id="techEmail">-</span>
+						</div>
+						<div class="info-row">
+							<span class="info-label">Phone</span>
+							<span class="info-value" id="techPhone">-</span>
+						</div>
+					</div>
+
+					<div class="result-card">
+						<h3><i class="fas fa-history"></i> Additional Info</h3>
+						<div class="info-row">
+							<span class="info-label">Updated Date</span>
+							<span class="info-value" id="updatedDate">-</span>
+						</div>
+						<div class="info-row">
+							<span class="info-label">Creation Date</span>
+							<span class="info-value" id="creationDate">-</span>
+						</div>
+						<div class="info-row">
+							<span class="info-label">Registry ID</span>
+							<span class="info-value" id="registryId">-</span>
+						</div>
+						<div class="info-row">
+							<span class="info-label">Domain ID</span>
+							<span class="info-value" id="domainId">-</span>
+						</div>
+					</div>
+				</div>
+
+				<div class="raw-whois-section">
+					<div class="raw-whois-header">
+						<h3><i class="fas fa-file-code"></i> Raw WHOIS Response</h3>
+						<button id="copyWhoisBtn" class="copy-btn" onclick="copyWhoisText()">
+							<i class="fas fa-copy"></i> Copy
+						</button>
+					</div>
+					<div id="rawWhoisContainer">
+						<pre class="raw-whois-text" id="rawWhoisText"></pre>
+					</div>
+				</div>
+			</div>
+		</div>
+		<div th:replace="~{template::ad_banner_bottom}"></div>
+
+		<!-- SEO Content Section -->
+		<div class="seo-content-section">
+			<div class="container">
+
+				<!-- How to Use -->
+				<section class="seo-block">
+					<h2><i class="fas fa-book-open"></i> How to Use WHOIS Lookup</h2>
+					<ol class="how-to-list">
+						<li><strong>Enter a domain name</strong> in the search box above (e.g., <code>example.com</code>, <code>github.com</code>).</li>
+						<li><strong>Click "Lookup"</strong> or press <kbd>Enter</kbd> to start the query.</li>
+						<li><strong>View registration details</strong> including registrar, creation date, expiration date, nameservers, and contact information.</li>
+						<li><strong>Scroll down</strong> to see the raw WHOIS response for full technical details.</li>
+						<li><strong>Click "Share"</strong> to copy a direct link to the result and share it with others.</li>
+					</ol>
+				</section>
+
+				<!-- Use Cases -->
+				<section class="seo-block">
+					<h2><i class="fas fa-lightbulb"></i> When to Use WHOIS Lookup</h2>
+					<div class="use-case-grid">
+						<div class="use-case-card">
+							<i class="fas fa-search-dollar"></i>
+							<h3>Domain Research</h3>
+							<p>Before purchasing a domain, check its registration history, current owner, and expiration date to evaluate its value and availability.</p>
+						</div>
+						<div class="use-case-card">
+							<i class="fas fa-shield-alt"></i>
+							<h3>Security Investigation</h3>
+							<p>Investigate suspicious domains involved in phishing, spam, or malware. Identify the registrar and report abuse contacts quickly.</p>
+						</div>
+						<div class="use-case-card">
+							<i class="fas fa-balance-scale"></i>
+							<h3>Legal &amp; Compliance</h3>
+							<p>Verify domain ownership for trademark disputes, copyright infringement cases, or contractual due diligence.</p>
+						</div>
+						<div class="use-case-card">
+							<i class="fas fa-network-wired"></i>
+							<h3>Technical Troubleshooting</h3>
+							<p>Confirm nameserver configurations and check if DNS propagation issues are related to recent domain updates.</p>
+						</div>
+						<div class="use-case-card">
+							<i class="fas fa-user-tie"></i>
+							<h3>Business Due Diligence</h3>
+							<p>Verify that a company owns the domain they claim before entering a business relationship or acquisition.</p>
+						</div>
+					</div>
+				</section>
+
+				<!-- What is WHOIS / RDAP -->
+				<section class="seo-block">
+					<h2><i class="fas fa-info-circle"></i> Key Concepts Explained</h2>
+					<div class="concepts-grid">
+						<div class="concept-card">
+							<h3>What is WHOIS?</h3>
+							<p>WHOIS is a query-and-response protocol used to retrieve information stored in databases related to registered domain names, IP address blocks, and autonomous systems. It was originally defined in RFC 954 (1985) and later updated in RFC 3912. A WHOIS lookup contacts a registry's WHOIS server on TCP port 43 and returns plain-text records about the domain's registrant, registrar, and key dates.</p>
+							<p>Due to privacy regulations such as GDPR, many registrars now redact personal contact data. You may see placeholder text like "Data Redacted" or "Please query the RDDS service" in place of actual contact details.</p>
+						</div>
+						<div class="concept-card">
+							<h3>What is RDAP?</h3>
+							<p>RDAP (Registration Data Access Protocol) is the modern successor to WHOIS, standardized by the IETF in RFC 7480–7484. Unlike WHOIS, RDAP returns structured JSON data over HTTPS, supports internationalized domain names (IDNs), provides standardized error codes, and includes built-in support for access control and data redaction notices.</p>
+							<p>ICANN mandated RDAP support for all accredited registrars since 2019. Our tool queries RDAP first for accurate structured data, then falls back to WHOIS for additional raw details.</p>
+						</div>
+						<div class="concept-card">
+							<h3>What is a Registrar?</h3>
+							<p>A domain registrar is an organization accredited by ICANN (or a national registry) to sell and manage domain name registrations. Examples include GoDaddy, Namecheap, and Google Domains. The registrar acts as an intermediary between the domain owner and the registry that maintains the authoritative database for a given TLD (Top-Level Domain).</p>
+						</div>
+						<div class="concept-card">
+							<h3>What are Nameservers?</h3>
+							<p>Nameservers (NS records) are the servers responsible for translating a domain name into an IP address via the Domain Name System (DNS). They are set by the domain owner at the registrar and typically come in pairs for redundancy (e.g., <code>ns1.example.com</code> and <code>ns2.example.com</code>). Changing nameservers can take up to 48 hours to propagate globally.</p>
+						</div>
+					</div>
+				</section>
+
+				<!-- FAQ -->
+				<section class="seo-block">
+					<h2><i class="fas fa-question-circle"></i> Frequently Asked Questions</h2>
+					<div class="faq-list">
+						<details class="faq-item">
+							<summary>Why is the registrant contact information redacted or hidden?</summary>
+							<p>Since GDPR came into effect in 2018, many domain registrars are required to redact personal contact information (name, email, phone) from public WHOIS records. This is known as WHOIS privacy or proxy registration. The domain is still registered and owned by someone, but their personal details are protected. You can contact the registrar directly to report abuse.</p>
+						</details>
+						<details class="faq-item">
+							<summary>How accurate and up-to-date is the WHOIS data?</summary>
+							<p>Our tool fetches data in real time directly from official RDAP endpoints and WHOIS servers. However, there can be a short propagation delay (minutes to a few hours) after a domain is registered, transferred, or updated before changes appear in the public databases.</p>
+						</details>
+						<details class="faq-item">
+							<summary>Can I look up any type of domain extension (TLD)?</summary>
+							<p>Most generic TLDs (.com, .net, .org, .info, etc.) and many country-code TLDs (ccTLDs) are supported. Some ccTLDs (such as .de, .uk, .jp) have their own regional WHOIS servers or may restrict public access to registration data. If a lookup fails for a specific TLD, it may not be publicly accessible.</p>
+						</details>
+						<details class="faq-item">
+							<summary>What is the difference between "Registration Date" and "Creation Date"?</summary>
+							<p>These often refer to the same event — when the domain was first registered. Some registries use "Creation Date" in their RDAP/WHOIS records, while others use "Registration Date." We display both fields when available. If they differ, "Creation Date" typically reflects the original registry record, while "Registration Date" may reflect the current registrar's record.</p>
+						</details>
+						<details class="faq-item">
+							<summary>What does "clientTransferProhibited" domain status mean?</summary>
+							<p>Domain status codes beginning with "client" are set by the registrar. <em>clientTransferProhibited</em> means the domain cannot be transferred to another registrar without the current registrar removing this lock. This is a common security measure to prevent unauthorized domain hijacking. Other common statuses include <em>clientDeleteProhibited</em> and <em>clientUpdateProhibited</em>.</p>
+						</details>
+						<details class="faq-item">
+							<summary>Is there a limit to how many lookups I can perform?</summary>
+							<p>Our tool does not impose strict per-user limits for normal use. However, the underlying WHOIS servers and RDAP endpoints operated by registries may rate-limit repeated queries from the same IP. If you receive an error, please wait a few minutes before trying again.</p>
+						</details>
+						<details class="faq-item">
+							<summary>Can I use WHOIS data to contact a domain owner?</summary>
+							<p>If contact details are visible (not redacted), you may use them to reach out. However, many domains now display a privacy-protected proxy email. In that case, sending a message to the proxy email will be forwarded to the actual owner if they choose to reply. Always respect anti-spam laws when making contact.</p>
+						</details>
+					</div>
+				</section>
+
+			</div>
+		</div>
+		<!-- End SEO Content Section -->
+
+	</main>        <div th:replace="~{fragments/related-tools::related(slug='whois-lookup')}"></div>
+    
+
+    <footer th:replace="~{template::template_footer}"></footer>
+    
+    <script>
+        // DOM Elements
+        const domainInput = document.getElementById('domainInput');
+        const searchBtn = document.getElementById('searchBtn');
+        //const loader = document.getElementById('loader');
+        const resultsSection = document.getElementById('resultsSection');
+        const searchAgainBtn = document.getElementById('searchAgainBtn');
+        const domainNameDisplay = document.getElementById('domainNameDisplay');
+
+        // Result elements
+        const resultElements = {
+            registrar: document.getElementById('registrar'),
+            registrationDate: document.getElementById('registrationDate'),
+            expirationDate: document.getElementById('expirationDate'),
+            domainStatus: document.getElementById('domainStatus'),
+            nameserver1: document.getElementById('nameserver1'),
+            nameserver2: document.getElementById('nameserver2'),
+            nameserver3: document.getElementById('nameserver3'),
+            nameserver4: document.getElementById('nameserver4'),
+            registrantOrg: document.getElementById('registrantOrg'),
+            registrantName: document.getElementById('registrantName'),
+            registrantEmail: document.getElementById('registrantEmail'),
+            registrantPhone: document.getElementById('registrantPhone'),
+            adminOrg: document.getElementById('adminOrg'),
+            adminName: document.getElementById('adminName'),
+            adminEmail: document.getElementById('adminEmail'),
+            adminPhone: document.getElementById('adminPhone'),
+            techOrg: document.getElementById('techOrg'),
+            techName: document.getElementById('techName'),
+            techEmail: document.getElementById('techEmail'),
+            techPhone: document.getElementById('techPhone'),
+            updatedDate: document.getElementById('updatedDate'),
+            creationDate: document.getElementById('creationDate'),
+            registryId: document.getElementById('registryId'),
+            domainId: document.getElementById('domainId')
+        };
+
+        // Event Listeners
+        searchBtn.addEventListener('click', performWhoisLookup);
+        domainInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') performWhoisLookup();
+        });
+        
+        searchAgainBtn.addEventListener('click', function() {
+            resultsSection.classList.remove('active');
+            domainInput.value = '';
+            domainInput.focus();
+        });
+
+        // Functions
+        async function performWhoisLookup() {
+            const domain = domainInput.value.trim();
+            
+            if (!domain) {
+                showNotification('Please enter a domain name', 'warning');
+                return;
+            }
+            
+            // Basic domain validation
+            if (!isValidDomain(domain)) {
+                showNotification('Please enter a valid domain name (e.g., example.com)', 'warning');
+                return;
+            }
+
+            // ── ToolCache: try cached result first ───────────────
+            var cached = (typeof ToolCache !== 'undefined') ? ToolCache.get('whois', domain) : null;
+            if (cached) {
+                displayResults(cached, domain);
+                return;
+            }
+
+            // Show skeleton
+            var skeletonEl = document.getElementById('skeletonLoader');
+            if (skeletonEl) skeletonEl.style.display = 'block';
+            resultsSection.classList.remove('active');
+            
+            try {
+                const response = await fetch('/tools/whois-lookup/submit', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ domain: domain })
+                });
+                
+                const data = await response.json();
+                
+                if (data.code !== 0) {
+                    showNotification(data.msg || 'An error occurred during lookup', 'error');
+                    if (skeletonEl) skeletonEl.style.display = 'none';
+                    return;
+                }
+
+                // ── ToolCache: store result ───────────────────────
+                if (typeof ToolCache !== 'undefined') ToolCache.set('whois', domain, data.data);
+
+                displayResults(data.data, domain);
+            } catch (error) {
+                console.error('WHOIS lookup error:', error);
+                showNotification('Network error occurred. Please try again.', 'error');
+            } finally {
+                if (skeletonEl) skeletonEl.style.display = 'none';
+            }
+        }
+
+        function displayResults(data, domain) {
+            // Display domain name
+            domainNameDisplay.textContent = domain;
+            
+            // Populate result fields
+            resultElements.registrar.textContent = data.registrar || '-';
+            resultElements.registrationDate.textContent = formatDate(data.registrationDate) || '-';
+            resultElements.expirationDate.textContent = formatDate(data.expirationDate) || '-';
+            resultElements.domainStatus.textContent = data.status || '-';
+            resultElements.updatedDate.textContent = formatDate(data.updatedDate) || '-';
+            resultElements.creationDate.textContent = formatDate(data.creationDate) || '-';
+            resultElements.registryId.textContent = data.registryId || '-';
+            resultElements.domainId.textContent = data.domainId || '-';
+            
+            // Nameservers
+            const nameservers = data.nameservers || [];
+            for (let i = 0; i < 4; i++) {
+                const nsElement = resultElements[`nameserver${i+1}`];
+                nsElement.textContent = nameservers[i] || '-';
+            }
+            
+            // Registrant contact
+            resultElements.registrantOrg.textContent = data.registrant?.organization || '-';
+            resultElements.registrantName.textContent = data.registrant?.name || '-';
+            resultElements.registrantEmail.textContent = data.registrant?.email || '-';
+            resultElements.registrantPhone.textContent = data.registrant?.phone || '-';
+            
+            // Admin contact
+            resultElements.adminOrg.textContent = data.administrativeContact?.organization || '-';
+            resultElements.adminName.textContent = data.administrativeContact?.name || '-';
+            resultElements.adminEmail.textContent = data.administrativeContact?.email || '-';
+            resultElements.adminPhone.textContent = data.administrativeContact?.phone || '-';
+            
+            // Tech contact
+            resultElements.techOrg.textContent = data.technicalContact?.organization || '-';
+            resultElements.techName.textContent = data.technicalContact?.name || '-';
+            resultElements.techEmail.textContent = data.technicalContact?.email || '-';
+            resultElements.techPhone.textContent = data.technicalContact?.phone || '-';
+            
+            // WHOIS Server data source
+            const dataSourceEl = document.getElementById('dataSource');
+            const whoisServerNameEl = document.getElementById('whoisServerName');
+            if (data.whoisServer) {
+                whoisServerNameEl.textContent = data.whoisServer;
+                dataSourceEl.style.display = 'flex';
+            } else {
+                dataSourceEl.style.display = 'none';
+            }
+            
+            // Raw WHOIS text
+            const rawWhoisContainer = document.getElementById('rawWhoisContainer');
+            if (data.whoisText) {
+                let rawWhoisText = document.getElementById('rawWhoisText');
+                if (!rawWhoisText) {
+                    rawWhoisContainer.innerHTML = '<pre class="raw-whois-text" id="rawWhoisText"></pre>';
+                    rawWhoisText = document.getElementById('rawWhoisText');
+                }
+                rawWhoisText.textContent = data.whoisText;
+            } else {
+                rawWhoisContainer.innerHTML = '<div class="no-whois-text"><i class="fas fa-info-circle"></i>Raw WHOIS text is not available for this domain.<br>The data above was parsed from RDAP or cached records.</div>';
+            }
+            
+            // Show results section
+            resultsSection.classList.add('active');
+            
+            // Scroll to results
+            resultsSection.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function copyWhoisText() {
+            const text = document.getElementById('rawWhoisText').textContent;
+            if (!text) return;
+            navigator.clipboard.writeText(text).then(() => {
+                const btn = document.getElementById('copyWhoisBtn');
+                btn.classList.add('copied');
+                btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+                setTimeout(() => {
+                    btn.classList.remove('copied');
+                    btn.innerHTML = '<i class="fas fa-copy"></i> Copy';
+                }, 2000);
+            });
+        }
+
+        function isValidDomain(domain) {
+            // Simple domain validation
+            const domainRegex = /^(?:(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)\.)+[a-z]{2,}$/i;
+            return domainRegex.test(domain);
+        }
+
+        function formatDate(dateString) {
+            if (!dateString) return '-';
+            
+            try {
+                // Handle different date formats
+                let date = new Date(dateString);
+                
+                if (isNaN(date.getTime())) {
+                    // Try parsing as timestamp
+                    date = new Date(parseInt(dateString));
+                    if (isNaN(date.getTime())) {
+                        return dateString; // Return as-is if can't parse
+                    }
+                }
+                
+                return date.toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric'
+                });
+            } catch (e) {
+                return dateString; // Return original string if parsing fails
+            }
+        }
+
+        // Reuse the showNotification function from common.js
+        function showNotification(message, type) {
+            // Create notification element
+            const notification = document.createElement('div');
+            notification.textContent = message;
+            notification.style.position = 'fixed';
+            notification.style.top = '20px';
+            notification.style.right = '20px';
+            notification.style.padding = '15px 20px';
+            notification.style.borderRadius = 'var(--radius)';
+            notification.style.color = 'white';
+            notification.style.fontWeight = '600';
+            notification.style.zIndex = '1000';
+            notification.style.boxShadow = 'var(--shadow)';
+            notification.style.transform = 'translateX(150%)';
+            notification.style.transition = 'transform 0.3s ease';
+            
+            // Set background color based on type
+            if (type === 'warning') {
+                notification.style.background = 'var(--warning)';
+            } else if (type === 'error') {
+                notification.style.background = 'var(--danger)';
+            } else {
+                notification.style.background = 'var(--primary)';
+            }
+            
+            // Add to DOM
+            document.body.appendChild(notification);
+            
+            // Animate in
+            setTimeout(() => {
+                notification.style.transform = 'translateX(0)';
+            }, 100);
+            
+            // Remove after 3 seconds
+            setTimeout(() => {
+                notification.style.transform = 'translateX(150%)';
+                setTimeout(() => {
+                    document.body.removeChild(notification);
+                }, 300);
+            }, 3000);
+        }
+        // Auto-run from ?d= URL param
+        (function() {
+            var params = new URLSearchParams(window.location.search);
+            var d = params.get('d') || params.get('domain');
+            if (d) {
+                document.getElementById('domainInput').value = d.trim();
+                performWhoisLookup();
+            }
+        })();
+
+        function shareResult() {
+            var domain = document.getElementById('domainInput').value.trim();
+            if (!domain) return;
+            var url = window.location.origin + '/tools/whois-lookup?d=' + encodeURIComponent(domain);
+            var btn = document.getElementById('shareBtnText');
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(url).then(function() {
+                    btn.textContent = 'Copied!';
+                    setTimeout(function(){ btn.textContent = 'Share'; }, 2000);
+                });
+            } else {
+                window.prompt('Copy this link:', url);
+            }
+        }
+    </script>
+</body>
+</html>

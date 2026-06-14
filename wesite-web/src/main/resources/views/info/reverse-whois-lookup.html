@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+
+    <main>
+        <div class="container">
+            <div class="info-page">
+                <nav class="breadcrumb">
+                    <a href="/">Home</a> &gt; 
+                    <a href="/help-center">Help Center</a> &gt; 
+                    <span>Reverse WHOIS Lookup</span>
+                </nav>
+
+                <article class="info-content" itemscope itemtype="https://schema.org/Article">
+                    <h1>Reverse WHOIS Lookup Guide</h1>
+                    
+                    <div class="info-section">
+                        <h2>Finding Domains by Owner Information</h2>
+                        <p>A reverse WHOIS lookup searches WHOIS records by registrant name, email, organization, or other contact details — the opposite of a standard WHOIS lookup which searches by domain name.</p>
+
+                        <h3>What is Reverse WHOIS?</h3>
+                        <p>While a regular WHOIS query asks "Who owns this domain?", a reverse WHOIS query asks "What domains does this person/organization own?" It's a powerful research tool for domain intelligence.</p>
+
+                        <h3>Use Cases</h3>
+
+                        <h4>Competitive Intelligence</h4>
+                        <ul>
+                            <li>Discover all domains owned by a competitor</li>
+                            <li>Identify upcoming products or brands from new domain registrations</li>
+                            <li>Map out a company's full digital footprint</li>
+                        </ul>
+
+                        <h4>Brand Protection</h4>
+                        <ul>
+                            <li>Find domains registered by known infringers</li>
+                            <li>Identify patterns of cybersquatting against your brand</li>
+                            <li>Build evidence for UDRP or legal proceedings</li>
+                        </ul>
+
+                        <h4>Security Research</h4>
+                        <ul>
+                            <li>Track threat actors across multiple domains</li>
+                            <li>Identify phishing infrastructure</li>
+                            <li>Map malware distribution networks</li>
+                            <li>Discover related domains used in coordinated attacks</li>
+                        </ul>
+
+                        <h4>Due Diligence</h4>
+                        <ul>
+                            <li>Research a domain seller's portfolio</li>
+                            <li>Verify business claims about domain ownership</li>
+                            <li>Investigate potential business partners or acquisitions</li>
+                        </ul>
+
+                        <h3>Search Parameters</h3>
+                        <ul>
+                            <li><strong>Registrant Name:</strong> Person or organization name</li>
+                            <li><strong>Email Address:</strong> Admin, tech, or registrant email</li>
+                            <li><strong>Organization:</strong> Company name in WHOIS records</li>
+                            <li><strong>Phone Number:</strong> Contact phone in WHOIS</li>
+                            <li><strong>Nameserver:</strong> Find all domains using specific nameservers</li>
+                        </ul>
+
+                        <h3>Limitations</h3>
+                        <ul>
+                            <li><strong>WHOIS Privacy:</strong> Domains with privacy protection won't appear in results</li>
+                            <li><strong>GDPR Redaction:</strong> European registrations often have redacted WHOIS data</li>
+                            <li><strong>Data Freshness:</strong> Results depend on how recently WHOIS databases were updated</li>
+                            <li><strong>Inconsistent Data:</strong> Registrants may use different names or emails for different domains</li>
+                        </ul>
+
+                        <h3>Tips for Effective Research</h3>
+                        <ul>
+                            <li>Search by multiple criteria (email, name, org) for comprehensive results</li>
+                            <li>Check historical WHOIS data — privacy may have been added later</li>
+                            <li>Cross-reference with DNS data and SSL certificates for additional connections</li>
+                            <li>Use our <a href="/tools/related-domains">Related Domains tool</a> to discover connected domains</li>
+                        </ul>
+
+                        <div class="info-box">
+                            <strong>Explore:</strong> Use our <a href="/tools/related-domains">Related Domains tool</a> to find domains connected by registration details, nameservers, or IP addresses.
+                        </div>
+                    </div>
+
+                    <div class="info-navigation">
+                        <a href="/info/domain-age-checker-guide" class="btn btn-secondary">&larr; Previous: Domain Age Checker Guide</a>
+                        <a href="/info/ip-to-domain-lookup" class="btn btn-primary">Next: IP to Domain Lookup &rarr;</a>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </main>
+
+    <footer th:replace="~{template::template_footer}"></footer>
+</body>
+</html>

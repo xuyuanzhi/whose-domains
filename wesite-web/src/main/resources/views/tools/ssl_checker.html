@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <!-- Floating decorative shapes -->
+    <div class="floating-shape shape-1"></div>
+    <div class="floating-shape shape-2"></div>
+    
+    <header th:replace="~{template::template_header}"></header>
+
+	<main>
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="container">
+            <div class="hero-content">
+                <h1>SSL Certificate Checker</h1>
+                <p>Check SSL certificate details, validity, issuer, and security configuration for any domain.</p>
+                <div class="search-container">
+                    <input type="text" class="search-input" id="sslDomainInput" placeholder="Enter domain name (e.g., example.com)" autocomplete="off" autocapitalize="none" spellcheck="false" inputmode="url">
+                    <button class="search-btn" id="checkBtn">
+                        <i class="fas fa-lock"></i>
+                        Check SSL
+                    </button>
+                </div>
+                <p class="example-text">Verify SSL certificate validity, expiration date, and security configuration.</p>
+            </div>
+        </div>
+    </section>
+
+    <div th:replace="~{template::ad_banner_top}"></div>
+
+    <!-- Skeleton loading (replaces full-page spinner) -->
+    <section class="results-section" id="skeletonLoader" style="display:none;">
+        <div class="container">
+            <div class="skeleton-card">
+                <div class="skeleton skeleton-title"></div>
+                <div class="skeleton-row"><div class="skeleton"></div><div class="skeleton medium"></div></div>
+                <div class="skeleton-row"><div class="skeleton medium"></div><div class="skeleton short"></div></div>
+                <div class="skeleton-row"><div class="skeleton short"></div><div class="skeleton"></div></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Results Section -->
+    <div class="container">
+    	<section class="results-section" id="resultsSection">
+
+            <!-- Status Banner -->
+            <div id="sslStatusBanner" class="ssl-status-banner">
+                <div class="ssl-banner-left">
+                    <div class="ssl-lock-icon" id="sslLockIcon"><i class="fas fa-lock"></i></div>
+                    <div class="ssl-banner-info">
+                        <div class="ssl-banner-domain" id="resultDomain">example.com</div>
+                        <div class="ssl-banner-status" id="sslBannerStatus">Checking...</div>
+                    </div>
+                </div>
+                <div class="ssl-banner-right">
+                    <div class="ssl-grade-badge" id="sslGradeBadge">—</div>
+                    <div class="ssl-days-ring">
+                        <svg viewBox="0 0 42 42" class="ssl-ring-svg">
+                            <circle class="ssl-ring-bg" cx="21" cy="21" r="15.9"/>
+                            <circle class="ssl-ring-fill" id="sslRingFill" cx="21" cy="21" r="15.9" stroke-dasharray="0 100"/>
+                        </svg>
+                        <div class="ssl-ring-label">
+                            <span id="sslRingDays">—</span>
+                            <small>days left</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="results-header">
+                <h2 style="font-size:1.1rem;opacity:.7;">SSL Certificate Report</h2>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                    <button onclick="shareResult()" style="padding:7px 16px;border-radius:20px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.06);color:#94a3b8;font-size:13px;cursor:pointer;"><i class="fas fa-share-alt"></i> <span id="shareBtnText">Share</span></button>
+                    <button class="reset-btn" onclick="resetCheck()">Check Another Domain</button>
+                </div>
+            </div>
+            
+            <div class="results-flex ssl-grid">
+                <div class="result-card">
+                    <h3><i class="fas fa-certificate"></i> Certificate Details</h3>
+                    <div class="info-row">
+                        <span class="info-label">Certificate Valid</span>
+                        <span class="info-value" id="certValid"><span class="status-good">Yes</span></span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Issuer</span>
+                        <span class="info-value" id="issuer">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Subject Alt Names</span>
+                        <span class="info-value small-text" id="sans">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Serial Number</span>
+                        <span class="info-value small-text mono" id="serialNumber">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Signature Algorithm</span>
+                        <span class="info-value" id="signatureAlgorithm">-</span>
+                    </div>
+                </div>
+                
+                <div class="result-card">
+                    <h3><i class="fas fa-calendar-alt"></i> Validity Period</h3>
+                    <div class="info-row">
+                        <span class="info-label">Issued On</span>
+                        <span class="info-value" id="issuedOn">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Expires On</span>
+                        <span class="info-value" id="expiresOn">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Days Until Expiry</span>
+                        <span class="info-value" id="daysUntilExp">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Validity Period</span>
+                        <span class="info-value" id="validityPeriod">-</span>
+                    </div>
+                </div>
+                
+                <div class="result-card">
+                    <h3><i class="fas fa-shield-alt"></i> Security Config</h3>
+                    <div class="info-row">
+                        <span class="info-label">Protocol Support</span>
+                        <span class="info-value" id="protocolSupport">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Cipher Strength</span>
+                        <span class="info-value small-text" id="cipherStrength">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">HSTS</span>
+                        <span class="info-value" id="hstsEnabled"><span class="status-good">Yes</span></span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Cert Transparency</span>
+                        <span class="info-value" id="certTransparency"><span class="status-good">Yes</span></span>
+                    </div>
+                </div>
+                
+                <div class="result-card">
+                    <h3><i class="fas fa-fingerprint"></i> Key Info</h3>
+                    <div class="info-row">
+                        <span class="info-label">Public Key Algo</span>
+                        <span class="info-value" id="pubKeyAlgorithm">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Key Size</span>
+                        <span class="info-value" id="pubKeySize">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Certificate Chain</span>
+                        <span class="info-value small-text" id="chainDepth">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">TLS Protocol</span>
+                        <span class="info-value" id="ocspStapling">-</span>
+                    </div>
+                </div>
+                
+                <div class="result-card full-width">
+                    <h3><i class="fas fa-exclamation-triangle"></i> Security Issues</h3>
+                    <div id="securityIssues">
+                        <p>No security issues detected.</p>
+                    </div>
+                </div>
+                
+                <div class="result-card full-width">
+                    <h3><i class="fas fa-lightbulb"></i> SSL Best Practices</h3>
+                    <ul id="bestPractices" class="best-practices-list">
+                        <li>Use certificates from trusted Certificate Authorities</li>
+                        <li>Ensure certificates are renewed before expiration</li>
+                        <li>Implement HSTS for enhanced security</li>
+                        <li>Use strong cipher suites</li>
+                    </ul>
+                </div>
+            </div>
+    	</section>
+    </div>
+    <div th:replace="~{template::ad_banner_bottom}"></div>
+    </main>        <div th:replace="~{fragments/related-tools::related(slug='ssl-checker')}"></div>
+
+    <footer th:replace="~{template::template_footer}"></footer>
+
+<style>
+/* ── SSL Status Banner ───────────────────────────────── */
+.ssl-status-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+    padding: 20px 24px;
+    border-radius: var(--radius, 12px);
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+}
+
+.ssl-banner-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.ssl-lock-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    flex-shrink: 0;
+    background: rgba(100,255,218,0.12);
+    color: #64ffda;
+    border: 2px solid rgba(100,255,218,0.3);
+    transition: all 0.3s;
+}
+.ssl-lock-icon.invalid {
+    background: rgba(255,82,82,0.12);
+    color: #ff5252;
+    border-color: rgba(255,82,82,0.3);
+}
+.ssl-lock-icon.warning {
+    background: rgba(255,171,0,0.12);
+    color: #ffab00;
+    border-color: rgba(255,171,0,0.3);
+}
+.ssl-banner-domain {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #e2e8f0;
+    word-break: break-all;
+}
+.ssl-banner-status {
+    font-size: 0.875rem;
+    color: #64a3da;
+    margin-top: 3px;
+}
+.ssl-banner-status.valid { color: #64ffda; }
+.ssl-banner-status.invalid { color: #ff5252; }
+.ssl-banner-status.expiring { color: #ffab00; }
+
+.ssl-banner-right {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-shrink: 0;
+}
+/* Grade Badge */
+.ssl-grade-badge {
+    width: 56px;
+    height: 56px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.7rem;
+    font-weight: 800;
+    background: rgba(100,255,218,0.12);
+    color: #64ffda;
+    border: 2px solid rgba(100,255,218,0.25);
+    letter-spacing: -1px;
+}
+.ssl-grade-badge.grade-warn {
+    background: rgba(255,171,0,0.12);
+    color: #ffab00;
+    border-color: rgba(255,171,0,0.25);
+}
+.ssl-grade-badge.grade-bad {
+    background: rgba(255,82,82,0.12);
+    color: #ff5252;
+    border-color: rgba(255,82,82,0.25);
+}
+
+/* Days Ring */
+.ssl-days-ring {
+    position: relative;
+    width: 72px;
+    height: 72px;
+    flex-shrink: 0;
+}
+.ssl-ring-svg {
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+}
+.ssl-ring-bg {
+    fill: none;
+    stroke: rgba(255,255,255,0.08);
+    stroke-width: 3;
+}
+.ssl-ring-fill {
+    fill: none;
+    stroke: #64ffda;
+    stroke-width: 3;
+    stroke-linecap: round;
+    transition: stroke-dasharray 0.8s ease, stroke 0.3s;
+}
+.ssl-ring-fill.warn { stroke: #ffab00; }
+.ssl-ring-fill.bad  { stroke: #ff5252; }
+.ssl-ring-label {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    line-height: 1.1;
+}
+.ssl-ring-label span {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #e2e8f0;
+}
+.ssl-ring-label small {
+    font-size: 0.55rem;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+/* ── Grid override for SSL ───────────────────────────── */
+.ssl-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+}
+.ssl-grid .result-card.full-width {
+    grid-column: 1 / -1;
+}
+@media (max-width: 640px) {
+    .ssl-grid { grid-template-columns: 1fr; }
+}
+
+/* ── Card refinements ────────────────────────────────── */
+.result-card h3 {
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    opacity: 0.7;
+    margin-bottom: 14px;
+}
+.info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 7px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    font-size: 0.875rem;
+}
+.info-row:last-child { border-bottom: none; }
+.info-label {
+    color: #94a3b8;
+    flex-shrink: 0;
+    min-width: 110px;
+}
+.info-value {
+    color: #cbd5e1;
+    text-align: right;
+    word-break: break-word;
+}
+.info-value.small-text { font-size: 0.78rem; }
+.info-value.mono { font-family: monospace; font-size: 0.72rem; }
+
+/* ── Best Practices list ─────────────────────────────── */
+.best-practices-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.best-practices-list li {
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    background: rgba(255,255,255,0.03);
+    border-left: 3px solid rgba(100,163,218,0.4);
+    color: #cbd5e1;
+    line-height: 1.5;
+}
+.best-practices-list li:has(:is(🚨)) {
+    border-left-color: rgba(255,82,82,0.6);
+    background: rgba(255,82,82,0.06);
+}
+
+/* ── Issue items ─────────────────────────────────────── */
+#securityIssues .issue-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    line-height: 1.5;
+}
+#securityIssues .issue-item:last-child { margin-bottom: 0; }
+</style>
+
+    <script>
+        var resultsSection = document.getElementById('resultsSection');
+        var checkBtn = document.getElementById('checkBtn');
+        var sslDomainInput = document.getElementById('sslDomainInput');
+        
+        checkBtn.addEventListener('click', performSslCheck);
+        sslDomainInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') performSslCheck();
+        });
+        
+        function resetCheck() {
+            resultsSection.classList.remove('active');
+            sslDomainInput.value = '';
+            sslDomainInput.focus();
+        }
+
+        function esc(s) {
+            if (!s) return '';
+            var d = document.createElement('div');
+            d.appendChild(document.createTextNode(s));
+            return d.innerHTML;
+        }
+
+        function badge(ok, yesText, noText) {
+            if (ok) return '<span class="badge-good">' + (yesText || 'Yes') + '</span>';
+            return '<span class="badge-bad">' + (noText || 'No') + '</span>';
+        }
+        function badgeWarn(ok, yesText, noText) {
+            if (ok) return '<span class="badge-good">' + (yesText || 'Yes') + '</span>';
+            return '<span class="badge-warn">' + (noText || 'Missing') + '</span>';
+        }
+        
+        async function performSslCheck() {
+            var domain = sslDomainInput.value.trim();
+            if (!domain) { alert('Please enter a domain name'); return; }
+
+            // ToolCache: try cache first
+            var cached = (typeof ToolCache !== 'undefined') ? ToolCache.get('ssl', domain) : null;
+            if (cached) {
+                document.getElementById('resultDomain').textContent = domain;
+                updateSslResults(cached);
+                resultsSection.classList.add('active');
+                return;
+            }
+
+            var skeletonEl = document.getElementById('skeletonLoader');
+            if (skeletonEl) skeletonEl.style.display = 'block';
+            resultsSection.classList.remove('active');
+            
+            try {
+                var response = await fetch('/api/tools/ssl-check/' + encodeURIComponent(domain));
+                var result = await response.json();
+                
+                if (result.code === 0 && result.data) {
+                    // ToolCache: store result
+                    if (typeof ToolCache !== 'undefined') ToolCache.set('ssl', domain, result.data);
+                    document.getElementById('resultDomain').textContent = domain;
+                    updateSslResults(result.data);
+                    resultsSection.classList.add('active');
+                } else {
+                    alert('Error: ' + (result.msg || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('SSL check error:', error);
+                alert('An error occurred while checking the SSL certificate.');
+            } finally {
+                if (skeletonEl) skeletonEl.style.display = 'none';
+            }
+        }
+        
+        function updateSslResults(data) {
+            var cert = data.certificate || {};
+            var validity = data.validity || {};
+            var security = data.security || {};
+            var issues = data.issues || [];
+
+            var isValid = !!cert.currentlyValid;
+            var daysLeft = validity.daysUntilExpiration;
+
+            // === Status Banner ===
+            var lockEl = document.getElementById('sslLockIcon');
+            var statusEl = document.getElementById('sslBannerStatus');
+            var gradeEl = document.getElementById('sslGradeBadge');
+            var ringFill = document.getElementById('sslRingFill');
+            var ringDays = document.getElementById('sslRingDays');
+
+            if (!isValid) {
+                lockEl.className = 'ssl-lock-icon invalid';
+                lockEl.innerHTML = '<i class="fas fa-lock-open"></i>';
+                statusEl.className = 'ssl-banner-status invalid';
+                statusEl.textContent = 'Certificate Invalid or Not Found';
+            } else if (daysLeft !== undefined && daysLeft < 30) {
+                lockEl.className = 'ssl-lock-icon warning';
+                lockEl.innerHTML = '<i class="fas fa-lock"></i>';
+                statusEl.className = 'ssl-banner-status expiring';
+                statusEl.textContent = daysLeft < 0 ? 'Certificate Expired' : 'Expiring Soon — Renew Now';
+            } else {
+                lockEl.className = 'ssl-lock-icon';
+                lockEl.innerHTML = '<i class="fas fa-lock"></i>';
+                statusEl.className = 'ssl-banner-status valid';
+                statusEl.textContent = 'Certificate Valid & Trusted';
+            }
+
+            // Grade
+            var grade = computeGrade(data);
+            gradeEl.textContent = grade;
+            gradeEl.className = 'ssl-grade-badge' + (grade === 'A' || grade === 'A+' ? '' : grade === 'B' || grade === 'C' ? ' grade-warn' : ' grade-bad');
+
+            // Days Ring
+            if (daysLeft !== undefined && daysLeft !== -1) {
+                var maxDays = 365;
+                var pct = Math.max(0, Math.min(100, (daysLeft / maxDays) * 100));
+                var circumference = 100;
+                ringFill.setAttribute('stroke-dasharray', pct + ' ' + (circumference - pct));
+                ringFill.className = 'ssl-ring-fill' + (daysLeft < 0 ? ' bad' : daysLeft < 30 ? ' warn' : '');
+                ringDays.textContent = daysLeft < 0 ? 'Exp' : daysLeft;
+            } else {
+                ringFill.setAttribute('stroke-dasharray', '0 100');
+                ringDays.textContent = '—';
+            }
+            
+            // === Certificate Details ===
+            document.getElementById('certValid').innerHTML = isValid ? badge(true, 'Valid') : badge(false, '', 'Invalid');
+            document.getElementById('issuer').textContent = cert.issuer || '-';
+            var sans = cert.subjectAlternativeNames || [];
+            document.getElementById('sans').textContent = sans.length > 0 ? sans.join(', ') : '-';
+            document.getElementById('serialNumber').textContent = cert.serialNumber || '-';
+            document.getElementById('signatureAlgorithm').textContent = cert.signatureAlgorithm || '-';
+            
+            // === Validity Period ===
+            document.getElementById('issuedOn').textContent = validity.issuedOn || '-';
+            document.getElementById('expiresOn').textContent = validity.expiresOn || '-';
+            if (daysLeft !== undefined && daysLeft !== -1) {
+                var cls = daysLeft < 0 ? 'badge-bad' : daysLeft < 30 ? 'badge-warn' : 'badge-good';
+                var txt = daysLeft < 0 ? 'Expired' : daysLeft + ' days';
+                document.getElementById('daysUntilExp').innerHTML = '<span class="' + cls + '">' + txt + '</span>';
+            } else {
+                document.getElementById('daysUntilExp').textContent = '-';
+            }
+            document.getElementById('validityPeriod').textContent = validity.validityPeriod || '-';
+            
+            // === Security Configuration ===
+            var protocols = security.protocolSupport || [];
+            var protocolHtml = protocols.map(function(p) {
+                var bad = p === 'TLSv1' || p === 'TLSv1.1' || p === 'SSLv3';
+                return '<span class="' + (bad ? 'badge-bad' : 'badge-good') + '" style="margin:1px 2px;display:inline-block;">' + esc(p) + '</span>';
+            }).join(' ');
+            document.getElementById('protocolSupport').innerHTML = protocolHtml || '-';
+            document.getElementById('cipherStrength').textContent = cert.cipherSuite || '-';
+            document.getElementById('hstsEnabled').innerHTML = badgeWarn(security.hstsEnabled, 'Enabled', 'Not Enabled');
+            document.getElementById('certTransparency').innerHTML = badgeWarn(security.certTransparency, 'Yes', 'Not Detected');
+            
+            // === Certificate Info ===
+            document.getElementById('pubKeyAlgorithm').textContent = cert.publicKeyAlgorithm || '-';
+            var keySize = cert.publicKeySize || '';
+            var bits = parseInt(keySize);
+            var keySizeHtml = keySize ? '<span class="' + (bits >= 2048 ? 'badge-good' : 'badge-warn') + '">' + esc(String(keySize)) + '</span>' : '-';
+            document.getElementById('pubKeySize').innerHTML = keySizeHtml;
+            var chainDepth = cert.chainDepth;
+            if (chainDepth) {
+                var chainList = cert.certificateChain || [];
+                var chainText = chainDepth + ' cert' + (chainDepth > 1 ? 's' : '');
+                if (chainList.length > 0) {
+                    chainText += ': ' + chainList.map(function(c) {
+                        var cn = c.match(/CN=([^,]+)/);
+                        return cn ? cn[1] : c.substring(0, 30);
+                    }).join(' → ');
+                }
+                document.getElementById('chainDepth').textContent = chainText;
+            } else {
+                document.getElementById('chainDepth').textContent = '-';
+            }
+            document.getElementById('ocspStapling').innerHTML = cert.protocol ?
+                '<span class="badge-good">' + esc(cert.protocol) + '</span>' : '-';
+            
+            // === Security Issues ===
+            var issuesDiv = document.getElementById('securityIssues');
+            if (issues.length > 0) {
+                var html = '';
+                for (var i = 0; i < issues.length; i++) {
+                    var issue = issues[i];
+                    var sev = issue.severity || 'Info';
+                    var icon, color, bg;
+                    if (sev === 'Critical') { icon = 'fa-times-circle'; color = '#ff5252'; bg = 'rgba(255,82,82,0.08)'; }
+                    else if (sev === 'Warning') { icon = 'fa-exclamation-triangle'; color = '#ffab00'; bg = 'rgba(255,171,0,0.08)'; }
+                    else { icon = 'fa-info-circle'; color = '#64a3da'; bg = 'rgba(100,163,218,0.06)'; }
+                    html += '<div class="issue-item" style="background:' + bg + ';border-left:3px solid ' + color + ';">' +
+                        '<i class="fas ' + icon + '" style="color:' + color + ';margin-top:2px;flex-shrink:0;"></i>' +
+                        '<div><strong style="color:' + color + ';">' + esc(sev) + '</strong> — ' + esc(issue.description) + '</div></div>';
+                }
+                issuesDiv.innerHTML = html;
+            } else {
+                issuesDiv.innerHTML = '<div class="issue-item" style="background:rgba(0,230,118,0.08);border-left:3px solid #00e676;">' +
+                    '<i class="fas fa-check-circle" style="color:#00e676;margin-top:2px;flex-shrink:0;"></i>' +
+                    '<div style="color:#4ade80;">No security issues detected. Certificate looks great!</div></div>';
+            }
+            
+            // === Best Practices ===
+            updateBestPractices(data);
+        }
+
+        function computeGrade(data) {
+            var cert = data.certificate || {};
+            var validity = data.validity || {};
+            var security = data.security || {};
+            var issues = data.issues || [];
+            var daysLeft = validity.daysUntilExpiration;
+            var protocols = security.protocolSupport || [];
+            var hasCritical = issues.some(function(i){ return i.severity === 'Critical'; });
+            var hasWarning  = issues.some(function(i){ return i.severity === 'Warning'; });
+            if (!cert.currentlyValid || hasCritical || (daysLeft !== undefined && daysLeft < 0)) return 'F';
+            if (daysLeft !== undefined && daysLeft < 14) return 'D';
+            if (protocols.indexOf('TLSv1') >= 0 || protocols.indexOf('TLSv1.1') >= 0) return 'C';
+            if (!security.hstsEnabled || hasWarning) return 'B';
+            if (protocols.indexOf('TLSv1.3') >= 0 && security.hstsEnabled) return 'A+';
+            return 'A';
+        }
+        
+        function updateBestPractices(data) {
+            var cert = data.certificate || {};
+            var validity = data.validity || {};
+            var security = data.security || {};
+            var protocols = security.protocolSupport || [];
+            var practices = [];
+            var issuer = (cert.issuer || '').toLowerCase();
+            if (issuer.indexOf('encrypt') >= 0) practices.push('✅ Using Let\'s Encrypt — free, automated SSL certificates');
+            var daysLeft = validity.daysUntilExpiration;
+            if (daysLeft !== undefined) {
+                if (daysLeft < 0) practices.push('🚨 Certificate has EXPIRED — renew immediately!');
+                else if (daysLeft < 15) practices.push('🚨 Certificate expires very soon (' + daysLeft + ' days) — RENEW IMMEDIATELY');
+                else if (daysLeft < 30) practices.push('⚠️ Certificate expires in ' + daysLeft + ' days — consider renewing soon');
+                else practices.push('✅ Certificate has adequate time before expiration (' + daysLeft + ' days)');
+            }
+            if (security.hstsEnabled) practices.push('✅ HSTS enabled — protects against protocol downgrade attacks');
+            else practices.push('⚠️ Consider implementing HSTS (Strict-Transport-Security) header');
+            if (protocols.indexOf('TLSv1.3') >= 0) practices.push('✅ Supports modern TLS 1.3 protocol');
+            else practices.push('⚠️ Consider enabling TLS 1.3 for improved performance and security');
+            if (protocols.indexOf('TLSv1') >= 0 || protocols.indexOf('TLSv1.1') >= 0) practices.push('🚨 Legacy TLS 1.0/1.1 detected — should be disabled');
+            var bits = parseInt(cert.publicKeySize || '0');
+            if (bits >= 2048) practices.push('✅ Strong key size (' + cert.publicKeySize + ')');
+            else if (bits > 0) practices.push('⚠️ Key size (' + cert.publicKeySize + ') is weak — use 2048+ bits for RSA');
+            var sigAlg = cert.signatureAlgorithm || '';
+            if (sigAlg.indexOf('SHA256') >= 0 || sigAlg.indexOf('SHA384') >= 0 || sigAlg.indexOf('SHA512') >= 0)
+                practices.push('✅ Strong signature algorithm (' + sigAlg + ')');
+            else if (sigAlg.indexOf('SHA1') >= 0 || sigAlg.indexOf('MD5') >= 0)
+                practices.push('🚨 Weak signature algorithm (' + sigAlg + ') — upgrade immediately');
+            if (security.httpRedirect) practices.push('✅ HTTP automatically redirects to HTTPS');
+            else practices.push('⚠️ Configure HTTP → HTTPS redirect (301) for all traffic');
+            document.getElementById('bestPractices').innerHTML = practices.map(function(p) { return '<li>' + p + '</li>'; }).join('');
+        }
+
+        (function() {
+            var p = new URLSearchParams(window.location.search);
+            var d = p.get('d') || p.get('domain');
+            if (d) { sslDomainInput.value = d.trim(); performSslCheck(); }
+        })();
+
+        function shareResult() {
+            var d = sslDomainInput.value.trim(); if (!d) return;
+            var url = window.location.origin + '/tools/ssl-checker?d=' + encodeURIComponent(d);
+            var t = document.getElementById('shareBtnText');
+            (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject()).then(function(){
+                t.textContent='Copied!'; setTimeout(function(){t.textContent='Share';},2000);
+            }).catch(function(){ window.prompt('Copy link:', url); });
+        }
+    </script>
+</body>
+</html>

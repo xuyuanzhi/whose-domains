@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+
+    <main>
+        <div class="container">
+            <div class="info-page">
+                <nav class="breadcrumb">
+                    <a href="/">Home</a> &gt; 
+                    <a href="/help-center">Help Center</a> &gt; 
+                    <span>Email Authentication: SPF, DKIM &amp; DMARC</span>
+                </nav>
+
+                <article class="info-content" itemscope itemtype="https://schema.org/Article">
+                    <h1>SPF, DKIM &amp; DMARC Explained</h1>
+                    
+                    <div class="info-section">
+                        <h2>Email Authentication for Domain Security</h2>
+                        <p>Email authentication protocols — SPF, DKIM, and DMARC — work together to prevent email spoofing, phishing, and spam. They help receiving mail servers verify that emails claiming to be from your domain are actually authorized.</p>
+
+                        <h3>SPF (Sender Policy Framework)</h3>
+                        <p>SPF specifies which mail servers are authorized to send email on behalf of your domain.</p>
+
+                        <h4>How SPF Works</h4>
+                        <ol>
+                            <li>You publish an SPF record (TXT record) in your DNS</li>
+                            <li>When a server receives email from your domain, it checks the SPF record</li>
+                            <li>If the sending server's IP matches the SPF record, the email passes SPF</li>
+                        </ol>
+
+                        <div class="info-example">
+                            <strong>Example SPF Record:</strong><br>
+                            <code>v=spf1 include:_spf.google.com include:sendgrid.net -all</code><br>
+                            This allows Google Workspace and SendGrid to send email for your domain, and rejects all others.
+                        </div>
+
+                        <h4>SPF Qualifiers</h4>
+                        <ul>
+                            <li><strong>+all:</strong> Allow all (never use this)</li>
+                            <li><strong>-all:</strong> Hard fail — reject unauthorized senders</li>
+                            <li><strong>~all:</strong> Soft fail — accept but mark as suspicious</li>
+                            <li><strong>?all:</strong> Neutral — no policy</li>
+                        </ul>
+
+                        <h3>DKIM (DomainKeys Identified Mail)</h3>
+                        <p>DKIM adds a digital signature to outgoing emails, allowing receivers to verify the email wasn't altered in transit.</p>
+
+                        <h4>How DKIM Works</h4>
+                        <ol>
+                            <li>Your mail server signs outgoing emails with a private key</li>
+                            <li>The signature is added as an email header</li>
+                            <li>The receiving server looks up your public key in DNS (DKIM TXT record)</li>
+                            <li>If the signature matches, the email passes DKIM verification</li>
+                        </ol>
+
+                        <div class="info-example">
+                            <strong>Example DKIM DNS Record:</strong><br>
+                            <code>selector._domainkey.example.com TXT "v=DKIM1; k=rsa; p=MIGfMA0GCS..."</code>
+                        </div>
+
+                        <h3>DMARC (Domain-based Message Authentication, Reporting &amp; Conformance)</h3>
+                        <p>DMARC builds on SPF and DKIM, telling receivers what to do when authentication fails and providing reporting.</p>
+
+                        <h4>How DMARC Works</h4>
+                        <ol>
+                            <li>You publish a DMARC policy in DNS</li>
+                            <li>Receiving servers check SPF and DKIM results</li>
+                            <li>If both fail, the DMARC policy determines what happens (none, quarantine, reject)</li>
+                            <li>Reports are sent to the domain owner about authentication results</li>
+                        </ol>
+
+                        <div class="info-example">
+                            <strong>Example DMARC Record:</strong><br>
+                            <code>_dmarc.example.com TXT "v=DMARC1; p=reject; rua=mailto:dmarc@example.com; pct=100"</code>
+                        </div>
+
+                        <h4>DMARC Policies</h4>
+                        <ul>
+                            <li><strong>p=none:</strong> Monitor only — collect reports without affecting delivery</li>
+                            <li><strong>p=quarantine:</strong> Send failing emails to spam</li>
+                            <li><strong>p=reject:</strong> Reject failing emails entirely (strongest protection)</li>
+                        </ul>
+
+                        <h3>Implementation Roadmap</h3>
+                        <ol>
+                            <li><strong>Start with SPF:</strong> Identify all legitimate sending sources and create your SPF record</li>
+                            <li><strong>Add DKIM:</strong> Configure DKIM signing on all mail servers and publish public keys</li>
+                            <li><strong>Deploy DMARC (monitor):</strong> Start with p=none to collect data</li>
+                            <li><strong>Analyze Reports:</strong> Review DMARC reports to identify legitimate senders you may have missed</li>
+                            <li><strong>Enforce DMARC:</strong> Gradually move to p=quarantine, then p=reject</li>
+                        </ol>
+
+                        <div class="info-box">
+                            <strong>Important:</strong> Implementing email authentication protects your domain's reputation and helps prevent your domain from being used in phishing attacks. Check your domain's email authentication with our <a href="/tools/dns-analyzer">DNS Analyzer</a>.
+                        </div>
+                    </div>
+
+                    <div class="info-navigation">
+                        <a href="/info/domain-hijacking-prevention" class="btn btn-secondary">&larr; Previous: Domain Hijacking Prevention</a>
+                        <a href="/info/phishing-and-domain-spoofing" class="btn btn-primary">Next: Phishing &amp; Domain Spoofing &rarr;</a>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </main>
+
+    <footer th:replace="~{template::template_footer}"></footer>
+</body>
+</html>

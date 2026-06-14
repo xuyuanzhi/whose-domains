@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+
+    <main>
+        <div class="container">
+            <div class="info-page">
+                <nav class="breadcrumb">
+                    <a href="/">Home</a> &gt; 
+                    <a href="/help-center">Help Center</a> &gt; 
+                    <span>Domain Hijacking Prevention</span>
+                </nav>
+
+                <article class="info-content" itemscope itemtype="https://schema.org/Article">
+                    <h1>How to Prevent Domain Hijacking</h1>
+                    
+                    <div class="info-section">
+                        <h2>Protecting Your Domain from Unauthorized Takeover</h2>
+                        <p>Domain hijacking is the unauthorized transfer or control of a domain name. It can result in complete loss of your online presence, email access, and brand identity. Understanding how hijacking occurs is the first step toward prevention.</p>
+
+                        <h3>How Domain Hijacking Happens</h3>
+
+                        <h4>Social Engineering</h4>
+                        <p>Attackers manipulate registrar support staff into making unauthorized changes:</p>
+                        <ul>
+                            <li>Impersonating the domain owner with stolen personal information</li>
+                            <li>Providing forged identification documents</li>
+                            <li>Exploiting weak verification procedures</li>
+                        </ul>
+
+                        <h4>Account Compromise</h4>
+                        <ul>
+                            <li>Credential stuffing with leaked passwords from other breaches</li>
+                            <li>Phishing attacks targeting the registrar login</li>
+                            <li>SIM swapping to intercept 2FA codes sent via SMS</li>
+                            <li>Malware capturing login credentials</li>
+                        </ul>
+
+                        <h4>Email Account Compromise</h4>
+                        <p>Since domain transfers often require email confirmation:</p>
+                        <ul>
+                            <li>Hijacking the admin email account to approve transfers</li>
+                            <li>Changing the admin email address first, then initiating transfer</li>
+                        </ul>
+
+                        <h4>Registrar Vulnerabilities</h4>
+                        <ul>
+                            <li>Security flaws in registrar systems</li>
+                            <li>Insider threats at registrar companies</li>
+                            <li>API vulnerabilities</li>
+                        </ul>
+
+                        <h3>Prevention Strategies</h3>
+
+                        <h4>1. Enable All Available Locks</h4>
+                        <ul>
+                            <li><strong>Registrar Lock (clientTransferProhibited):</strong> Prevents unauthorized transfers</li>
+                            <li><strong>Registry Lock:</strong> Additional server-side lock requiring manual verification</li>
+                            <li><strong>Update Lock:</strong> Prevents changes to DNS settings and contact info</li>
+                        </ul>
+
+                        <h4>2. Secure Your Registrar Account</h4>
+                        <ul>
+                            <li>Use a strong, unique password (20+ characters)</li>
+                            <li>Enable hardware-based 2FA (YubiKey) over SMS</li>
+                            <li>Use a dedicated email address for domain management</li>
+                            <li>Review login history regularly</li>
+                        </ul>
+
+                        <h4>3. Protect Associated Email</h4>
+                        <ul>
+                            <li>Use a separate, highly secured email for domain admin</li>
+                            <li>Enable 2FA on the email account</li>
+                            <li>Don't use the domain's own email for domain management (circular dependency)</li>
+                        </ul>
+
+                        <h4>4. Monitor Your Domains</h4>
+                        <ul>
+                            <li>Set up WHOIS monitoring for any changes</li>
+                            <li>Subscribe to registrar notifications</li>
+                            <li>Monitor Certificate Transparency logs</li>
+                            <li>Check DNS records regularly</li>
+                        </ul>
+
+                        <h4>5. Use Registry Lock for Critical Domains</h4>
+                        <p>Registry lock adds a manual verification process (often requiring phone calls and PINs) before any changes can be made. This is the strongest protection available.</p>
+
+                        <div class="info-box">
+                            <strong>If You've Been Hijacked:</strong>
+                            <ol>
+                                <li>Contact your registrar immediately</li>
+                                <li>File a complaint with ICANN (for gTLDs)</li>
+                                <li>Initiate a UDRP (Uniform Domain-Name Dispute-Resolution Policy) proceeding</li>
+                                <li>Contact law enforcement</li>
+                                <li>Preserve all evidence of ownership</li>
+                            </ol>
+                        </div>
+                    </div>
+
+                    <div class="info-navigation">
+                        <a href="/info/choosing-dns-providers" class="btn btn-secondary">&larr; Previous: Choosing DNS Providers</a>
+                        <a href="/info/email-authentication-spf-dkim-dmarc" class="btn btn-primary">Next: SPF, DKIM &amp; DMARC &rarr;</a>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </main>
+
+    <footer th:replace="~{template::template_footer}"></footer>
+</body>
+</html>

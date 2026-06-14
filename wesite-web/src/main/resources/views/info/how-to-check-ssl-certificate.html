@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+
+    <main>
+        <div class="container">
+            <div class="info-page">
+                <nav class="breadcrumb">
+                    <a href="/">Home</a> &gt; 
+                    <a href="/help-center">Help Center</a> &gt; 
+                    <span>How to Check SSL Certificate</span>
+                </nav>
+
+                <article class="info-content" itemscope itemtype="https://schema.org/Article">
+                    <h1>How to Check a Domain's SSL Certificate</h1>
+                    
+                    <div class="info-section">
+                        <h2>Methods to Verify SSL/TLS Certificates</h2>
+                        <p>Checking a website's SSL/TLS certificate helps you verify its authenticity, check for expiration, and ensure the connection is properly secured. There are several ways to inspect SSL certificates.</p>
+
+                        <h3>Method 1: Browser Inspection</h3>
+                        <p>The easiest way to check an SSL certificate is through your web browser:</p>
+                        <ol>
+                            <li>Navigate to the website (e.g., https://example.com)</li>
+                            <li>Click the padlock icon in the address bar</li>
+                            <li>Click "Certificate" or "Connection is secure"</li>
+                            <li>View certificate details including issuer, validity, and subject</li>
+                        </ol>
+
+                        <h4>What to Look For</h4>
+                        <ul>
+                            <li><strong>Issued To:</strong> Should match the domain you're visiting</li>
+                            <li><strong>Issued By:</strong> Should be a recognized Certificate Authority</li>
+                            <li><strong>Valid From/To:</strong> Certificate should be within its validity period</li>
+                            <li><strong>Certificate Type:</strong> DV, OV, or EV based on your needs</li>
+                        </ul>
+
+                        <h3>Method 2: Online SSL Checker Tools</h3>
+                        <p>Online tools provide detailed analysis of SSL configurations:</p>
+                        <ul>
+                            <li><strong><a href="/tools/ssl-checker">Whose.Domains SSL Checker</a>:</strong> Quick certificate inspection with detailed results</li>
+                            <li><strong>SSL Labs Server Test:</strong> Comprehensive security grading</li>
+                            <li><strong>SSL Shopper:</strong> Certificate chain verification</li>
+                        </ul>
+
+                        <h3>Method 3: Command Line</h3>
+                        <p>For technical users, OpenSSL provides detailed certificate information:</p>
+                        <div class="info-example">
+                            <strong>OpenSSL Command:</strong><br>
+                            <code>openssl s_client -connect example.com:443 -servername example.com | openssl x509 -text -noout</code>
+                        </div>
+
+                        <h3>Common SSL Certificate Issues</h3>
+                        <ul>
+                            <li><strong>Expired Certificate:</strong> Certificate has passed its validity date — needs immediate renewal</li>
+                            <li><strong>Name Mismatch:</strong> Certificate domain doesn't match the URL — possible misconfiguration or phishing</li>
+                            <li><strong>Untrusted CA:</strong> Certificate issued by an unknown or untrusted authority</li>
+                            <li><strong>Incomplete Chain:</strong> Missing intermediate certificates in the chain</li>
+                            <li><strong>Mixed Content:</strong> HTTPS page loading HTTP resources</li>
+                            <li><strong>Weak Cipher Suites:</strong> Server using outdated encryption algorithms</li>
+                            <li><strong>Self-Signed Certificate:</strong> Not issued by a trusted CA — common in development environments</li>
+                        </ul>
+
+                        <h3>SSL Certificate Security Indicators</h3>
+                        <ul>
+                            <li><strong>🟢 Secure:</strong> Valid certificate, padlock displayed, HTTPS connection</li>
+                            <li><strong>🟡 Warning:</strong> Certificate issues like upcoming expiration or mixed content</li>
+                            <li><strong>🔴 Not Secure:</strong> No certificate, expired, or name mismatch</li>
+                        </ul>
+
+                        <div class="info-box">
+                            <strong>Best Practice:</strong> Regularly monitor your SSL certificates for expiration and configuration issues. Set up alerts at least 30 days before expiration to ensure uninterrupted secure service.
+                        </div>
+                    </div>
+
+                    <div class="info-navigation">
+                        <a href="/info/types-of-ssl-certificates" class="btn btn-secondary">&larr; Previous: Types of SSL Certificates</a>
+                        <a href="/info/ssl-certificate-expiration" class="btn btn-primary">Next: SSL Certificate Expiration &rarr;</a>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </main>
+
+    <footer th:replace="~{template::template_footer}"></footer>
+</body>
+</html>

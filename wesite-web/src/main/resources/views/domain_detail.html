@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+	<header th:replace="~{template::template_header}"></header>
+	
+	<main>
+		<section class="results-section active" id="resultsSection" aria-label="Domain WHOIS Results">
+	        <div class="container">
+	        	<div class="nav">
+	        		<div class="path">
+	        			<a href="/">Home</a>&nbsp;&nbsp;>>&nbsp;&nbsp;<span th:text="${domain.name}"></span>
+	        		</div>
+	        		<div class="search-container" style="margin:unset;">
+	                    <input type="text" class="search-input-small" id="domainInput" placeholder="Enter a domain name (e.g., example.com)" required>
+	                    <button class="search-btn search-btn-small" id="searchBtn">
+	                        <i class="fas fa-search"></i>
+	                        Search
+	                    </button>
+	                </div>
+	        	</div>
+	            <div class="results-header">
+	                <div>
+	                    <h2 class="domain-name">
+	                        <i class="fas fa-globe-americas"></i>
+	                        <span id="resultDomain" th:text="${domain.name}"></span>
+	                    </h2>
+	                    <p id="lastUpdated">Last updated: <time th:datetime="${domain.registUpdateDateText}" th:text="${domain.lastOperateDateText}"></time></p>
+	                </div>
+	                <button class="search-again" id="requestBtn" th:if="${domain.requestRefreshBtnEnable}">
+	                    <i class="fas fa-redo"></i>
+	                    Request Refresh
+	                </button>
+	            </div>
+
+	            <!-- Quick Action Buttons -->
+	            <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:15px;">
+	                <a th:href="@{'/api/domain-report/' + ${domain.name}}" class="search-again" style="text-decoration:none; font-size:13px; padding:6px 14px;">
+	                    <i class="fas fa-download"></i> Export Report
+	                </a>
+	                <a th:href="@{'/tools/domain-score?d=' + ${domain.name}}" class="search-again" style="text-decoration:none; font-size:13px; padding:6px 14px;">
+	                    <i class="fas fa-star"></i> Health Score
+	                </a>
+	                <a th:href="@{'/tools/related-domains?d=' + ${domain.name}}" class="search-again" style="text-decoration:none; font-size:13px; padding:6px 14px;">
+	                    <i class="fas fa-project-diagram"></i> Related Domains
+	                </a>
+	                <a th:href="@{'/tools/domain-history?d=' + ${domain.name}}" class="search-again" style="text-decoration:none; font-size:13px; padding:6px 14px;">
+	                    <i class="fas fa-history"></i> WHOIS History
+	                </a>
+	                <!-- <a th:if="${session.user == null}" href="/login" class="search-again" style="text-decoration:none; font-size:13px; padding:6px 14px; background-color:#ffeb3b; color:#333;">
+	                    <i class="fas fa-bell"></i> Monitor this domain
+	                </a>
+	                <a th:if="${session.user != null}" th:href="@{'/user/domain-watch?add=' + ${domain.name}}" class="search-again" style="text-decoration:none; font-size:13px; padding:6px 14px; background-color:#ffeb3b; color:#333;">
+	                    <i class="fas fa-bell"></i> Monitor this domain
+	                </a> -->
+	            </div>
+	            
+	            <div class="ad-container" th:if="${_isProd}">
+					<!-- 头部横幅 -->
+					<ins class="adsbygoogle"
+					     style="display:block"
+					     data-ad-client="ca-pub-7597293740550331"
+					     data-ad-slot="8301467356"
+					     data-ad-format="auto"
+					     data-full-width-responsive="true"></ins>
+					<script>
+					     (adsbygoogle = window.adsbygoogle || []).push({});
+					</script>
+	            </div>
+	            
+	            <div class="results-grid">
+	                <div class="result-card">
+	                    <h3><i class="fas fa-info-circle"></i> Domain Information</h3>
+	                    <div class="info-row">
+	                        <span class="info-label"><i class="fas fa-fingerprint"></i> Registry Domain ID</span>
+	                        <span class="info-value" id="domainId" th:text="${domain.registryDomainID}"></span>
+	                    </div>
+	                    <div class="info-row">
+	                        <span class="info-label"><i class="fas fa-calendar-plus"></i> Registration Date</span>
+	                        <span class="info-value" id="creationDate" th:text="${domain.registCreateDateText}"></span>
+	                    </div>
+	                    <div class="info-row">
+	                        <span class="info-label"><i class="fas fa-calendar-times"></i> Expiration Date</span>
+	                        <span class="info-value" id="expiryDate" th:text="${domain.registExpiryDateText}"></span>
+	                    </div>
+	                    <div class="info-row">
+	                        <span class="info-label"><i class="fas fa-sync-alt"></i> Updated Date</span>
+	                        <span class="info-value" id="updatedDate" th:text="${domain.registUpdateDateText}"></span>
+	                    </div>
+	                    <div class="info-row">
+	                        <span class="info-label"><i class="fas fa-circle"></i> Domain Status</span>
+	                        <span class="info-value" id="statusDetail" th:text="${domain.domainStatus}"></span>
+	                    </div>
+	                    <div class="info-row">
+	                        <span class="info-label"><i class="fas fa-shield-alt"></i> DNSSEC</span>
+	                        <span class="info-value" id="dnssec" th:text="${domain.dnssec}"></span>
+	                    </div>
+	                    <div style="margin-top:14px; padding-top:12px; border-top:1px solid rgba(255,255,255,0.08);">
+	                        <a th:href="@{'/tools/domain-history?d=' + ${domain.name}}"
+	                           style="display:inline-flex; align-items:center; gap:6px; font-size:13px; padding:6px 14px; background:rgba(37,99,235,0.15); color:#60a5fa; border:1px solid rgba(37,99,235,0.3); border-radius:6px; text-decoration:none; transition:background 0.2s;"
+	                           onmouseover="this.style.background='rgba(37,99,235,0.28)'" onmouseout="this.style.background='rgba(37,99,235,0.15)'">
+	                            <i class="fas fa-stream"></i> View History Timeline
+	                        </a>
+	                    </div>
+	                </div>
+	                
+	                <div class="result-card">
+	                    <h3><i class="fa-solid fa-registered"></i> Registrar Information</h3>
+	                    <div class="info-row">
+	                        <span class="info-label"><i class="fas fa-building"></i> Registrar</span>
+	                        <span class="info-value" th:text="${domain.registrar}"></span>
+	                    </div>
+	                    <div class="info-row">
+	                        <span class="info-label"><i class="fas fa-id-card"></i> Registrar IANA ID</span>
+	                        <span class="info-value" th:text="${domain.registrarIanaID}"></span>
+	                    </div>
+	                    <div class="info-row" th:if="${domain.registrarUrl != null}">
+	                        <span class="info-label"><i class="fas fa-id-card"></i> Registrar Website</span>
+	                        <a class="info-value" target="_blank" th:href="${domain.registrarUrl}" th:text="${domain.registrarUrl}"></a>
+	                    </div>
+	                    <div class="info-row" th:if="${domain.whoisServer != null}">
+	                        <span class="info-label"><i class="fas fa-database"></i> WHOIS Server</span>
+	                        <span class="info-value"><a th:href="@{/domain/{name}(name=${domain.finalWhoisServer})}" th:text="${domain.finalWhoisServer}"></a></span>
+	                    </div>
+	                    <div class="info-row" th:if="${domain.rdapServer != null}">
+	                        <span class="info-label"><i class="fas fa-database"></i> RDAP Server</span>
+	                        <span class="info-value" th:text="${domain.rdapServer}"></span>
+	                    </div>
+	                </div>
+	                
+	                <div class="result-card">
+	                    <h3><i class="fas fa-user"></i> Registrant Contact</h3>
+	                    <div class="info-row" th:if="${domain.registrantName != null}">
+	                        <span class="info-label"><i class="fas fa-user-tag"></i> Name</span>
+	                        <span class="info-value" id="registrant" th:text="${domain.registrantName}"></span>
+	                    </div>
+	                    <div class="info-row" th:if="${domain.registrantOrg != null}">
+	                        <span class="info-label"><i class="fas fa-building"></i> Organization</span>
+	                        <span class="info-value" id="registrantOrg" th:text="${domain.registrantOrg}"></span>
+	                    </div>
+	                    <div class="info-row">
+	                        <span class="info-label"><i class="fas fa-envelope"></i> Email</span>
+	                        <span class="info-value" id="registrantEmail" th:text="${domain.registrantEmail}"></span>
+	                    </div>
+	                    <div class="info-row">
+	                        <span class="info-label"><i class="fas fa-phone"></i> Phone</span>
+	                        <span class="info-value" id="registrantPhone" th:text="${domain.registrantPhone}"></span>
+	                    </div>
+	                    <div class="info-row">
+	                        <span class="info-label"><i class="fas fa-flag"></i> Location</span>
+	                        <span class="info-value" id="registrantCountry" th:text="${domain.registrantLocation}"></span>
+	                    </div>
+	                </div>
+	                
+	                <div class="result-card">
+	                    <h3><i class="fas fa-server"></i> Name Servers</h3>
+	                    <div class="info-row" th:each="server,stat:${domain.nameServerList}">
+	                        <span class="info-label"><i class="fas fa-network-wired"></i> #[[${stat.count}]]</span>
+	                        <span class="info-value" id="ns1" th:text="${server}"></span>
+	                    </div>
+	                </div>
+	            </div>
+	            
+	            <div class="results-flex">
+	                <div class="result-card">
+	                    <h3><i class="fa-solid fa-globe"></i> DNS</h3>
+	                    <div class="info-row" th:each="dns:${dnsList}">
+	                        <span class="info-label"><i class="fa-solid fa-clipboard"></i> [[${dns.type}]]</span>
+	                        <span style="display:flex;align-items:center;">[[${dns.name}]]</span>
+	                        <span class="info-value" th:utext="${dns.displayValue}"></span>
+	                    </div>
+	                </div>
+	                
+	                <div class="result-card">
+	                    <h3><i class="fa-solid fa-ethernet"></i> Sub Domains</h3>
+	                    <div class="info-row" th:each="site:${siteList}">
+	                        <span class="info-label"><a th:href="@{/domain/{name}(name=${site.name})}" th:text="${site.name}"></a></span>
+	                        <span class="info-value" th:text="${site.homePageUrl}"></span>
+	                    </div>
+	                </div>
+	            </div>
+	            
+	            <div class="ad-container" th:if="${_isProd}">
+	            	<!-- 尾部横幅 -->
+					<ins class="adsbygoogle"
+					     style="display:block"
+					     data-ad-client="ca-pub-7597293740550331"
+					     data-ad-slot="5630964188"
+					     data-ad-format="auto"
+					     data-full-width-responsive="true"></ins>
+					<script>
+					     (adsbygoogle = window.adsbygoogle || []).push({});
+					</script>
+	            </div>
+	            
+	            <div class="results-grid" th:if="${domain.finalWhoisText != null or domain.prettyRdapText != null}" style="grid-template-columns: 1fr;">
+	                <div class="result-card" style="grid-column: 1 / span 1;" th:if="${domain.finalWhoisText == null and domain.prettyRdapText != null}">
+	                    <h3><i class="fas fa-cog"></i> RDAP Data</h3>
+	                    <div class="info-row">
+	                        <pre style="text-wrap:auto;overflow:auto;">[[${domain.prettyRdapText}]]</pre>
+	                    </div>
+	                </div>
+	                <div class="result-card" style="grid-column: 1 / span 1;" th:if="${domain.finalWhoisText != null}">
+	                    <h3><i class="fas fa-cog"></i> Raw WHOIS Data</h3>
+	                    <div class="info-row">
+	                        <pre style="text-wrap:auto;overflow:auto;">[[${domain.finalWhoisText}]]</pre>
+	                    </div>
+	                </div>
+	            </div>
+	        </div>
+	    </section>
+
+	</main>
+	
+	<footer th:replace="~{template::template_footer}"></footer>
+	<script type="text/javascript">
+	//const domainInput = document.getElementById('domainInput');
+	const searchBtn = document.getElementById('searchBtn');
+	
+	// Event Listeners
+	searchBtn.addEventListener('click', performSearch);
+	//
+	domainInput.addEventListener('keypress', function(e) {
+	    if (e.key === 'Enter') performSearch();
+	});
+	</script>
+</body>
+</html>

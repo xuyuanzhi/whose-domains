@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+    <main>
+    <section class="hero">
+        <div class="container">
+            <div class="hero-content">
+                <h1>🖥️ Reverse IP Lookup</h1>
+                <p>Discover all domains hosted on the same IP address. Useful for security research and shared hosting analysis.</p>
+            </div>
+        </div>
+    </section>
+
+    <div th:replace="~{template::ad_banner_top}"></div>
+
+    <div class="container" style="max-width:1000px;">
+
+    <!-- Search -->
+    <div style="background:var(--card-bg); border-radius:10px; padding:25px; margin-bottom:30px; border:1px solid var(--glass-border);">
+        <div style="display:flex; gap:10px;">
+            <input type="text" id="ipInput" placeholder="Enter an IP address, e.g. 104.21.32.1" autocomplete="off" autocapitalize="none" spellcheck="false" inputmode="url"
+                   style="flex:1; padding:10px 14px; border:1px solid var(--glass-border); border-radius:6px; font-size:15px; background:rgba(15,22,40,0.8); color:#e2e8f0;">
+            <button onclick="lookupIp(1)" id="lookupBtn"
+                    style="padding:10px 25px; background:#2563eb; color:#fff; border:none; border-radius:6px; font-size:15px; cursor:pointer;">
+                Lookup
+            </button>
+        </div>
+    </div>
+
+    <div id="loading" style="display:none; text-align:center; padding:30px; color:#7a8ba0;">⏳ Looking up domains...</div>
+    <div id="errorMsg" style="display:none; background:#fef2f2; color:#dc2626; padding:15px; border-radius:8px; margin-bottom:20px;"></div>
+
+    <!-- Results -->
+    <div id="results" style="display:none;">
+
+        <!-- IP Info -->
+        <div id="ipInfoBox" style="background:var(--card-bg); border:1px solid var(--glass-border); border-radius:10px; padding:20px; margin-bottom:25px; display:none;">
+            <div style="font-weight:600; margin-bottom:8px; color:#e2e8f0;">IP Information</div>
+            <div id="ipInfoContent" style="font-size:14px; color:#94a3b8;"></div>
+        </div>
+
+        <div id="totalInfo" style="font-size:14px; color:#7a8ba0; margin-bottom:12px;"></div>
+
+        <div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:10px;">
+            <button onclick="exportReverseIp('csv')" style="padding:6px 14px; font-size:13px; background:rgba(22,163,74,0.15); color:#4ade80; border:1px solid rgba(22,163,74,0.3); border-radius:6px; cursor:pointer;">📥 Export CSV</button>
+            <button onclick="exportReverseIp('json')" style="padding:6px 14px; font-size:13px; background:rgba(37,99,235,0.15); color:#60a5fa; border:1px solid rgba(37,99,235,0.3); border-radius:6px; cursor:pointer;">📥 Export JSON</button>
+        </div>
+
+        <div style="overflow-x:auto;">
+            <table style="width:100%; border-collapse:collapse; font-size:14px;">
+                <thead>
+                    <tr style="background:rgba(255,255,255,0.04);">
+                        <th style="padding:10px 12px; text-align:left; border-bottom:2px solid #e2e8f0;">Domain</th>
+                        <th style="padding:10px 12px; text-align:left; border-bottom:2px solid #e2e8f0;">Registrar</th>
+                        <th style="padding:10px 12px; text-align:left; border-bottom:2px solid #e2e8f0;">Expiry</th>
+                        <th style="padding:10px 12px; text-align:left; border-bottom:2px solid #e2e8f0;">Organization</th>
+                    </tr>
+                </thead>
+                <tbody id="domainBody"></tbody>
+            </table>
+        </div>
+
+        <div id="pagination" style="display:flex; gap:8px; justify-content:center; margin-top:20px;"></div>
+    </div>
+
+    <!-- Use Cases -->
+    <div style="margin-top:40px; border-top:1px solid #e2e8f0; padding-top:25px;">
+        <h2 style="font-size:20px; margin-bottom:12px;">Use Cases</h2>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(250px, 1fr)); gap:18px;">
+            <div style="background:var(--card-bg); padding:16px; border-radius:8px;">
+                <div style="font-size:17px; margin-bottom:5px;">🔒 Security Research</div>
+                <p style="font-size:13px; color:#7a8ba0; margin:0;">Identify malicious domains sharing infrastructure with known threat actors.</p>
+            </div>
+            <div style="background:var(--card-bg); padding:16px; border-radius:8px;">
+                <div style="font-size:17px; margin-bottom:5px;">🏠 Hosting Analysis</div>
+                <p style="font-size:13px; color:#7a8ba0; margin:0;">See how many domains share your server. Useful for evaluating shared hosting quality.</p>
+            </div>
+            <div style="background:var(--card-bg); padding:16px; border-radius:8px;">
+                <div style="font-size:17px; margin-bottom:5px;">🕵️ Investigation</div>
+                <p style="font-size:13px; color:#7a8ba0; margin:0;">Map out an organization's full web presence by discovering all domains on their servers.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div th:replace="~{template::ad_banner_bottom}"></div>
+
+<script>
+var currentIp = '';
+function lookupIp(page) {
+    var ip = document.getElementById('ipInput').value.trim();
+    if (!ip) { showError('Please enter an IP address.'); return; }
+    currentIp = ip;
+
+    document.getElementById('loading').style.display = 'block';
+    document.getElementById('results').style.display = 'none';
+    document.getElementById('errorMsg').style.display = 'none';
+    document.getElementById('lookupBtn').disabled = true;
+
+    fetch('/api/tools/reverse-ip/' + encodeURIComponent(ip) + '?page=' + page)
+        .then(function(r) { return r.json(); })
+        .then(function(json) {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('lookupBtn').disabled = false;
+            if (json.code !== 0) { showError(json.msg); return; }
+            renderResults(json.data, page);
+        })
+        .catch(function() {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('lookupBtn').disabled = false;
+            showError('Network error.');
+        });
+}
+
+function renderResults(data, page) {
+    _lastReverseIpData = data;
+    // IP info
+    var infoBox = document.getElementById('ipInfoBox');
+    var infoContent = document.getElementById('ipInfoContent');
+    var parts = [];
+    if (data.asnInfo) {
+        if (data.asnInfo.autonomous_system_organization) parts.push('ISP: ' + data.asnInfo.autonomous_system_organization);
+        if (data.asnInfo.autonomous_system_number) parts.push('ASN: AS' + data.asnInfo.autonomous_system_number);
+    }
+    if (data.geoInfo) {
+        var geo = data.geoInfo;
+        var loc = [];
+        if (geo.city && geo.city.names) loc.push(geo.city.names.en);
+        if (geo.country && geo.country.names) loc.push(geo.country.names.en);
+        if (loc.length > 0) parts.push('Location: ' + loc.join(', '));
+    }
+    if (parts.length > 0) {
+        infoContent.innerText = parts.join(' | ');
+        infoBox.style.display = 'block';
+    } else {
+        infoBox.style.display = 'none';
+    }
+
+    document.getElementById('totalInfo').innerText = data.total + ' domains found on IP ' + data.ip;
+
+    var tbody = document.getElementById('domainBody');
+    tbody.innerHTML = '';
+    var domains = data.domains || [];
+    for (var i = 0; i < domains.length; i++) {
+        var d = domains[i];
+        var tr = document.createElement('tr');
+        tr.style.borderBottom = '1px solid #f1f5f9';
+        tr.innerHTML = '<td style="padding:10px 12px;"><a href="/domain/' + encodeURIComponent(d.name) + '" style="color:var(--primary); text-decoration:none;">' + escapeHtml(d.name) + '</a></td>' +
+            '<td style="padding:10px 12px; font-size:13px;">' + escapeHtml(d.registrar || '-') + '</td>' +
+            '<td style="padding:10px 12px; font-size:13px;">' + escapeHtml(d.expiryDate || '-') + '</td>' +
+            '<td style="padding:10px 12px; font-size:13px;">' + escapeHtml(d.registrantOrg || '-') + '</td>';
+        tbody.appendChild(tr);
+    }
+
+    // Pagination
+    var pag = document.getElementById('pagination');
+    pag.innerHTML = '';
+    if (data.totalPages > 1) {
+        for (var p = 1; p <= Math.min(data.totalPages, 10); p++) {
+            var btn = document.createElement('button');
+            btn.innerText = p;
+            btn.style.cssText = 'padding:6px 12px; border:1px solid var(--glass-border); border-radius:4px; cursor:pointer; font-size:13px;';
+            if (p === page) { btn.style.background = '#2563eb'; btn.style.color = '#fff'; btn.style.borderColor = '#2563eb'; }
+            btn.setAttribute('data-page', p);
+            btn.onclick = function() { lookupIp(parseInt(this.getAttribute('data-page'))); };
+            pag.appendChild(btn);
+        }
+    }
+
+    document.getElementById('results').style.display = 'block';
+}
+
+function showError(msg) { document.getElementById('errorMsg').innerText = msg; document.getElementById('errorMsg').style.display = 'block'; }
+function escapeHtml(s) { if (!s) return ''; var d = document.createElement('div'); d.appendChild(document.createTextNode(s)); return d.innerHTML; }
+
+var _lastReverseIpData = null;
+function exportReverseIp(format) {
+    if (!_lastReverseIpData) { alert('Please run a lookup first.'); return; }
+    var domains = _lastReverseIpData.domains || [];
+    var ip = _lastReverseIpData.ip || 'ip';
+    if (format === 'csv') {
+        var lines = ['"Domain","Registrar","Expiry Date","Organization"'];
+        domains.forEach(function(d) {
+            lines.push(['"'+(d.name||'').replace(/"/g,'""')+'"',
+                        '"'+(d.registrar||'').replace(/"/g,'""')+'"',
+                        '"'+(d.expiryDate||'').replace(/"/g,'""')+'"',
+                        '"'+(d.registrantOrg||'').replace(/"/g,'""')+'"'].join(','));
+        });
+        downloadFile(lines.join('\r\n'), 'reverse-ip-' + ip + '.csv', 'text/csv');
+    } else {
+        downloadFile(JSON.stringify(_lastReverseIpData, null, 2), 'reverse-ip-' + ip + '.json', 'application/json');
+    }
+}
+function downloadFile(content, filename, mime) {
+    var blob = new Blob([content], { type: mime });
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('ipInput').addEventListener('keypress', function(e) { if (e.key === 'Enter') lookupIp(1); });
+});
+</script>
+    </main>        <div th:replace="~{fragments/related-tools::related(slug='reverse-ip')}"></div>
+    
+    <footer th:replace="~{template::template_footer}"></footer>
+</body>
+</html>

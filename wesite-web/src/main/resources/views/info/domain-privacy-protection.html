@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+
+    <main>
+        <div class="container">
+            <div class="info-page">
+                <nav class="breadcrumb">
+                    <a href="/">Home</a> &gt; 
+                    <a href="/help-center">Help Center</a> &gt; 
+                    <span>Domain Privacy Protection</span>
+                </nav>
+
+                <article class="info-content" itemscope itemtype="https://schema.org/Article">
+                    <h1>Domain Privacy Protection</h1>
+                    
+                    <div class="info-section">
+                        <h2>Protecting Your Personal Information</h2>
+                        <p>Domain privacy protection (also known as WHOIS privacy or domain privacy) is a service that hides your personal contact information from the public WHOIS database.</p>
+                        
+                        <h3>What is Domain Privacy Protection?</h3>
+                        <p>When you register a domain, you're required to provide contact information (name, address, email, phone). This information is normally published in the public WHOIS database. Domain privacy protection replaces your personal information with the contact details of a privacy service.</p>
+
+                        <h3>How It Works</h3>
+                        <ol>
+                            <li>You enable privacy protection through your registrar</li>
+                            <li>The registrar replaces your contact info with proxy information in WHOIS</li>
+                            <li>Emails sent to your domain are forwarded to your real email</li>
+                            <li>Your actual contact details remain hidden from public view</li>
+                        </ol>
+
+                        <h3>Benefits of Domain Privacy</h3>
+                        <ul>
+                            <li><strong>Spam Reduction:</strong> Prevents spammers from harvesting your email</li>
+                            <li><strong>Privacy:</strong> Keeps personal information off public databases</li>
+                            <li><strong>Security:</strong> Reduces risk of identity theft and phishing</li>
+                            <li><strong>Professionalism:</strong> Shows privacy-conscious business practices</li>
+                            <li><strong>Reduced Solicitation:</strong> Fewer unwanted marketing calls and emails</li>
+                        </ul>
+
+                        <h3>What Information is Hidden</h3>
+                        <p>With privacy protection enabled, the following is typically hidden:</p>
+                        <ul>
+                            <li>Registrant name</li>
+                            <li>Street address</li>
+                            <li>City, state, postal code</li>
+                            <li>Country</li>
+                            <li>Phone number</li>
+                            <li>Email address</li>
+                        </ul>
+                        <p><strong>Note:</strong> The domain name itself and technical information (nameservers, dates) remain public.</p>
+
+                        <h3>When Privacy Protection May Not Work</h3>
+                        <ul>
+                            <li><strong>Legal Proceedings:</strong> Court orders can compel disclosure</li>
+                            <li><strong>Trademark Disputes:</strong> UDRP proceedings may require owner identification</li>
+                            <li><strong>Criminal Investigations:</strong> Law enforcement can request information</li>
+                            <li><strong>Some TLDs:</strong> Certain country-code TLDs don't allow privacy</li>
+                            <li><strong>Verification Requirements:</strong> Some services require verified contact info</li>
+                        </ul>
+
+                        <h3>GDPR Impact on WHOIS Privacy</h3>
+                        <p>Since GDPR implementation in 2018:</p>
+                        <ul>
+                            <li>Many registrars automatically enable privacy for EU residents</li>
+                            <li>Personal data is redacted from public WHOIS by default</li>
+                            <li>Contact methods use anonymized email forwarding</li>
+                            <li>Some registries require legitimate purpose for data access</li>
+                        </ul>
+
+                        <h3>Privacy vs. Transparency</h3>
+                        <p>Consider these factors when deciding on privacy protection:</p>
+                        
+                        <h4>Use Privacy When:</h4>
+                        <ul>
+                            <li>Registering personal domains</li>
+                            <li>Concerned about spam and unwanted contact</li>
+                            <li>Testing new projects before launch</li>
+                            <li>Security is a concern</li>
+                        </ul>
+
+                        <h4>Consider Transparency When:</h4>
+                        <ul>
+                            <li>Building trust with customers (business domains)</li>
+                            <li>Required by certain TLD policies</li>
+                            <li>Easier customer contact is important</li>
+                            <li>SEO and credibility are priorities</li>
+                        </ul>
+
+                        <h3>Common Privacy Service Providers</h3>
+                        <p>Many registrars offer their own privacy services:</p>
+                        <ul>
+                            <li>WhoisGuard (Namecheap)</li>
+                            <li>Domains By Proxy (GoDaddy)</li>
+                            <li>Privacy Protect (various registrars)</li>
+                            <li>ICANN-accredited privacy services</li>
+                        </ul>
+
+                        <h3>Cost Considerations</h3>
+                        <ul>
+                            <li>Some registrars include privacy for free</li>
+                            <li>Others charge $5-15 per year per domain</li>
+                            <li>Premium domains may have higher privacy fees</li>
+                            <li>Consider the cost when comparing registrars</li>
+                        </ul>
+
+                        <h3>How to Enable Privacy Protection</h3>
+                        <ol>
+                            <li>Log into your registrar account</li>
+                            <li>Navigate to domain management</li>
+                            <li>Select the domain you want to protect</li>
+                            <li>Look for "Privacy Protection" or "WHOIS Privacy" option</li>
+                            <li>Enable the service (may require payment)</li>
+                            <li>Confirm the changes</li>
+                        </ol>
+
+                        <h3>Important Considerations</h3>
+                        <ul>
+                            <li><strong>Keep Contact Info Updated:</strong> Even with privacy, registrar needs your real info</li>
+                            <li><strong>Email Forwarding:</strong> Ensure forwarded emails reach you</li>
+                            <li><strong>Legal Compliance:</strong> You're still legally responsible for the domain</li>
+                            <li><strong>Transfer Implications:</strong> Privacy may need to be re-enabled after transfers</li>
+                        </ul>
+                    </div>
+
+                    <div class="info-navigation">
+                        <a href="/info/reading-whois-results" class="btn btn-secondary">&larr; Previous: Reading WHOIS Results</a>
+                        <a href="/info/why-domain-history-matters" class="btn btn-primary">Next: Why Domain History Matters &rarr;</a>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </main>
+
+    <footer th:replace="~{template::template_footer}"></footer>
+</body>
+</html>

@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+
+    <main>
+        <div class="container">
+            <div class="info-page">
+                <nav class="breadcrumb">
+                    <a href="/">Home</a> &gt; 
+                    <a href="/help-center">Help Center</a> &gt; 
+                    <span>Domain Structure and TLDs</span>
+                </nav>
+
+                <article class="info-content" itemscope itemtype="https://schema.org/Article">
+                    <h1>Domain Structure and TLDs</h1>
+                    
+                    <div class="info-section">
+                        <h2>Understanding Domain Name Hierarchy</h2>
+                        <p>Domain names follow a hierarchical structure that organizes the internet's naming system. Understanding this structure helps you make better decisions when choosing and managing domains.</p>
+                        
+                        <h3>Domain Name Hierarchy</h3>
+                        <p>Domain names are read from right to left in terms of hierarchy:</p>
+                        <ul>
+                            <li><strong>Root Level:</strong> The invisible dot at the end (.)</li>
+                            <li><strong>Top-Level Domain (TLD):</strong> The rightmost label (.com, .org, .cn)</li>
+                            <li><strong>Second-Level Domain (SLD):</strong> The main identifier (example in example.com)</li>
+                            <li><strong>Third-Level Domain:</strong> Subdomains (www in www.example.com)</li>
+                        </ul>
+
+                        <h3>Types of Top-Level Domains (TLDs)</h3>
+                        
+                        <h4>Generic TLDs (gTLDs)</h4>
+                        <p>These are the most common TLDs used worldwide:</p>
+                        <ul>
+                            <li><strong>.com</strong> - Commercial organizations (most popular)</li>
+                            <li><strong>.org</strong> - Non-profit organizations</li>
+                            <li><strong>.net</strong> - Network infrastructure</li>
+                            <li><strong>.info</strong> - Information services</li>
+                            <li><strong>.biz</strong> - Business use</li>
+                        </ul>
+
+                        <h4>Country Code TLDs (ccTLDs)</h4>
+                        <p>These represent specific countries or territories:</p>
+                        <ul>
+                            <li><strong>.cn</strong> - China</li>
+                            <li><strong>.us</strong> - United States</li>
+                            <li><strong>.uk</strong> - United Kingdom</li>
+                            <li><strong>.jp</strong> - Japan</li>
+                            <li><strong>.de</strong> - Germany</li>
+                            <li><strong>.fr</strong> - France</li>
+                            <li><strong>.au</strong> - Australia</li>
+                        </ul>
+
+                        <h4>Sponsored TLDs (sTLDs)</h4>
+                        <p>These are restricted to specific communities:</p>
+                        <ul>
+                            <li><strong>.edu</strong> - Educational institutions (US only)</li>
+                            <li><strong>.gov</strong> - US government entities</li>
+                            <li><strong>.mil</strong> - US military</li>
+                            <li><strong>.int</strong> - International organizations</li>
+                        </ul>
+
+                        <h4>New gTLDs</h4>
+                        <p>Introduced since 2012, these provide more specific options:</p>
+                        <ul>
+                            <li><strong>Industry-specific:</strong> .tech, .finance, .health, .law</li>
+                            <li><strong>Activity-based:</strong> .blog, .shop, .store, .app</li>
+                            <li><strong>Geographic:</strong> .nyc, .london, .tokyo, .shanghai</li>
+                            <li><strong>Brand:</strong> .google, .apple, .amazon</li>
+                        </ul>
+
+                        <h3>Choosing the Right TLD</h3>
+                        <p>Consider these factors when selecting a TLD:</p>
+                        <ul>
+                            <li><strong>Purpose:</strong> Match the TLD to your website's purpose</li>
+                            <li><strong>Target Audience:</strong> Use ccTLDs for local audiences</li>
+                            <li><strong>Availability:</strong> Popular .com names may be taken</li>
+                            <li><strong>SEO Impact:</strong> Some TLDs may have slight SEO differences</li>
+                            <li><strong>Trust:</strong> .com and .org are most trusted by users</li>
+                        </ul>
+                    </div>
+
+                    <div class="info-navigation">
+                        <a href="/info/what-is-a-domain-name" class="btn btn-secondary">&larr; Previous: What is a Domain Name</a>
+                        <a href="/info/how-domain-registration-works" class="btn btn-primary">Next: How Domain Registration Works &rarr;</a>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </main>
+
+    <footer th:replace="~{template::template_footer}"></footer>
+</body>
+</html>

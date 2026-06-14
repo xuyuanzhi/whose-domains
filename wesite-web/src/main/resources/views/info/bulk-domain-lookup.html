@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+
+    <main>
+        <div class="container">
+            <div class="info-page">
+                <nav class="breadcrumb">
+                    <a href="/">Home</a> &gt; 
+                    <a href="/help-center">Help Center</a> &gt; 
+                    <span>Bulk Domain Lookup</span>
+                </nav>
+
+                <article class="info-content" itemscope itemtype="https://schema.org/Article">
+                    <h1>Bulk Domain Lookup Guide</h1>
+                    
+                    <div class="info-section">
+                        <h2>Researching Multiple Domains at Scale</h2>
+                        <p>Bulk domain lookup allows you to check WHOIS information, availability, DNS records, and other data for many domains simultaneously. It's essential for domain portfolio management, competitive research, and large-scale domain prospecting.</p>
+
+                        <h3>When to Use Bulk Lookup</h3>
+                        <ul>
+                            <li><strong>Domain Portfolio Audit:</strong> Check status and expiration dates for all your domains at once</li>
+                            <li><strong>Domain Prospecting:</strong> Evaluate hundreds of potential domain names for availability</li>
+                            <li><strong>Competitive Analysis:</strong> Research a competitor's domain portfolio</li>
+                            <li><strong>Brand Monitoring:</strong> Check multiple variations and TLDs of your brand</li>
+                            <li><strong>Expired Domain Research:</strong> Evaluate lists of dropping domains</li>
+                            <li><strong>Security Audits:</strong> Investigate lists of suspicious domains</li>
+                        </ul>
+
+                        <h3>Key Data Points to Check</h3>
+                        <ul>
+                            <li><strong>Registration Status:</strong> Is the domain registered, available, or in redemption?</li>
+                            <li><strong>Registrar:</strong> Which registrar manages the domain</li>
+                            <li><strong>Creation Date:</strong> When the domain was first registered</li>
+                            <li><strong>Expiration Date:</strong> When the registration expires</li>
+                            <li><strong>Nameservers:</strong> Where DNS is hosted</li>
+                            <li><strong>Status Codes:</strong> Transfer lock, hold, or other EPP status codes</li>
+                        </ul>
+
+                        <h3>Bulk Lookup Best Practices</h3>
+
+                        <h4>Preparing Your Domain List</h4>
+                        <ul>
+                            <li>Clean your list — remove duplicates and invalid entries</li>
+                            <li>Format consistently — one domain per line, no protocols (http://)</li>
+                            <li>Group by TLD for efficient processing</li>
+                            <li>Start with smaller batches to verify results before scaling up</li>
+                        </ul>
+
+                        <h4>Rate Limiting and Etiquette</h4>
+                        <ul>
+                            <li>WHOIS servers have rate limits — don't query too aggressively</li>
+                            <li>Use bulk-friendly services rather than hitting WHOIS servers directly</li>
+                            <li>Respect server resources — add delays between queries</li>
+                            <li>Cache results to avoid redundant lookups</li>
+                        </ul>
+
+                        <h3>Analyzing Bulk Results</h3>
+                        <ul>
+                            <li>Export results to CSV/Excel for filtering and sorting</li>
+                            <li>Flag domains expiring soon for potential acquisition</li>
+                            <li>Identify patterns in registrant data across domains</li>
+                            <li>Sort by creation date to find the oldest (potentially most valuable) domains</li>
+                            <li>Group by registrar to identify portfolio owners</li>
+                        </ul>
+
+                        <h3>Tools for Bulk Domain Research</h3>
+                        <ul>
+                            <li><strong><a href="/tools/bulk-domain-search">Our Bulk Domain Search:</a></strong> Check multiple domains quickly with detailed results</li>
+                            <li><strong>WHOIS API Services:</strong> Programmatic access for large-scale lookups</li>
+                            <li><strong>Domain Monitoring Tools:</strong> Automated tracking of domain changes</li>
+                        </ul>
+
+                        <div class="info-box">
+                            <strong>Get Started:</strong> Use our <a href="/tools/bulk-domain-search">Bulk Domain Search tool</a> to check multiple domains at once. Simply paste your list of domains and get instant results.
+                        </div>
+                    </div>
+
+                    <div class="info-navigation">
+                        <a href="/info/ip-to-domain-lookup" class="btn btn-secondary">&larr; Previous: IP to Domain Lookup</a>
+                        <a href="/help-center" class="btn btn-primary">Back to Help Center</a>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </main>
+
+    <footer th:replace="~{template::template_footer}"></footer>
+</body>
+</html>

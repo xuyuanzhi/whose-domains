@@ -1,0 +1,227 @@
+<div class="layui-form" lay-filter="layuiadmin-form-tld-edit" style="padding: 5px 0 0 0;">
+<script type="text/html" template>
+	<input type="hidden" name="id" value="{{ d.params.id || '' }}"/>
+</script>
+  <div class="layui-form-item">
+    <label class="layui-form-label">名称</label>
+    <div class="layui-form-mid">
+      <script type="text/html" template>
+        <span>{{ d.params.name || '' }}</span>
+      </script>
+    </div>
+  </div>
+  <div class="layui-form-item">
+    <label class="layui-form-label">显示名称</label>
+    <div class="layui-form-mid">
+      <script type="text/html" template>
+        <span>{{ d.params.displayName || '' }}</span>
+      </script>
+    </div>
+  </div>
+  <div class="layui-form-item">
+    <label class="layui-form-label">来源</label>
+    <div class="layui-form-mid">
+      <script type="text/html" template>
+        <a href="{{ d.params.sourceUrl || '' }}" target="_blank">{{ d.params.sourceUrl || '' }}</a>
+      </script>
+    </div>
+  </div>
+  <div class="layui-form-item">
+    <label class="layui-form-label"><b>机构</b></label>
+    <div class="layui-input-block">
+      <script type="text/html" template>
+        <input type="text" name="orgName" value="{{ d.params.orgName || '' }}" lay-verify="required" placeholder="请输入机构名称" autocomplete="off" class="layui-input">
+      </script>
+    </div>
+  </div>
+  <div class="layui-form-item">
+    <label class="layui-form-label">地址</label>
+    <div class="layui-input-block">
+      <script type="text/html" template>
+        <input type="text" name="orgAddr" value="{{ d.params.orgAddr || '' }}" lay-verify="required" placeholder="请输入机构地址" autocomplete="off" class="layui-input">
+      </script>
+    </div>
+  </div>
+  <div class="layui-form-item">
+    <label class="layui-form-label">&nbsp;</label>
+    <div class="layui-input-block">
+      <script type="text/html" template>
+        <input type="text" name="orgAddr2" value="{{ d.params.orgAddr2 || '' }}" lay-verify="required" placeholder="请输入机构地址" autocomplete="off" class="layui-input">
+      </script>
+    </div>
+  </div>
+  <div class="layui-form-item">
+    <label class="layui-form-label">国家</label>
+    <div class="layui-input-block">
+      <script type="text/html" template>
+        <input type="text" name="orgCountry" value="{{ d.params.orgCountry || '' }}" lay-verify="required" placeholder="请输入机构国家" autocomplete="off" class="layui-input">
+      </script>
+    </div>
+  </div>
+  <div class="layui-form-item">
+    <label class="layui-form-label"><b>管理人</b></label>
+    <div class="layui-input-block">
+      <script type="text/html" template>
+        <input type="text" name="adminName" value="{{ d.params.adminName || '' }}" lay-verify="required" placeholder="请输入管理人名称" autocomplete="off" class="layui-input">
+      </script>
+    </div>
+  </div>
+  <div class="layui-form-item">
+    <label class="layui-form-label">所在机构</label>
+    <div class="layui-input-block">
+      <script type="text/html" template>
+        <input type="text" name="adminOrg" value="{{ d.params.adminOrg || '' }}" lay-verify="required" placeholder="请输入管理人所在机构" autocomplete="off" class="layui-input">
+      </script>
+    </div>
+  </div>
+  <div class="layui-form-item">
+    <label class="layui-form-label">地址</label>
+    <div class="layui-input-block">
+      <script type="text/html" template>
+        <input type="text" name="adminAddr" value="{{ d.params.adminAddr || '' }}" lay-verify="required" placeholder="请输入管理人地址" autocomplete="off" class="layui-input">
+      </script>
+    </div>
+  </div>
+  <div class="layui-form-item">
+    <label class="layui-form-label">&nbsp;</label>
+    <div class="layui-input-block">
+      <script type="text/html" template>
+        <input type="text" name="adminAddr2" value="{{ d.params.adminAddr2 || '' }}" lay-verify="required" placeholder="请输入管理人地址" autocomplete="off" class="layui-input">
+      </script>
+    </div>
+  </div>
+  <div class="layui-form-item">
+    <label class="layui-form-label">国家</label>
+    <div class="layui-input-block">
+      <script type="text/html" template>
+        <input type="text" name="adminCountry" value="{{ d.params.adminCountry || '' }}" lay-verify="required" placeholder="请输入管理人国家" autocomplete="off" class="layui-input">
+      </script>
+    </div>
+  </div>
+  <div class="layui-form-item">
+    <label class="layui-form-label">邮箱</label>
+    <div class="layui-input-block">
+      <script type="text/html" template>
+        <input type="text" name="adminEmail" value="{{ d.params.adminEmail || '' }}" lay-verify="required" placeholder="请输入管理人邮箱" autocomplete="off" class="layui-input">
+      </script>
+    </div>
+  </div>
+  <div class="layui-form-item">
+    <label class="layui-form-label">电话</label>
+    <div class="layui-input-block">
+      <script type="text/html" template>
+        <input type="text" name="adminPhone" value="{{ d.params.adminPhone || '' }}" lay-verify="required" placeholder="请输入管理人电话" autocomplete="off" class="layui-input">
+      </script>
+    </div>
+  </div>
+  <div class="layui-form-item">
+    <label class="layui-form-label">传真</label>
+    <div class="layui-input-block">
+      <script type="text/html" template>
+        <input type="text" name="adminFax" value="{{ d.params.adminFax || '' }}" placeholder="请输入管理人传真" autocomplete="off" class="layui-input">
+      </script>
+    </div>
+  </div>
+  <div class="layui-form-item">
+    <label class="layui-form-label"><b>技术人</b></label>
+    <div class="layui-input-block">
+      <script type="text/html" template>
+        <input type="text" name="techName" value="{{ d.params.techName || '' }}" lay-verify="required" placeholder="请输入技术人名称" autocomplete="off" class="layui-input">
+      </script>
+    </div>
+  </div>
+  <div class="layui-form-item">
+    <label class="layui-form-label">所在机构</label>
+    <div class="layui-input-block">
+      <script type="text/html" template>
+        <input type="text" name="techOrg" value="{{ d.params.techOrg || '' }}" lay-verify="required" placeholder="请输入技术人所在机构" autocomplete="off" class="layui-input">
+      </script>
+    </div>
+  </div>
+  <div class="layui-form-item">
+    <label class="layui-form-label">地址</label>
+    <div class="layui-input-block">
+      <script type="text/html" template>
+        <input type="text" name="techAddr" value="{{ d.params.techAddr || '' }}" lay-verify="required" placeholder="请输入技术人地址" autocomplete="off" class="layui-input">
+      </script>
+    </div>
+  </div>
+  <div class="layui-form-item">
+    <label class="layui-form-label">&nbsp;</label>
+    <div class="layui-input-block">
+      <script type="text/html" template>
+        <input type="text" name="techAddr2" value="{{ d.params.techAddr2 || '' }}" lay-verify="required" placeholder="请输入技术人地址" autocomplete="off" class="layui-input">
+      </script>
+    </div>
+  </div>
+  <div class="layui-form-item">
+    <label class="layui-form-label">国家</label>
+    <div class="layui-input-block">
+      <script type="text/html" template>
+        <input type="text" name="techCountry" value="{{ d.params.techCountry || '' }}" lay-verify="required" placeholder="请输入技术人国家" autocomplete="off" class="layui-input">
+      </script>
+    </div>
+  </div>
+  <div class="layui-form-item">
+    <label class="layui-form-label">邮箱</label>
+    <div class="layui-input-block">
+      <script type="text/html" template>
+        <input type="text" name="techEmail" value="{{ d.params.techEmail || '' }}" lay-verify="required" placeholder="请输入技术人邮箱" autocomplete="off" class="layui-input">
+      </script>
+    </div>
+  </div>
+  <div class="layui-form-item">
+    <label class="layui-form-label">电话</label>
+    <div class="layui-input-block">
+      <script type="text/html" template>
+        <input type="text" name="techPhone" value="{{ d.params.techPhone || '' }}" lay-verify="required" placeholder="请输入技术人电话" autocomplete="off" class="layui-input">
+      </script>
+    </div>
+  </div>
+  <div class="layui-form-item">
+    <label class="layui-form-label">传真</label>
+    <div class="layui-input-block">
+      <script type="text/html" template>
+        <input type="text" name="techFax" value="{{ d.params.techFax || '' }}" placeholder="请输入技术人传真" autocomplete="off" class="layui-input">
+      </script>
+    </div>
+  </div>
+  <div class="layui-form-item">
+    <label class="layui-form-label">状态</label>
+    <div class="layui-input-block">
+      <script type="text/html" template>
+		{{#  if(d.params.status == 1){ }}
+        	<input type="checkbox" name="status" value="1" checked="1" lay-skin="switch" lay-filter="switchTest" title="启用|禁用">
+		{{#  } else { }}
+			<input type="checkbox" name="status" value="1" lay-skin="switch" lay-filter="switchTest" title="启用|禁用">
+		{{#  } }}
+      </script>
+    </div>
+  </div>
+  <div class="layui-form-item">
+    <label class="layui-form-label"></label>
+    <div class="layui-input-inline">
+      <input type="button" lay-submit lay-filter="layuiadmin-form-tld-edit-btn" value="确认" class="layui-btn">
+    </div>
+  </div>
+</div>
+
+<script>
+layui.use(['admin', 'form', 'upload'], function(){
+  var $ = layui.$
+  ,form = layui.form
+  ,upload = layui.upload;
+  
+  //上传头像
+  upload.render({
+    elem: '#layuiadmin-upload-useradmin'
+    ,url: './res/json/upload/demo.js'
+    ,accept: 'images'
+    ,method: 'get'
+    ,acceptMime: 'image/*'
+    ,done: function(res){
+      $(this.item).prev("div").children("input").val(res.data.src)
+    }
+  });
+})
+</script>

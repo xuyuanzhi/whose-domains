@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <!-- Floating decorative shapes -->
+    <div class="floating-shape shape-1"></div>
+    <div class="floating-shape shape-2"></div>
+    
+    <header th:replace="~{template::template_header}"></header>
+
+	<main>
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="container">
+            <div class="hero-content">
+                <h1>DNS Records Analyzer</h1>
+                <p>Deep analysis of DNS records including A, AAAA, MX, CNAME, TXT, and NS records. Check DNS configuration and security.</p>
+                <div class="search-container">
+                    <input type="text" class="search-input" id="domainInput" placeholder="Enter a domain name (e.g., example.com)" autocomplete="off" autocapitalize="none" spellcheck="false" inputmode="url" required>
+                    <button class="search-btn" id="analyzeBtn">
+                        <i class="fas fa-project-diagram"></i>
+                        Analyze DNS
+                    </button>
+                </div>
+                <p class="example-text">Identify DNS misconfigurations, security issues, and optimize your DNS setup.</p>
+            </div>
+        </div>
+    </section>
+
+    <div th:replace="~{template::ad_banner_top}"></div>
+
+    <!-- Skeleton loading (replaces full-page spinner) -->
+    <section class="results-section" id="skeletonLoader" style="display:none;">
+        <div class="container">
+            <div class="skeleton-card">
+                <div class="skeleton skeleton-title"></div>
+                <div class="skeleton-row"><div class="skeleton"></div><div class="skeleton"></div></div>
+                <div class="skeleton-row"><div class="skeleton medium"></div><div class="skeleton"></div></div>
+                <div class="skeleton-row"><div class="skeleton short"></div><div class="skeleton medium"></div></div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+                <div class="skeleton-card">
+                    <div class="skeleton skeleton-title"></div>
+                    <div class="skeleton-row"><div class="skeleton"></div><div class="skeleton medium"></div></div>
+                    <div class="skeleton-row"><div class="skeleton short"></div><div class="skeleton"></div></div>
+                </div>
+                <div class="skeleton-card">
+                    <div class="skeleton skeleton-title"></div>
+                    <div class="skeleton-row"><div class="skeleton medium"></div><div class="skeleton short"></div></div>
+                    <div class="skeleton-row"><div class="skeleton"></div><div class="skeleton medium"></div></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Results Section -->
+    <section class="results-section tool-results" id="resultsSection">
+        <div class="container">
+            <div class="results-header">
+                <h2>DNS Analysis for <span id="resultDomain">example.com</span></h2>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                    <button onclick="shareResult()" style="padding:7px 16px;border-radius:20px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.06);color:#94a3b8;font-size:13px;cursor:pointer;"><i class="fas fa-share-alt"></i> <span id="shareBtnText">Share</span></button>
+                    <button class="reset-btn" onclick="resetAnalysis()">Analyze Another Domain</button>
+                </div>
+            </div>
+            
+            <div class="dns-analysis-grid">
+                <div class="analysis-card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-atlas"></i> Name Servers</h3>
+                    </div>
+                    <div class="card-body">
+                        <table class="dns-table">
+                            <thead>
+                                <tr>
+                                    <th>Type</th>
+                                    <th>Name Server</th>
+                                    <th>IP Address</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="nsRecords">
+                                <tr>
+                                    <td>NS</td>
+                                    <td>-</td>
+                                    <td>-</td>
+                                    <td>-</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div class="analysis-card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-network-wired"></i> Address Records</h3>
+                    </div>
+                    <div class="card-body">
+                        <table class="dns-table">
+                            <thead>
+                                <tr>
+                                    <th>Type</th>
+                                    <th>Hostname</th>
+                                    <th>IP Address</th>
+                                    <th>TTL</th>
+                                </tr>
+                            </thead>
+                            <tbody id="addressRecords">
+                                <tr>
+                                    <td>A</td>
+                                    <td>-</td>
+                                    <td>-</td>
+                                    <td>-</td>
+                                </tr>
+                                <tr>
+                                    <td>AAAA</td>
+                                    <td>-</td>
+                                    <td>-</td>
+                                    <td>-</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div class="analysis-card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-mail-bulk"></i> Mail Records</h3>
+                    </div>
+                    <div class="card-body">
+                        <table class="dns-table">
+                            <thead>
+                                <tr>
+                                    <th>Type</th>
+                                    <th>Hostname</th>
+                                    <th>Priority/Value</th>
+                                    <th>Description</th>
+                                </tr>
+                            </thead>
+                            <tbody id="mailRecords">
+                                <tr>
+                                    <td>MX</td>
+                                    <td>-</td>
+                                    <td>-</td>
+                                    <td>-</td>
+                                </tr>
+                                <tr>
+                                    <td>TXT</td>
+                                    <td>-</td>
+                                    <td>-</td>
+                                    <td>-</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div class="analysis-card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-shield-alt"></i> Security Records</h3>
+                    </div>
+                    <div class="card-body">
+                        <table class="dns-table">
+                            <thead>
+                                <tr>
+                                    <th>Type</th>
+                                    <th>Record</th>
+                                    <th>Value</th>
+                                    <th>Security Level</th>
+                                </tr>
+                            </thead>
+                            <tbody id="securityRecords">
+                                <tr>
+                                    <td>SPF</td>
+                                    <td>-</td>
+                                    <td>-</td>
+                                    <td>-</td>
+                                </tr>
+                                <tr>
+                                    <td>DKIM</td>
+                                    <td>-</td>
+                                    <td>-</td>
+                                    <td>-</td>
+                                </tr>
+                                <tr>
+                                    <td>DMARC</td>
+                                    <td>-</td>
+                                    <td>-</td>
+                                    <td>-</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div class="analysis-card full-width">
+                    <div class="card-header">
+                        <h3><i class="fas fa-exclamation-triangle"></i> DNS Security Issues</h3>
+                    </div>
+                    <div class="card-body">
+                        <div id="securityIssues">
+                            <p>No security issues detected in initial scan.</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="analysis-card full-width">
+                    <div class="card-header">
+                        <h3><i class="fas fa-lightbulb"></i> Optimization Recommendations</h3>
+                    </div>
+                    <div class="card-body">
+                        <ul id="optimizationRecs">
+                            <li>Configure proper SPF record to prevent email spoofing</li>
+                            <li>Implement DMARC policy for email authentication</li>
+                            <li>Reduce TTL values for faster propagation after changes</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+    <div th:replace="~{template::ad_banner_bottom}"></div>
+    </main>        <div th:replace="~{fragments/related-tools::related(slug='dns-analyzer')}"></div>
+    
+
+    <footer th:replace="~{template::template_footer}"></footer>
+
+    <script>
+        const resultsSection = document.getElementById('resultsSection');
+        //const loader = document.getElementById('loader');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const domainInput = document.getElementById('domainInput');
+        
+        // Event Listeners
+        analyzeBtn.addEventListener('click', performAnalysis);
+        
+        domainInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') performAnalysis();
+        });
+        
+        function resetAnalysis() {
+            resultsSection.classList.remove('active');
+            domainInput.value = '';
+            domainInput.focus();
+        }
+        
+        async function performAnalysis() {
+            const domain = domainInput.value.trim();
+            
+            if (!domain) {
+                alert('Please enter a domain name');
+                return;
+            }
+
+            // ToolCache: try cache first
+            var cached = (typeof ToolCache !== 'undefined') ? ToolCache.get('dns', domain) : null;
+            if (cached) {
+                document.getElementById('resultDomain').textContent = domain;
+                updateDnsResults(domain, cached);
+                resultsSection.classList.add('active');
+                return;
+            }
+
+            // Show skeleton
+            var skeletonEl = document.getElementById('skeletonLoader');
+            if (skeletonEl) skeletonEl.style.display = 'block';
+            resultsSection.classList.remove('active');
+            
+            try {
+                // Call the backend API
+                const response = await fetch(`/api/tools/dns-analyze/${encodeURIComponent(domain)}`);
+                const result = await response.json();
+                
+                if (result.code === 0 && result.data) {
+                    // ToolCache: store result
+                    if (typeof ToolCache !== 'undefined') ToolCache.set('dns', domain, result.data);
+                    // Update results
+                    document.getElementById('resultDomain').textContent = domain;
+                    updateDnsResults(domain, result.data);
+                    
+                    // Show results section
+                    resultsSection.classList.add('active');
+                } else {
+                    alert('Error: ' + (result.msg || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('DNS analysis error:', error);
+                alert('An error occurred while analyzing the DNS records.');
+            } finally {
+                if (skeletonEl) skeletonEl.style.display = 'none';
+            }
+        }
+        
+        function esc(s) {
+            if (!s) return '';
+            var d = document.createElement('div');
+            d.appendChild(document.createTextNode(s));
+            return d.innerHTML;
+        }
+        
+        function updateDnsResults(domain, data) {
+            // ===== Name Server Records =====
+            var nsData = data.nsRecords || {};
+            var nsList = nsData.nameServers || [];
+            var nsBody = document.getElementById('nsRecords');
+            nsBody.innerHTML = '';
+            if (nsList.length > 0) {
+                for (var i = 0; i < nsList.length; i++) {
+                    var row = document.createElement('tr');
+                    row.innerHTML = '<td>NS</td><td>' + esc(nsList[i]) + '</td><td>-</td><td><span class="badge-good">Active</span></td>';
+                    nsBody.appendChild(row);
+                }
+            } else {
+                nsBody.innerHTML = '<tr><td>NS</td><td colspan="3">No NS records found</td></tr>';
+            }
+            
+            // ===== Address Records =====
+            var addrData = data.addressRecords || {};
+            var aList = addrData.A || [];
+            var aaaaList = addrData.AAAA || [];
+            var addrBody = document.getElementById('addressRecords');
+            addrBody.innerHTML = '';
+            if (aList.length > 0) {
+                for (var i = 0; i < aList.length; i++) {
+                    var row = document.createElement('tr');
+                    row.innerHTML = '<td>A</td><td>' + esc(domain) + '</td><td>' + esc(aList[i]) + '</td><td>IPv4</td>';
+                    addrBody.appendChild(row);
+                }
+            } else {
+                addrBody.innerHTML += '<tr><td>A</td><td>' + esc(domain) + '</td><td>-</td><td><span class="badge-warn">Not found</span></td></tr>';
+            }
+            if (aaaaList.length > 0) {
+                for (var i = 0; i < aaaaList.length; i++) {
+                    var row = document.createElement('tr');
+                    row.innerHTML = '<td>AAAA</td><td>' + esc(domain) + '</td><td>' + esc(aaaaList[i]) + '</td><td>IPv6</td>';
+                    addrBody.appendChild(row);
+                }
+            } else {
+                var row = document.createElement('tr');
+                row.innerHTML = '<td>AAAA</td><td>' + esc(domain) + '</td><td>-</td><td><span class="badge-warn">Not found</span></td>';
+                addrBody.appendChild(row);
+            }
+            
+            // ===== Mail Records =====
+            var mailData = data.mailRecords || {};
+            var mxList = mailData.MX || [];
+            var spfVal = mailData.SPF || null;
+            var mailBody = document.getElementById('mailRecords');
+            mailBody.innerHTML = '';
+            if (mxList.length > 0) {
+                for (var i = 0; i < mxList.length; i++) {
+                    var mx = mxList[i];
+                    var row = document.createElement('tr');
+                    if (typeof mx === 'object') {
+                        row.innerHTML = '<td>MX</td><td>' + esc(mx.exchange || '') + '</td><td>Priority: ' + (mx.priority || '') + '</td><td>Mail server</td>';
+                    } else {
+                        row.innerHTML = '<td>MX</td><td>' + esc(domain) + '</td><td>' + esc(String(mx)) + '</td><td>Mail server</td>';
+                    }
+                    mailBody.appendChild(row);
+                }
+            } else {
+                mailBody.innerHTML += '<tr><td>MX</td><td>' + esc(domain) + '</td><td>-</td><td><span class="badge-warn">Not found</span></td></tr>';
+            }
+            if (spfVal) {
+                var row = document.createElement('tr');
+                row.innerHTML = '<td>TXT (SPF)</td><td>' + esc(domain) + '</td><td>' + esc(spfVal) + '</td><td><span class="badge-good">Present</span></td>';
+                mailBody.appendChild(row);
+            } else {
+                var row = document.createElement('tr');
+                row.innerHTML = '<td>TXT (SPF)</td><td>' + esc(domain) + '</td><td>-</td><td><span class="badge-bad">Missing</span></td>';
+                mailBody.appendChild(row);
+            }
+            
+            // ===== Security Records =====
+            var secData = data.securityRecords || {};
+            var secBody = document.getElementById('securityRecords');
+            secBody.innerHTML = '';
+            // DMARC
+            var dmarcVal = secData.DMARC || null;
+            var row = document.createElement('tr');
+            if (dmarcVal) {
+                row.innerHTML = '<td>DMARC</td><td>_dmarc.' + esc(domain) + '</td><td>' + esc(dmarcVal) + '</td><td><span class="badge-good">Present</span></td>';
+            } else {
+                row.innerHTML = '<td>DMARC</td><td>_dmarc.' + esc(domain) + '</td><td>-</td><td><span class="badge-bad">Missing</span></td>';
+            }
+            secBody.appendChild(row);
+            // DKIM
+            var dkimList = secData.DKIM || [];
+            var row2 = document.createElement('tr');
+            if (dkimList.length > 0) {
+                row2.innerHTML = '<td>DKIM</td><td>' + esc(dkimList.join(', ')) + '</td><td>Found</td><td><span class="badge-good">Present</span></td>';
+            } else {
+                row2.innerHTML = '<td>DKIM</td><td>-</td><td>-</td><td><span class="badge-warn">Not detected</span></td>';
+            }
+            secBody.appendChild(row2);
+            // TXT records
+            var txtList = secData.TXT || [];
+            for (var i = 0; i < txtList.length; i++) {
+                var row3 = document.createElement('tr');
+                row3.innerHTML = '<td>TXT</td><td>' + esc(domain) + '</td><td>' + esc(txtList[i].length > 80 ? txtList[i].substring(0, 80) + '...' : txtList[i]) + '</td><td>-</td>';
+                secBody.appendChild(row3);
+            }
+            
+            // ===== SOA / CNAME info (append to NS section) =====
+            var soaData = data.soaRecord || {};
+            if (soaData.found) {
+                var soaRow = document.createElement('tr');
+                soaRow.innerHTML = '<td>SOA</td><td>' + esc(soaData.primaryNs || '') + '</td><td>' + esc(soaData.adminEmail || '') + '</td><td>Serial: ' + (soaData.serial || '') + '</td>';
+                document.getElementById('nsRecords').appendChild(soaRow);
+            }
+            var cnameData = data.cnameRecords || {};
+            var cnameList = cnameData.CNAME || [];
+            var wwwCname = cnameData.wwwCNAME || [];
+            for (var i = 0; i < cnameList.length; i++) {
+                var row = document.createElement('tr');
+                row.innerHTML = '<td>CNAME</td><td>' + esc(domain) + '</td><td>' + esc(cnameList[i]) + '</td><td>Alias</td>';
+                document.getElementById('addressRecords').appendChild(row);
+            }
+            for (var i = 0; i < wwwCname.length; i++) {
+                var row = document.createElement('tr');
+                row.innerHTML = '<td>CNAME</td><td>www.' + esc(domain) + '</td><td>' + esc(wwwCname[i]) + '</td><td>Alias</td>';
+                document.getElementById('addressRecords').appendChild(row);
+            }
+            
+            // ===== Security Issues =====
+            var issues = data.issues || {};
+            var warnings = issues.warnings || [];
+            var errors = issues.errors || [];
+            var issuesDiv = document.getElementById('securityIssues');
+            var issuesHtml = '';
+            if (errors.length > 0) {
+                for (var i = 0; i < errors.length; i++) {
+                    issuesHtml += '<div style="padding:8px 12px;margin-bottom:8px;background:rgba(255,82,82,0.1);border-left:3px solid #ff5252;border-radius:4px;color:var(--darker);font-size:0.9rem;">' +
+                        '<i class="fas fa-times-circle" style="color:#ff5252;margin-right:8px;"></i>' + esc(errors[i]) + '</div>';
+                }
+            }
+            if (warnings.length > 0) {
+                for (var i = 0; i < warnings.length; i++) {
+                    issuesHtml += '<div style="padding:8px 12px;margin-bottom:8px;background:rgba(255,171,0,0.1);border-left:3px solid #ffab00;border-radius:4px;color:var(--darker);font-size:0.9rem;">' +
+                        '<i class="fas fa-exclamation-triangle" style="color:#ffab00;margin-right:8px;"></i>' + esc(warnings[i]) + '</div>';
+                }
+            }
+            if (errors.length === 0 && warnings.length === 0) {
+                issuesHtml = '<div style="padding:8px 12px;background:rgba(0,230,118,0.1);border-left:3px solid #00e676;border-radius:4px;color:var(--darker);font-size:0.9rem;">' +
+                    '<i class="fas fa-check-circle" style="color:#00e676;margin-right:8px;"></i>No critical DNS issues detected.</div>';
+            }
+            issuesDiv.innerHTML = issuesHtml;
+            
+            // ===== Optimization Recommendations =====
+            var recsList = document.getElementById('optimizationRecs');
+            var recs = [];
+            if (!mailData.hasSPF) recs.push('Add an SPF record to prevent email spoofing.');
+            if (!secData.hasDMARC) recs.push('Implement a DMARC policy for email authentication.');
+            if (dkimList.length === 0) recs.push('Configure DKIM signing for outgoing emails.');
+            if (!addrData.hasIPv6) recs.push('Add AAAA records for IPv6 support.');
+            if (issues.hasMissingSPF) recs.push('SPF record is missing — email from this domain may be marked as spam.');
+            if (issues.hasMissingDMARC) recs.push('DMARC record is missing — implement to protect against email fraud.');
+            if (nsData.count < 2) recs.push('Use at least 2 name servers for DNS redundancy.');
+            if (recs.length === 0) recs.push('DNS configuration looks good! No major improvements needed.');
+            recsList.innerHTML = recs.map(function(r) { return '<li>' + esc(r) + '</li>'; }).join('');
+        }
+
+        // Auto-run from ?d= URL param
+        (function() {
+            var p = new URLSearchParams(window.location.search);
+            var d = p.get('d') || p.get('domain');
+            if (d) { domainInput.value = d.trim(); performAnalysis(); }
+        })();
+
+        function shareResult() {
+            var d = domainInput.value.trim(); if (!d) return;
+            var url = window.location.origin + '/tools/dns-analyzer?d=' + encodeURIComponent(d);
+            var t = document.getElementById('shareBtnText');
+            (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject()).then(function(){
+                t.textContent='Copied!'; setTimeout(function(){t.textContent='Share';},2000);
+            }).catch(function(){ window.prompt('Copy link:', url); });
+        }
+    </script>
+</body>
+</html>

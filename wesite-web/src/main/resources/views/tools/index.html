@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+    <main>
+        <section class="hero">
+            <div class="container">
+                <div class="hero-content">
+                    <h1><i class="fas fa-tools" style="color:var(--primary);margin-right:12px;"></i>All Tools</h1>
+                    <p>Free online tools for domain research, DNS analysis, network diagnostics, and developer utilities.</p>
+                </div>
+            </div>
+        </section>
+
+        <div th:replace="~{template::ad_banner_top}"></div>
+
+        <div class="container">
+
+            <!-- Domain Tools -->
+            <div class="tools-category-title"><i class="fas fa-globe" style="margin-right:8px;"></i>Domain Tools</div>
+            <div class="tools-grid">
+                <a href="/tools/whois-lookup" class="tool-card">
+                    <div class="tool-card-icon"><i class="fas fa-search"></i></div>
+                    <div class="tool-card-body">
+                        <h3>WHOIS Lookup</h3>
+                        <p>Check domain registration details, owner, registrar, and expiry date.</p>
+                    </div>
+                </a>
+                <a href="/tools/rdap-lookup" class="tool-card">
+                    <div class="tool-card-icon"><i class="fas fa-database"></i></div>
+                    <div class="tool-card-body">
+                        <h3>RDAP Lookup</h3>
+                        <p>Modern RDAP protocol domain registration data lookup.</p>
+                    </div>
+                </a>
+                <a href="/tools/domain-availability" class="tool-card">
+                    <div class="tool-card-icon"><i class="fas fa-check-circle"></i></div>
+                    <div class="tool-card-body">
+                        <h3>Domain Availability</h3>
+                        <p>Instantly check if a domain name is available to register.</p>
+                    </div>
+                </a>
+                <a href="/tools/bulk-domain-search" class="tool-card">
+                    <div class="tool-card-icon"><i class="fas fa-list"></i></div>
+                    <div class="tool-card-body">
+                        <h3>Bulk Domain Search</h3>
+                        <p>Check availability and WHOIS status of many domains at once.</p>
+                    </div>
+                </a>
+                <a href="/tools/domain-history" class="tool-card">
+                    <div class="tool-card-icon"><i class="fas fa-history"></i></div>
+                    <div class="tool-card-body">
+                        <h3>Domain History</h3>
+                        <p>View past WHOIS snapshots and ownership change history.</p>
+                    </div>
+                </a>
+                <a href="/tools/whois-compare" class="tool-card">
+                    <div class="tool-card-icon"><i class="fas fa-exchange-alt"></i></div>
+                    <div class="tool-card-body">
+                        <h3>WHOIS Compare</h3>
+                        <p>Compare WHOIS records of two domains side by side.</p>
+                    </div>
+                </a>
+                <a href="/tools/related-domains" class="tool-card">
+                    <div class="tool-card-icon"><i class="fas fa-project-diagram"></i></div>
+                    <div class="tool-card-body">
+                        <h3>Related Domains</h3>
+                        <p>Discover domains related to or associated with a given domain.</p>
+                    </div>
+                </a>
+                <a href="/tools/domain-score" class="tool-card">
+                    <div class="tool-card-icon"><i class="fas fa-star"></i></div>
+                    <div class="tool-card-body">
+                        <h3>Domain Health Score</h3>
+                        <p>Get an overall health and trust score for any domain.</p>
+                    </div>
+                </a>
+                <a href="/tools/domain-valuation" class="tool-card">
+                    <div class="tool-card-icon"><i class="fas fa-dollar-sign"></i></div>
+                    <div class="tool-card-body">
+                        <h3>Domain Valuation</h3>
+                        <p>Estimate the market value of a domain name.</p>
+                    </div>
+                </a>
+                <a href="/tools/domain-analyzer" class="tool-card">
+                    <div class="tool-card-icon"><i class="fas fa-chart-bar"></i></div>
+                    <div class="tool-card-body">
+                        <h3>Domain Analyzer</h3>
+                        <p>Analyze domain authority, SEO metrics, and digital footprint.</p>
+                    </div>
+                </a>
+                <a href="/tools/competitor-analysis" class="tool-card">
+                    <div class="tool-card-icon"><i class="fas fa-binoculars"></i></div>
+                    <div class="tool-card-body">
+                        <h3>Competitor Analysis</h3>
+                        <p>Compare your domain against competitors across key metrics.</p>
+                    </div>
+                </a>
+            </div>
+
+            <!-- DNS & Network Tools -->
+            <div class="tools-category-title"><i class="fas fa-network-wired" style="margin-right:8px;"></i>DNS &amp; Network Tools</div>
+            <div class="tools-grid">
+                <a href="/tools/dns-analyzer" class="tool-card">
+                    <div class="tool-card-icon"><i class="fas fa-sitemap"></i></div>
+                    <div class="tool-card-body">
+                        <h3>DNS Analyzer</h3>
+                        <p>Deep analysis of A, AAAA, MX, CNAME, TXT, and NS records.</p>
+                    </div>
+                </a>
+                <a href="/tools/reverse-ip" class="tool-card">
+                    <div class="tool-card-icon"><i class="fas fa-server"></i></div>
+                    <div class="tool-card-body">
+                        <h3>Reverse IP Lookup</h3>
+                        <p>Find all domains hosted on a given IP address.</p>
+                    </div>
+                </a>
+                <a href="/tools/my-ip-address" class="tool-card">
+                    <div class="tool-card-icon"><i class="fas fa-map-marker-alt"></i></div>
+                    <div class="tool-card-body">
+                        <h3>My IP Address</h3>
+                        <p>Detect your current public IP address and geolocation.</p>
+                    </div>
+                </a>
+                <a href="/tools/ping-test" class="tool-card">
+                    <div class="tool-card-icon"><i class="fas fa-wifi"></i></div>
+                    <div class="tool-card-body">
+                        <h3>Ping Test</h3>
+                        <p>Test latency and reachability of any host or IP address.</p>
+                    </div>
+                </a>
+                <a href="/tools/port-checker" class="tool-card">
+                    <div class="tool-card-icon"><i class="fas fa-plug"></i></div>
+                    <div class="tool-card-body">
+                        <h3>Port Checker</h3>
+                        <p>Check whether specific ports are open or closed on a host.</p>
+                    </div>
+                </a>
+                <a href="/tools/ssl-checker" class="tool-card">
+                    <div class="tool-card-icon"><i class="fas fa-lock"></i></div>
+                    <div class="tool-card-body">
+                        <h3>SSL Certificate Checker</h3>
+                        <p>Inspect SSL/TLS certificate details, expiry, and chain validity.</p>
+                    </div>
+                </a>
+            </div>
+
+            <!-- Developer Tools -->
+            <div class="tools-category-title"><i class="fas fa-code" style="margin-right:8px;"></i>Developer Tools</div>
+            <div class="tools-grid">
+                <a href="/tools/email-checker" class="tool-card">
+                    <div class="tool-card-icon"><i class="fas fa-envelope"></i></div>
+                    <div class="tool-card-body">
+                        <h3>Email Checker</h3>
+                        <p>Validate email syntax, MX records, and detect disposable addresses.</p>
+                    </div>
+                </a>
+                <a href="/tools/json-formatter" class="tool-card">
+                    <div class="tool-card-icon"><i class="fas fa-code"></i></div>
+                    <div class="tool-card-body">
+                        <h3>JSON Formatter</h3>
+                        <p>Format, validate, and minify JSON data online.</p>
+                    </div>
+                </a>
+                <a href="/tools/xml-formatter" class="tool-card">
+                    <div class="tool-card-icon"><i class="fas fa-file-code"></i></div>
+                    <div class="tool-card-body">
+                        <h3>XML Formatter</h3>
+                        <p>Format, validate, and minify XML documents with syntax highlighting.</p>
+                    </div>
+                </a>
+                <a href="/tools/html-formatter" class="tool-card">
+                    <div class="tool-card-icon"><i class="fas fa-html5"></i></div>
+                    <div class="tool-card-body">
+                        <h3>HTML Formatter</h3>
+                        <p>Beautify, format and preview HTML code with live rendering.</p>
+                    </div>
+                </a>
+                <a href="/tools/timezone-converter" class="tool-card">
+                    <div class="tool-card-icon"><i class="fas fa-clock"></i></div>
+                    <div class="tool-card-body">
+                        <h3>Timezone Converter</h3>
+                        <p>Convert times between any two timezones around the world.</p>
+                    </div>
+                </a>
+            </div>
+
+        </div><!-- /.container -->
+    </main>
+    <footer th:replace="~{template::template_footer}"></footer>
+</body>
+</html>

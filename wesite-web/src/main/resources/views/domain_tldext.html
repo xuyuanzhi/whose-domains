@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+	<header th:replace="~{template::template_header}"></header>
+	
+	<main>
+		<section class="results-section active" id="resultsSection">
+	        <div class="container">
+	        	<div class="nav">
+	        		<div class="path">
+	        			<a href="/">Home</a>&nbsp;&nbsp;>>&nbsp;&nbsp;<a th:href="@{/domain/{name}(name=${tld.name})}" th:text="${tld.displayName}"></a>&nbsp;&nbsp;>>&nbsp;&nbsp;<span th:text="${item.name}"></span>
+	        		</div>
+	        		<div class="search-container" style="margin:unset;">
+	                    <input type="text" class="search-input-small" id="domainInput" placeholder="Enter a domain name (e.g., example.com)" required>
+	                    <button class="search-btn search-btn-small" id="searchBtn">
+	                        <i class="fas fa-search"></i>
+	                        Search
+	                    </button>
+	                </div>
+	        	</div>
+	            <div class="results-header">
+	                <div>
+	                    <h2 class="domain-name">
+	                        <i class="fas fa-globe-americas"></i>
+	                        <span id="resultDomain" th:text="${item.name}"></span>
+	                    </h2>
+	                </div>
+	            </div>
+	            
+	            <div class="ad-container" th:if="${_isProd}">
+					<!-- 头部横幅 -->
+					<ins class="adsbygoogle"
+					     style="display:block"
+					     data-ad-client="ca-pub-7597293740550331"
+					     data-ad-slot="8301467356"
+					     data-ad-format="auto"
+					     data-full-width-responsive="true"></ins>
+					<script>
+					     (adsbygoogle = window.adsbygoogle || []).push({});
+					</script>
+	            </div>
+	            
+	            <div class="results-grid" th:if="${domainList != null}">
+	                <div class="result-card domain-list">
+	                    <div class="info-row" th:each="d:${domainList}">
+	                        <span class="info-label"><a th:href="@{/domain/{name}(name=${d.name})}" th:text="${d.name}"></a></span>
+	                        <span class="info-value"></span>
+	                    </div>
+	                </div>
+	            </div>
+	            
+	            <div class="ad-container" th:if="${_isProd}">
+	            	<!-- 尾部横幅 -->
+					<ins class="adsbygoogle"
+					     style="display:block"
+					     data-ad-client="ca-pub-7597293740550331"
+					     data-ad-slot="5630964188"
+					     data-ad-format="auto"
+					     data-full-width-responsive="true"></ins>
+					<script>
+					     (adsbygoogle = window.adsbygoogle || []).push({});
+					</script>
+	            </div>
+	            
+	        </div>
+	    </section>
+
+	</main>
+	
+	<footer th:replace="~{template::template_footer}"></footer>
+</body>
+</html>

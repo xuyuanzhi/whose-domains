@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+
+    <main>
+        <div class="container">
+            <div class="info-page">
+                <nav class="breadcrumb">
+                    <a href="/">Home</a> &gt; 
+                    <a href="/help-center">Help Center</a> &gt; 
+                    <span>DNS Propagation Explained</span>
+                </nav>
+
+                <article class="info-content" itemscope itemtype="https://schema.org/Article">
+                    <h1>DNS Propagation Explained</h1>
+                    
+                    <div class="info-section">
+                        <h2>Understanding DNS Propagation</h2>
+                        <p>DNS propagation is the process by which updated DNS records spread across all DNS servers worldwide. When you make a DNS change, it doesn't take effect instantly — it takes time for the update to propagate through the global DNS infrastructure.</p>
+
+                        <h3>Why Does Propagation Take Time?</h3>
+                        <p>DNS is a distributed system with millions of caching servers worldwide. Each server caches DNS records based on their TTL (Time To Live) values:</p>
+                        <ul>
+                            <li><strong>Caching:</strong> DNS resolvers cache records to reduce load and improve speed</li>
+                            <li><strong>TTL Values:</strong> Records are cached for the duration specified by their TTL</li>
+                            <li><strong>Multiple Layers:</strong> Browser, OS, ISP, and resolver all maintain caches</li>
+                            <li><strong>Global Distribution:</strong> Thousands of DNS resolvers need to update</li>
+                        </ul>
+
+                        <h3>Typical Propagation Times</h3>
+                        <ul>
+                            <li><strong>Low TTL records (300s):</strong> 5 minutes to a few hours</li>
+                            <li><strong>Standard TTL records (3600s):</strong> 1 to 12 hours</li>
+                            <li><strong>High TTL records (86400s):</strong> Up to 24–48 hours</li>
+                            <li><strong>Nameserver changes:</strong> 24 to 72 hours</li>
+                        </ul>
+
+                        <h3>How to Speed Up Propagation</h3>
+                        <ol>
+                            <li><strong>Lower TTL Before Changes:</strong> Reduce TTL to 300 seconds (5 minutes) at least 24–48 hours before making changes</li>
+                            <li><strong>Make the Change:</strong> Update DNS records</li>
+                            <li><strong>Wait for Propagation:</strong> Monitor propagation status</li>
+                            <li><strong>Restore TTL:</strong> Increase TTL back to normal after confirming propagation</li>
+                        </ol>
+
+                        <h3>Common Propagation Scenarios</h3>
+
+                        <h4>Changing Web Hosting</h4>
+                        <p>When migrating to a new host, update A records. During propagation, some visitors may see the old site and some the new.</p>
+                        <div class="info-box">
+                            <strong>Tip:</strong> Keep the old server running until propagation is complete to avoid downtime.
+                        </div>
+
+                        <h4>Changing Nameservers</h4>
+                        <p>Nameserver changes propagate through the TLD registry and typically take 24–48 hours. This is the slowest type of DNS change.</p>
+
+                        <h4>Adding/Modifying Records</h4>
+                        <p>Adding new records or modifying existing ones propagates based on the old record's TTL value.</p>
+
+                        <h3>Checking Propagation Status</h3>
+                        <ul>
+                            <li><strong>DNS Propagation Checkers:</strong> Online tools that query DNS servers worldwide</li>
+                            <li><strong>Command Line:</strong> Use <code>dig</code> or <code>nslookup</code> against specific servers</li>
+                            <li><strong>Our DNS Analyzer:</strong> <a href="/tools/dns-analyzer">Check DNS records</a> from our servers</li>
+                        </ul>
+
+                        <h3>Troubleshooting Propagation Issues</h3>
+                        <ul>
+                            <li><strong>Clear local DNS cache:</strong> Flush your browser and OS DNS cache</li>
+                            <li><strong>Try different DNS resolvers:</strong> Test with Google (8.8.8.8) or Cloudflare (1.1.1.1)</li>
+                            <li><strong>Check the authoritative nameserver:</strong> Verify the correct records are set</li>
+                            <li><strong>Verify TTL values:</strong> Ensure TTL isn't set too high</li>
+                            <li><strong>Be patient:</strong> Some ISPs cache aggressively regardless of TTL</li>
+                        </ul>
+                    </div>
+
+                    <div class="info-navigation">
+                        <a href="/info/common-dns-record-types" class="btn btn-secondary">&larr; Previous: Common DNS Record Types</a>
+                        <a href="/info/choosing-dns-providers" class="btn btn-primary">Next: Choosing DNS Providers &rarr;</a>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </main>
+
+    <footer th:replace="~{template::template_footer}"></footer>
+</body>
+</html>

@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+<header th:replace="~{template::template_header}"></header>
+<main>
+
+<div th:replace="~{template::ad_banner_top}"></div>
+
+<div class="container" style="max-width:860px; padding:36px 20px;">
+
+    <!-- Breadcrumb -->
+    <nav style="font-size:13px; color:#7a8ba0; margin-bottom:24px;">
+        <a href="/" style="color:#7a8ba0; text-decoration:none;">Home</a>
+        <span style="margin:0 6px;">›</span>
+        <a href="/blog" style="color:#7a8ba0; text-decoration:none;">Blog</a>
+        <span style="margin:0 6px;">›</span>
+        <span th:text="${post.title}" style="color:#e2e8f0;"></span>
+    </nav>
+
+    <!-- Article Header -->
+    <article>
+        <div style="margin-bottom:16px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+            <span th:if="${post.category != null}"
+                  style="font-size:11px; padding:3px 10px; background:rgba(37,99,235,0.2); color:#60a5fa; border-radius:20px; text-transform:uppercase; letter-spacing:0.5px;"
+                  th:text="${post.category}"></span>
+            <span th:each="t : ${post.tagArray}" style="font-size:11px; padding:3px 10px; background:rgba(100,255,218,0.1); color:#64ffda; border-radius:20px;" th:text="${t}"></span>
+        </div>
+
+        <h1 th:text="${post.title}" style="font-size:32px; font-weight:700; line-height:1.3; color:#e2e8f0; margin-bottom:16px;"></h1>
+
+        <div style="display:flex; gap:20px; font-size:13px; color:#7a8ba0; margin-bottom:28px; flex-wrap:wrap;">
+            <span th:if="${post.author != null}"><i class="fas fa-user" style="margin-right:4px;"></i> <span th:text="${post.author}"></span></span>
+            <span th:if="${post.publishDateText != null}"><i class="fas fa-calendar-alt" style="margin-right:4px;"></i> <span th:text="${post.publishDateText}"></span></span>
+            <span th:if="${post.viewCount != null}"><i class="fas fa-eye" style="margin-right:4px;"></i> <span th:text="${post.viewCount}"></span> views</span>
+        </div>
+
+        <!-- Cover image -->
+        <div th:if="${post.cover != null}" style="margin-bottom:32px; border-radius:12px; overflow:hidden;">
+            <img th:src="${post.cover}" th:alt="${post.title}" style="width:100%; max-height:400px; object-fit:cover;" loading="lazy">
+        </div>
+
+        <!-- Content -->
+        <div class="blog-content" th:utext="${post.content}" style="line-height:1.8; color:#cbd5e1; font-size:16px;"></div>
+    </article>
+
+    <!-- Tags footer -->
+    <div th:if="${post.tagArray != null}" style="margin-top:36px; padding-top:24px; border-top:1px solid rgba(255,255,255,0.08); display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+        <span style="font-size:13px; color:#7a8ba0; margin-right:4px;">Tags:</span>
+        <a th:each="t : ${post.tagArray}"
+           th:href="@{/blog(tag=${t})}"
+           th:text="${t}"
+           style="font-size:12px; padding:4px 12px; background:rgba(255,255,255,0.06); color:#94a3b8; border-radius:20px; text-decoration:none; border:1px solid rgba(255,255,255,0.1);"></a>
+    </div>
+
+    <!-- Schema: BlogPosting -->
+    <script th:inline="javascript" type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BlogPosting",
+      "mainEntityOfPage": {
+        "@type": "WebPage",
+        "@id": /*[['https://whose.domains/blog/' + ${post.slug}]]*/ ""
+      },
+      "headline": /*[[${post.title}]]*/ "",
+      "description": /*[[${post.effectiveMetaDescription != null ? post.effectiveMetaDescription : post.summary}]]*/ "",
+      "image": {
+        "@type": "ImageObject",
+        "url": /*[[${post.cover != null ? post.cover : 'https://whose.domains/static/image/og-image.png'}]]*/ ""
+      },
+      "author": /*[[${post.author != null
+          ? '{"@type":"Person","name":"' + post.author + '","url":"https://whose.domains/blog"}'
+          : '{"@type":"Organization","name":"Whose.Domains","url":"https://whose.domains"}'}]]*/ {},
+      "publisher": {
+        "@type": "Organization",
+        "name": "Whose.Domains",
+        "url": "https://whose.domains",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://whose.domains/static/image/transparent-logo.png",
+          "width": 200,
+          "height": 60
+        }
+      },
+      "datePublished": /*[[${post.publishDate != null ? #dates.format(post.publishDate, 'yyyy-MM-dd') : ''}]]*/ "",
+      "dateModified": /*[[${post.updateTime != null ? #dates.format(post.updateTime, 'yyyy-MM-dd') : (post.publishDate != null ? #dates.format(post.publishDate, 'yyyy-MM-dd') : '')}]]*/ "",
+      "inLanguage": "en-US",
+      "articleSection": /*[[${post.category != null ? post.category : 'Blog'}]]*/ "Blog",
+      "keywords": /*[[${post.tags != null ? post.tags : ''}]]*/ "",
+      "url": /*[['https://whose.domains/blog/' + ${post.slug}]]*/ "",
+      "isPartOf": {
+        "@type": "Blog",
+        "name": "Whose.Domains Blog",
+        "url": "https://whose.domains/blog"
+      }
+    }
+    </script>
+
+    <!-- Schema: BreadcrumbList -->
+    <script th:inline="javascript" type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "Home",
+          "item": "https://whose.domains/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Blog",
+          "item": "https://whose.domains/blog"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": /*[[${post.title}]]*/ "",
+          "item": /*[['https://whose.domains/blog/' + ${post.slug}]]*/ ""
+        }
+      ]
+    }
+    </script>
+
+    <!-- Related Posts -->
+    <div th:if="${!#lists.isEmpty(relatedPosts)}" style="margin-top:48px;">
+        <h2 style="font-size:20px; font-weight:600; margin-bottom:20px; color:#e2e8f0;">Related Posts</h2>
+        <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:20px;">
+            <a th:each="r : ${relatedPosts}" th:href="@{'/blog/' + ${r.slug}}"
+               style="background:var(--card-bg); border:1px solid var(--glass-border); border-radius:10px; padding:18px; text-decoration:none; display:block; transition:border-color 0.2s;"
+               onmouseover="this.style.borderColor='#2563eb'" onmouseout="this.style.borderColor='var(--glass-border)'">
+                <div th:text="${r.title}" style="font-size:15px; font-weight:600; color:#e2e8f0; margin-bottom:8px; line-height:1.4;"></div>
+                <div th:text="${r.publishDateText}" style="font-size:12px; color:#7a8ba0;"></div>
+            </a>
+        </div>
+    </div>
+
+</div>
+
+<style>
+.blog-content h2 { font-size:24px; font-weight:700; color:#e2e8f0; margin:32px 0 16px; }
+.blog-content h3 { font-size:20px; font-weight:600; color:#e2e8f0; margin:24px 0 12px; }
+.blog-content p  { margin-bottom:16px; }
+.blog-content a  { color:#60a5fa; }
+.blog-content a:hover { color:#93c5fd; }
+.blog-content pre { background:rgba(0,0,0,0.4); border:1px solid var(--glass-border); border-radius:8px; padding:16px; overflow-x:auto; font-size:14px; margin:16px 0; }
+.blog-content code { background:rgba(0,0,0,0.3); padding:2px 6px; border-radius:4px; font-size:14px; color:#64ffda; }
+.blog-content pre code { background:none; padding:0; color:#e2e8f0; }
+.blog-content ul, .blog-content ol { padding-left:24px; margin-bottom:16px; }
+.blog-content li { margin-bottom:6px; }
+.blog-content blockquote { border-left:4px solid #2563eb; padding:12px 20px; margin:20px 0; background:rgba(37,99,235,0.08); border-radius:0 8px 8px 0; color:#94a3b8; font-style:italic; }
+.blog-content img { max-width:100%; border-radius:8px; margin:16px 0; }
+.blog-content table { width:100%; border-collapse:collapse; margin:20px 0; font-size:14px; }
+.blog-content th, .blog-content td { padding:10px 14px; border:1px solid rgba(255,255,255,0.1); }
+.blog-content th { background:rgba(255,255,255,0.05); font-weight:600; }
+</style>
+
+<div th:replace="~{template::ad_banner_bottom}"></div>
+</main>
+<footer th:replace="~{template::template_footer}"></footer>
+</body>
+</html>

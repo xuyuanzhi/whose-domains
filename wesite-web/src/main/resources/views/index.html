@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <!-- Floating decorative shapes -->
+    <div class="floating-shape shape-1"></div>
+    <div class="floating-shape shape-2"></div>
+    
+    <header th:replace="~{template::template_header}"></header>
+
+	<main>
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="container">
+            <div class="hero-content">
+                <h1>Free WHOIS & RDAP Domain Lookup</h1>
+                <p>Instantly check domain availability, registration details, and ownership information for any domain name with our advanced WHOIS/RDAP lookup tool.</p>
+                <div class="search-container">
+                    <input type="text" class="search-input" id="domainInput" placeholder="Enter a domain name (e.g., example.com)" required>
+                    <button class="search-btn" id="searchBtn">
+                        <i class="fas fa-search"></i>
+                        Search Domain
+                    </button>
+                </div>
+                <div class="popular-domains">
+                    <span class="popular-domain" data-domain="google.com">google.com</span>
+                    <span class="popular-domain" data-domain="facebook.com">facebook.com</span>
+                    <span class="popular-domain" data-domain="amazon.com">amazon.com</span>
+                    <span class="popular-domain" data-domain="x.com">x.com</span>
+                    <span class="popular-domain" data-domain="github.com">github.com</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+<!-- Features Section -->
+    <section class="features-section">
+        <div class="container">
+            <h2 class="section-title">Powerful Domain Research Tools</h2>
+            <p class="section-subtitle">Our comprehensive suite of domain tools helps you make informed decisions about domain registration and management. Whether you're a domain investor, developer, or business owner, we have the tools you need.</p>
+            
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon"><i class="fas fa-search"></i></div>
+                    <div><h3><a href="/tools/whois-lookup">WHOIS Lookup</a></h3>
+                    <p>Get detailed information about domain registration, ownership, and expiration dates for any domain from whois server.</p></div>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon"><i class="fas fa-layer-group"></i></div>
+                    <div><h3><a href="/tools/rdap-lookup">RDAP Lookup</a></h3>
+                    <p>Query the modern RDAP protocol for structured domain registration data with richer fields than WHOIS — conformant with RFC 7482.</p></div>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon"><i class="fas fa-history"></i></div>
+                    <div><h3><a href="/tools/domain-history">WHOIS History</a></h3>
+                    <p>Track ownership changes, registrar transfers, and nameserver updates with historical WHOIS snapshots and diff comparison.</p></div>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon"><i class="fas fa-star"></i></div>
+                    <div><h3><a href="/tools/domain-score">Domain Health Score</a></h3>
+                    <p>Get a comprehensive A+ to F grade covering SSL, DNS, email security, security headers, and domain age.</p></div>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon"><i class="fas fa-columns"></i></div>
+                    <div><h3><a href="/tools/whois-compare">WHOIS Compare</a></h3>
+                    <p>Compare two domains side by side — registration data, DNS, and ownership with a similarity score.</p></div>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon"><i class="fas fa-project-diagram"></i></div>
+                    <div><h3><a href="/tools/related-domains">Related Domains</a></h3>
+                    <p>Discover domains sharing the same registrant, nameservers, or IP. Powerful for brand protection and research.</p></div>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon"><i class="fas fa-clock"></i></div>
+                    <div><h3><a href="/expiring-domains">Expiring Domains</a></h3>
+                    <p>Browse domains expiring soon. Valuable for domain investors to discover premium domains becoming available.</p></div>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon"><i class="fas fa-exchange-alt"></i></div>
+                    <div><h3><a href="/tools/reverse-ip">Reverse IP Lookup</a></h3>
+                    <p>Find all domains hosted on the same IP address. Useful for security research and hosting analysis.</p></div>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon"><i class="fas fa-plug"></i></div>
+                    <div><h3><a href="/api-docs">Developer API</a></h3>
+                    <p>Integrate our WHOIS, DNS, domain scoring, and history data into your applications with our free RESTful API.</p></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- FAQ Section (GEO: visible content matching FAQPage schema) -->
+    <section class="faq-section">
+        <div class="container">
+            <h2 class="section-title">Frequently Asked Questions</h2>
+            <p class="section-subtitle">Quick answers about domain lookup tools and services</p>
+            <div class="faq-grid">
+                <details class="faq-item" open>
+                    <summary class="faq-question">What is WHOIS lookup?</summary>
+                    <p>WHOIS lookup is a query protocol that retrieves registration information about a domain name, including the registrar, registrant, creation date, expiration date, nameservers, and contact details. Whose.Domains provides free, instant WHOIS lookups for any domain.</p>
+                </details>
+                <details class="faq-item">
+                    <summary class="faq-question">What is RDAP?</summary>
+                    <p>RDAP (Registration Data Access Protocol) is the modern replacement for WHOIS. It provides structured, machine-readable domain registration data via RESTful HTTP APIs, with better internationalization and access control support.</p>
+                </details>
+                <details class="faq-item">
+                    <summary class="faq-question">How do I check if a domain is available?</summary>
+                    <p>Use the <a href="/tools/domain-availability">Domain Availability Checker</a>. Enter your desired domain name and we'll instantly check its registration status across multiple TLD extensions like .com, .net, .org, .io, and more.</p>
+                </details>
+                <details class="faq-item">
+                    <summary class="faq-question">What is a Domain Health Score?</summary>
+                    <p>Domain Health Score is a comprehensive grading system (A+ to F) that evaluates a domain's SSL configuration, DNS setup, email authentication (SPF/DKIM/DMARC), security headers, and domain age to assess overall domain quality.</p>
+                </details>
+                <details class="faq-item">
+                    <summary class="faq-question">Is the Whose.Domains API free?</summary>
+                    <p>Yes, Whose.Domains offers a free RESTful API for developers to access WHOIS data, DNS records, domain history, SSL certificate info, and domain scoring programmatically. Visit our <a href="/api-docs">API Documentation</a> page for details.</p>
+                </details>
+            </div>
+        </div>
+    </section>
+    </main>
+
+    <footer th:replace="~{template::template_footer}"></footer>
+
+    <script>
+        const resultsSection = document.getElementById('resultsSection');
+        const domainInput = document.getElementById('domainInput');
+        const popularDomains = document.querySelectorAll('.popular-domain');
+        const searchBtn = document.getElementById('searchBtn');
+        
+     	// Event Listeners
+        searchBtn.addEventListener('click', performSearch);
+        //
+        domainInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') performSearch();
+        });
+        
+        // Add event listeners to popular domains
+        popularDomains.forEach(domain => {
+            domain.addEventListener('click', function() {
+                var domain = this.getAttribute('data-domain');
+                window.location.href = '/domain/' + domain;
+            });
+        });
+        
+        function resetSearch() {
+            resultsSection.classList.remove('active');
+            domainInput.value = '';
+            domainInput.focus();
+        }
+        
+        // Initialize with a sample domain on page load
+        window.addEventListener('load', function() {
+            //domainInput.value = 'example.com';
+        });
+    </script>
+</body>
+</html>

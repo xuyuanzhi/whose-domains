@@ -1,0 +1,86 @@
+# Whose.Domains
+
+> Whose.Domains is a free, comprehensive domain research platform providing WHOIS/RDAP lookup, DNS analysis, SSL checking, domain health scoring, and competitive analysis tools for domain investors, developers, and businesses.
+
+## About
+
+Whose.Domains offers a full suite of domain intelligence tools accessible via web interface and free REST API. The platform helps users research domain registration data, track ownership changes, evaluate domain quality, and discover related domains. All tools are free to use with no account required.
+
+## Core Tools
+
+### Domain Research
+- [WHOIS Lookup](https://whose.domains/tools/whois-lookup): Retrieve domain registration, ownership, registrar, and expiration data from WHOIS servers.
+- [RDAP Lookup](https://whose.domains/tools/rdap-lookup): Query the modern RDAP protocol for structured, machine-readable domain registration data.
+- [Domain Availability](https://whose.domains/tools/domain-availability): Check if a domain is available for registration across 13+ TLD extensions.
+- [Bulk Domain Search](https://whose.domains/tools/bulk-domain-search): Search up to 100 domains at once for availability or WHOIS data, with CSV/TXT export.
+- [WHOIS Compare](https://whose.domains/tools/whois-compare): Compare two domains side by side — registration data, DNS, and ownership with similarity scoring.
+- [Related Domains](https://whose.domains/tools/related-domains): Discover domains sharing the same registrant, nameservers, or IP addresses.
+
+### Analysis
+- [Domain Analyzer](https://whose.domains/tools/domain-analyzer): Analyze domain authority, traffic estimates, SEO metrics, and digital footprint.
+- [Domain Health Score](https://whose.domains/tools/domain-score): Get A+ to F grades covering SSL, DNS, email security (SPF/DKIM/DMARC), security headers, and domain age.
+- [DNS Analyzer](https://whose.domains/tools/dns-analyzer): Deep analysis of DNS records including A, AAAA, MX, CNAME, TXT, and NS records.
+- [SSL Checker](https://whose.domains/tools/ssl-checker): Verify SSL certificate validity, issuer, expiration, and security configuration.
+- [WHOIS History](https://whose.domains/tools/domain-history): Track ownership changes, registrar transfers, and nameserver updates with historical snapshots.
+- [Reverse IP Lookup](https://whose.domains/tools/reverse-ip): Find all domains hosted on the same IP address.
+- [Competitor Analysis](https://whose.domains/tools/competitor-analysis): Analyze competitor domains and discover their digital footprint and strategy.
+
+### Utilities
+- [My IP Address](https://whose.domains/tools/my-ip-address): Discover your public IP, geolocation, ISP, ASN, and network information.
+- [JSON Formatter](https://whose.domains/tools/json-formatter): Beautify, format, and validate JSON data with syntax highlighting.
+- [Time Zone Converter](https://whose.domains/tools/timezone-converter): Convert times between time zones instantly.
+
+### Data
+- [Top Level Domains](https://whose.domains/top-level-domains): Complete list of all Internet TLDs with registry information and delegation status.
+- [Expiring Domains](https://whose.domains/expiring-domains): Browse domains expiring soon — valuable for domain investors.
+
+## API
+
+- [API Documentation](https://whose.domains/api-docs): Free RESTful API for programmatic access to WHOIS, DNS, domain history, SSL, and scoring data.
+- Base URL: `https://whose.domains/api/`
+- No API key required for basic usage.
+
+## Company
+
+- [About Us](https://whose.domains/about-us)
+- [Contact Us](https://whose.domains/contact-us)
+- [Help Center](https://whose.domains/help-center)
+- [Privacy Policy](https://whose.domains/privacy-policy)
+- [Terms of Service](https://whose.domains/terms-of-service)
+
+## Knowledge Base Articles
+
+### Domain Basics
+- [What is a Domain Name?](https://whose.domains/info/what-is-a-domain-name): Explains how domain names work, their structure, and role in the internet.
+- [Domain Structure and TLDs](https://whose.domains/info/domain-structure-and-tlds): Breakdown of domain hierarchy — TLDs, SLDs, subdomains, and how they relate.
+- [How Domain Registration Works](https://whose.domains/info/how-domain-registration-works): Step-by-step guide to the domain registration process, registrars, and registries.
+- [Understanding Domain Ownership](https://whose.domains/info/understanding-domain-ownership): How domain ownership is determined, transferred, and verified.
+
+### WHOIS & Lookup
+- [What is WHOIS?](https://whose.domains/info/what-is-whois): Introduction to the WHOIS protocol, its history, and how it provides domain registration data.
+- [How to Perform a WHOIS Lookup](https://whose.domains/info/how-to-perform-a-whois-lookup): Practical guide to running WHOIS queries and interpreting results.
+- [Reading WHOIS Results](https://whose.domains/info/reading-whois-results): Field-by-field explanation of WHOIS output data.
+- [Domain Privacy Protection](https://whose.domains/info/domain-privacy-protection): How WHOIS privacy works and why domain owners use it.
+
+### Domain History
+- [Why Domain History Matters](https://whose.domains/info/why-domain-history-matters): Importance of historical WHOIS data for due diligence and research.
+- [Tracking Ownership Changes](https://whose.domains/info/tracking-ownership-changes): How to monitor and trace domain ownership transfers over time.
+- [DNS Record History](https://whose.domains/info/dns-record-history): Understanding how DNS records change and what historical DNS data reveals.
+- [Expiration and Renewal History](https://whose.domains/info/expiration-and-renewal-history): How domain expiration cycles work and tracking renewal patterns.
+
+### Domain Security
+- [Domain Security Basics](https://whose.domains/info/domain-security-basics): Essential security practices for protecting domain names.
+- [Domain Lock and Transfer Protection](https://whose.domains/info/domain-lock-and-transfer-protection): How registrar locks and EPP codes prevent unauthorized domain transfers.
+- [Understanding DNSSEC](https://whose.domains/info/understanding-dnssec): How DNSSEC adds cryptographic authentication to DNS responses.
+- [Preventing Domain Fraud](https://whose.domains/info/preventing-domain-fraud): Common domain fraud schemes and how to protect against them.
+
+## Domain Lookup
+
+Individual domain pages are available at `https://whose.domains/domain/{domainName}` (e.g., `https://whose.domains/domain/google.com`). Each page shows:
+- Domain registration dates (creation, expiration, last updated)
+- Registrar and registry information
+- Registrant contact details (when available)
+- Nameserver configuration
+- DNS records (A, AAAA, MX, CNAME, TXT, NS)
+- Subdomains
+- Raw WHOIS/RDAP data

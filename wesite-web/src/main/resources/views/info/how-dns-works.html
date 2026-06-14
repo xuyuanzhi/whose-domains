@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+
+    <main>
+        <div class="container">
+            <div class="info-page">
+                <nav class="breadcrumb">
+                    <a href="/">Home</a> &gt; 
+                    <a href="/help-center">Help Center</a> &gt; 
+                    <span>How DNS Works</span>
+                </nav>
+
+                <article class="info-content" itemscope itemtype="https://schema.org/Article">
+                    <h1>How DNS Works: A Complete Guide</h1>
+                    
+                    <div class="info-section">
+                        <h2>The Domain Name System Explained</h2>
+                        <p>The Domain Name System (DNS) is often called the "phone book of the internet." It translates human-friendly domain names like "example.com" into machine-readable IP addresses like "93.184.216.34," enabling browsers to load websites.</p>
+
+                        <h3>The DNS Resolution Process</h3>
+                        <p>When you type a URL into your browser, a complex series of steps occurs in milliseconds:</p>
+                        <ol>
+                            <li><strong>Browser Cache Check:</strong> The browser first checks if it recently resolved the domain</li>
+                            <li><strong>OS Cache Check:</strong> The operating system's DNS cache is checked next</li>
+                            <li><strong>Recursive Resolver:</strong> Your ISP's DNS resolver receives the query</li>
+                            <li><strong>Root Nameserver:</strong> The resolver queries a root server, which directs to the TLD server</li>
+                            <li><strong>TLD Nameserver:</strong> The .com (or other TLD) server directs to the domain's authoritative nameserver</li>
+                            <li><strong>Authoritative Nameserver:</strong> Returns the actual IP address for the domain</li>
+                            <li><strong>Response:</strong> The IP address is sent back through the chain to your browser</li>
+                        </ol>
+
+                        <h3>DNS Components</h3>
+
+                        <h4>Root Nameservers</h4>
+                        <p>There are 13 root server clusters (labeled A through M) distributed worldwide using anycast. They are the starting point for DNS resolution and direct queries to TLD servers.</p>
+
+                        <h4>TLD Nameservers</h4>
+                        <p>Responsible for specific top-level domains (.com, .org, .net, etc.). They store information about domains within their TLD and point to authoritative nameservers.</p>
+
+                        <h4>Authoritative Nameservers</h4>
+                        <p>The final authority for a domain's DNS records. They hold the actual DNS records (A, AAAA, MX, CNAME, etc.) and respond to queries with definitive answers.</p>
+
+                        <h4>Recursive Resolvers</h4>
+                        <p>Act as intermediaries between users and nameservers. They cache results to speed up future queries and handle the entire resolution process on behalf of the client.</p>
+
+                        <h3>DNS Caching</h3>
+                        <p>DNS responses are cached at multiple levels to improve performance:</p>
+                        <ul>
+                            <li><strong>Browser Cache:</strong> Stores recent lookups (typically minutes)</li>
+                            <li><strong>OS Cache:</strong> System-level DNS cache</li>
+                            <li><strong>Resolver Cache:</strong> ISP or public resolver cache</li>
+                            <li><strong>TTL (Time To Live):</strong> Each DNS record has a TTL value that determines how long it's cached</li>
+                        </ul>
+
+                        <h3>DNS Security Considerations</h3>
+                        <ul>
+                            <li><strong>DNS Spoofing:</strong> Attackers inject fake DNS responses to redirect traffic</li>
+                            <li><strong>DNS Amplification:</strong> DNS servers used in DDoS attacks</li>
+                            <li><strong>DNSSEC:</strong> Adds cryptographic signatures to prevent tampering</li>
+                            <li><strong>DNS over HTTPS (DoH):</strong> Encrypts DNS queries for privacy</li>
+                            <li><strong>DNS over TLS (DoT):</strong> Another encryption protocol for DNS</li>
+                        </ul>
+
+                        <div class="info-box">
+                            <strong>Try It:</strong> Use our <a href="/tools/dns-analyzer">DNS Analyzer tool</a> to see real DNS records for any domain and understand how its DNS is configured.
+                        </div>
+                    </div>
+
+                    <div class="info-navigation">
+                        <a href="/info/ssl-certificate-expiration" class="btn btn-secondary">&larr; Previous: SSL Certificate Expiration</a>
+                        <a href="/info/common-dns-record-types" class="btn btn-primary">Next: Common DNS Record Types &rarr;</a>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </main>
+
+    <footer th:replace="~{template::template_footer}"></footer>
+</body>
+</html>

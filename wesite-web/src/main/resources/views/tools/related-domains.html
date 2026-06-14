@@ -1,0 +1,178 @@
+﻿<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+    <main>
+    <section class="hero">
+        <div class="container">
+            <div class="hero-content">
+                <h1>🔗 Related Domains Discovery</h1>
+                <p>Find domains that share the same registrant, nameservers, IP addresses, or registrar with any domain.</p>
+            </div>
+        </div>
+    </section>
+
+    <div th:replace="~{template::ad_banner_top}"></div>
+
+    <div class="container" style="max-width:1000px;">
+
+    <!-- Search -->
+    <div style="background:var(--card-bg); border-radius:10px; padding:25px; margin-bottom:30px; border:1px solid var(--glass-border);">
+        <div style="display:flex; gap:10px;">
+            <input type="text" id="domainInput" placeholder="Enter a domain name, e.g. example.com" autocomplete="off" autocapitalize="none" spellcheck="false" inputmode="url"
+                   style="flex:1; padding:10px 14px; border:1px solid var(--glass-border); border-radius:6px; font-size:15px; background:rgba(255,255,255,0.05); color:#e2e8f0;">
+            <button onclick="searchRelated()" id="searchBtn"
+                    style="padding:10px 25px; background:#2563eb; color:#fff; border:none; border-radius:6px; font-size:15px; cursor:pointer;">
+                Discover
+            </button>
+        </div>
+    </div>
+
+    <div id="loading" style="display:none; text-align:center; padding:40px; color:#7a8ba0;">⏳ Searching for related domains...</div>
+    <div id="errorMsg" style="display:none; background:#fef2f2; color:#dc2626; padding:15px; border-radius:8px; margin-bottom:20px;"></div>
+
+    <!-- Results -->
+    <div id="results" style="display:none;">
+        <div id="summary" style="background:#f0fdf4; border-radius:10px; padding:20px; margin-bottom:25px; text-align:center;">
+            <span style="font-size:14px; color:#7a8ba0;">Total related domains found: </span>
+            <span id="totalCount" style="font-size:28px; font-weight:700; color:#16a34a;">0</span>
+        </div>
+
+        <!-- Category sections -->
+        <div id="sameOrgSection" class="rel-section" style="display:none;"></div>
+        <div id="sameEmailSection" class="rel-section" style="display:none;"></div>
+        <div id="sameIpSection" class="rel-section" style="display:none;"></div>
+        <div id="sameNsSection" class="rel-section" style="display:none;"></div>
+        <div id="sameRegistrarSection" class="rel-section" style="display:none;"></div>
+    </div>
+
+    <!-- Use Cases -->
+    <div style="margin-top:40px; border-top:1px solid #e2e8f0; padding-top:30px;">
+        <h2 style="font-size:20px; margin-bottom:15px;">Use Cases</h2>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:18px;">
+            <div style="background:var(--card-bg); padding:16px; border-radius:8px;">
+                <div style="font-size:17px; margin-bottom:5px;">🛡️ Brand Protection</div>
+                <p style="font-size:13px; color:#7a8ba0; margin:0;">Detect typosquatting and phishing domains operated by the same entity.</p>
+            </div>
+            <div style="background:var(--card-bg); padding:16px; border-radius:8px;">
+                <div style="font-size:17px; margin-bottom:5px;">🕵️ Cybersecurity</div>
+                <p style="font-size:13px; color:#7a8ba0; margin:0;">Map out threat actor infrastructure by discovering their full domain portfolio.</p>
+            </div>
+            <div style="background:var(--card-bg); padding:16px; border-radius:8px;">
+                <div style="font-size:17px; margin-bottom:5px;">📈 Competitor Analysis</div>
+                <p style="font-size:13px; color:#7a8ba0; margin:0;">Uncover all domains owned by a competitor to understand their digital strategy.</p>
+            </div>
+            <div style="background:var(--card-bg); padding:16px; border-radius:8px;">
+                <div style="font-size:17px; margin-bottom:5px;">🏢 Due Diligence</div>
+                <p style="font-size:13px; color:#7a8ba0; margin:0;">Research entity's complete web presence before business partnerships or acquisitions.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function searchRelated() {
+    var domain = document.getElementById('domainInput').value.trim();
+    if (!domain) { showError('Please enter a domain name.'); return; }
+
+    document.getElementById('loading').style.display = 'block';
+    document.getElementById('results').style.display = 'none';
+    document.getElementById('errorMsg').style.display = 'none';
+    document.getElementById('searchBtn').disabled = true;
+
+    fetch('/api/tools/related/' + encodeURIComponent(domain))
+        .then(function(r) { return r.json(); })
+        .then(function(json) {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('searchBtn').disabled = false;
+            if (json.code !== 0) { showError(json.msg); return; }
+            renderResults(json.data);
+        })
+        .catch(function() {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('searchBtn').disabled = false;
+            showError('Network error.');
+        });
+}
+
+function renderResults(data) {
+    document.getElementById('totalCount').innerText = data.totalRelated || 0;
+
+    renderSection('sameOrgSection', '🏢 Same Registrant Organization',
+        data.registrantOrg, data.sameRegistrantOrg, data.sameRegistrantOrgCount);
+
+    renderSection('sameEmailSection', '📧 Same Registrant Email',
+        data.registrantEmail, data.sameRegistrantEmail, data.sameRegistrantEmailCount);
+
+    renderSection('sameIpSection', '🖥️ Same IP Address',
+        data.ipAddress, data.sameIp, data.sameIpCount);
+
+    renderSection('sameNsSection', '🌐 Same Name Server',
+        data.nameServer, data.sameNameServer, data.sameNameServerCount);
+
+    renderSection('sameRegistrarSection', '🏛️ Same Registrar',
+        data.registrar, data.sameRegistrar, data.sameRegistrarCount);
+
+    document.getElementById('results').style.display = 'block';
+}
+
+function renderSection(containerId, title, key, domains, count) {
+    var el = document.getElementById(containerId);
+    if (!domains || domains.length === 0) { el.style.display = 'none'; return; }
+
+    var html = '<div style="margin-bottom:25px;">' +
+        '<h3 style="font-size:18px; margin-bottom:5px;">' + title + '</h3>' +
+        '<p style="font-size:13px; color:#888; margin-bottom:12px;">Shared value: <b>' + escapeHtml(key || '-') + '</b> (' + (count || 0) + ' domains)</p>' +
+        '<table style="width:100%; border-collapse:collapse; font-size:13px;">' +
+        '<thead><tr style="background:rgba(255,255,255,0.04);">' +
+        '<th style="padding:8px 12px; text-align:left; border-bottom:2px solid #e2e8f0;">Domain</th>' +
+        '<th style="padding:8px 12px; text-align:left; border-bottom:2px solid #e2e8f0;">Registrar</th>' +
+        '<th style="padding:8px 12px; text-align:left; border-bottom:2px solid #e2e8f0;">Expiry</th>' +
+        '<th style="padding:8px 12px; text-align:left; border-bottom:2px solid #e2e8f0;">Country</th>' +
+        '</tr></thead><tbody>';
+
+    for (var i = 0; i < domains.length; i++) {
+        var d = domains[i];
+        html += '<tr style="border-bottom:1px solid #f1f5f9;">' +
+            '<td style="padding:8px 12px;"><a href="/domain/' + encodeURIComponent(d.name) + '" style="color:var(--primary); text-decoration:none;">' + escapeHtml(d.name) + '</a></td>' +
+            '<td style="padding:8px 12px;">' + escapeHtml(d.registrar || '-') + '</td>' +
+            '<td style="padding:8px 12px;">' + escapeHtml(d.expiryDate || '-') + '</td>' +
+            '<td style="padding:8px 12px;">' + escapeHtml(d.registrantCountry || '-') + '</td>' +
+            '</tr>';
+    }
+
+    html += '</tbody></table></div>';
+    el.innerHTML = html;
+    el.style.display = 'block';
+}
+
+function showError(msg) {
+    document.getElementById('errorMsg').innerText = msg;
+    document.getElementById('errorMsg').style.display = 'block';
+}
+
+function escapeHtml(s) {
+    if (!s) return '';
+    var d = document.createElement('div');
+    d.appendChild(document.createTextNode(s));
+    return d.innerHTML;
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('domainInput').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') searchRelated();
+    });
+    var params = new URLSearchParams(window.location.search);
+    if (params.get('d')) {
+        document.getElementById('domainInput').value = params.get('d');
+        searchRelated();
+    }
+});
+</script>
+    <div th:replace="~{template::ad_banner_bottom}"></div>
+    </main>        <div th:replace="~{fragments/related-tools::related(slug='related-domains')}"></div>
+    
+    <footer th:replace="~{template::template_footer}"></footer>
+</body>
+</html>

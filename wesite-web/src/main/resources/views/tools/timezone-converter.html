@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <div class="floating-shape shape-1"></div>
+    <div class="floating-shape shape-2"></div>
+    <header th:replace="~{template::template_header}"></header>
+
+    <main>
+        <section class="hero">
+            <div class="container">
+                <div class="hero-content">
+                    <h1>Time Zone Converter</h1>
+                    <p>Instantly convert times between any time zones worldwide. Perfect for scheduling meetings, planning travel, and coordinating across regions.</p>
+                </div>
+            </div>
+        </section>
+
+        <div th:replace="~{template::ad_banner_top}"></div>
+
+        <div class="container">
+
+            <!-- Toolbar -->
+            <div class="tz-toolbar">
+                <div class="tz-toolbar-left">
+                    <button class="tz-btn tz-btn-primary" id="btnConvert"><i class="fas fa-exchange-alt"></i> Convert</button>
+                    <button class="tz-btn tz-btn-ghost" id="btnSwap"><i class="fas fa-random"></i> Swap</button>
+                    <button class="tz-btn tz-btn-ghost" id="btnNow"><i class="fas fa-clock"></i> Now</button>
+                    <div class="tz-separator"></div>
+                    <button class="tz-btn tz-btn-secondary" id="btnAddTz"><i class="fas fa-plus"></i> Add Zone</button>
+                </div>
+                <div class="tz-toolbar-right">
+                    <button class="tz-btn tz-btn-ghost" id="btnClear"><i class="fas fa-trash-alt"></i> Clear</button>
+                    <button class="tz-btn tz-btn-ghost" id="btnCopyAll"><i class="fas fa-copy"></i> Copy</button>
+                </div>
+            </div>
+
+            <!-- Status -->
+            <div id="statusBar" class="tz-status idle">
+                <i class="fas fa-info-circle"></i>
+                <span id="statusText">Select a date/time and time zones, then click Convert</span>
+            </div>
+
+            <!-- Input Panel -->
+            <div class="tz-input-panel">
+                <div class="tz-input-row">
+                    <div class="tz-field">
+                        <label class="tz-label"><i class="fas fa-calendar-alt"></i> Date &amp; Time</label>
+                        <input type="datetime-local" id="inputDateTime" class="tz-input" />
+                    </div>
+                    <div class="tz-field">
+                        <label class="tz-label"><i class="fas fa-map-marker-alt"></i> From Time Zone</label>
+                        <select id="sourceTimezone" class="tz-select"></select>
+                    </div>
+                </div>
+
+                <div id="targetTimezonesContainer">
+                    <div class="tz-target-row" id="targetRow0">
+                        <div class="tz-field" style="flex:1;">
+                            <label class="tz-label"><i class="fas fa-globe"></i> To Time Zone</label>
+                            <select class="targetTimezoneSelect tz-select" id="targetTimezone0"></select>
+                        </div>
+                        <button class="tz-remove-btn" title="Remove" style="display:none;" onclick="removeRow(this)"><i class="fas fa-times"></i></button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results -->
+            <div id="resultsPanel" class="tz-results" style="display:none;">
+                <div class="tz-results-header">
+                    <span><i class="fas fa-check-circle" style="color:#64ffda;"></i> Conversion Results</span>
+                    <span id="resultCount" class="tz-results-meta"></span>
+                </div>
+                <div id="conversionResults"></div>
+            </div>
+
+            <!-- World Clock -->
+            <div class="tz-world-clock">
+                <div class="tz-world-header">
+                    <i class="fas fa-globe-americas"></i> Current Times Around the World
+                    <span class="tz-live-badge">LIVE</span>
+                </div>
+                <div id="currentTimeList" class="tz-clock-grid">
+                    <div class="tz-clock-loading"><i class="fas fa-spinner fa-spin"></i> Loading...</div>
+                </div>
+            </div>
+
+        </div>
+
+        <div th:replace="~{template::ad_banner_bottom}"></div>
+    </main>
+    <div th:replace="~{fragments/related-tools::related(slug='timezone-converter')}"></div>
+
+    <footer th:replace="~{template::template_footer}"></footer>
+
+<style>
+.tz-toolbar {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+    padding: 12px 16px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 12px 12px 0 0; border-bottom: none;
+}
+.tz-toolbar-left  { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex: 1; }
+.tz-toolbar-right { display: flex; align-items: center; gap: 8px; }
+.tz-separator { width: 1px; height: 24px; background: rgba(255,255,255,0.1); margin: 0 4px; }
+.tz-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 14px; border-radius: 8px; font-size: 0.85rem;
+    font-weight: 600; border: none; cursor: pointer; transition: all 0.15s; white-space: nowrap;
+}
+.tz-btn-primary   { background: #64ffda; color: #0a0f1e; }
+.tz-btn-primary:hover  { background: #4dd8b8; }
+.tz-btn-secondary { background: rgba(100,163,218,0.15); color: #64a3da; border: 1px solid rgba(100,163,218,0.25); }
+.tz-btn-secondary:hover { background: rgba(100,163,218,0.25); }
+.tz-btn-ghost { background: rgba(255,255,255,0.06); color: #94a3b8; border: 1px solid rgba(255,255,255,0.08); }
+.tz-btn-ghost:hover { background: rgba(255,255,255,0.1); color: #e2e8f0; }
+.tz-status {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 16px; font-size: 0.84rem; font-weight: 500;
+    border-left: 1px solid rgba(255,255,255,0.07);
+    border-right: 1px solid rgba(255,255,255,0.07); transition: all 0.2s;
+}
+.tz-status.idle    { background: rgba(255,255,255,0.02); color: #64748b; }
+.tz-status.success { background: rgba(0,230,118,0.08); color: #4ade80; }
+.tz-status.error   { background: rgba(255,82,82,0.08); color: #ff7070; }
+.tz-status.warn    { background: rgba(255,171,0,0.08); color: #ffab00; }
+.tz-input-panel {
+    padding: 20px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.07); border-top: none;
+}
+.tz-input-row {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;
+}
+@media (max-width: 640px) { .tz-input-row { grid-template-columns: 1fr; } }
+.tz-field { display: flex; flex-direction: column; gap: 8px; }
+.tz-label { font-size: 0.8rem; font-weight: 600; color: #64748b; display: flex; align-items: center; gap: 6px; }
+.tz-input, .tz-select {
+    padding: 10px 14px; border-radius: 8px; font-size: 0.9rem;
+    background: rgba(255,255,255,0.06); color: #e2e8f0;
+    border: 1px solid rgba(255,255,255,0.1); outline: none;
+    transition: border-color 0.15s; width: 100%; box-sizing: border-box;
+}
+.tz-input:focus, .tz-select:focus { border-color: rgba(100,255,218,0.4); background: rgba(255,255,255,0.09); }
+.tz-select option { background: #1e293b; color: #e2e8f0; }
+.tz-target-row {
+    display: flex; align-items: flex-end; gap: 10px; margin-bottom: 12px;
+}
+.tz-remove-btn {
+    width: 36px; height: 38px; border-radius: 8px; border: 1px solid rgba(255,82,82,0.3);
+    background: rgba(255,82,82,0.08); color: #ff7070; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; transition: all 0.15s; font-size: 0.85rem; align-self: flex-end;
+}
+.tz-remove-btn:hover { background: rgba(255,82,82,0.18); }
+.tz-results {
+    border: 1px solid rgba(255,255,255,0.07); border-top: none;
+    background: rgba(255,255,255,0.015);
+}
+.tz-results-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 20px; border-bottom: 1px solid rgba(255,255,255,0.07);
+    font-size: 0.88rem; font-weight: 600; color: #94a3b8;
+}
+.tz-results-meta { font-size: 0.78rem; color: #475569; font-weight: 400; }
+.tz-result-card {
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+    padding: 18px 20px; border-bottom: 1px solid rgba(255,255,255,0.05); transition: background 0.15s;
+}
+.tz-result-card:last-child { border-bottom: none; }
+.tz-result-card:hover { background: rgba(255,255,255,0.03); }
+.tz-result-info { flex: 1; }
+.tz-result-zone { font-size: 0.78rem; color: #64748b; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+.tz-result-date { font-size: 0.82rem; color: #94a3b8; margin-bottom: 4px; }
+.tz-result-time { font-size: 1.3rem; font-weight: 700; color: #e2e8f0; letter-spacing: 0.02em; }
+.tz-abbr-badge {
+    padding: 5px 14px; border-radius: 20px; font-size: 0.78rem; font-weight: 700;
+    background: rgba(100,255,218,0.12); color: #64ffda;
+    border: 1px solid rgba(100,255,218,0.2); letter-spacing: 0.05em; white-space: nowrap;
+}
+.tz-offset-badge {
+    padding: 3px 8px; border-radius: 6px; font-size: 0.72rem; font-weight: 600;
+    background: rgba(255,255,255,0.06); color: #64748b;
+}
+.tz-copy-result-btn {
+    width: 30px; height: 30px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.04); color: #475569; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; font-size: 0.75rem; transition: all 0.15s; flex-shrink: 0;
+}
+.tz-copy-result-btn:hover { background: rgba(255,255,255,0.1); color: #94a3b8; }
+.tz-copy-result-btn.copied { background: rgba(0,230,118,0.1); color: #4ade80; border-color: rgba(0,230,118,0.2); }
+.tz-world-clock {
+    border: 1px solid rgba(255,255,255,0.07); border-top: none;
+    border-radius: 0 0 12px 12px; overflow: hidden;
+}
+.tz-world-header {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 20px; font-size: 0.88rem; font-weight: 600; color: #64748b;
+    background: rgba(255,255,255,0.02); border-bottom: 1px solid rgba(255,255,255,0.07);
+}
+.tz-live-badge {
+    font-size: 0.65rem; font-weight: 700; letter-spacing: 0.1em;
+    padding: 2px 7px; border-radius: 4px;
+    background: rgba(0,230,118,0.15); color: #4ade80;
+    border: 1px solid rgba(0,230,118,0.25); animation: tz-pulse 2s infinite;
+}
+@keyframes tz-pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+.tz-clock-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+}
+.tz-clock-loading { padding: 30px; color: #475569; font-size: 0.85rem; grid-column: 1/-1; text-align: center; }
+.tz-clock-card {
+    padding: 14px 18px; border-right: 1px solid rgba(255,255,255,0.05);
+    border-bottom: 1px solid rgba(255,255,255,0.05); transition: background 0.15s; cursor: default;
+}
+.tz-clock-card:hover { background: rgba(255,255,255,0.03); }
+.tz-clock-city { font-size: 0.75rem; font-weight: 600; color: #64748b; margin-bottom: 4px; }
+.tz-clock-time { font-size: 1.05rem; font-weight: 700; color: #e2e8f0; }
+.tz-clock-date { font-size: 0.7rem; color: #475569; margin-top: 2px; }
+.tz-clock-abbr { font-size: 0.65rem; color: #64ffda; margin-top: 3px; font-weight: 600; letter-spacing: 0.05em; }
+</style>
+
+<script>
+(function () {
+    var TZ_LIST = [
+        { v: 'UTC',                             l: 'UTC',          city: 'UTC' },
+        { v: 'America/New_York',                l: 'ET',           city: 'New York' },
+        { v: 'America/Chicago',                 l: 'CT',           city: 'Chicago' },
+        { v: 'America/Denver',                  l: 'MT',           city: 'Denver' },
+        { v: 'America/Los_Angeles',             l: 'PT',           city: 'Los Angeles' },
+        { v: 'America/Anchorage',               l: 'AKT',          city: 'Anchorage' },
+        { v: 'Pacific/Honolulu',                l: 'HST',          city: 'Honolulu' },
+        { v: 'America/Toronto',                 l: 'ET',           city: 'Toronto' },
+        { v: 'America/Vancouver',               l: 'PT',           city: 'Vancouver' },
+        { v: 'America/Mexico_City',             l: 'CST',          city: 'Mexico City' },
+        { v: 'America/Sao_Paulo',               l: 'BRT',          city: 'São Paulo' },
+        { v: 'America/Argentina/Buenos_Aires',  l: 'ART',          city: 'Buenos Aires' },
+        { v: 'America/Bogota',                  l: 'COT',          city: 'Bogota' },
+        { v: 'America/Lima',                    l: 'PET',          city: 'Lima' },
+        { v: 'America/Santiago',                l: 'CLT',          city: 'Santiago' },
+        { v: 'America/Caracas',                 l: 'VET',          city: 'Caracas' },
+        { v: 'Europe/London',                   l: 'GMT/BST',      city: 'London' },
+        { v: 'Europe/Paris',                    l: 'CET',          city: 'Paris' },
+        { v: 'Europe/Berlin',                   l: 'CET',          city: 'Berlin' },
+        { v: 'Europe/Madrid',                   l: 'CET',          city: 'Madrid' },
+        { v: 'Europe/Rome',                     l: 'CET',          city: 'Rome' },
+        { v: 'Europe/Amsterdam',                l: 'CET',          city: 'Amsterdam' },
+        { v: 'Europe/Stockholm',                l: 'CET',          city: 'Stockholm' },
+        { v: 'Europe/Warsaw',                   l: 'CET',          city: 'Warsaw' },
+        { v: 'Europe/Athens',                   l: 'EET',          city: 'Athens' },
+        { v: 'Europe/Istanbul',                 l: 'TRT',          city: 'Istanbul' },
+        { v: 'Europe/Moscow',                   l: 'MSK',          city: 'Moscow' },
+        { v: 'Europe/Helsinki',                 l: 'EET',          city: 'Helsinki' },
+        { v: 'Africa/Cairo',                    l: 'EET',          city: 'Cairo' },
+        { v: 'Africa/Lagos',                    l: 'WAT',          city: 'Lagos' },
+        { v: 'Africa/Nairobi',                  l: 'EAT',          city: 'Nairobi' },
+        { v: 'Africa/Johannesburg',             l: 'SAST',         city: 'Johannesburg' },
+        { v: 'Africa/Casablanca',               l: 'WET',          city: 'Casablanca' },
+        { v: 'Asia/Dubai',                      l: 'GST',          city: 'Dubai' },
+        { v: 'Asia/Riyadh',                     l: 'AST',          city: 'Riyadh' },
+        { v: 'Asia/Tehran',                     l: 'IRST',         city: 'Tehran' },
+        { v: 'Asia/Karachi',                    l: 'PKT',          city: 'Karachi' },
+        { v: 'Asia/Kolkata',                    l: 'IST',          city: 'Mumbai/Delhi' },
+        { v: 'Asia/Kathmandu',                  l: 'NPT',          city: 'Kathmandu' },
+        { v: 'Asia/Dhaka',                      l: 'BST',          city: 'Dhaka' },
+        { v: 'Asia/Bangkok',                    l: 'ICT',          city: 'Bangkok' },
+        { v: 'Asia/Jakarta',                    l: 'WIB',          city: 'Jakarta' },
+        { v: 'Asia/Singapore',                  l: 'SGT',          city: 'Singapore' },
+        { v: 'Asia/Shanghai',                   l: 'CST',          city: 'Beijing/Shanghai' },
+        { v: 'Asia/Hong_Kong',                  l: 'HKT',          city: 'Hong Kong' },
+        { v: 'Asia/Seoul',                      l: 'KST',          city: 'Seoul' },
+        { v: 'Asia/Tokyo',                      l: 'JST',          city: 'Tokyo' },
+        { v: 'Asia/Taipei',                     l: 'CST',          city: 'Taipei' },
+        { v: 'Asia/Kuala_Lumpur',               l: 'MYT',          city: 'Kuala Lumpur' },
+        { v: 'Asia/Manila',                     l: 'PST',          city: 'Manila' },
+        { v: 'Asia/Yangon',                     l: 'MMT',          city: 'Yangon' },
+        { v: 'Asia/Colombo',                    l: 'SLST',         city: 'Colombo' },
+        { v: 'Asia/Tashkent',                   l: 'UZT',          city: 'Tashkent' },
+        { v: 'Australia/Perth',                 l: 'AWST',         city: 'Perth' },
+        { v: 'Australia/Adelaide',              l: 'ACST',         city: 'Adelaide' },
+        { v: 'Australia/Sydney',                l: 'AEST',         city: 'Sydney' },
+        { v: 'Australia/Melbourne',             l: 'AEST',         city: 'Melbourne' },
+        { v: 'Pacific/Auckland',                l: 'NZST',         city: 'Auckland' },
+        { v: 'Pacific/Fiji',                    l: 'FJT',          city: 'Fiji' },
+        { v: 'Pacific/Guam',                    l: 'ChST',         city: 'Guam' },
+        { v: 'Atlantic/Cape_Verde',             l: 'CVT',          city: 'Cape Verde' },
+    ];
+
+    var WORLD_CLOCK_TZ = [
+        'America/New_York','America/Los_Angeles','America/Chicago','America/Sao_Paulo',
+        'Europe/London','Europe/Paris','Europe/Moscow',
+        'Africa/Cairo','Africa/Johannesburg',
+        'Asia/Dubai','Asia/Kolkata','Asia/Shanghai','Asia/Tokyo','Asia/Singapore',
+        'Australia/Sydney','Pacific/Auckland','UTC'
+    ];
+
+    var statusBar = document.getElementById('statusBar');
+
+    function populateSelect(el, selectedVal) {
+        el.innerHTML = '';
+        TZ_LIST.forEach(function (tz) {
+            var opt = document.createElement('option');
+            opt.value = tz.v;
+            opt.textContent = '(' + tz.l + ') ' + tz.city;
+            el.appendChild(opt);
+        });
+        if (selectedVal && TZ_LIST.some(function (t) { return t.v === selectedVal; })) {
+            el.value = selectedVal;
+        }
+    }
+
+    function formatDatetimeLocal(d) {
+        var pad = function (n) { return String(n).padStart(2, '0'); };
+        return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+    }
+
+    function init() {
+        document.getElementById('inputDateTime').value = formatDatetimeLocal(new Date());
+        var userTZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        populateSelect(document.getElementById('sourceTimezone'), userTZ);
+        populateSelect(document.getElementById('targetTimezone0'), 'UTC');
+        var src = document.getElementById('sourceTimezone').value;
+        var tgt = document.getElementById('targetTimezone0');
+        if (tgt.value === src) { tgt.value = src === 'UTC' ? 'America/New_York' : 'UTC'; }
+        startWorldClock();
+    }
+
+    document.getElementById('btnConvert').onclick = doConvert;
+    document.getElementById('btnClear').onclick   = doClear;
+    document.getElementById('btnNow').onclick     = function () { document.getElementById('inputDateTime').value = formatDatetimeLocal(new Date()); };
+    document.getElementById('btnSwap').onclick    = doSwap;
+    document.getElementById('btnAddTz').onclick   = addTargetRow;
+    document.getElementById('btnCopyAll').onclick = copyAllResults;
+
+    function doConvert() {
+        var dtVal = document.getElementById('inputDateTime').value;
+        if (!dtVal) { setStatus('warn', 'Please select a date and time'); return; }
+        var srcTZ = document.getElementById('sourceTimezone').value;
+        var targets = document.querySelectorAll('.targetTimezoneSelect');
+        var utcMs = getUTCMs(dtVal, srcTZ);
+        var srcInfo = getTZInfo(new Date(utcMs), srcTZ);
+        var html = '';
+        targets.forEach(function (sel) {
+            var tz = sel.value;
+            var info = getTZInfo(new Date(utcMs), tz);
+            var tzData = TZ_LIST.find(function (t) { return t.v === tz; }) || { l: tz, city: tz };
+            var diff = offsetDiff(srcTZ, tz, new Date(utcMs));
+            var diffStr = diff === 0 ? 'Same time' : (diff > 0 ? '+' : '') + diff + 'h';
+            var copyText = escAttr(tzData.city + ': ' + info.date + ' ' + info.time + ' ' + info.abbr);
+            html += '<div class="tz-result-card">' +
+                '<div class="tz-result-info">' +
+                    '<div class="tz-result-zone"><i class="fas fa-map-marker-alt"></i>' + escHtml(tzData.city) + ' <span class="tz-offset-badge">' + escHtml(diffStr) + '</span></div>' +
+                    '<div class="tz-result-date">' + escHtml(info.date) + '</div>' +
+                    '<div class="tz-result-time">' + escHtml(info.time) + '</div>' +
+                '</div>' +
+                '<div style="display:flex;align-items:center;gap:8px;">' +
+                    '<span class="tz-abbr-badge">' + escHtml(info.abbr) + '</span>' +
+                    '<button class="tz-copy-result-btn" title="Copy" onclick="copyResult(this,\'' + copyText + '\')"><i class="fas fa-copy"></i></button>' +
+                '</div>' +
+            '</div>';
+        });
+        document.getElementById('conversionResults').innerHTML = html;
+        document.getElementById('resultCount').textContent = targets.length + ' timezone' + (targets.length > 1 ? 's' : '');
+        document.getElementById('resultsPanel').style.display = 'block';
+        var srcCity = (TZ_LIST.find(function (t) { return t.v === srcTZ; }) || { city: srcTZ }).city;
+        setStatus('success', '✓ Converted from ' + srcCity + ' (' + srcInfo.abbr + ')');
+    }
+
+    function doSwap() {
+        var src = document.getElementById('sourceTimezone');
+        var tgts = document.querySelectorAll('.targetTimezoneSelect');
+        if (tgts.length === 1) { var tmp = src.value; src.value = tgts[0].value; tgts[0].value = tmp; }
+    }
+
+    function doClear() {
+        document.getElementById('resultsPanel').style.display = 'none';
+        setStatus('idle', 'Select a date/time and time zones, then click Convert');
+    }
+
+    function copyAllResults() {
+        var cards = document.querySelectorAll('.tz-result-card');
+        if (!cards.length) { setStatus('warn', 'No results to copy'); return; }
+        var lines = [];
+        cards.forEach(function (c) {
+            var city = c.querySelector('.tz-result-zone').textContent.trim();
+            var date = c.querySelector('.tz-result-date').textContent.trim();
+            var time = c.querySelector('.tz-result-time').textContent.trim();
+            var abbr = c.querySelector('.tz-abbr-badge').textContent.trim();
+            lines.push(city + ': ' + date + ' ' + time + ' ' + abbr);
+        });
+        navigator.clipboard.writeText(lines.join('\n')).then(function () {
+            setStatus('success', '✓ Copied ' + lines.length + ' result(s) to clipboard');
+        });
+    }
+
+    window.copyResult = function (btn, text) {
+        navigator.clipboard.writeText(text).then(function () {
+            btn.classList.add('copied');
+            btn.innerHTML = '<i class="fas fa-check"></i>';
+            setTimeout(function () { btn.classList.remove('copied'); btn.innerHTML = '<i class="fas fa-copy"></i>'; }, 1800);
+        });
+    };
+
+    var rowCounter = 1;
+    function addTargetRow() {
+        var container = document.getElementById('targetTimezonesContainer');
+        var id = 'targetTimezone' + rowCounter++;
+        var div = document.createElement('div');
+        div.className = 'tz-target-row';
+        div.innerHTML =
+            '<div class="tz-field" style="flex:1;">' +
+                '<label class="tz-label"><i class="fas fa-globe"></i> To Time Zone</label>' +
+                '<select class="targetTimezoneSelect tz-select" id="' + id + '"></select>' +
+            '</div>' +
+            '<button class="tz-remove-btn" title="Remove" onclick="removeRow(this)"><i class="fas fa-times"></i></button>';
+        container.appendChild(div);
+        var sel = div.querySelector('select');
+        var used = Array.from(document.querySelectorAll('.targetTimezoneSelect')).slice(0, -1).map(function (s) { return s.value; });
+        var src = document.getElementById('sourceTimezone').value;
+        var avail = TZ_LIST.find(function (t) { return !used.includes(t.v) && t.v !== src; });
+        populateSelect(sel, avail ? avail.v : 'UTC');
+        document.querySelectorAll('.tz-remove-btn').forEach(function (b) { b.style.display = 'flex'; });
+    }
+
+    window.removeRow = function (btn) {
+        var rows = document.querySelectorAll('.tz-target-row');
+        if (rows.length <= 1) { setStatus('warn', 'At least one target timezone required'); return; }
+        btn.closest('.tz-target-row').remove();
+        if (document.querySelectorAll('.tz-target-row').length === 1) {
+            document.querySelector('.tz-remove-btn').style.display = 'none';
+        }
+    };
+
+    function startWorldClock() { updateClock(); setInterval(updateClock, 1000); }
+
+    function updateClock() {
+        var now = new Date();
+        var html = WORLD_CLOCK_TZ.map(function (tz) {
+            var tzData = TZ_LIST.find(function (t) { return t.v === tz; }) || { city: tz };
+            var info = getTZInfo(now, tz);
+            return '<div class="tz-clock-card">' +
+                '<div class="tz-clock-city">' + escHtml(tzData.city) + '</div>' +
+                '<div class="tz-clock-time">' + escHtml(info.time) + '</div>' +
+                '<div class="tz-clock-date">' + escHtml(info.date) + '</div>' +
+                '<div class="tz-clock-abbr">' + escHtml(info.abbr) + '</div>' +
+            '</div>';
+        }).join('');
+        document.getElementById('currentTimeList').innerHTML = html;
+    }
+
+    function getTZInfo(date, tz) {
+        var dateStr = date.toLocaleDateString('en-US', { timeZone: tz, weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
+        var timeStr = date.toLocaleTimeString('en-US', { timeZone: tz, hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+        var parts = new Intl.DateTimeFormat('en', { timeZone: tz, timeZoneName: 'short' }).formatToParts(date);
+        var abbr = (parts.find(function (p) { return p.type === 'timeZoneName'; }) || { value: tz }).value;
+        return { date: dateStr, time: timeStr, abbr: abbr };
+    }
+
+    function getUTCMs(dtLocalStr, tz) {
+        var trial = new Date(dtLocalStr);
+        var utcD = new Date(trial.toLocaleString('en-US', { timeZone: 'UTC' }));
+        var tzD  = new Date(trial.toLocaleString('en-US', { timeZone: tz }));
+        return trial.getTime() + (utcD - tzD);
+    }
+
+    function offsetDiff(fromTZ, toTZ, date) {
+        var utcD  = new Date(date.toLocaleString('en-US', { timeZone: 'UTC' }));
+        var fromD = new Date(date.toLocaleString('en-US', { timeZone: fromTZ }));
+        var toD   = new Date(date.toLocaleString('en-US', { timeZone: toTZ }));
+        return Math.round(((toD - utcD) - (fromD - utcD)) / 1800000) / 2;
+    }
+
+    function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+    function escAttr(s) { return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+
+    function setStatus(type, msg) {
+        statusBar.className = 'tz-status ' + type;
+        var icons = { success: 'fa-check-circle', error: 'fa-exclamation-circle', warn: 'fa-exclamation-triangle', idle: 'fa-info-circle' };
+        statusBar.innerHTML = '<i class="fas ' + (icons[type] || 'fa-info-circle') + '"></i> <span>' + msg + '</span>';
+    }
+
+    document.addEventListener('keydown', function (e) {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); doConvert(); }
+    });
+
+    (function () {
+        var p = new URLSearchParams(window.location.search);
+        var from = p.get('from'), to = p.get('to'), dt = p.get('dt');
+        if (from && TZ_LIST.some(function (t) { return t.v === from; })) document.getElementById('sourceTimezone').value = from;
+        if (to   && TZ_LIST.some(function (t) { return t.v === to;   })) document.getElementById('targetTimezone0').value = to;
+        if (dt) document.getElementById('inputDateTime').value = dt;
+        if (from || to) doConvert();
+    })();
+
+    init();
+})();
+</script>
+</body>
+</html>

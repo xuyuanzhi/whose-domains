@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+
+    <main>
+        <div class="container">
+            <div class="info-page">
+                <nav class="breadcrumb">
+                    <a href="/">Home</a> &gt; 
+                    <a href="/help-center">Help Center</a> &gt; 
+                    <span>Domain Security Basics</span>
+                </nav>
+
+                <article class="info-content" itemscope itemtype="https://schema.org/Article">
+                    <h1>Domain Security Basics</h1>
+                    
+                    <div class="info-section">
+                        <h2>Essential Domain Security Practices</h2>
+                        <p>Domain security is crucial for protecting your online presence, brand reputation, and customer trust. Understanding and implementing basic security measures helps prevent unauthorized access, theft, and misuse of your domains.</p>
+                        
+                        <h3>Why Domain Security Matters</h3>
+                        <p>Your domain is often the foundation of your online identity. Compromised domains can lead to:</p>
+                        <ul>
+                            <li><strong>Website Defacement:</strong> Attackers modify your website content</li>
+                            <li><strong>Email Interception:</strong> Criminals read or redirect your emails</li>
+                            <li><strong>Phishing Attacks:</strong> Your domain used to scam others</li>
+                            <li><strong>SEO Damage:</strong> Search rankings destroyed by malicious content</li>
+                            <li><strong>Brand Damage:</strong> Reputation harm from associated malicious activity</li>
+                            <li><strong>Financial Loss:</strong> Direct theft or ransom demands</li>
+                            <li><strong>Customer Data Breach:</strong> Sensitive information compromised</li>
+                        </ul>
+
+                        <h3>Common Domain Security Threats</h3>
+                        
+                        <h4>Domain Hijacking</h4>
+                        <p>Unauthorized transfer or control of your domain through:</p>
+                        <ul>
+                            <li>Credential theft</li>
+                            <li>Social engineering</li>
+                            <li>Registrar vulnerabilities</li>
+                            <li>Email account compromise</li>
+                        </ul>
+
+                        <h4>DNS Hijacking</h4>
+                        <p>Redirecting your domain's traffic by:</p>
+                        <ul>
+                            <li>Modifying DNS records</li>
+                            <li>Compromising nameservers</li>
+                            <li>Router-level attacks</li>
+                            <li>ISP-level manipulation</li>
+                        </ul>
+
+                        <h4>Domain Spoofing</h4>
+                        <p>Creating lookalike domains to:</p>
+                        <ul>
+                            <li>Phish your customers</li>
+                            <li>Distribute malware</li>
+                            <li>Damage your brand</li>
+                            <li>Commit fraud</li>
+                        </ul>
+
+                        <h4>Expiration Hijacking</h4>
+                        <p>Registering your domain after accidental expiration</p>
+
+                        <h3>Essential Security Measures</h3>
+                        
+                        <h4>1. Enable Domain Lock</h4>
+                        <ul>
+                            <li>Prevents unauthorized transfers</li>
+                            <li>Available at most registrars</li>
+                            <li>Should be enabled by default</li>
+                            <li>Unlock only when transferring</li>
+                        </ul>
+
+                        <h4>2. Use Strong Authentication</h4>
+                        <ul>
+                            <li>Strong, unique passwords for registrar account</li>
+                            <li>Enable two-factor authentication (2FA)</li>
+                            <li>Use authentication apps over SMS</li>
+                            <li>Never share credentials</li>
+                        </ul>
+
+                        <h4>3. Enable WHOIS Privacy</h4>
+                        <ul>
+                            <li>Hides personal contact information</li>
+                            <li>Reduces spam and phishing attempts</li>
+                            <li>Prevents social engineering</li>
+                            <li>Available at most registrars</li>
+                        </ul>
+
+                        <h4>4. Keep Contact Information Current</h4>
+                        <ul>
+                            <li>Receive important security notifications</li>
+                            <li>Get renewal reminders</li>
+                            <li>Verify transfer requests</li>
+                            <li>Respond to abuse reports</li>
+                        </ul>
+
+                        <h4>5. Use Registry Lock (High-Value Domains)</h4>
+                        <ul>
+                            <li>Additional security layer at registry level</li>
+                            <li>Requires manual verification for changes</li>
+                            <li>Prevents unauthorized modifications</li>
+                            <li>Recommended for critical domains</li>
+                        </ul>
+
+                        <h4>6. Monitor Your Domains</h4>
+                        <ul>
+                            <li>Set up change notifications</li>
+                            <li>Monitor WHOIS for modifications</li>
+                            <li>Track DNS record changes</li>
+                            <li>Watch for similar domain registrations</li>
+                        </ul>
+
+                        <h4>7. Secure Associated Email Accounts</h4>
+                        <ul>
+                            <li>Domain admin email is critical</li>
+                            <li>Use strong passwords and 2FA</li>
+                            <li>Monitor for unauthorized access</li>
+                            <li>Use dedicated email for domain management</li>
+                        </ul>
+
+                        <h4>8. Implement Email Security</h4>
+                        <ul>
+                            <li>SPF records to prevent spoofing</li>
+                            <li>DKIM for email authentication</li>
+                            <li>DMARC policies for enforcement</li>
+                            <li>Prevents phishing using your domain</li>
+                        </ul>
+
+                        <h3>Security Best Practices Checklist</h3>
+                        <ul>
+                            <li>&#10004; Enable domain transfer lock</li>
+                            <li>&#10004; Use strong, unique passwords</li>
+                            <li>&#10004; Enable two-factor authentication</li>
+                            <li>&#10004; Enable WHOIS privacy protection</li>
+                            <li>&#10004; Keep contact information updated</li>
+                            <li>&#10004; Enable auto-renewal</li>
+                            <li>&#10004; Monitor domain status regularly</li>
+                            <li>&#10004; Secure associated email accounts</li>
+                            <li>&#10004; Implement SPF/DKIM/DMARC</li>
+                            <li>&#10004; Consider registry lock for critical domains</li>
+                            <li>&#10004; Document domain ownership</li>
+                            <li>&#10004; Have recovery procedures in place</li>
+                        </ul>
+
+                        <h3>Responding to Security Incidents</h3>
+                        <p>If you suspect your domain has been compromised:</p>
+                        <ol>
+                            <li>Contact your registrar immediately</li>
+                            <li>Change all passwords</li>
+                            <li>Review recent changes</li>
+                            <li>Check DNS records</li>
+                            <li>Notify affected parties if necessary</li>
+                            <li>Document everything</li>
+                            <li>Consider legal action if stolen</li>
+                        </ol>
+
+                        <h3>Advanced Security Considerations</h3>
+                        <ul>
+                            <li><strong>DNSSEC:</strong> Add cryptographic signatures to DNS</li>
+                            <li><strong>Brand Monitoring:</strong> Watch for similar domain registrations</li>
+                            <li><strong>Multiple Registrars:</strong> Distribute risk across providers</li>
+                            <li><strong>Legal Protection:</strong> Trademark your brand names</li>
+                            <li><strong>Insurance:</strong> Consider cyber insurance for critical domains</li>
+                        </ul>
+                    </div>
+
+                    <div class="info-navigation">
+                        <a href="/info/expiration-and-renewal-history" class="btn btn-secondary">&larr; Previous: Expiration and Renewal History</a>
+                        <a href="/info/domain-lock-and-transfer-protection" class="btn btn-primary">Next: Domain Lock and Transfer Protection &rarr;</a>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </main>
+
+    <footer th:replace="~{template::template_footer}"></footer>
+</body>
+</html>

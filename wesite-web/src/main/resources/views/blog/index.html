@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+<header th:replace="~{template::template_header}"></header>
+<main>
+<section class="hero">
+    <div class="container">
+        <div class="hero-content">
+            <h1>📝 Whose.Domains Blog</h1>
+            <p>Expert guides on domain registration, WHOIS lookup, DNS, SSL, and domain investing.</p>
+        </div>
+    </div>
+</section>
+
+<div th:replace="~{template::ad_banner_top}"></div>
+
+<div class="container" style="max-width:1100px; padding:30px 20px;">
+
+    <!-- Category filters -->
+    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:28px;">
+        <a href="/blog" th:class="${category == null ? 'blog-tag active' : 'blog-tag'}">All Posts</a>
+        <a href="/blog/category/domain-tools"    th:class="${category == 'domain-tools'    ? 'blog-tag active' : 'blog-tag'}">Domain Tools</a>
+        <a href="/blog/category/domain-investing" th:class="${category == 'domain-investing' ? 'blog-tag active' : 'blog-tag'}">Domain Investing</a>
+        <a href="/blog/category/guides"           th:class="${category == 'guides'           ? 'blog-tag active' : 'blog-tag'}">Guides</a>
+        <a href="/blog/category/news"             th:class="${category == 'news'             ? 'blog-tag active' : 'blog-tag'}">News</a>
+    </div>
+
+    <!-- Posts grid -->
+    <div th:if="${#lists.isEmpty(posts)}" style="text-align:center; padding:60px 0; color:#7a8ba0;">
+        <div style="font-size:48px; margin-bottom:16px;">📭</div>
+        <p style="font-size:18px;">No posts yet. Check back soon!</p>
+    </div>
+
+    <div th:if="${!#lists.isEmpty(posts)}" style="display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:28px;">
+        <article th:each="post : ${posts}" style="background:var(--card-bg); border:1px solid var(--glass-border); border-radius:12px; overflow:hidden; display:flex; flex-direction:column; transition:transform 0.2s,box-shadow 0.2s;"
+                 onmouseover="this.style.transform='translateY(-3px)';this.style.boxShadow='0 8px 32px rgba(0,0,0,0.3)'"
+                 onmouseout="this.style.transform='translateY(0)';this.style.boxShadow='none'">
+
+            <a th:href="@{'/blog/' + ${post.slug}}" style="display:block; height:180px; overflow:hidden; background:rgba(37,99,235,0.1);">
+                <img th:if="${post.cover != null}" th:src="${post.cover}" th:alt="${post.title}" loading="lazy"
+                     style="width:100%; height:100%; object-fit:cover;">
+                <div th:unless="${post.cover != null}" style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; font-size:48px;">📄</div>
+            </a>
+
+            <div style="padding:20px; flex:1; display:flex; flex-direction:column;">
+                <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
+                    <span th:if="${post.category != null}" style="font-size:11px; padding:2px 8px; background:rgba(37,99,235,0.2); color:#60a5fa; border-radius:20px; text-transform:uppercase; letter-spacing:0.5px;" th:text="${post.category}"></span>
+                </div>
+                <h2 style="font-size:17px; font-weight:600; margin-bottom:10px; line-height:1.4;">
+                    <a th:href="@{'/blog/' + ${post.slug}}" th:text="${post.title}" style="color:#e2e8f0; text-decoration:none;"></a>
+                </h2>
+                <p th:text="${post.summary}" style="font-size:13px; color:#7a8ba0; line-height:1.6; flex:1; margin-bottom:14px;"></p>
+                <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; color:#7a8ba0; border-top:1px solid rgba(255,255,255,0.06); padding-top:12px; margin-top:auto;">
+                    <span><i class="fas fa-calendar-alt" style="margin-right:4px;"></i><span th:text="${post.publishDateText}"></span></span>
+                    <span th:if="${post.viewCount != null}"><i class="fas fa-eye" style="margin-right:4px;"></i><span th:text="${post.viewCount}"></span> views</span>
+                </div>
+            </div>
+        </article>
+    </div>
+
+    <!-- Pagination -->
+    <div th:if="${totalPages > 1}" style="display:flex; gap:8px; justify-content:center; margin-top:36px; flex-wrap:wrap;">
+        <a th:if="${currentPage > 1}" th:href="@{'/blog'(page=${currentPage-1}, category=${category}, tag=${tag})}"
+           style="padding:8px 16px; border:1px solid var(--glass-border); border-radius:6px; color:#e2e8f0; text-decoration:none; font-size:14px;">← Prev</a>
+        <th:block th:each="p : ${#numbers.sequence(1, totalPages)}">
+            <a th:href="@{'/blog'(page=${p}, category=${category}, tag=${tag})}"
+               th:text="${p}"
+               th:style="${p == currentPage} ? 'padding:8px 16px; border-radius:6px; font-size:14px; background:#2563eb; color:#fff; text-decoration:none;' : 'padding:8px 16px; border:1px solid var(--glass-border); border-radius:6px; color:#e2e8f0; text-decoration:none; font-size:14px;'"></a>
+        </th:block>
+        <a th:if="${currentPage < totalPages}" th:href="@{'/blog'(page=${currentPage+1}, category=${category}, tag=${tag})}"
+           style="padding:8px 16px; border:1px solid var(--glass-border); border-radius:6px; color:#e2e8f0; text-decoration:none; font-size:14px;">Next →</a>
+    </div>
+
+</div>
+
+<style>
+.blog-tag { padding:6px 16px; border:1px solid var(--glass-border); border-radius:20px; font-size:13px; color:#7a8ba0; text-decoration:none; transition:all 0.2s; }
+.blog-tag:hover, .blog-tag.active { background:#2563eb; color:#fff; border-color:#2563eb; }
+</style>
+
+<div th:replace="~{template::ad_banner_bottom}"></div>
+</main>
+<footer th:replace="~{template::template_footer}"></footer>
+</body>
+</html>

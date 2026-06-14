@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+
+    <main>
+        <div class="container">
+            <div class="info-page">
+                <nav class="breadcrumb">
+                    <a href="/">Home</a> &gt; 
+                    <a href="/help-center">Help Center</a> &gt; 
+                    <span>Domain Renewal Best Practices</span>
+                </nav>
+
+                <article class="info-content" itemscope itemtype="https://schema.org/Article">
+                    <h1>Domain Renewal Best Practices</h1>
+                    
+                    <div class="info-section">
+                        <h2>Ensuring Your Domains Never Expire Accidentally</h2>
+                        <p>Failing to renew a domain can result in loss of your website, email, brand identity, and years of SEO value. Establishing solid renewal practices protects your online assets.</p>
+
+                        <h3>Why Domain Renewal Matters</h3>
+                        <ul>
+                            <li><strong>Business continuity:</strong> An expired domain means your website and email stop working</li>
+                            <li><strong>Brand protection:</strong> Others can register your expired domain</li>
+                            <li><strong>SEO preservation:</strong> Losing a domain means losing all search rankings</li>
+                            <li><strong>Customer trust:</strong> An unavailable website damages credibility</li>
+                            <li><strong>Recovery costs:</strong> Reclaiming an expired domain is expensive or impossible</li>
+                        </ul>
+
+                        <h3>Best Practices</h3>
+
+                        <h4>1. Enable Auto-Renewal</h4>
+                        <p>The single most important step. Enable automatic renewal for all your domains and ensure your payment method stays current.</p>
+                        <ul>
+                            <li>Keep credit card details up to date</li>
+                            <li>Use a credit card that won't expire before the next renewal</li>
+                            <li>Verify auto-renewal is enabled after any account changes</li>
+                        </ul>
+
+                        <h4>2. Register for Multiple Years</h4>
+                        <ul>
+                            <li>Register critical domains for the maximum period (up to 10 years)</li>
+                            <li>Reduces the risk of accidental expiration</li>
+                            <li>May provide a minor SEO signal of domain commitment</li>
+                            <li>Often available at a discount for multi-year registration</li>
+                        </ul>
+
+                        <h4>3. Maintain Accurate Contact Information</h4>
+                        <ul>
+                            <li>Keep your registrar account email current</li>
+                            <li>Update billing information promptly</li>
+                            <li>Ensure you receive renewal notifications</li>
+                        </ul>
+
+                        <h4>4. Set Calendar Reminders</h4>
+                        <ul>
+                            <li>Create reminders 90, 60, and 30 days before expiration</li>
+                            <li>Don't rely solely on registrar notifications</li>
+                            <li>Include all domains in your reminder system</li>
+                        </ul>
+
+                        <h4>5. Consolidate Registrars</h4>
+                        <ul>
+                            <li>Managing domains across fewer registrars reduces complexity</li>
+                            <li>Easier to track renewal dates and payment methods</li>
+                            <li>Simplified management and billing</li>
+                        </ul>
+
+                        <h4>6. Maintain a Domain Inventory</h4>
+                        <ul>
+                            <li>Keep a spreadsheet or document listing all domains</li>
+                            <li>Include registrar, expiration date, auto-renewal status, and purpose</li>
+                            <li>Review quarterly to ensure accuracy</li>
+                        </ul>
+
+                        <h3>What to Do If a Domain Expires</h3>
+                        <ol>
+                            <li><strong>Grace Period:</strong> Renew immediately at normal price (varies by registrar, typically 0-45 days)</li>
+                            <li><strong>Redemption Period:</strong> Pay a premium fee to reclaim (usually $80-200+, lasts ~30 days)</li>
+                            <li><strong>Pending Delete:</strong> Domain is queued for release — very difficult to recover</li>
+                            <li><strong>Released:</strong> Domain becomes publicly available — anyone can register it</li>
+                        </ol>
+
+                        <div class="info-box">
+                            <strong>Monitor Expiration:</strong> Use our <a href="/">WHOIS lookup</a> to check expiration dates for your domains and competitors' domains. Stay proactive about renewals.
+                        </div>
+                    </div>
+
+                    <div class="info-navigation">
+                        <a href="/info/how-to-transfer-a-domain" class="btn btn-secondary">&larr; Previous: How to Transfer a Domain</a>
+                        <a href="/info/managing-multiple-domains" class="btn btn-primary">Next: Managing Multiple Domains &rarr;</a>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </main>
+
+    <footer th:replace="~{template::template_footer}"></footer>
+</body>
+</html>

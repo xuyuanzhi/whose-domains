@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+
+    <main>
+        <div class="container">
+            <div class="info-page">
+                <nav class="breadcrumb">
+                    <a href="/">Home</a> &gt; 
+                    <a href="/help-center">Help Center</a> &gt; 
+                    <span>How to Transfer a Domain</span>
+                </nav>
+
+                <article class="info-content" itemscope itemtype="https://schema.org/Article">
+                    <h1>How to Transfer a Domain</h1>
+                    
+                    <div class="info-section">
+                        <h2>Complete Guide to Domain Transfers</h2>
+                        <p>Domain transfer is the process of moving a domain name from one registrar to another. Understanding the transfer process helps ensure a smooth transition without downtime or loss of services.</p>
+
+                        <h3>Prerequisites for Transfer</h3>
+                        <ul>
+                            <li>Domain must be at least 60 days old (ICANN rule)</li>
+                            <li>Domain must not have been transferred in the last 60 days</li>
+                            <li>Domain must be unlocked (clientTransferProhibited removed)</li>
+                            <li>You must have access to the admin email address on file</li>
+                            <li>Domain must not be expired (or in redemption period)</li>
+                            <li>WHOIS privacy may need to be temporarily disabled</li>
+                        </ul>
+
+                        <h3>Step-by-Step Transfer Process</h3>
+
+                        <h4>Step 1: Prepare at the Current Registrar</h4>
+                        <ol>
+                            <li>Unlock the domain (disable transfer lock)</li>
+                            <li>Disable WHOIS privacy if required</li>
+                            <li>Obtain the authorization code (EPP code / transfer key)</li>
+                            <li>Verify the admin contact email is correct and accessible</li>
+                        </ol>
+
+                        <h4>Step 2: Initiate at the New Registrar</h4>
+                        <ol>
+                            <li>Start a transfer request at the new registrar</li>
+                            <li>Enter your domain name and authorization code</li>
+                            <li>Pay the transfer fee (usually includes a 1-year extension)</li>
+                        </ol>
+
+                        <h4>Step 3: Confirm the Transfer</h4>
+                        <ol>
+                            <li>Check your admin email for a transfer confirmation request</li>
+                            <li>Approve the transfer (usually via a link in the email)</li>
+                            <li>The old registrar may also send a notification — don't reject it</li>
+                        </ol>
+
+                        <h4>Step 4: Wait for Completion</h4>
+                        <ul>
+                            <li>Transfers typically complete within 5-7 days</li>
+                            <li>Some registrars offer expedited transfers</li>
+                            <li>DNS settings are usually preserved during transfer</li>
+                        </ul>
+
+                        <h3>Common Transfer Issues</h3>
+                        <ul>
+                            <li><strong>Transfer rejected:</strong> Domain may still be locked, or EPP code is incorrect</li>
+                            <li><strong>Email not received:</strong> Check spam, or update admin email first</li>
+                            <li><strong>60-day lock:</strong> Recently registered or transferred domains cannot be moved</li>
+                            <li><strong>Expired domain:</strong> Must renew before transferring</li>
+                            <li><strong>DNS disruption:</strong> Copy all DNS records to the new registrar before transferring</li>
+                        </ul>
+
+                        <h3>Tips for a Smooth Transfer</h3>
+                        <ul>
+                            <li>&#10004; Back up all DNS records before initiating the transfer</li>
+                            <li>&#10004; Set up the same DNS records at the new registrar in advance</li>
+                            <li>&#10004; Don't let the domain expire during the transfer process</li>
+                            <li>&#10004; Keep the old registrar account active until transfer completes</li>
+                            <li>&#10004; Re-enable transfer lock and WHOIS privacy after the transfer</li>
+                        </ul>
+
+                        <div class="info-box">
+                            <strong>Check First:</strong> Use our <a href="/">WHOIS lookup</a> to verify the current registrar, transfer lock status, and admin contact for any domain before initiating a transfer.
+                        </div>
+                    </div>
+
+                    <div class="info-navigation">
+                        <a href="/info/expired-domain-investing" class="btn btn-secondary">&larr; Previous: Expired Domain Investing</a>
+                        <a href="/info/domain-renewal-best-practices" class="btn btn-primary">Next: Domain Renewal Best Practices &rarr;</a>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </main>
+
+    <footer th:replace="~{template::template_footer}"></footer>
+</body>
+</html>

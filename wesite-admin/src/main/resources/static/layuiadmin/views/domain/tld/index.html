@@ -1,0 +1,232 @@
+
+
+<title>网站用户</title>
+  
+<div class="layui-card layadmin-header">
+  <div class="layui-breadcrumb" lay-filter="breadcrumb">
+    <a lay-href="">主页</a>
+    <a><cite>域名</cite></a>
+    <a><cite>顶级域名</cite></a>
+  </div>
+</div>
+
+<div class="layui-fluid">
+  <div class="layui-card">
+    <div class="layui-form layui-card-header layuiadmin-card-header-auto" lay-filter="layadmin-userfront-formlist">
+      <div class="layui-form-item">
+        <div class="layui-inline">
+          <label class="layui-form-label">关键词</label>
+          <div class="layui-input-block">
+            <input type="text" name="keyword" placeholder="请输入" autocomplete="off" class="layui-input">
+          </div>
+        </div>
+        <div class="layui-inline">
+          <button class="layui-btn layuiadmin-btn-useradmin" lay-submit lay-filter="LAY-user-front-search">
+            <i class="layui-icon layui-icon-search layuiadmin-button-btn"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+    
+    <div class="layui-card-body">
+      <table id="LAY-domain-tlds" lay-filter="LAY-domain-tlds"></table>
+      <script type="text/html" id="imgTpl"> 
+        <img style="display: inline-block; width: 50%; height: 100%;" src= {{ d.avatar }}>
+      </script> 
+      <script type="text/html" id="table-domain-tlds-btns">
+        <a class="layui-btn layui-btn-normal layui-btn-xs" lay-event="edit"><i class="layui-icon layui-icon-edit"></i>编辑</a>
+      </script>
+      <script type="text/html" id="toolbar01">
+      	<button class="layui-btn layui-btn-sm layuiadmin-btn-useradmin" lay-event="refresh"><i class="layui-icon layui-icon-addition"></i>刷新</button>
+      </script>
+    </div>
+  </div>
+</div>
+
+<script>
+layui.use(['admin', 'table'], function(){
+  var $ = layui.$
+  ,admin = layui.admin
+  ,view = layui.view
+  ,table = layui.table
+  ,form = layui.form;
+  
+  form.render(null, 'layadmin-userfront-formlist');
+  
+  table.render({
+    elem: '#LAY-domain-tlds'
+    ,url: './domain/tld/list' //模拟接口
+    ,method: 'post'
+    ,contentType: 'application/json;charset=UTF-8'
+    ,toolbar: '#toolbar01'
+    ,cols: [[
+      {type: 'numbers', fixed: 'left', title: '#'}
+      ,{field: 'name', title: '名称', width: 180}
+      ,{field: 'displayName', title: '显示名称', width: 180}
+      ,{field: 'orgName', title: '组织名称', width: 300}
+      ,{field: 'orgCountry', title: '组织国家'}
+      ,{field: 'adminCountry', title: '管理人国家'}
+      ,{field: 'techCountry', title: '技术人国家'}
+      ,{field: 'statusText', title: '状态', width: 60}
+      ,{field: 'createTimeText', width: 170, title: '创建时间'}
+      ,{field: 'updateTimeText', width: 170, title: '更新时间'}
+      ,{title: '操作', width: 150, align:'center', fixed: 'right', toolbar: '#table-domain-tlds-btns'}
+    ]]
+    ,page: true
+    ,limit: 20
+    ,height: 'full-320'
+    ,text: {none: '无数据'}
+  });
+  
+	//工具条
+  table.on('tool(LAY-domain-tlds)', function(obj){
+    var data = obj.data;
+    if(obj.event === 'edit'){
+    	admin.popup({
+            title: '编辑'
+            ,area: ['800px', '800px']
+            ,id: 'LAY-popup-tld-edit'
+            ,success: function(layero, index){
+              view(this.id).render('domain/tld/edit', data).done(function(){
+                form.render(null, 'layuiadmin-form-tld-edit');
+                
+                //开启提交
+                form.on('submit(layuiadmin-form-tld-edit-btn)', function(data){
+                  var field = data.field; //获取提交的字段
+                  if (!field.status) {
+                	  field.status = 2;
+                  }
+
+                  //提交 Ajax 成功后，关闭当前弹层并重载表格
+                  admin.req({
+                	  type : 'post',
+          			  url : '/domain/tld/save',
+          			  contentType: 'application/json;charset=UTF-8',
+          			  data: JSON.stringify(field),
+          			  success : function(resp) {
+          				if (resp.code == 0) {
+          					layui.table.reload('LAY-domain-tlds'); //重载表格
+          	                layer.close(index); //执行关闭 
+          				} else {
+          					layer.msg(resp.msg);
+          				}
+          			}
+                  });
+                  
+                });
+              });
+            }
+          });
+    } else if(obj.event === 'del'){
+    	layer.confirm('确认删除？', function(index){
+            admin.req({
+  		      url: '/listing/delete'
+  		      ,type: 'post'
+  		      ,contentType: 'application/json;charset=UTF-8'
+  		      ,data: JSON.stringify(data)
+  		  	  ,success: function(response) {
+  		  		  if (response && response.code === 0) {
+  		  			layer.msg("已删除");
+  		  			layer.close(index); //执行关闭 
+  		  			layui.table.reload('LAY-user-manage'); //重载表格
+  		  		  }
+  		  	  }
+  		  });
+          });
+    }
+  });
+	
+	table.on('toolbar(LAY-user-manage)', function(obj){
+		var data = obj.data;
+	    if(obj.event === 'refresh'){
+	      layui.table.reloadData('LAY-user-manage');
+	    } else if (obj.event === 'add') {
+	    	admin.popup({
+	            title: '添加列表'
+	            ,area: ['600px', '350px']
+	            ,id: 'LAY-popup-website-add'
+	            ,success: function(layero, index){
+	              view(this.id).render('listing/add').done(function(){
+	                form.render(null, 'layuiadmin-form-useradmin');
+	                
+	                //开启提交
+	                form.on('submit(LAY-user-front-submit)', function(data){
+	                  var field = data.field; //获取提交的字段
+	                  if (!field.status) {
+	                	  field.status = 2;
+	                  }
+
+	                  //提交 Ajax 成功后，关闭当前弹层并重载表格
+	                  admin.req({
+	                	  type : 'post',
+	          			  url : '/listing/save',
+	          			  contentType: 'application/json;charset=UTF-8',
+	          			  data: JSON.stringify(field),
+	          			  success : function(resp) {
+	          				if (resp.code == 0) {
+	          					layui.table.reload('LAY-user-manage'); //重载表格
+	          	                layer.close(index); //执行关闭 
+	          				} else {
+	          					layer.msg(resp.msg);
+	          				}
+	          			}
+	                  });
+	                  
+	                });
+	              });
+	            }
+	          });
+	    }
+	});
+  
+  //开启搜索
+  form.on('submit(LAY-user-front-search)', function(data){
+    var field = data.field;
+    
+    //执行重载
+    table.reload('LAY-domain-tlds', {
+      where: field
+    });
+  });
+
+  //事件
+  var active = {
+    batchdel: function(){
+      var checkStatus = table.checkStatus('LAY-user-manage')
+      ,checkData = checkStatus.data; //得到选中的数据
+
+      if(checkData.length === 0){
+        return layer.msg('请选择数据');
+      }
+      
+      layer.prompt({
+        formType: 1
+        ,title: '敏感操作，请验证口令'
+      }, function(value, index){
+        layer.close(index);
+        
+        layer.confirm('确定删除吗？', function(index) {
+          
+          //执行 Ajax 后重载
+          /*
+          admin.req({
+            url: 'xxx'
+            //,……
+          });
+          */
+          table.reload('LAY-user-manage');
+          layer.msg('已删除');
+        });
+      });
+    }
+    ,add: function(){
+      
+    }
+  };
+  
+  $('.layui-btn.layuiadmin-btn-useradmin').on('click', function(){
+    var type = $(this).data('type');
+    active[type] ? active[type].call(this) : '';
+  });
+});
+</script>

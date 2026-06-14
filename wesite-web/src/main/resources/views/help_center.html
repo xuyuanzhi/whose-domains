@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+
+	<main>
+		<section class="hero">
+			<div class="container">
+				<div class="hero-content">
+					<h1>Help Center</h1>
+					<p>Learn about domains, WHOIS lookups, and how to research domain information effectively.</p>
+				</div>
+			</div>
+		</section>
+
+		<div class="container">
+			<div class="help-categories-grid">
+				<div class="category-card">
+					<div class="category-icon">
+						<i class="fas fa-globe"></i>
+					</div>
+					<h3>Domain Basics</h3>
+					<p>Understand what domains are and how they work</p>
+					<ul>
+						<li><a href="/info/what-is-a-domain-name">What is a domain name?</a></li>
+						<li><a href="/info/domain-structure-and-tlds">Domain structure and TLDs</a></li>
+						<li><a href="/info/how-domain-registration-works">How domain registration works</a></li>
+						<li><a href="/info/understanding-domain-ownership">Understanding domain ownership</a></li>
+					</ul>
+					<a href="/info/what-is-a-domain-name" class="category-link">Learn More <i class="fas fa-arrow-right"></i></a>
+				</div>
+				<div class="category-card">
+					<div class="category-icon">
+						<i class="fas fa-search"></i>
+					</div>
+					<h3>WHOIS Lookup</h3>
+					<p>Learn how to use WHOIS to research domains</p>
+					<ul>
+						<li><a href="/info/what-is-whois">What is WHOIS?</a></li>
+						<li><a href="/info/how-to-perform-a-whois-lookup">How to perform a WHOIS lookup</a></li>
+						<li><a href="/info/reading-whois-results">Reading WHOIS results</a></li>
+						<li><a href="/info/domain-privacy-protection">Domain privacy protection</a></li>
+					</ul>
+					<a href="/info/what-is-whois" class="category-link">Learn More <i class="fas fa-arrow-right"></i></a>
+				</div>
+				<div class="category-card">
+					<div class="category-icon">
+						<i class="fas fa-clock"></i>
+					</div>
+					<h3>Domain History</h3>
+					<p>Track domain changes and historical data</p>
+					<ul>
+						<li><a href="/info/why-domain-history-matters">Why domain history matters</a></li>
+						<li><a href="/info/tracking-ownership-changes">Tracking ownership changes</a></li>
+						<li><a href="/info/dns-record-history">DNS record history</a></li>
+						<li><a href="/info/expiration-and-renewal-history">Expiration and renewal history</a></li>
+					</ul>
+					<a href="/info/why-domain-history-matters" class="category-link">Learn More <i class="fas fa-arrow-right"></i></a>
+				</div>
+				<div class="category-card">
+					<div class="category-icon">
+						<i class="fas fa-shield-alt"></i>
+					</div>
+					<h3>Domain Security</h3>
+					<p>Protect your domains and understand security features</p>
+					<ul>
+						<li><a href="/info/domain-security-basics">Domain security basics</a></li>
+						<li><a href="/info/domain-lock-and-transfer-protection">Domain lock and transfer protection</a></li>
+						<li><a href="/info/understanding-dnssec">Understanding DNSSEC</a></li>
+						<li><a href="/info/preventing-domain-fraud">Preventing domain fraud</a></li>
+					</ul>
+					<a href="/info/domain-security-basics" class="category-link">Learn More <i class="fas fa-arrow-right"></i></a>
+				</div>
+				<div class="category-card">
+					<div class="category-icon">
+						<i class="fas fa-certificate"></i>
+					</div>
+					<h3>SSL/TLS Certificates</h3>
+					<p>Understand SSL certificates and website encryption</p>
+					<ul>
+						<li><a href="/info/what-is-ssl-tls-certificate">What is an SSL/TLS certificate?</a></li>
+						<li><a href="/info/types-of-ssl-certificates">Types of SSL certificates (DV, OV, EV)</a></li>
+						<li><a href="/info/how-to-check-ssl-certificate">How to check SSL certificate</a></li>
+						<li><a href="/info/ssl-certificate-expiration">SSL certificate expiration &amp; renewal</a></li>
+					</ul>
+					<a href="/info/what-is-ssl-tls-certificate" class="category-link">Learn More <i class="fas fa-arrow-right"></i></a>
+				</div>
+				<div class="category-card">
+					<div class="category-icon">
+						<i class="fas fa-network-wired"></i>
+					</div>
+					<h3>DNS Deep Dive</h3>
+					<p>Master the Domain Name System inside and out</p>
+					<ul>
+						<li><a href="/info/how-dns-works">How DNS works</a></li>
+						<li><a href="/info/common-dns-record-types">Common DNS record types</a></li>
+						<li><a href="/info/dns-propagation-explained">DNS propagation explained</a></li>
+						<li><a href="/info/choosing-dns-providers">Choosing a DNS provider</a></li>
+					</ul>
+					<a href="/info/how-dns-works" class="category-link">Learn More <i class="fas fa-arrow-right"></i></a>
+				</div>
+				<div class="category-card">
+					<div class="category-icon">
+						<i class="fas fa-user-shield"></i>
+					</div>
+					<h3>Advanced Security</h3>
+					<p>Advanced domain security and threat prevention</p>
+					<ul>
+						<li><a href="/info/domain-hijacking-prevention">Domain hijacking prevention</a></li>
+						<li><a href="/info/email-authentication-spf-dkim-dmarc">SPF, DKIM &amp; DMARC explained</a></li>
+						<li><a href="/info/phishing-and-domain-spoofing">Phishing &amp; domain spoofing</a></li>
+						<li><a href="/info/typosquatting-protection">Typosquatting &amp; brand protection</a></li>
+					</ul>
+					<a href="/info/domain-hijacking-prevention" class="category-link">Learn More <i class="fas fa-arrow-right"></i></a>
+				</div>
+				<div class="category-card">
+					<div class="category-icon">
+						<i class="fas fa-dollar-sign"></i>
+					</div>
+					<h3>Domain Valuation &amp; Trading</h3>
+					<p>Understand domain value and the aftermarket</p>
+					<ul>
+						<li><a href="/info/how-domain-valuation-works">How domain valuation works</a></li>
+						<li><a href="/info/domain-aftermarket-guide">Domain aftermarket guide</a></li>
+						<li><a href="/info/understanding-domain-auctions">Understanding domain auctions</a></li>
+						<li><a href="/info/expired-domain-investing">Expired domain investing</a></li>
+					</ul>
+					<a href="/info/how-domain-valuation-works" class="category-link">Learn More <i class="fas fa-arrow-right"></i></a>
+				</div>
+				<div class="category-card">
+					<div class="category-icon">
+						<i class="fas fa-cogs"></i>
+					</div>
+					<h3>Domain Management</h3>
+					<p>Best practices for managing your domains</p>
+					<ul>
+						<li><a href="/info/how-to-transfer-a-domain">How to transfer a domain</a></li>
+						<li><a href="/info/domain-renewal-best-practices">Domain renewal best practices</a></li>
+						<li><a href="/info/managing-multiple-domains">Managing multiple domains</a></li>
+						<li><a href="/info/domain-forwarding-and-redirects">Domain forwarding &amp; redirects</a></li>
+					</ul>
+					<a href="/info/how-to-transfer-a-domain" class="category-link">Learn More <i class="fas fa-arrow-right"></i></a>
+				</div>
+				<div class="category-card">
+					<div class="category-icon">
+						<i class="fas fa-chart-bar"></i>
+					</div>
+					<h3>Domain Research &amp; Tools</h3>
+					<p>Research techniques and tools for domain analysis</p>
+					<ul>
+						<li><a href="/info/domain-age-checker-guide">Domain age checker guide</a></li>
+						<li><a href="/info/reverse-whois-lookup">Reverse WHOIS lookup</a></li>
+						<li><a href="/info/ip-to-domain-lookup">IP to domain lookup</a></li>
+						<li><a href="/info/bulk-domain-lookup">Bulk domain lookup</a></li>
+					</ul>
+					<a href="/info/domain-age-checker-guide" class="category-link">Learn More <i class="fas fa-arrow-right"></i></a>
+				</div>
+			</div>
+
+			<div class="faq-section">
+				<div class="section-header">
+					<h2>Frequently Asked Questions</h2>
+					<p>Quick answers to common domain and WHOIS questions</p>
+				</div>
+				
+				<div class="faq-accordion">
+					<div class="faq-item">
+						<div class="faq-question">
+							What is a domain name?
+							<span class="faq-toggle">+</span>
+						</div>
+						<div class="faq-answer">
+							<p>A domain name is a human-readable address for a website on the internet. It translates to an IP address that computers use to locate web servers. For example, "example.com" is a domain name that points to a specific server IP address.</p>
+						</div>
+					</div>
+
+					<div class="faq-item">
+						<div class="faq-question">
+							What is WHOIS?
+							<span class="faq-toggle">+</span>
+						</div>
+						<div class="faq-answer">
+							<p>WHOIS is a public database that contains information about registered domain names, including the registrant's contact information, registration date, expiration date, and the domain's nameservers. It's used to look up who owns a domain.</p>
+						</div>
+					</div>
+
+					<div class="faq-item">
+						<div class="faq-question">
+							How do I perform a WHOIS lookup?
+							<span class="faq-toggle">+</span>
+						</div>
+						<div class="faq-answer">
+							<p>Simply enter any domain name in the search box on our homepage and press Enter. Our system will query the appropriate WHOIS servers and display all available registration information.</p>
+						</div>
+					</div>
+
+					<div class="faq-item">
+						<div class="faq-question">
+							Why are some domain details hidden?
+							<span class="faq-toggle">+</span>
+						</div>
+						<div class="faq-answer">
+							<p>Many domain owners use privacy protection services to hide their personal information from public WHOIS records. This is a legitimate service offered by most registrars to protect against spam and unwanted contact.</p>
+						</div>
+					</div>
+
+					<div class="faq-item">
+						<div class="faq-question">
+							What are Top-Level Domains (TLDs)?
+							<span class="faq-toggle">+</span>
+						</div>
+						<div class="faq-answer">
+							<p>TLDs are the last part of a domain name, such as .com, .org, .net, or country-code TLDs like .cn, .uk, .jp. Different TLDs have different registration rules and purposes.</p>
+						</div>
+					</div>
+
+					<div class="faq-item">
+						<div class="faq-question">
+							How current is your WHOIS data?
+							<span class="faq-toggle">+</span>
+						</div>
+						<div class="faq-answer">
+							<p>We update our WHOIS data in real-time by querying the official registry servers when you make a request. However, registry servers may cache data for up to 24 hours, so very recent changes might not be immediately visible.</p>
+						</div>
+					</div>
+
+					<div class="faq-item">
+						<div class="faq-question">
+							What is domain privacy protection?
+							<span class="faq-toggle">+</span>
+						</div>
+						<div class="faq-answer">
+							<p>Domain privacy (also called WHOIS privacy) is a service that replaces your personal contact information in the WHOIS database with the contact information of a forwarding service. This helps protect your privacy and reduce spam.</p>
+						</div>
+					</div>
+
+					<div class="faq-item">
+						<div class="faq-question">
+							How do I check if a domain is available?
+							<span class="faq-toggle">+</span>
+						</div>
+						<div class="faq-answer">
+							<p>Use our WHOIS lookup tool. If a domain is available for registration, the WHOIS results will indicate that the domain has no registrant or show a status indicating it's available.</p>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<div class="support-section">
+				<div class="section-header">
+					<h2>Learn More About Domains</h2>
+					<p>Additional resources to deepen your domain knowledge</p>
+				</div>
+				
+				<div class="support-options">
+					<div class="support-option">
+						<div class="support-icon">
+							<i class="fas fa-book"></i>
+						</div>
+						<h3>Domain Glossary</h3>
+						<p>Key terms and definitions</p>
+						<p class="support-meta">Understand domain industry terminology</p>
+					</div>
+					<div class="support-option">
+						<div class="support-icon">
+							<i class="fas fa-newspaper"></i>
+						</div>
+						<h3>Domain News & Insights</h3>
+						<p>Latest trends in the domain industry</p>
+						<p class="support-meta">Stay updated on domain market changes</p>
+					</div>
+					<div class="support-option">
+						<div class="support-icon">
+							<i class="fas fa-envelope"></i>
+						</div>
+						<h3>Contact Us</h3>
+						<p>support@whose.domains</p>
+						<p class="support-meta">Questions? We're here to help</p>
+					</div>
+				</div>
+			</div>
+		</div>
+	</main>
+
+    <footer th:replace="~{template::template_footer}"></footer>
+    
+    <script>
+        // FAQ accordion functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const faqItems = document.querySelectorAll('.faq-item');
+            
+            faqItems.forEach(item => {
+                const question = item.querySelector('.faq-question');
+                
+                question.addEventListener('click', () => {
+                    const answer = item.querySelector('.faq-answer');
+                    const toggle = item.querySelector('.faq-toggle');
+                    
+                    // Close other open items
+                    faqItems.forEach(otherItem => {
+                        if (otherItem !== item) {
+                            otherItem.classList.remove('active');
+                        }
+                    });
+                    
+                    // Toggle current item
+                    item.classList.toggle('active');
+                    
+                    // Update toggle icon
+                    if (item.classList.contains('active')) {
+                        toggle.textContent = '-';
+                    } else {
+                        toggle.textContent = '+';
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>

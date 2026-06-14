@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+    <main>
+        <section class="hero">
+            <div class="container">
+                <div class="hero-content">
+                    <h1>💎 Domain Valuation</h1>
+                    <p>Estimate your domain's market value. Our algorithm evaluates length, TLD, keyword quality, domain age, category premium, and purity — calibrated against NameBio and Sedo public sales data.</p>
+                    <div class="search-container">
+                        <input type="text" id="domainInput" class="search-input"
+                               placeholder="Enter domain name (e.g. example.com)"
+                               autocomplete="off" autocapitalize="none" spellcheck="false">
+                        <button id="valuateBtn" class="search-btn">
+                            <i class="fas fa-dollar-sign"></i> Valuate
+                        </button>
+                    </div>
+                    <div class="example-text">Try: cloud.com · pay.io · mybrand.ai · 8888.com</div>
+                </div>
+            </div>
+        </section>
+
+        <div th:replace="~{template::ad_banner_top}"></div>
+
+        <div class="container">
+<div id="resultsSection" class="results-section">
+
+                <!-- ── Hero card ───────────────────────────────────────────── -->
+                <div class="result-card" style="padding:32px 28px;">
+                    <div style="display:flex; flex-wrap:wrap; gap:24px; align-items:flex-start;">
+
+                        <!-- Left: Price + Grade -->
+                        <div style="flex:1; min-width:220px;">
+                            <div id="domainDisplay" style="font-size:1.35rem;font-weight:700;color:#e2e8f0;margin-bottom:6px;"></div>
+                            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;">
+                                <span id="categoryBadge" style="padding:3px 12px;border-radius:20px;font-size:12px;font-weight:600;background:rgba(100,255,218,0.12);color:#64ffda;"></span>
+                                <span id="gradeBadge"></span>
+                            </div>
+                            <div id="priceRange" style="font-size:2.4rem;font-weight:800;color:#64ffda;margin-bottom:4px;line-height:1.1;"></div>
+                            <div style="font-size:13px;color:var(--gray);">Estimated Market Value Range</div>
+                            <div style="margin-top:8px;font-size:14px;color:#a0aec0;">
+                                Mid estimate: <span id="midValue" style="color:#e2e8f0;font-weight:600;"></span>
+                            </div>
+                        </div>
+
+                        <!-- Right: Score + Meta -->
+                        <div style="display:flex;flex-direction:column;gap:14px;min-width:200px;">
+                            <!-- Investment grade -->
+                            <div style="text-align:center;padding:12px 20px;border-radius:10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);">
+                                <div style="font-size:11px;color:var(--gray);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;">Investment Grade</div>
+                                <div id="investmentGrade" style="font-size:2.2rem;font-weight:800;"></div>
+                            </div>
+                            <!-- Confidence -->
+                            <div style="text-align:center;padding:10px 18px;border-radius:10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);">
+                                <div style="font-size:11px;color:var(--gray);margin-bottom:4px;text-transform:uppercase;letter-spacing:.08em;">Estimate Confidence</div>
+                                <div id="confidenceDisplay" style="font-size:15px;font-weight:600;"></div>
+                                <div id="confidenceDots" style="margin-top:4px;"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Score bar -->
+                    <div style="margin-top:22px;">
+                        <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--gray);margin-bottom:6px;">
+                            <span>Domain Score</span><span id="scoreLabel" style="font-weight:600;color:#e2e8f0;"></span>
+                        </div>
+                        <div style="background:rgba(255,255,255,0.07);border-radius:8px;height:9px;overflow:hidden;">
+                            <div id="scoreBar" style="height:100%;border-radius:8px;background:linear-gradient(90deg,#64ffda,#00b4d8);transition:width .7s ease;width:0%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── Market Insight ──────────────────────────────────────── -->
+                <div id="insightCard" style="display:none;padding:14px 18px;border-radius:10px;background:rgba(100,255,218,0.06);border:1px solid rgba(100,255,218,0.18);font-size:13.5px;color:#a0ffd8;line-height:1.6;">
+                    <span style="font-size:15px;margin-right:6px;">📊</span>
+                    <span id="insightText"></span>
+                </div>
+
+                <!-- ── Factors + SEO ──────────────────────────────────────── -->
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+
+                    <!-- Valuation Factors -->
+                    <div class="result-card">
+                        <h3 style="margin-bottom:18px;font-size:15px;"><i class="fas fa-chart-bar"></i> Valuation Factors</h3>
+                        <div id="factorsGrid"></div>
+                    </div>
+
+                    <!-- Right column: SEO + Use Cases -->
+                    <div style="display:flex;flex-direction:column;gap:20px;">
+                        <!-- SEO + metrics -->
+                        <div class="result-card">
+                            <h3 style="margin-bottom:14px;font-size:15px;"><i class="fas fa-search"></i> Key Metrics</h3>
+                            <div id="metricsGrid"></div>
+                        </div>
+                        <!-- Use Cases -->
+                        <div class="result-card" style="flex:1;">
+                            <h3 style="margin-bottom:12px;font-size:15px;"><i class="fas fa-lightbulb"></i> Ideal Use Cases</h3>
+                            <ul id="useCasesList" style="padding-left:18px;margin:0;line-height:2;font-size:13.5px;color:#a0aec0;"></ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── Formula Breakdown ──────────────────────────────────── -->
+                <div id="formulaCard" class="result-card">
+                    <h3 style="margin-bottom:14px;font-size:15px;">🧮 Valuation Formula — <code style="font-size:13px;background:rgba(255,255,255,0.06);padding:2px 8px;border-radius:4px;">P = P₁ × K₁ × K₂ × K₃ × K₄ × S</code></h3>
+                    <div id="formulaGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;"></div>
+                </div>
+                <div class="result-card">
+                    <h3 style="margin-bottom:14px;font-size:15px;"><i class="fas fa-info-circle"></i> Domain Details</h3>
+                    <div id="detailsTable"></div>
+                </div>
+
+                <!-- ── Comparable Sales ───────────────────────────────────── -->
+                <div id="compCard" class="result-card">
+                    <h3 style="margin-bottom:14px;font-size:15px;"><i class="fas fa-gavel"></i> Comparable Sales
+                        <small style="font-weight:400;color:var(--gray);font-size:12px;"> — similar domains sold on NameBio / Sedo</small>
+                    </h3>
+                    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                        <thead>
+                            <tr style="color:var(--gray);text-align:left;border-bottom:1px solid rgba(255,255,255,0.1);">
+                                <th style="padding:6px 10px;">Domain</th>
+                                <th style="padding:6px 10px;">Sale Price</th>
+                                <th style="padding:6px 10px;">Year</th>
+                                <th style="padding:6px 10px;">Category</th>
+                            </tr>
+                        </thead>
+                        <tbody id="compTableBody"></tbody>
+                    </table>
+                    <div style="margin-top:10px;font-size:12px;color:var(--gray);">
+                        Source: NameBio public records. Prices are historical and may not reflect current market.
+                        Verify on <a href="https://namebio.com" target="_blank" rel="noopener" style="color:#64ffda;">NameBio</a> or
+                        <a href="https://sedo.com" target="_blank" rel="noopener" style="color:#64ffda;">Sedo</a>.
+                    </div>
+                </div>
+
+                <!-- ── Brand Premium ──────────────────────────────────────── -->
+                <div id="brandPremiumNote" style="display:none;padding:14px 18px;border-radius:8px;background:rgba(255,183,0,0.07);border:1px solid rgba(255,183,0,0.25);font-size:13px;color:#ffc107;">
+                    <i class="fas fa-star"></i>
+                    <strong> Brand Premium Not Included:</strong>
+                    Short or aged domains may be worth substantially more if they carry brand equity, trademarks, or significant type-in traffic. Check comparable sales on
+                    <a href="https://www.namebio.com" target="_blank" rel="noopener" style="color:#ffc107;">NameBio</a> or
+                    <a href="https://sedo.com" target="_blank" rel="noopener" style="color:#ffc107;">Sedo</a>.
+                </div>
+
+                <!-- ── Methodology ────────────────────────────────────────── -->
+                <details style="border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);padding:14px 18px;">
+                    <summary style="cursor:pointer;font-size:14px;font-weight:600;color:#e2e8f0;list-style:none;user-select:none;">
+                        <span style="margin-right:6px;">⚙️</span> How We Calculate — Pricing Methodology
+                        <span style="float:right;color:var(--gray);font-weight:400;font-size:12px;">click to expand</span>
+                    </summary>
+                    <div style="margin-top:14px;font-size:13px;color:#a0aec0;line-height:1.8;">
+                        <p>Our algorithm follows the industry-standard multiplicative formula, calibrated against <strong style="color:#e2e8f0;">Sedo Appraisal</strong> and NameBio historical sales (2022-2025):</p>
+                        <div style="text-align:center;font-size:16px;font-weight:700;color:#64ffda;margin:12px 0;letter-spacing:.05em;">P = P₁ × K₁ × K₂ × K₃ × K₄ × S</div>
+                        <ol style="padding-left:18px;">
+                            <li><strong style="color:#e2e8f0;">P₁ — 基价 (Base Price)</strong>: median market value for a mid-tier keyword .com of this length. e.g. 6-char: $5,500; 5-char: $13,000; 4-char: $30,000</li>
+                            <li><strong style="color:#e2e8f0;">K₁ — 长度系数 (Characters)</strong>: character composition purity. Pure letters = 1.0; mixed alphanumeric = 0.35; hyphenated = 0.06</li>
+                            <li><strong style="color:#e2e8f0;">K₂ — 信用等级系数 (Credit Rating)</strong>: keyword quality uplift vs P₁ baseline. High-value keyword ≈ 4–8×; brandable ≈ 1.0–1.2×; random letters ≈ 0.05–0.25×</li>
+                            <li><strong style="color:#e2e8f0;">K₃ — TLD 系数 (TLD)</strong>: .com = 1.0; .ai (Tech keyword, 2025-2026) = 2.0; .ai (other) = 0.80; .io = 0.32–0.50; .net = 0.25</li>
+                            <li><strong style="color:#e2e8f0;">K₄ — 商业价值系数 (Commerce)</strong>: Finance = 1.35; Tech = 1.30; Health/eCommerce = 1.20; General = 1.0</li>
+                            <li><strong style="color:#e2e8f0;">S — 年限系数 (Age)</strong>: domain age ÷ 20, range [0.25, 1.0]. Unknown age defaults to 0.65 (~13-year typical secondary-market domain)</li>
+                        </ol>
+                        <p>Price range: <code style="background:rgba(255,255,255,0.06);padding:1px 5px;border-radius:3px;">P × 0.45</code> (conservative) to <code style="background:rgba(255,255,255,0.06);padding:1px 5px;border-radius:3px;">P × 4.0</code> (end-user premium). Minimum: $500 for .com, $100 for other TLDs.</p>
+                        <p style="color:#ff8a65;"><strong>⚠ Disclaimer:</strong> Algorithmic estimate only. Actual value depends on buyer demand, traffic, backlinks, and negotiation. Always verify with comparable sales.</p>
+                    </div>
+                </details>
+
+                <!-- ── Pricing comparison note ───────────────────────────── -->
+                <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:16px 20px;font-size:13px;color:#a0aec0;line-height:1.7;">
+                    <strong style="color:#e2e8f0;">📈 Compare with other appraisal tools:</strong><br>
+                    <a href="https://www.godaddy.com/domain-value-appraisal" target="_blank" rel="noopener" style="color:#64ffda;">GoDaddy Appraisal</a> ·
+                    <a href="https://www.estibot.com" target="_blank" rel="noopener" style="color:#64ffda;">Estibot</a> ·
+                    <a href="https://namebio.com" target="_blank" rel="noopener" style="color:#64ffda;">NameBio</a> ·
+                    <a href="https://sedo.com/us/services/domain-appraisal/" target="_blank" rel="noopener" style="color:#64ffda;">Sedo Appraisal</a> ·
+                    <a href="https://dan.com" target="_blank" rel="noopener" style="color:#64ffda;">DAN.com</a>
+                    <br><span style="font-size:12px;color:var(--gray);">Different tools use different data sources — cross-referencing gives the most reliable picture.</span>
+                </div>
+
+                <button class="search-again" onclick="reset()">
+                    <i class="fas fa-sync-alt"></i> Valuate Another
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <div th:replace="~{fragments/related-tools::related(slug='domain-valuation')}"></div>
+    <footer th:replace="~{template::template_footer}"></footer>
+
+    <style>
+        .factor-row { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+        .factor-row-label { font-size:12px; color:var(--gray); width:95px; flex-shrink:0; }
+        .factor-row-bar { flex:1; background:rgba(255,255,255,0.07); border-radius:4px; height:6px; overflow:hidden; }
+        .factor-row-fill { height:100%; border-radius:4px; transition:width .6s ease; }
+        .factor-row-val { font-size:12px; font-weight:700; width:32px; text-align:right; }
+        .metric-row { display:flex; justify-content:space-between; align-items:center; padding:7px 0; border-bottom:1px solid rgba(255,255,255,0.05); font-size:13px; }
+        .metric-row:last-child { border-bottom:none; }
+        .metric-label { color:var(--gray); }
+        .metric-value { font-weight:600; }
+        @media(max-width:640px) {
+            #resultsSection > div:nth-child(5) { grid-template-columns:1fr !important; }
+        }
+    </style>
+
+    <script>
+        document.getElementById('valuateBtn').addEventListener('click', doValuate);
+        document.getElementById('domainInput').addEventListener('keydown', function(e) { if (e.key === 'Enter') doValuate(); });
+
+        var params = new URLSearchParams(window.location.search);
+        if (params.get('d')) { document.getElementById('domainInput').value = params.get('d'); doValuate(); }
+
+        async function doValuate() {
+            var domain = document.getElementById('domainInput').value.trim();
+            if (!domain) return;
+            showLoader();
+            document.getElementById('resultsSection').classList.remove('active');
+            try {
+                var r = await fetch('/api/tools/valuation/' + encodeURIComponent(domain));
+                var json = await r.json();
+                if (json.code === 0) renderResult(json.data);
+                else alert(json.msg || 'Valuation failed');
+            } catch(e) { alert('Network error, please try again.'); }
+            finally { hideLoader(); }
+        }
+
+        function renderResult(d) {
+            var f = d.factors;
+
+            // ── Hero ──────────────────────────────────────────────────────────
+            document.getElementById('domainDisplay').textContent = d.domain;
+            document.getElementById('priceRange').textContent = '$' + fmt(d.priceLow) + ' – $' + fmt(d.priceHigh);
+            document.getElementById('midValue').textContent = '$' + fmt(d.midValue);
+            document.getElementById('scoreLabel').textContent = d.score + ' / 100';
+            document.getElementById('scoreBar').style.width = d.score + '%';
+            var scoreColor = d.score >= 75 ? '#00e676' : d.score >= 50 ? '#ffab00' : '#ff5252';
+            document.getElementById('scoreBar').style.background = 'linear-gradient(90deg,' + scoreColor + ',#00b4d8)';
+
+            // Grade badge
+            var gradeColors = { Premium:'#69f0ae', Good:'#64ffda', Fair:'#ffc107', Low:'#ff8a65' };
+            var gc = gradeColors[d.grade] || '#64ffda';
+            document.getElementById('gradeBadge').innerHTML =
+                '<span style="padding:3px 14px;border-radius:20px;font-weight:700;font-size:12px;background:' + gc + '22;color:' + gc + ';">' + d.grade + '</span>';
+
+            // Category badge
+            document.getElementById('categoryBadge').textContent = d.categoryIcon + ' ' + d.category;
+
+            // Investment grade
+            var igColors = {'A+':'#00e676','A':'#69f0ae','B+':'#64ffda','B':'#ffab00','C':'#ff8a65','D':'#ff5252'};
+            var igc = igColors[d.investmentGrade] || '#64ffda';
+            document.getElementById('investmentGrade').innerHTML =
+                '<span style="color:' + igc + ';">' + d.investmentGrade + '</span>';
+
+            // Confidence
+            document.getElementById('confidenceDisplay').textContent = d.confidenceLabel;
+            var dotColor = d.confidence >= 3 ? '#00e676' : d.confidence >= 2 ? '#ffab00' : '#ff5252';
+            var dots = '';
+            for (var i = 0; i < 3; i++) {
+                dots += '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;margin:0 3px;background:' +
+                    (i < d.confidence ? dotColor : 'rgba(255,255,255,0.15)') + ';"></span>';
+            }
+            document.getElementById('confidenceDots').innerHTML = dots;
+
+            // ── Market insight ────────────────────────────────────────────────
+            if (d.marketInsight) {
+                document.getElementById('insightText').textContent = d.marketInsight;
+                document.getElementById('insightCard').style.display = 'block';
+            } else {
+                document.getElementById('insightCard').style.display = 'none';
+            }
+
+            // ── Factors ───────────────────────────────────────────────────────
+            var factorDefs = [
+                { key:'lengthScore',  label:'Length',     weight:'25%' },
+                { key:'tldScore',     label:'TLD',        weight:'25%' },
+                { key:'keywordScore', label:'Keyword',    weight:'25%' },
+                { key:'ageScore',     label:'Age',        weight:'15%' },
+                { key:'purityScore',  label:'Purity',     weight:'10%' }
+            ];
+            var fg = '';
+            factorDefs.forEach(function(fd) {
+                var sc = f[fd.key] || 0;
+                var fc = sc >= 70 ? '#00e676' : sc >= 40 ? '#ffab00' : '#ff5252';
+                fg += '<div class="factor-row">' +
+                    '<div class="factor-row-label">' + fd.label + '<br><small style="font-size:10px;opacity:.6;">' + fd.weight + '</small></div>' +
+                    '<div class="factor-row-bar"><div class="factor-row-fill" style="width:' + sc + '%;background:' + fc + ';"></div></div>' +
+                    '<div class="factor-row-val" style="color:' + fc + ';">' + sc + '</div>' +
+                    '</div>';
+            });
+            document.getElementById('factorsGrid').innerHTML = fg;
+
+            // ── Metrics ───────────────────────────────────────────────────────
+            var seoColor = d.seoScore >= 70 ? '#00e676' : d.seoScore >= 40 ? '#ffab00' : '#ff5252';
+            document.getElementById('metricsGrid').innerHTML =
+                metricRow('SEO Potential', '<span style="color:' + seoColor + ';">' + d.seoScore + '/100</span>') +
+                metricRow('TLD', f.tld) +
+                metricRow('Length', f.domainLength + ' chars') +
+                metricRow('Domain Age', f.ageYears > 0 ? f.ageYears + ' yrs' : 'Unknown') +
+                metricRow('Keyword Match', f.isDictWord ? '<span style="color:#00e676;">✓ Yes</span>' : '✗ No') +
+                metricRow('Brandable', f.isBrandable ? '<span style="color:#00e676;">✓ Yes</span>' : '✗ No') +
+                metricRow('Hyphen', f.hasHyphen ? '<span style="color:#ff5252;">⚠ Yes</span>' : '<span style="color:#00e676;">✓ No</span>') +
+                metricRow('Contains Digit', f.hasNumber ? '<span style="color:#ffab00;">Yes</span>' : '<span style="color:#00e676;">✓ No</span>');
+
+            // ── Use Cases ────────────────────────────────────────────────────
+            var ucHtml = (d.useCases || []).map(function(u) {
+                return '<li>' + escHtml(u) + '</li>';
+            }).join('');
+            document.getElementById('useCasesList').innerHTML = ucHtml;
+
+            // ── Formula Breakdown ─────────────────────────────────────────────
+            var formulaItems = [
+                { sym:'P₁', name:'Base Price',      val:'$'+fmt(f.p1),       desc:'Median .com MV keyword of this length' },
+                { sym:'K₁', name:'Characters',      val:f.k1.toFixed(2),     desc:f.hasHyphen ? 'Hyphen (-94%)' : (f.hasNumber&&!f.isDictWord ? 'Mixed (-65%)' : 'Pure letters (1.0)') },
+                { sym:'K₂', name:'Credit Rating',   val:f.k2.toFixed(2),     desc:f.isDictWord ? 'Keyword match' : (f.isBrandable ? 'Brandable word' : 'No keyword match') },
+                { sym:'K₃', name:'TLD',             val:f.k3.toFixed(2),     desc:f.tld + ' coefficient' },
+                { sym:'K₄', name:'Commerce',        val:f.k4.toFixed(2),     desc:d.category + ' category premium' },
+                { sym:'S',  name:'Age Factor',      val:f.s.toFixed(2),      desc:f.ageKnown ? (f.ageYears + ' yrs ÷ 20') : 'Unknown age (default 0.65)' }
+            ];
+            var fgHtml = '';
+            formulaItems.forEach(function(item) {
+                var isBoost = parseFloat(item.val) > 1.0;
+                var isDrag  = parseFloat(item.val) < 1.0;
+                var valColor = isBoost ? '#00e676' : isDrag ? '#ff8a65' : '#e2e8f0';
+                fgHtml += '<div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:12px 14px;">' +
+                    '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;">' +
+                    '<span style="font-size:18px;font-weight:800;color:#64ffda;">' + item.sym + '</span>' +
+                    '<span style="font-size:16px;font-weight:700;color:' + valColor + ';">' + item.val + '</span>' +
+                    '</div>' +
+                    '<div style="font-size:12px;font-weight:600;color:#e2e8f0;margin-bottom:2px;">' + item.name + '</div>' +
+                    '<div style="font-size:11px;color:var(--gray);">' + item.desc + '</div>' +
+                    '</div>';
+            });
+            document.getElementById('formulaGrid').innerHTML = fgHtml;
+
+            // ── Details ──────────────────────────────────────────────────────
+            document.getElementById('detailsTable').innerHTML =
+                '<table style="width:100%;border-collapse:collapse;font-size:13px;">' +
+                drow('Domain', d.domain) +
+                drow('TLD Extension', f.tld) +
+                drow('Label Length', f.domainLength + ' characters') +
+                drow('Domain Age', f.ageYears > 0 ? f.ageYears + ' years' : 'Unknown / Not in database') +
+                drow('Category', d.categoryIcon + ' ' + d.category) +
+                drow('Keyword / Dictionary word', f.isDictWord ? '✓ Yes' : '✗ No') +
+                drow('Brandable / Pronounceable', f.isBrandable ? '✓ Yes' : '✗ No') +
+                drow('Contains Hyphen', f.hasHyphen ? '⚠ Yes (discounts value ~94%)' : '✓ No') +
+                drow('Contains Numbers', f.hasNumber ? '⚠ Yes' : '✓ No') +
+                '</table>';
+
+            // ── Comparable Sales ─────────────────────────────────────────────
+            var comps = d.comparableSales || [];
+            if (comps.length > 0) {
+                var tbody = '';
+                comps.forEach(function(c) {
+                    tbody += '<tr style="border-bottom:1px solid rgba(255,255,255,0.05);">' +
+                        '<td style="padding:8px 10px;font-weight:600;color:#e2e8f0;">' + escHtml(c.domain) + '</td>' +
+                        '<td style="padding:8px 10px;color:#00e676;font-weight:700;">' + escHtml(c.priceDisplay) + '</td>' +
+                        '<td style="padding:8px 10px;color:var(--gray);">' + c.year + '</td>' +
+                        '<td style="padding:8px 10px;color:var(--gray);">' + escHtml(c.category) + '</td>' +
+                        '</tr>';
+                });
+                document.getElementById('compTableBody').innerHTML = tbody;
+                document.getElementById('compCard').style.display = 'block';
+            } else {
+                document.getElementById('compCard').style.display = 'none';
+            }
+
+            // ── Brand premium note ───────────────────────────────────────────
+            document.getElementById('brandPremiumNote').style.display = d.brandPremiumNote ? 'block' : 'none';
+
+            document.getElementById('resultsSection').classList.add('active');
+            document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function fmt(n) {
+            if (n >= 1000000) return (n/1000000).toFixed(1).replace(/\.0$/,'') + 'M';
+            if (n >= 1000) return Math.round(n/1000) + 'K';
+            return n.toLocaleString();
+        }
+
+        function metricRow(label, value) {
+            return '<div class="metric-row"><span class="metric-label">' + label + '</span><span class="metric-value">' + value + '</span></div>';
+        }
+
+        function drow(k, v) {
+            return '<tr style="border-bottom:1px solid rgba(255,255,255,0.05);">' +
+                '<td style="padding:9px 0;color:var(--gray);width:44%;">' + k + '</td>' +
+                '<td style="padding:9px 0;font-weight:600;">' + v + '</td></tr>';
+        }
+
+        function escHtml(s) {
+            if (!s) return '';
+            var d = document.createElement('div');
+            d.appendChild(document.createTextNode(s));
+            return d.innerHTML;
+        }
+
+        function reset() {
+            document.getElementById('domainInput').value = '';
+            document.getElementById('resultsSection').classList.remove('active');
+            document.getElementById('domainInput').focus();
+        }
+    </script>
+</body>
+</html>

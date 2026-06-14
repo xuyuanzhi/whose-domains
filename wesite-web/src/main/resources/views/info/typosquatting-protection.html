@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+
+    <main>
+        <div class="container">
+            <div class="info-page">
+                <nav class="breadcrumb">
+                    <a href="/">Home</a> &gt; 
+                    <a href="/help-center">Help Center</a> &gt; 
+                    <span>Typosquatting Protection</span>
+                </nav>
+
+                <article class="info-content" itemscope itemtype="https://schema.org/Article">
+                    <h1>Typosquatting &amp; Brand Protection</h1>
+                    
+                    <div class="info-section">
+                        <h2>Defending Your Brand Against Domain Abuse</h2>
+                        <p>Typosquatting is the practice of registering domain names that are common misspellings or variations of popular brands. These domains are used for phishing, advertising revenue, or selling counterfeit goods.</p>
+
+                        <h3>Common Typosquatting Techniques</h3>
+                        <ul>
+                            <li><strong>Keyboard-adjacent typos:</strong> goofle.com (f is next to g)</li>
+                            <li><strong>Missing letters:</strong> gogle.com</li>
+                            <li><strong>Doubled letters:</strong> googgle.com</li>
+                            <li><strong>Transposed letters:</strong> googel.com</li>
+                            <li><strong>Wrong TLD:</strong> google.cm instead of google.com</li>
+                            <li><strong>Hyphenation:</strong> face-book.com</li>
+                            <li><strong>Plural/singular:</strong> googles.com</li>
+                            <li><strong>Homoglyphs:</strong> Using similar-looking characters from different scripts</li>
+                        </ul>
+
+                        <h3>How Typosquatters Profit</h3>
+                        <ul>
+                            <li><strong>Pay-per-click advertising:</strong> Displaying ads on typo domains to earn ad revenue</li>
+                            <li><strong>Affiliate fraud:</strong> Redirecting users through affiliate links</li>
+                            <li><strong>Phishing:</strong> Collecting login credentials on fake login pages</li>
+                            <li><strong>Malware distribution:</strong> Serving drive-by downloads</li>
+                            <li><strong>Domain resale:</strong> Selling the domain back to the brand owner at inflated prices</li>
+                            <li><strong>Competitor redirect:</strong> Sending traffic to a competing website</li>
+                        </ul>
+
+                        <h3>Brand Protection Strategies</h3>
+
+                        <h4>Defensive Registration</h4>
+                        <ul>
+                            <li>Register common misspellings of your brand domain</li>
+                            <li>Secure your brand across major TLDs (.com, .net, .org, .io, etc.)</li>
+                            <li>Register country-code TLDs for markets you operate in</li>
+                            <li>Consider new gTLDs relevant to your industry</li>
+                        </ul>
+
+                        <h4>Monitoring</h4>
+                        <ul>
+                            <li>Use brand monitoring services to detect new registrations of similar domains</li>
+                            <li>Monitor Certificate Transparency logs for certificates issued to lookalike domains</li>
+                            <li>Set up Google Alerts for your brand variations</li>
+                            <li>Regularly check WHOIS for domains similar to yours</li>
+                        </ul>
+
+                        <h4>Legal Remedies</h4>
+                        <ul>
+                            <li><strong>UDRP (Uniform Domain-Name Dispute-Resolution Policy):</strong> ICANN process for recovering domains registered in bad faith</li>
+                            <li><strong>URS (Uniform Rapid Suspension):</strong> Faster, cheaper alternative to UDRP for clear-cut cases</li>
+                            <li><strong>ACPA (Anticybersquatting Consumer Protection Act):</strong> US law allowing trademark holders to sue</li>
+                            <li><strong>Cease and Desist:</strong> Often effective for less determined squatters</li>
+                        </ul>
+
+                        <h4>Technical Protections</h4>
+                        <ul>
+                            <li><strong>DMARC enforcement:</strong> Prevents email spoofing from typosquatted domains</li>
+                            <li><strong>Browser protections:</strong> Modern browsers warn about known phishing domains</li>
+                            <li><strong>DNS filtering:</strong> Enterprise DNS solutions can block known typosquatting domains</li>
+                        </ul>
+
+                        <h3>Assessing the Threat</h3>
+                        <p>Use WHOIS data to evaluate typosquatting domains:</p>
+                        <ul>
+                            <li>Check registration date — recently registered domains are more suspicious</li>
+                            <li>Look at the registrant — different from your organization is a red flag</li>
+                            <li>Check nameservers — pointing to parking or ad services indicates squatting</li>
+                            <li>Review DNS records — check where the domain actually resolves to</li>
+                        </ul>
+
+                        <div class="info-box">
+                            <strong>Take Action:</strong> Use our <a href="/">WHOIS lookup</a> to investigate suspicious domains, and our <a href="/tools/related-domains">Related Domains tool</a> to discover domains similar to yours that may need attention.
+                        </div>
+                    </div>
+
+                    <div class="info-navigation">
+                        <a href="/info/phishing-and-domain-spoofing" class="btn btn-secondary">&larr; Previous: Phishing &amp; Domain Spoofing</a>
+                        <a href="/info/how-domain-valuation-works" class="btn btn-primary">Next: How Domain Valuation Works &rarr;</a>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </main>
+
+    <footer th:replace="~{template::template_footer}"></footer>
+</body>
+</html>

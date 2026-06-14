@@ -1,0 +1,67 @@
+<div class="layui-form" lay-filter="layuiadmin-form-sld-edit" style="padding: 5px 0 0 0;">
+<script type="text/html" template>
+	<input type="hidden" name="id" value="{{ d.params.id || '' }}"/>
+</script>
+  <div class="layui-form-item">
+    <label class="layui-form-label">名称</label>
+    <div class="layui-input-block">
+      <script type="text/html" template>
+		<input type="text" name="name" value="{{ d.params.name || '' }}" lay-verify="required" placeholder="请输入名称" autocomplete="off" class="layui-input">
+      </script>
+    </div>
+  </div>
+  <div class="layui-form-item">
+    <label class="layui-form-label"><b>国家</b></label>
+    <div class="layui-input-block">
+      <script type="text/html" template>
+        <input type="text" name="countryName" value="{{ d.params.countryName || '' }}" lay-verify="required" placeholder="请输入国家" autocomplete="off" class="layui-input">
+      </script>
+    </div>
+  </div>
+  <div class="layui-form-item">
+    <label class="layui-form-label">状态</label>
+    <div class="layui-input-block">
+      <script type="text/html" template>
+		{{#  if(d.params.status == 1){ }}
+        	<input type="checkbox" name="status" value="1" checked="1" lay-skin="switch" lay-filter="switchTest" title="启用|禁用">
+		{{#  } else { }}
+			<input type="checkbox" name="status" value="1" lay-skin="switch" lay-filter="switchTest" title="启用|禁用">
+		{{#  } }}
+      </script>
+    </div>
+  </div>
+  <div class="layui-form-item">
+    <label class="layui-form-label">备注</label>
+    <div class="layui-input-block">
+      <script type="text/html" template>
+        <input type="text" name="note" value="{{ d.params.note || '' }}" placeholder="请输入备注" autocomplete="off" class="layui-input">
+      </script>
+    </div>
+  </div>
+  <div class="layui-form-item">
+    <label class="layui-form-label"></label>
+    <div class="layui-input-inline">
+      <input type="button" lay-submit lay-filter="layuiadmin-form-sld-edit-btn" value="确认" class="layui-btn">
+    </div>
+  </div>
+</div>
+
+<script>
+layui.use(['admin', 'form', 'upload'], function(){
+  var $ = layui.$
+  ,form = layui.form
+  ,upload = layui.upload;
+  
+  //上传头像
+  upload.render({
+    elem: '#layuiadmin-upload-useradmin'
+    ,url: './res/json/upload/demo.js'
+    ,accept: 'images'
+    ,method: 'get'
+    ,acceptMime: 'image/*'
+    ,done: function(res){
+      $(this.item).prev("div").children("input").val(res.data.src)
+    }
+  });
+})
+</script>

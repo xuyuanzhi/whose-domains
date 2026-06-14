@@ -1,0 +1,375 @@
+﻿<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <!-- Floating decorative shapes -->
+    <div class="floating-shape shape-1"></div>
+    <div class="floating-shape shape-2"></div>
+    
+    <header th:replace="~{template::template_header}"></header>
+
+	<main>
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="container">
+            <div class="hero-content">
+                <h1>Advanced Domain Analyzer</h1>
+                <p>Comprehensive analysis of domain authority, traffic estimates, SEO metrics, and digital footprint for any website.</p>
+                <div class="search-container">
+                    <input type="text" class="search-input" id="domainInput" placeholder="Enter a domain name (e.g., example.com)" autocomplete="off" autocapitalize="none" spellcheck="false" inputmode="url" required>
+                    <button class="search-btn" id="analyzeBtn">
+                        <i class="fas fa-chart-network"></i>
+                        Analyze Domain
+                    </button>
+                </div>
+                <p class="example-text">Get detailed insights including domain authority, estimated traffic, backlinks, and technical SEO metrics.</p>
+            </div>
+        </div>
+    </section>
+
+    <div th:replace="~{template::ad_banner_top}"></div>
+
+<!-- Results Section -->
+    <section class="results-section tool-results" id="resultsSection">
+        <div class="container">
+            <div class="results-header">
+                <h2>Analysis Results for <span id="resultDomain">example.com</span></h2>
+                <button class="reset-btn" onclick="resetAnalysis()">Analyze Another Domain</button>
+            </div>
+            
+            <div class="analysis-grid">
+                <div class="analysis-card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-globe-americas"></i> Domain Overview</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="info-row">
+                            <span class="info-label">Domain Age:</span>
+                            <span class="info-value" id="domainAge">-</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Registrar:</span>
+                            <span class="info-value" id="registrar">-</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Registration Date:</span>
+                            <span class="info-value" id="regDate">-</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Expiration Date:</span>
+                            <span class="info-value" id="expDate">-</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Registrant:</span>
+                            <span class="info-value" id="registrantOrg">-</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Name Servers:</span>
+                            <span class="info-value" id="nameServers">-</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="analysis-card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-server"></i> Technical Details</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="info-row">
+                            <span class="info-label">IP Address:</span>
+                            <span class="info-value" id="ipAddress">-</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Server Location:</span>
+                            <span class="info-value" id="serverLocation">-</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Hosting Provider:</span>
+                            <span class="info-value" id="hostingProvider">-</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Server Software:</span>
+                            <span class="info-value" id="serverSoftware">-</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Response Time:</span>
+                            <span class="info-value" id="responseTime">-</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">SSL Status:</span>
+                            <span class="info-value" id="sslStatus">-</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="analysis-card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-search"></i> SEO On-Page</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="info-row">
+                            <span class="info-label">Page Title:</span>
+                            <span class="info-value" id="pageTitle">-</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Title Length:</span>
+                            <span class="info-value" id="titleLength">-</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Meta Description:</span>
+                            <span class="info-value" id="metaDescStatus">-</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Has H1 Tag:</span>
+                            <span class="info-value" id="hasH1">-</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Images without Alt:</span>
+                            <span class="info-value" id="imagesNoAlt">-</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Internal / External Links:</span>
+                            <span class="info-value" id="linkCounts">-</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Canonical URL:</span>
+                            <span class="info-value" id="canonicalUrl">-</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Meta Robots:</span>
+                            <span class="info-value" id="metaRobots">-</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="analysis-card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-shield-alt"></i> Security</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="info-row">
+                            <span class="info-label">Security Score:</span>
+                            <span class="info-value" id="securityScore">-</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">HSTS:</span>
+                            <span class="info-value" id="hsts">-</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Content-Security-Policy:</span>
+                            <span class="info-value" id="csp">-</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">X-Frame-Options:</span>
+                            <span class="info-value" id="xFrameOptions">-</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">X-Content-Type-Options:</span>
+                            <span class="info-value" id="xContentType">-</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Open Graph:</span>
+                            <span class="info-value" id="openGraph">-</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Structured Data:</span>
+                            <span class="info-value" id="structuredData">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="recommendations-section">
+                <h3><i class="fas fa-lightbulb"></i> Recommendations</h3>
+                <ul id="recommendationsList">
+                    <li>No analysis data available yet. Enter a domain to analyze.</li>
+                </ul>
+            </div>
+        </div>
+    </section>
+    <div th:replace="~{template::ad_banner_bottom}"></div>
+    </main>        <div th:replace="~{fragments/related-tools::related(slug='domain-analyzer')}"></div>
+    
+
+    <footer th:replace="~{template::template_footer}"></footer>
+
+    <script>
+        const domainInput = document.getElementById('domainInput');
+        const resultsSection = document.getElementById('resultsSection');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        
+        analyzeBtn.addEventListener('click', performAnalysis);
+        domainInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') performAnalysis();
+        });
+        
+        function resetAnalysis() {
+            resultsSection.classList.remove('active');
+            domainInput.value = '';
+            domainInput.focus();
+        }
+        
+        async function performAnalysis() {
+            const domain = domainInput.value.trim();
+            if (!domain) { alert('Please enter a domain name'); return; }
+            
+            showLoader();
+            resultsSection.classList.remove('active');
+            
+            try {
+                const response = await fetch('/api/tools/analyze/' + encodeURIComponent(domain));
+                if (!response.ok) { alert('Server error: ' + response.status); return; }
+                
+                const result = await response.json();
+                if (result.code === 0 && result.data) {
+                    document.getElementById('resultDomain').textContent = domain;
+                    updateResults(result.data);
+                    resultsSection.classList.add('active');
+                } else {
+                    alert('Analysis failed: ' + (result.msg || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Analysis error:', error);
+                alert('An error occurred while analyzing the domain.');
+            } finally {
+                hideLoader();
+            }
+        }
+        
+        function badge(ok, yesText, noText) {
+            if (ok) return '<span class="badge-good">' + (yesText || 'Yes') + '</span>';
+            return '<span class="badge-bad">' + (noText || 'No') + '</span>';
+        }
+        function badgeWarn(ok, yesText, noText) {
+            if (ok) return '<span class="badge-good">' + (yesText || 'Yes') + '</span>';
+            return '<span class="badge-warn">' + (noText || 'Missing') + '</span>';
+        }
+        
+        function updateResults(data) {
+            const basicInfo = data.basicInfo || {};
+            const technical = data.technical || {};
+            const seo = data.seo || {};
+            const security = data.security || {};
+            const secHeaders = security.securityHeaders || {};
+            
+            // Domain Overview
+            document.getElementById('domainAge').textContent = calculateDomainAge(basicInfo.registrationDate);
+            document.getElementById('registrar').textContent = basicInfo.registrar || '-';
+            document.getElementById('regDate').textContent = basicInfo.registrationDate || '-';
+            document.getElementById('expDate').textContent = basicInfo.expirationDate || '-';
+            document.getElementById('registrantOrg').textContent = (basicInfo.registrantOrg || '-') + (basicInfo.registrantCountry ? ' (' + basicInfo.registrantCountry + ')' : '');
+            document.getElementById('nameServers').textContent = basicInfo.nameServers || '-';
+            
+            // Technical Details
+            document.getElementById('ipAddress').textContent = technical.ipAddress || '-';
+            document.getElementById('serverLocation').textContent = technical.serverLocation || '-';
+            document.getElementById('hostingProvider').textContent = technical.hostingProvider || '-';
+            document.getElementById('serverSoftware').textContent = technical.serverSoftware || '-';
+            var rt = technical.responseTimeMs;
+            if (rt > 0) {
+                var cls = rt < 1000 ? 'badge-good' : (rt < 2000 ? 'badge-warn' : 'badge-bad');
+                document.getElementById('responseTime').innerHTML = '<span class="' + cls + '">' + rt + ' ms</span>';
+            } else {
+                document.getElementById('responseTime').textContent = '-';
+            }
+            document.getElementById('sslStatus').innerHTML = badge(technical.hasValidSsl, 'Valid SSL', 'Invalid / No SSL');
+            
+            // SEO On-Page
+            var title = seo.title || '';
+            document.getElementById('pageTitle').textContent = title ? (title.length > 50 ? title.substring(0, 50) + '...' : title) : '-';
+            if (seo.titleLength !== undefined) {
+                document.getElementById('titleLength').innerHTML = seo.titleLength + ' chars ' + (seo.titleOptimal ? '<span class="badge-good">Optimal</span>' : '<span class="badge-warn">Needs work</span>');
+            } else {
+                document.getElementById('titleLength').textContent = '-';
+            }
+            if (seo.metaDescriptionLength !== undefined) {
+                document.getElementById('metaDescStatus').innerHTML = seo.metaDescriptionLength + ' chars ' + (seo.metaDescriptionOptimal ? '<span class="badge-good">Optimal</span>' : (seo.metaDescriptionLength === 0 ? '<span class="badge-bad">Missing</span>' : '<span class="badge-warn">Needs work</span>'));
+            } else {
+                document.getElementById('metaDescStatus').textContent = '-';
+            }
+            document.getElementById('hasH1').innerHTML = seo.hasH1 !== undefined ? (seo.multipleH1 ? '<span class="badge-warn">Multiple H1</span>' : badge(seo.hasH1, 'Yes', 'Missing')) : '-';
+            if (seo.totalImages !== undefined) {
+                document.getElementById('imagesNoAlt').innerHTML = seo.imagesWithoutAlt === 0 ? '<span class="badge-good">All ' + seo.totalImages + ' have alt</span>' : '<span class="badge-warn">' + seo.imagesWithoutAlt + ' of ' + seo.totalImages + '</span>';
+            } else {
+                document.getElementById('imagesNoAlt').textContent = '-';
+            }
+            document.getElementById('linkCounts').textContent = (seo.internalLinks !== undefined ? seo.internalLinks : '-') + ' / ' + (seo.externalLinks !== undefined ? seo.externalLinks : '-');
+            document.getElementById('canonicalUrl').textContent = seo.canonicalUrl || '-';
+            document.getElementById('metaRobots').textContent = seo.metaRobots || '-';
+            
+            // Security
+            if (secHeaders.securityScore !== undefined) {
+                var score = secHeaders.securityScore;
+                var cls = score >= 70 ? 'badge-good' : (score >= 40 ? 'badge-warn' : 'badge-bad');
+                document.getElementById('securityScore').innerHTML = '<span class="' + cls + '">' + score + ' / 100</span>';
+            } else {
+                document.getElementById('securityScore').textContent = '-';
+            }
+            document.getElementById('hsts').innerHTML = badgeWarn(secHeaders.strictTransportSecurity, 'Enabled', 'Missing');
+            document.getElementById('csp').innerHTML = badgeWarn(secHeaders.contentSecurityPolicy, 'Enabled', 'Missing');
+            document.getElementById('xFrameOptions').innerHTML = badgeWarn(secHeaders.xFrameOptions, 'Enabled', 'Missing');
+            document.getElementById('xContentType').innerHTML = badgeWarn(secHeaders.xContentTypeOptions, 'Enabled', 'Missing');
+            document.getElementById('openGraph').innerHTML = seo.hasOpenGraph !== undefined ? badge(seo.hasOpenGraph, 'Present', 'Missing') : '-';
+            document.getElementById('structuredData').innerHTML = seo.hasStructuredData !== undefined ? badge(seo.hasStructuredData, 'Present', 'Missing') : '-';
+            
+            updateRecommendations(data);
+        }
+        
+        function calculateDomainAge(regDateStr) {
+            if (!regDateStr || regDateStr === 'Unknown') return '-';
+            var regDate = new Date(regDateStr);
+            if (isNaN(regDate.getTime())) return '-';
+            var today = new Date();
+            var diffTime = Math.abs(today - regDate);
+            var diffYears = Math.floor(diffTime / (1000 * 60 * 60 * 24 * 365));
+            var diffMonths = Math.floor((diffTime % (1000 * 60 * 60 * 24 * 365)) / (1000 * 60 * 60 * 24 * 30));
+            if (diffYears > 0) return diffYears + ' year' + (diffYears > 1 ? 's' : '') + (diffMonths > 0 ? ' ' + diffMonths + ' mo' : '');
+            return diffMonths + ' month' + (diffMonths > 1 ? 's' : '');
+        }
+        
+        function updateRecommendations(data) {
+            var recList = document.getElementById('recommendationsList');
+            var technical = data.technical || {};
+            var seo = data.seo || {};
+            var secHeaders = (data.security || {}).securityHeaders || {};
+            var recs = [];
+            
+            // SSL
+            if (!technical.hasValidSsl) {
+                recs.push('SSL certificate is not valid - install a valid SSL certificate for security and SEO.');
+            }
+            // Response time
+            if (technical.responseTimeMs > 2000) {
+                recs.push('Page loading speed is slow (' + technical.responseTimeMs + 'ms) - optimize for better user experience.');
+            } else if (technical.responseTimeMs > 0) {
+                recs.push('Page loading speed is ' + (technical.responseTimeMs < 1000 ? 'good' : 'acceptable') + ' (' + technical.responseTimeMs + 'ms).');
+            }
+            // Title
+            if (seo.titleLength !== undefined) {
+                if (seo.titleLength === 0) recs.push('Page title is missing - add a descriptive title tag (30-60 characters).');
+                else if (!seo.titleOptimal) recs.push('Page title length (' + seo.titleLength + ' chars) is not optimal - aim for 30-60 characters.');
+            }
+            // Meta description
+            if (seo.metaDescriptionLength !== undefined) {
+                if (seo.metaDescriptionLength === 0) recs.push('Meta description is missing - add a compelling description (120-160 characters).');
+                else if (!seo.metaDescriptionOptimal) recs.push('Meta description length (' + seo.metaDescriptionLength + ' chars) is not optimal - aim for 120-160 characters.');
+            }
+            // H1
+            if (seo.hasH1 === false) recs.push('No H1 tag found - add a single H1 heading for better SEO.');
+            if (seo.multipleH1) recs.push('Multiple H1 tags found - use only one H1 per page.');
+            // Images
+            if (seo.imagesWithoutAlt > 0) recs.push(seo.imagesWithoutAlt + ' image(s) without alt text - add alt attributes for accessibility and SEO.');
+            // Open Graph & Structured Data
+            if (seo.hasOpenGraph === false) recs.push('Open Graph tags not found - add OG tags for better social media sharing.');
+            if (seo.hasStructuredData === false) recs.push('No structured data (JSON-LD) found - add schema markup for richer search results.');
+            // Viewport
+            if (seo.hasViewport === false) recs.push('Viewport meta tag is missing - add it for mobile responsiveness.');
+            // Security headers
+            if (secHeaders.securityScore !== undefined && secHeaders.securityScore < 50) recs.push('Security headers score is low (' + secHeaders.securityScore + '/100) - add HSTS, CSP, and other security headers.');
+            
+            if (recs.length === 0) recs.push('Great job! No major issues found. Domain appears to be in good standing.');
+            recList.innerHTML = recs.map(function(r) { return '<li>' + r + '</li>'; }).join('');
+        }
+    </script>
+</body>
+</html>

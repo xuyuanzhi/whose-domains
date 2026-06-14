@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+
+    <main>
+        <div class="container">
+            <div class="info-page">
+                <nav class="breadcrumb">
+                    <a href="/">Home</a> &gt; 
+                    <a href="/help-center">Help Center</a> &gt; 
+                    <span>Domain Lock and Transfer Protection</span>
+                </nav>
+
+                <article class="info-content" itemscope itemtype="https://schema.org/Article">
+                    <h1>Domain Lock and Transfer Protection</h1>
+                    
+                    <div class="info-section">
+                        <h2>Protecting Your Domain from Unauthorized Transfers</h2>
+                        <p>Domain lock and transfer protection are essential security features that prevent unauthorized parties from transferring your domain to another registrar without your consent.</p>
+                        
+                        <h3>What is Domain Lock?</h3>
+                        <p>Domain lock (also called transfer lock or registrar lock) is a security feature that prevents your domain from being transferred to another registrar. When enabled, any transfer requests are automatically rejected.</p>
+
+                        <h3>Types of Domain Locks</h3>
+                        
+                        <h4>Client Transfer Prohibited (clientTransferProhibited)</h4>
+                        <ul>
+                            <li>Set by your registrar</li>
+                            <li>Most common type of lock</li>
+                            <li>Can be enabled/disabled through registrar account</li>
+                            <li>Standard security feature</li>
+                        </ul>
+
+                        <h4>Server Transfer Prohibited (serverTransferProhibited)</h4>
+                        <ul>
+                            <li>Set by the registry</li>
+                            <li>More restrictive than client lock</li>
+                            <li>Often used during disputes or legal issues</li>
+                            <li>Requires registry intervention to remove</li>
+                        </ul>
+
+                        <h4>Registry Lock</h4>
+                        <ul>
+                            <li>Highest level of protection</li>
+                            <li>Available for high-value domains</li>
+                            <li>Requires manual verification for any changes</li>
+                            <li>Additional cost but maximum security</li>
+                        </ul>
+
+                        <h3>How Domain Transfer Works</h3>
+                        <p>Understanding the transfer process helps you understand what locks prevent:</p>
+                        <ol>
+                            <li><strong>Domain Unlocked:</strong> Owner disables transfer lock</li>
+                            <li><strong>Authorization Code:</strong> Owner obtains EPP/auth code</li>
+                            <li><strong>Transfer Initiated:</strong> New registrar submits transfer request</li>
+                            <li><strong>Verification:</strong> Confirmation email sent to registrant</li>
+                            <li><strong>Approval:</strong> Owner approves transfer (or it auto-approves after 5 days)</li>
+                            <li><strong>Completion:</strong> Domain moves to new registrar (5-7 days total)</li>
+                        </ol>
+                        <p><strong>Domain lock prevents this process at step 1.</strong></p>
+
+                        <h3>When to Enable Domain Lock</h3>
+                        <ul>
+                            <li><strong>Always:</strong> For domains you want to keep secure</li>
+                            <li><strong>After Registration:</strong> Enable immediately after registering</li>
+                            <li><strong>After Transfer:</strong> Re-enable after completing a legitimate transfer</li>
+                            <li><strong>For Critical Domains:</strong> Your primary business domains</li>
+                            <li><strong>High-Value Domains:</strong> Domains worth significant money</li>
+                        </ul>
+
+                        <h3>When to Disable Domain Lock</h3>
+                        <ul>
+                            <li><strong>Transferring Registrars:</strong> Must be disabled to transfer</li>
+                            <li><strong>Selling Domain:</strong> Buyer may require unlock for transfer</li>
+                            <li><strong>Changing Management:</strong> Moving to different account</li>
+                        </ul>
+                        <p><strong>Important:</strong> Re-enable lock immediately after completing the transfer!</p>
+
+                        <h3>How to Enable/Disable Domain Lock</h3>
+                        
+                        <h4>Through Registrar Account</h4>
+                        <ol>
+                            <li>Log into your registrar account</li>
+                            <li>Navigate to domain management</li>
+                            <li>Select the domain</li>
+                            <li>Find "Transfer Lock" or "Domain Lock" setting</li>
+                            <li>Toggle on (enable) or off (disable)</li>
+                            <li>Confirm the change</li>
+                        </ol>
+
+                        <h4>Through API</h4>
+                        <p>Many registrars offer API access for programmatic lock management:</p>
+                        <ul>
+                            <li>Useful for managing many domains</li>
+                            <li>Automate security policies</li>
+                            <li>Integrate with monitoring systems</li>
+                        </ul>
+
+                        <h3>Transfer Protection Features</h3>
+                        
+                        <h4>Authorization Code (EPP Code)</h4>
+                        <ul>
+                            <li>Unique code required for transfers</li>
+                            <li>Acts as additional verification</li>
+                            <li>Should be kept secure</li>
+                            <li>Can be regenerated if compromised</li>
+                        </ul>
+
+                        <h4>Transfer Notification</h4>
+                        <ul>
+                            <li>Email alerts when transfer is initiated</li>
+                            <li>Allows you to approve or deny</li>
+                            <li>Provides time to detect unauthorized attempts</li>
+                            <li>Keep contact email current to receive</li>
+                        </ul>
+
+                        <h4>Transfer Denial</h4>
+                        <ul>
+                            <li>Explicitly reject transfer requests</li>
+                            <li>Can be done through registrar account</li>
+                            <li>Stops unauthorized transfers</li>
+                            <li>Lock remains in place</li>
+                        </ul>
+
+                        <h3>Additional Transfer Security Measures</h3>
+                        
+                        <h4>WHOIS Privacy</h4>
+                        <p>Hides your contact information, making it harder for attackers to:</p>
+                        <ul>
+                            <li>Target you with social engineering</li>
+                            <li>Send fake transfer notifications</li>
+                            <li>Gather information for attacks</li>
+                        </ul>
+
+                        <h4>Two-Factor Authentication</h4>
+                        <p>Protects your registrar account from unauthorized access:</p>
+                        <ul>
+                            <li>Prevents credential-based attacks</li>
+                            <li>Adds layer beyond password</li>
+                            <li>Use authentication apps when possible</li>
+                        </ul>
+
+                        <h4>Account Alerts</h4>
+                        <p>Enable notifications for:</p>
+                        <ul>
+                            <li>Lock status changes</li>
+                            <li>Transfer attempts</li>
+                            <li>Contact information changes</li>
+                            <li>Authorization code requests</li>
+                        </ul>
+
+                        <h3>Common Transfer Attack Methods</h3>
+                        
+                        <h4>Social Engineering</h4>
+                        <ul>
+                            <li>Impersonating domain owner</li>
+                            <li>Tricking support staff</li>
+                            <li>Fake documentation</li>
+                        </ul>
+
+                        <h4>Email Compromise</h4>
+                        <ul>
+                            <li>Hacking registrant email</li>
+                            <li>Intercepting transfer confirmations</li>
+                            <li>Approving transfers without owner knowledge</li>
+                        </ul>
+
+                        <h4>Registrar Vulnerabilities</h4>
+                        <ul>
+                            <li>Exploiting weak security</li>
+                            <li>Insider threats</li>
+                            <li>Process manipulation</li>
+                        </ul>
+
+                        <h3>What to Do If Transfer Lock Fails</h3>
+                        <p>If your domain is transferred without authorization:</p>
+                        <ol>
+                            <li>Contact your registrar immediately</li>
+                            <li>File a transfer dispute</li>
+                            <li>Gather evidence of ownership</li>
+                            <li>Contact the new registrar</li>
+                            <li>Consider legal action</li>
+                            <li>Report to ICANN if necessary</li>
+                        </ol>
+
+                        <h3>Best Practices Summary</h3>
+                        <ul>
+                            <li>�?Keep domain lock enabled at all times</li>
+                            <li>�?Only disable when actively transferring</li>
+                            <li>�?Re-enable immediately after transfer completes</li>
+                            <li>�?Use strong authentication on registrar account</li>
+                            <li>�?Keep contact information current</li>
+                            <li>�?Monitor for transfer notifications</li>
+                            <li>�?Protect your authorization codes</li>
+                            <li>�?Consider registry lock for critical domains</li>
+                        </ul>
+                    </div>
+
+                    <div class="info-navigation">
+                        <a href="/info/domain-security-basics" class="btn btn-secondary">&larr; Previous: Domain Security Basics</a>
+                        <a href="/info/understanding-dnssec" class="btn btn-primary">Next: Understanding DNSSEC &rarr;</a>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </main>
+
+    <footer th:replace="~{template::template_footer}"></footer>
+</body>
+</html>

@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Domain Expiry Alert</title>
+</head>
+<body style="margin:0;padding:0;background:#f4f6f9;font-family:'Helvetica Neue',Arial,sans-serif;color:#333;">
+
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f9;padding:40px 0;">
+  <tr>
+    <td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+
+        <!-- Header -->
+        <tr>
+          <td style="background:linear-gradient(135deg,#0d1117 0%,#161b27 100%);padding:32px 40px;text-align:center;">
+            <a href="https://whose.domains" style="text-decoration:none;">
+              <span style="font-size:22px;font-weight:800;color:#64ffda;letter-spacing:-0.5px;">Whose</span><span style="font-size:22px;font-weight:800;color:#ffffff;">.Domains</span>
+            </a>
+            <p style="margin:8px 0 0;font-size:13px;color:#8892a4;">Domain Monitoring Service</p>
+          </td>
+        </tr>
+
+        <!-- Alert banner -->
+        <tr th:if="${daysLeft <= 0}">
+          <td style="background:#ff5252;padding:14px 40px;text-align:center;">
+            <span style="color:#fff;font-weight:700;font-size:15px;">🚨 DOMAIN HAS EXPIRED</span>
+          </td>
+        </tr>
+        <tr th:if="${daysLeft > 0 and daysLeft <= 7}">
+          <td style="background:#ff7043;padding:14px 40px;text-align:center;">
+            <span style="color:#fff;font-weight:700;font-size:15px;">⚠️ EXPIRES IN <span th:text="${daysLeft}">7</span> DAY(S) — ACTION REQUIRED</span>
+          </td>
+        </tr>
+        <tr th:if="${daysLeft > 7}">
+          <td style="background:#ffc107;padding:14px 40px;text-align:center;">
+            <span style="color:#333;font-weight:700;font-size:15px;">📅 Renewal Reminder — <span th:text="${daysLeft}">30</span> days remaining</span>
+          </td>
+        </tr>
+
+        <!-- Body -->
+        <tr>
+          <td style="padding:36px 40px;">
+            <h1 style="margin:0 0 8px;font-size:22px;color:#1a1a2e;">Domain Expiry Alert</h1>
+            <p style="margin:0 0 24px;font-size:15px;color:#555;line-height:1.6;">
+              Your monitored domain is approaching its expiration date. Please renew it promptly to avoid losing ownership.
+            </p>
+
+            <!-- Domain info card -->
+            <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8f9fc;border:1px solid #e5e9f0;border-radius:10px;margin-bottom:28px;">
+              <tr>
+                <td style="padding:20px 24px;">
+                  <table width="100%" cellpadding="0" cellspacing="8">
+                    <tr>
+                      <td style="font-size:13px;color:#888;width:130px;padding:6px 0;">Domain</td>
+                      <td style="font-size:15px;font-weight:700;color:#1a1a2e;padding:6px 0;" th:text="${domainName}">example.com</td>
+                    </tr>
+                    <tr>
+                      <td style="font-size:13px;color:#888;padding:6px 0;">Expiry Date</td>
+                      <td style="font-size:15px;color:#1a1a2e;padding:6px 0;" th:text="${expiryDate}">2026-05-01</td>
+                    </tr>
+                    <tr>
+                      <td style="font-size:13px;color:#888;padding:6px 0;">Days Left</td>
+                      <td style="padding:6px 0;">
+                        <span th:if="${daysLeft <= 0}"  style="display:inline-block;background:#ffebee;color:#c62828;font-weight:700;font-size:14px;padding:3px 10px;border-radius:4px;">Expired</span>
+                        <span th:if="${daysLeft > 0 and daysLeft <= 7}"  style="display:inline-block;background:#fff3e0;color:#e65100;font-weight:700;font-size:14px;padding:3px 10px;border-radius:4px;" th:text="${daysLeft} + ' days'">3 days</span>
+                        <span th:if="${daysLeft > 7}"  style="display:inline-block;background:#e8f5e9;color:#2e7d32;font-weight:700;font-size:14px;padding:3px 10px;border-radius:4px;" th:text="${daysLeft} + ' days'">28 days</span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="font-size:13px;color:#888;padding:6px 0;">Registrar</td>
+                      <td style="font-size:14px;color:#555;padding:6px 0;" th:text="${registrar}">GoDaddy</td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+
+            <!-- Action buttons -->
+            <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
+              <tr>
+                <td align="center">
+                  <a th:href="'https://whose.domains/domain/' + ${domainName}"
+                     style="display:inline-block;background:#64ffda;color:#0d1117;font-weight:700;font-size:15px;padding:13px 32px;border-radius:8px;text-decoration:none;margin:0 8px 8px 0;">
+                    View Domain Details
+                  </a>
+                  <a th:href="${dashboardUrl}"
+                     style="display:inline-block;background:transparent;color:#64ffda;font-weight:600;font-size:15px;padding:12px 32px;border-radius:8px;text-decoration:none;border:2px solid #64ffda;margin:0 0 8px;">
+                    My Watchlist
+                  </a>
+                </td>
+              </tr>
+            </table>
+
+            <!-- Tips -->
+            <table width="100%" cellpadding="0" cellspacing="0" style="background:#fffde7;border:1px solid #fff59d;border-radius:8px;margin-bottom:24px;">
+              <tr>
+                <td style="padding:16px 20px;">
+                  <p style="margin:0 0 8px;font-size:14px;font-weight:600;color:#f57f17;">💡 Renewal Tips</p>
+                  <ul style="margin:0;padding-left:18px;font-size:13px;color:#555;line-height:1.8;">
+                    <li>Log in to your registrar (<span th:text="${registrar}">registrar</span>) and renew before the expiry date.</li>
+                    <li>Most registrars offer auto-renewal — enable it to avoid future alerts.</li>
+                    <li>After expiry, domains typically enter a grace/redemption period before becoming available to others.</li>
+                  </ul>
+                </td>
+              </tr>
+            </table>
+
+            <p style="font-size:13px;color:#888;line-height:1.6;margin:0;">
+              You are receiving this email because you added <strong th:text="${domainName}">example.com</strong>
+              to your Whose.Domains watchlist.
+              <a th:href="${unsubscribeUrl}" style="color:#64a0da;text-decoration:none;">Remove from watchlist</a>
+              &nbsp;|&nbsp;
+              <a href="https://whose.domains/user/watchlist" style="color:#64a0da;text-decoration:none;">Manage all watches</a>
+            </p>
+          </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr>
+          <td style="background:#f8f9fc;border-top:1px solid #e5e9f0;padding:20px 40px;text-align:center;">
+            <p style="margin:0;font-size:12px;color:#aaa;">
+              © 2025-2026 <a href="https://whose.domains" style="color:#64a0da;text-decoration:none;">Whose.Domains</a>
+              &nbsp;·&nbsp;
+              <a href="https://whose.domains/privacy-policy" style="color:#64a0da;text-decoration:none;">Privacy</a>
+              &nbsp;·&nbsp;
+              <a href="https://whose.domains/help-center" style="color:#64a0da;text-decoration:none;">Help</a>
+            </p>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>
+
+</body>
+</html>

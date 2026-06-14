@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+
+    <main>
+        <div class="container">
+            <div class="info-page">
+                <nav class="breadcrumb">
+                    <a href="/">Home</a> &gt; 
+                    <a href="/help-center">Help Center</a> &gt; 
+                    <span>IP to Domain Lookup</span>
+                </nav>
+
+                <article class="info-content" itemscope itemtype="https://schema.org/Article">
+                    <h1>IP to Domain Lookup</h1>
+                    
+                    <div class="info-section">
+                        <h2>Finding Domains Hosted on an IP Address</h2>
+                        <p>IP to domain lookup (also called reverse IP lookup) identifies all domain names hosted on a specific IP address. This technique is valuable for security research, competitive analysis, and server investigation.</p>
+
+                        <h3>How Reverse IP Lookup Works</h3>
+                        <ol>
+                            <li>An IP address is submitted to the lookup service</li>
+                            <li>The service checks its database of DNS records for domains pointing to that IP</li>
+                            <li>All matching domains are returned in the results</li>
+                            <li>Additional information like hosting provider and server details may be included</li>
+                        </ol>
+
+                        <h3>Use Cases</h3>
+
+                        <h4>Security Analysis</h4>
+                        <ul>
+                            <li>Identify other domains on the same server as a suspicious website</li>
+                            <li>Discover related phishing or malware domains sharing infrastructure</li>
+                            <li>Map out attack infrastructure used by threat actors</li>
+                            <li>Assess risk from "bad neighbors" on shared hosting</li>
+                        </ul>
+
+                        <h4>Competitive Research</h4>
+                        <ul>
+                            <li>Find what other websites a company hosts on the same server</li>
+                            <li>Discover hidden brands or projects sharing infrastructure</li>
+                            <li>Understand a competitor's hosting setup</li>
+                        </ul>
+
+                        <h4>SEO Analysis</h4>
+                        <ul>
+                            <li>Check if your site shares an IP with spammy websites</li>
+                            <li>Assess the neighborhood quality of your hosting environment</li>
+                            <li>Identify potential negative SEO impact from co-hosted sites</li>
+                        </ul>
+
+                        <h4>Server Administration</h4>
+                        <ul>
+                            <li>Audit all domains hosted on your servers</li>
+                            <li>Identify unauthorized domains pointing to your IP</li>
+                            <li>Plan server migrations by knowing all affected domains</li>
+                        </ul>
+
+                        <h3>Understanding the Results</h3>
+                        <ul>
+                            <li><strong>Shared Hosting:</strong> Hundreds or thousands of domains may share one IP</li>
+                            <li><strong>Dedicated/VPS:</strong> Fewer domains, usually owned by the same entity</li>
+                            <li><strong>CDN IPs:</strong> May show thousands of unrelated domains behind the same CDN</li>
+                            <li><strong>Cloud IPs:</strong> May be reassigned between customers, so historical data can be misleading</li>
+                        </ul>
+
+                        <h3>Related Techniques</h3>
+                        <ul>
+                            <li><strong>PTR Records:</strong> Reverse DNS records map IPs to hostnames</li>
+                            <li><strong>ASN Lookup:</strong> Find all IP ranges owned by an organization</li>
+                            <li><strong>SSL Certificate Lookup:</strong> Certificates may list multiple domains (SAN entries)</li>
+                            <li><strong>DNS History:</strong> Track what domains pointed to an IP over time</li>
+                        </ul>
+
+                        <div class="info-box">
+                            <strong>Try It:</strong> Use our <a href="/tools/reverse-ip">Reverse IP Lookup tool</a> to discover all domains hosted on any IP address, and our <a href="/tools/my-ip-address">My IP Address tool</a> to find your own IP.
+                        </div>
+                    </div>
+
+                    <div class="info-navigation">
+                        <a href="/info/reverse-whois-lookup" class="btn btn-secondary">&larr; Previous: Reverse WHOIS Lookup</a>
+                        <a href="/info/bulk-domain-lookup" class="btn btn-primary">Next: Bulk Domain Lookup &rarr;</a>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </main>
+
+    <footer th:replace="~{template::template_footer}"></footer>
+</body>
+</html>

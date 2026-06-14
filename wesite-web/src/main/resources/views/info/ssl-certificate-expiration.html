@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+
+    <main>
+        <div class="container">
+            <div class="info-page">
+                <nav class="breadcrumb">
+                    <a href="/">Home</a> &gt; 
+                    <a href="/help-center">Help Center</a> &gt; 
+                    <span>SSL Certificate Expiration</span>
+                </nav>
+
+                <article class="info-content" itemscope itemtype="https://schema.org/Article">
+                    <h1>SSL Certificate Expiration &amp; Renewal</h1>
+                    
+                    <div class="info-section">
+                        <h2>Managing SSL Certificate Lifecycle</h2>
+                        <p>SSL/TLS certificates have a limited validity period. Understanding certificate expiration and renewal is critical for maintaining website security and avoiding disruptions.</p>
+
+                        <h3>Why Do SSL Certificates Expire?</h3>
+                        <ul>
+                            <li><strong>Security:</strong> Regular renewal ensures updated encryption standards</li>
+                            <li><strong>Identity Verification:</strong> Periodic re-validation confirms the organization still controls the domain</li>
+                            <li><strong>Revocation Management:</strong> Shorter lifespans reduce exposure from compromised certificates</li>
+                            <li><strong>Industry Standards:</strong> CA/Browser Forum mandates maximum validity periods</li>
+                        </ul>
+
+                        <h3>Current Validity Periods</h3>
+                        <ul>
+                            <li><strong>Maximum validity:</strong> 398 days (13 months) for public certificates</li>
+                            <li><strong>Let's Encrypt:</strong> 90 days (encourages automation)</li>
+                            <li><strong>Trend:</strong> Industry moving toward even shorter periods (90 days proposed by Google)</li>
+                        </ul>
+
+                        <h3>What Happens When a Certificate Expires?</h3>
+                        <ol>
+                            <li><strong>Browser Warnings:</strong> Visitors see scary "Your connection is not private" messages</li>
+                            <li><strong>Traffic Loss:</strong> Most users will leave rather than bypass the warning</li>
+                            <li><strong>SEO Impact:</strong> Search engines may de-index or downrank the site</li>
+                            <li><strong>Trust Damage:</strong> Users lose confidence in your website's security</li>
+                            <li><strong>Broken Integrations:</strong> APIs and services relying on the certificate will fail</li>
+                        </ol>
+
+                        <div class="info-box">
+                            <strong>Warning:</strong> An expired SSL certificate can cost a business significant revenue and reputation. Major companies have suffered outages due to forgotten certificate renewals.
+                        </div>
+
+                        <h3>How to Renew SSL Certificates</h3>
+                        <h4>Manual Renewal</h4>
+                        <ol>
+                            <li>Generate a new Certificate Signing Request (CSR)</li>
+                            <li>Submit the CSR to your Certificate Authority</li>
+                            <li>Complete the validation process</li>
+                            <li>Download and install the new certificate</li>
+                            <li>Verify the installation</li>
+                        </ol>
+
+                        <h4>Automated Renewal</h4>
+                        <ul>
+                            <li><strong>ACME Protocol:</strong> Automated certificate management (used by Let's Encrypt)</li>
+                            <li><strong>Certbot:</strong> Free tool for automated Let's Encrypt certificate management</li>
+                            <li><strong>Cloud Providers:</strong> AWS ACM, Cloudflare, etc. handle renewal automatically</li>
+                            <li><strong>cPanel/Plesk:</strong> Many hosting panels offer auto-renewal features</li>
+                        </ul>
+
+                        <h3>Best Practices for Certificate Management</h3>
+                        <ul>
+                            <li>&#10004; Set up monitoring and expiration alerts (30, 14, 7 days before)</li>
+                            <li>&#10004; Use automated renewal wherever possible</li>
+                            <li>&#10004; Keep an inventory of all certificates across your organization</li>
+                            <li>&#10004; Document renewal procedures for manually managed certificates</li>
+                            <li>&#10004; Test renewal processes before the actual expiration</li>
+                            <li>&#10004; Use certificate management platforms for large deployments</li>
+                            <li>&#10004; Monitor Certificate Transparency logs for unauthorized issuance</li>
+                        </ul>
+
+                        <h3>Monitoring Certificate Expiration</h3>
+                        <p>Use these approaches to stay ahead of expirations:</p>
+                        <ul>
+                            <li><strong>SSL Monitoring Services:</strong> Automated alerts via email or Slack</li>
+                            <li><strong>Our SSL Checker:</strong> <a href="/tools/ssl-checker">Check certificate status</a> anytime</li>
+                            <li><strong>Cron Jobs:</strong> Automated scripts to check expiration dates</li>
+                            <li><strong>Dashboard Tools:</strong> Centralized certificate management dashboards</li>
+                        </ul>
+                    </div>
+
+                    <div class="info-navigation">
+                        <a href="/info/how-to-check-ssl-certificate" class="btn btn-secondary">&larr; Previous: How to Check SSL Certificate</a>
+                        <a href="/info/how-dns-works" class="btn btn-primary">Next: How DNS Works &rarr;</a>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </main>
+
+    <footer th:replace="~{template::template_footer}"></footer>
+</body>
+</html>

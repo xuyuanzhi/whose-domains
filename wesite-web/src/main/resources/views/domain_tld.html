@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+	<header th:replace="~{template::template_header}"></header>
+	
+	<main>
+		<section class="results-section active" id="resultsSection">
+	        <div class="container">
+	        	<div class="nav">
+	        		<div class="path">
+	        			<a href="/">Home</a>&nbsp;&nbsp;>>&nbsp;&nbsp;<span th:text="${tld.displayName}"></span>
+	        		</div>
+	        		<div class="search-container" style="margin:unset;">
+	                    <input type="text" class="search-input-small" id="domainInput" placeholder="Enter a domain name (e.g., example.com)" required>
+	                    <button class="search-btn search-btn-small" id="searchBtn">
+	                        <i class="fas fa-search"></i>
+	                        Search
+	                    </button>
+	                </div>
+	        	</div>
+	            <div class="results-header">
+	                <div>
+	                    <h2 class="domain-name">
+	                        <i class="fas fa-globe-americas"></i>
+	                        <span id="resultDomain" th:text="${tld.displayName}"></span>
+	                    </h2>
+	                </div>
+	            </div>
+	            
+	            <div class="ad-container" th:if="${_isProd}">
+					<!-- 头部横幅 -->
+					<ins class="adsbygoogle"
+					     style="display:block"
+					     data-ad-client="ca-pub-7597293740550331"
+					     data-ad-slot="8301467356"
+					     data-ad-format="auto"
+					     data-full-width-responsive="true"></ins>
+					<script>
+					     (adsbygoogle = window.adsbygoogle || []).push({});
+					</script>
+	            </div>
+	            
+	            <div class="results-grid">
+	                <div class="result-card">
+	                    <h3><i class="fas fa-info-circle"></i> Domain Information</h3>
+	                    <div class="info-row">
+	                        <span class="info-label"><i class="fas fa-fingerprint"></i> Domain Name</span>
+	                        <span class="info-value" th:text="${tld.displayName}"></span>
+	                    </div>
+	                    <div class="info-row">
+	                        <span class="info-label"><i class="fas fa-calendar-plus"></i> Registration Date</span>
+	                        <span class="info-value" th:text="${tld.registrationDate}"></span>
+	                    </div>
+	                    <div class="info-row">
+	                        <span class="info-label"><i class="fas fa-sync-alt"></i> Updated Date</span>
+	                        <span class="info-value" th:text="${tld.lastUpdatedDate}"></span>
+	                    </div>
+	                    <div class="info-row">
+	                        <span class="info-label"><i class="fas fa-circle"></i> Type</span>
+	                        <span class="info-value" th:text="${tld.type}"></span>
+	                    </div>
+	                </div>
+	                
+	                <div class="result-card">
+	                    <h3><i class="fa-solid fa-building"></i> Organisation</h3>
+	                    <div class="info-row">
+	                        <span class="info-label"><i class="fas fa-building"></i> Name</span>
+	                        <span class="info-value" th:text="${tld.orgName}"></span>
+	                    </div>
+	                    <div class="info-row">
+	                        <span class="info-label"><i class="fas fa-location-dot"></i> Address</span>
+	                        <span class="info-value" th:text="${tld.fullOrgAddr}"></span>
+	                    </div>
+	                    <div class="info-row">
+	                        <span class="info-label"><i class="fas fa-id-card"></i> Country</span>
+	                        <span class="info-value" th:text="${tld.orgCountry}"></span>
+	                    </div>
+	                </div>
+	                
+	                <div class="result-card">
+	                    <h3><i class="fas fa-user"></i> Administrative Contact</h3>
+	                    <div class="info-row">
+	                        <span class="info-label"><i class="fas fa-user-tag"></i> Name</span>
+	                        <span class="info-value" th:text="${tld.adminName}"></span>
+	                    </div>
+	                    <div class="info-row">
+	                        <span class="info-label"><i class="fas fa-building"></i> Organization</span>
+	                        <span class="info-value" th:text="${tld.adminOrg}"></span>
+	                    </div>
+	                    <div class="info-row">
+	                        <span class="info-label"><i class="fas fa-location-dot"></i> Address</span>
+	                        <span class="info-value" th:text="${tld.fullAdminAddr}"></span>
+	                    </div>
+	                    <div class="info-row">
+	                        <span class="info-label"><i class="fas fa-id-card"></i> Country</span>
+	                        <span class="info-value" th:text="${tld.adminCountry}"></span>
+	                    </div>
+	                    <div class="info-row">
+	                        <span class="info-label"><i class="fas fa-envelope"></i> Email</span>
+	                        <span class="info-value" th:text="${tld.adminEmail}"></span>
+	                    </div>
+	                    <div class="info-row">
+	                        <span class="info-label"><i class="fas fa-phone"></i> Phone</span>
+	                        <span class="info-value" th:text="${tld.adminPhone}"></span>
+	                    </div>
+	                    <div class="info-row">
+	                        <span class="info-label"><i class="fas fa-fax"></i> Fax</span>
+	                        <span class="info-value" th:text="${tld.adminFax}"></span>
+	                    </div>
+	                </div>
+	                
+	                <div class="result-card">
+	                    <h3><i class="fas fa-user"></i> Technical Contact</h3>
+	                    <div class="info-row">
+	                        <span class="info-label"><i class="fas fa-user-tag"></i> Name</span>
+	                        <span class="info-value" th:text="${tld.techName}"></span>
+	                    </div>
+	                    <div class="info-row">
+	                        <span class="info-label"><i class="fas fa-building"></i> Organization</span>
+	                        <span class="info-value" th:text="${tld.techOrg}"></span>
+	                    </div>
+	                    <div class="info-row">
+	                        <span class="info-label"><i class="fas fa-location-dot"></i> Address</span>
+	                        <span class="info-value" th:text="${tld.fullTechAddr}"></span>
+	                    </div>
+	                    <div class="info-row">
+	                        <span class="info-label"><i class="fas fa-id-card"></i> Country</span>
+	                        <span class="info-value" th:text="${tld.techCountry}"></span>
+	                    </div>
+	                    <div class="info-row">
+	                        <span class="info-label"><i class="fas fa-envelope"></i> Email</span>
+	                        <span class="info-value" th:text="${tld.techEmail}"></span>
+	                    </div>
+	                    <div class="info-row">
+	                        <span class="info-label"><i class="fas fa-phone"></i> Phone</span>
+	                        <span class="info-value" th:text="${tld.techPhone}"></span>
+	                    </div>
+	                    <div class="info-row">
+	                        <span class="info-label"><i class="fas fa-fax"></i> Fax</span>
+	                        <span class="info-value" th:text="${tld.techFax}"></span>
+	                    </div>
+	                </div>
+	                
+	                <div class="result-card">
+	                    <h3><i class="fa-solid fa-globe"></i> Registry Information</h3>
+	                    <div class="info-row">
+	                        <span class="info-label"><i class="fas fa-link"></i> URL for registration</span>
+	                        <span class="info-value" th:text="${tld.registrationUrl}"></span>
+	                    </div>
+	                    <div class="info-row">
+	                        <span class="info-label"><i class="fas fa-server"></i> WHOIS Server</span>
+	                        <span class="info-value"><a th:href="@{/domain/{name}(name=${tld.whoisServer})}" th:text="${tld.whoisServer}"></a></span>
+	                    </div>
+	                    <div class="info-row">
+	                        <span class="info-label"><i class="fas fa-server"></i> RDAP Server</span>
+	                        <span class="info-value" th:text="${tld.rdapServer}"></span>
+	                    </div>
+	                </div>
+	                
+	                <div class="result-card">
+	                    <h3><i class="fa-solid fa-globe"></i> Reserved Second-Level Domains</h3>
+	                    <div class="info-row" th:each="sld:${sldList}">
+	                        <span class="info-label"><a th:href="@{/domain/{name}(name=${sld.name})}" th:text="${sld.name}"></a></span>
+	                        <span class="info-value"></span>
+	                    </div>
+	                </div>
+	            </div>
+
+	            <!-- TLD Rich Content (SEO) - 仅当 tldContent 非空时渲染 -->
+	            <div th:if="${tldContent != null}" style="margin-top:24px;">
+
+	                <!-- About -->
+	                <div th:if="${tldContent.introHtml != null}" class="result-card" style="margin-bottom:20px;">
+	                    <h2 style="font-size:20px; font-weight:700; margin-bottom:14px; color:#e2e8f0;">
+	                        <i class="fas fa-info-circle" style="color:#2563eb; margin-right:8px;"></i>
+	                        About <span th:text="${tld.displayName}"></span>
+	                    </h2>
+	                    <div class="tld-content" th:utext="${tldContent.introHtml}"></div>
+	                </div>
+
+	                <!-- History -->
+	                <div th:if="${tldContent.historyHtml != null}" class="result-card" style="margin-bottom:20px;">
+	                    <h2 style="font-size:20px; font-weight:700; margin-bottom:14px; color:#e2e8f0;">
+	                        <i class="fas fa-history" style="color:#2563eb; margin-right:8px;"></i>
+	                        History of <span th:text="${tld.displayName}"></span>
+	                    </h2>
+	                    <div class="tld-content" th:utext="${tldContent.historyHtml}"></div>
+	                </div>
+
+	                <!-- Use Cases -->
+	                <div th:if="${tldContent.useCasesHtml != null}" class="result-card" style="margin-bottom:20px;">
+	                    <h2 style="font-size:20px; font-weight:700; margin-bottom:14px; color:#e2e8f0;">
+	                        <i class="fas fa-lightbulb" style="color:#2563eb; margin-right:8px;"></i>
+	                        Who Uses <span th:text="${tld.displayName}"></span>?
+	                    </h2>
+	                    <div class="tld-content" th:utext="${tldContent.useCasesHtml}"></div>
+	                </div>
+
+	                <!-- Famous Sites -->
+	                <div th:if="${famousSitesList != null and !#lists.isEmpty(famousSitesList)}" class="result-card" style="margin-bottom:20px;">
+	                    <h2 style="font-size:20px; font-weight:700; margin-bottom:14px; color:#e2e8f0;">
+	                        <i class="fas fa-star" style="color:#2563eb; margin-right:8px;"></i>
+	                        Famous <span th:text="${tld.displayName}"></span> Websites
+	                    </h2>
+	                    <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:12px;">
+	                        <a th:each="site : ${famousSitesList}"
+	                           th:href="@{'/domain/' + ${site.url}}"
+	                           style="background:rgba(37,99,235,0.08); border:1px solid rgba(37,99,235,0.2); border-radius:8px; padding:12px 16px; text-decoration:none; color:#e2e8f0; font-size:14px; display:flex; align-items:center; gap:8px; transition:background 0.2s;"
+	                           onmouseover="this.style.background='rgba(37,99,235,0.18)'" onmouseout="this.style.background='rgba(37,99,235,0.08)'">
+	                            <i class="fas fa-globe" style="color:#60a5fa; font-size:12px;"></i>
+	                            <span th:text="${site.name}"></span>
+	                        </a>
+	                    </div>
+	                </div>
+
+	                <!-- Register Requirements -->
+	                <div th:if="${tldContent.registerRequirementsHtml != null}" class="result-card" style="margin-bottom:20px;">
+	                    <h2 style="font-size:20px; font-weight:700; margin-bottom:14px; color:#e2e8f0;">
+	                        <i class="fas fa-clipboard-list" style="color:#2563eb; margin-right:8px;"></i>
+	                        Registration Requirements
+	                    </h2>
+	                    <div class="tld-content" th:utext="${tldContent.registerRequirementsHtml}"></div>
+	                </div>
+
+	            </div>
+
+	            <div class="results-grid" th:if="${domainList != null}">
+	                <div class="result-card domain-list">
+	                    <div class="info-row" th:each="d:${domainList}">
+	                        <span class="info-label"><a th:href="@{/domain/{name}(name=${d.name})}" th:text="${d.name}"></a></span>
+	                        <span class="info-value"></span>
+	                    </div>
+	                </div>
+	            </div>
+	            
+	            <div class="ad-container" th:if="${_isProd}">
+	            	<!-- 尾部横幅 -->
+					<ins class="adsbygoogle"
+					     style="display:block"
+					     data-ad-client="ca-pub-7597293740550331"
+					     data-ad-slot="5630964188"
+					     data-ad-format="auto"
+					     data-full-width-responsive="true"></ins>
+					<script>
+					     (adsbygoogle = window.adsbygoogle || []).push({});
+					</script>
+	            </div>
+	            
+	        </div>
+	    </section>
+
+	</main>
+	
+	<footer th:replace="~{template::template_footer}"></footer>
+	<script type="text/javascript">
+	//const domainInput = document.getElementById('domainInput');
+	const searchBtn = document.getElementById('searchBtn');
+	
+	// Event Listeners
+	searchBtn.addEventListener('click', performSearch);
+	//
+	domainInput.addEventListener('keypress', function(e) {
+	    if (e.key === 'Enter') performSearch();
+	});
+	</script>
+</body>
+</html>

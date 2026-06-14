@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <div class="floating-shape shape-1"></div>
+    <div class="floating-shape shape-2"></div>
+    <header th:replace="~{template::template_header}"></header>
+
+    <main>
+        <section class="hero">
+            <div class="container">
+                <div class="hero-content">
+                    <h1>Email Checker</h1>
+                    <p>Validate any email address instantly — syntax check, MX records, disposable email detection, and domain existence.</p>
+                    <div class="search-container">
+                        <input type="email" id="emailInput" class="search-input"
+                               placeholder="Enter email address (e.g. user@example.com)"
+                               autocomplete="off" autocapitalize="none" spellcheck="false">
+                        <button id="checkBtn" class="search-btn">
+                            <i class="fas fa-envelope-open-text"></i> Check Email
+                        </button>
+                    </div>
+                    <div class="example-text">Try: test@gmail.com &nbsp;·&nbsp; someone@mailinator.com</div>
+                </div>
+            </div>
+        </section>
+
+        <div th:replace="~{template::ad_banner_top}"></div>
+
+        <div class="container">
+<section id="resultsSection" class="results-section">
+
+                <!-- Banner -->
+                <div class="ec-banner" id="ecBanner">
+                    <div class="ec-banner-left">
+                        <!-- Score ring -->
+                        <div class="ec-ring-wrap">
+                            <svg viewBox="0 0 42 42" class="ec-ring-svg">
+                                <circle class="ec-ring-bg"   cx="21" cy="21" r="17"/>
+                                <circle class="ec-ring-fill" id="ecRingFill" cx="21" cy="21" r="17" stroke-dasharray="0 107"/>
+                            </svg>
+                            <div class="ec-ring-center">
+                                <span id="scoreVal">—</span>
+                                <small>/100</small>
+                            </div>
+                        </div>
+                        <div class="ec-banner-info">
+                            <div class="ec-email-display" id="emailDisplay"></div>
+                            <div id="overallBadge" style="margin-top:6px;"></div>
+                            <p id="summaryText" class="ec-summary"></p>
+                        </div>
+                    </div>
+                    <div class="ec-banner-right">
+                        <button class="reset-btn" onclick="reset()"><i class="fas fa-sync-alt"></i> Check Another</button>
+                    </div>
+                </div>
+
+                <div class="results-flex ec-grid">
+
+                    <!-- Validation checks -->
+                    <div class="result-card ec-checks-card">
+                        <h3><i class="fas fa-tasks"></i> Validation Checks</h3>
+                        <div id="checksList" class="ec-checks-list"></div>
+                    </div>
+
+                    <!-- Domain info -->
+                    <div class="result-card" id="domainInfoCard">
+                        <h3><i class="fas fa-server"></i> Domain Info</h3>
+                        <div id="domainInfoContent" class="ec-domain-info"></div>
+                    </div>
+
+                </div>
+            </section>
+        </div>
+
+        <div th:replace="~{template::ad_banner_bottom}"></div>
+    </main>
+    <div th:replace="~{fragments/related-tools::related(slug='email-checker')}"></div>
+
+    <footer th:replace="~{template::template_footer}"></footer>
+
+<style>
+/* ── Banner ──────────────────────────────────────────── */
+.ec-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 20px;
+    padding: 24px 28px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: var(--radius, 12px);
+}
+.ec-banner-left {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex: 1;
+    min-width: 0;
+}
+.ec-banner-right { flex-shrink: 0; }
+
+/* Score ring */
+.ec-ring-wrap {
+    position: relative;
+    width: 84px;
+    height: 84px;
+    flex-shrink: 0;
+}
+.ec-ring-svg {
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+}
+.ec-ring-bg {
+    fill: none;
+    stroke: rgba(255,255,255,0.06);
+    stroke-width: 3;
+}
+.ec-ring-fill {
+    fill: none;
+    stroke: #64ffda;
+    stroke-width: 3;
+    stroke-linecap: round;
+    transition: stroke-dasharray 0.8s ease, stroke 0.3s;
+}
+.ec-ring-fill.warn { stroke: #ffab00; }
+.ec-ring-fill.bad  { stroke: #ff5252; }
+.ec-ring-center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    line-height: 1.1;
+}
+.ec-ring-center span {
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: #e2e8f0;
+}
+.ec-ring-center small {
+    font-size: 0.6rem;
+    color: #64748b;
+    text-transform: uppercase;
+}
+
+/* Banner info */
+.ec-email-display {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #e2e8f0;
+    word-break: break-all;
+}
+.ec-summary {
+    color: #64748b;
+    font-size: 0.875rem;
+    margin-top: 6px;
+    line-height: 1.5;
+}
+
+/* Overall badge */
+.ec-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 14px;
+    border-radius: 20px;
+    font-size: 0.82rem;
+    font-weight: 700;
+}
+.ec-badge-valid       { background: rgba(100,255,218,0.1); color: #64ffda; border: 1px solid rgba(100,255,218,0.2); }
+.ec-badge-disposable  { background: rgba(255,171,0,0.1);   color: #ffab00; border: 1px solid rgba(255,171,0,0.2); }
+.ec-badge-invalid     { background: rgba(255,82,82,0.1);   color: #ff5252; border: 1px solid rgba(255,82,82,0.2); }
+
+/* Grid */
+.ec-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+@media (max-width: 640px) { .ec-grid { grid-template-columns: 1fr; } }
+
+/* Checks list */
+.ec-checks-card h3,
+#domainInfoCard h3 {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    opacity: 0.6;
+    margin-bottom: 16px;
+}
+.ec-checks-list { display: flex; flex-direction: column; gap: 10px; }
+.ec-check-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.025);
+    border: 1px solid rgba(255,255,255,0.05);
+}
+.ec-check-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    flex-shrink: 0;
+}
+.ec-check-icon.pass { background: rgba(100,255,218,0.12); color: #64ffda; }
+.ec-check-icon.warn { background: rgba(255,171,0,0.12);   color: #ffab00; }
+.ec-check-icon.fail { background: rgba(255,82,82,0.12);   color: #ff5252; }
+.ec-check-body { flex: 1; min-width: 0; }
+.ec-check-label {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #e2e8f0;
+    display: block;
+}
+.ec-check-detail {
+    font-size: 0.78rem;
+    color: #64748b;
+    margin-top: 2px;
+    display: block;
+    word-break: break-word;
+}
+
+/* Domain info */
+.ec-domain-info { display: flex; flex-direction: column; }
+.ec-info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    font-size: 0.875rem;
+}
+.ec-info-row:last-child { border-bottom: none; }
+.ec-info-label { color: #64748b; flex-shrink: 0; min-width: 120px; }
+.ec-info-value { color: #cbd5e1; text-align: right; word-break: break-all; font-weight: 500; }
+</style>
+
+    <script>
+        var emailInput = document.getElementById('emailInput');
+        var checkBtn   = document.getElementById('checkBtn');
+        var resultsSection = document.getElementById('resultsSection');
+
+        emailInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') doCheck(); });
+        checkBtn.addEventListener('click', doCheck);
+
+        var params = new URLSearchParams(window.location.search);
+        if (params.get('email')) { emailInput.value = params.get('email'); doCheck(); }
+
+        async function doCheck() {
+            var email = emailInput.value.trim();
+            if (!email) return;
+            showLoader('Checking email...');
+            resultsSection.classList.remove('active');
+            try {
+                var r = await fetch('/api/tools/email-check', {
+                    method: 'POST',
+                    headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({email: email})
+                });
+                var json = await r.json();
+                if (json.code === 0) renderResult(json.data);
+                else alert(json.msg || 'Check failed');
+            } catch(e) { alert('Network error'); }
+            finally { hideLoader(); }
+        }
+
+        function renderResult(d) {
+            // ── Score ring ─────────────────────────────
+            var score = d.score || 0;
+            document.getElementById('scoreVal').textContent = score;
+            var circ = 2 * Math.PI * 17; // ~106.8
+            var pct  = Math.max(0, Math.min(100, score)) / 100;
+            var fill = document.getElementById('ecRingFill');
+            fill.setAttribute('stroke-dasharray', (pct * circ).toFixed(1) + ' ' + circ.toFixed(1));
+            fill.className = 'ec-ring-fill' + (score >= 70 ? '' : score >= 40 ? ' warn' : ' bad');
+
+            // ── Email & badge ──────────────────────────
+            document.getElementById('emailDisplay').textContent = d.email || emailInput.value;
+            var badge = document.getElementById('overallBadge');
+            if (d.overallValid && !d.isDisposable) {
+                badge.innerHTML = '<span class="ec-badge ec-badge-valid"><i class="fas fa-check-circle"></i> Valid Email</span>';
+            } else if (d.isDisposable) {
+                badge.innerHTML = '<span class="ec-badge ec-badge-disposable"><i class="fas fa-exclamation-triangle"></i> Disposable</span>';
+            } else {
+                badge.innerHTML = '<span class="ec-badge ec-badge-invalid"><i class="fas fa-times-circle"></i> Invalid</span>';
+            }
+            document.getElementById('summaryText').textContent = d.summary || '';
+
+            // ── Check rows ─────────────────────────────
+            var checks = [
+                {
+                    label: 'Syntax',
+                    pass: d.syntaxValid, warn: false,
+                    detail: d.syntaxValid ? 'Valid RFC 5322 format' : (d.syntaxError || 'Invalid email format')
+                },
+                {
+                    label: 'Domain Exists',
+                    pass: d.domainExists, warn: false,
+                    detail: d.domainExists ? (d.domain + ' resolves successfully') : 'Domain does not exist or cannot be resolved'
+                },
+                {
+                    label: 'MX Records',
+                    pass: d.hasMxRecord, warn: false,
+                    detail: d.hasMxRecord ? ('Mail server: ' + (d.mxRecord || 'Found')) : 'No MX records found — cannot receive email'
+                },
+                {
+                    label: 'Not Disposable',
+                    pass: !d.isDisposable, warn: d.isDisposable,
+                    detail: d.isDisposable ? 'Temporary/disposable email provider detected' : 'Not a known disposable email provider'
+                }
+            ];
+            document.getElementById('checksList').innerHTML = checks.map(function(c) {
+                var state = c.warn ? 'warn' : c.pass ? 'pass' : 'fail';
+                var icon  = c.warn ? 'fa-exclamation-triangle' : c.pass ? 'fa-check' : 'fa-times';
+                return '<div class="ec-check-row">' +
+                    '<div class="ec-check-icon ' + state + '"><i class="fas ' + icon + '"></i></div>' +
+                    '<div class="ec-check-body">' +
+                        '<span class="ec-check-label">' + c.label + '</span>' +
+                        '<span class="ec-check-detail">' + c.detail + '</span>' +
+                    '</div></div>';
+            }).join('');
+
+            // ── Domain info ────────────────────────────
+            if (d.domain) {
+                var rows = [
+                    { label: 'Email Domain',        value: d.domain },
+                    { label: 'MX Record',           value: d.mxRecord || '—' },
+                    { label: 'Domain Exists',       value: d.domainExists ? '<span style="color:#64ffda;">Yes</span>' : '<span style="color:#ff5252;">No</span>' },
+                    { label: 'Disposable Provider', value: d.isDisposable ? '<span style="color:#ffab00;">Yes ⚠</span>' : '<span style="color:#64ffda;">No</span>' }
+                ];
+                document.getElementById('domainInfoContent').innerHTML = rows.map(function(r) {
+                    return '<div class="ec-info-row">' +
+                        '<span class="ec-info-label">' + r.label + '</span>' +
+                        '<span class="ec-info-value">' + r.value + '</span>' +
+                        '</div>';
+                }).join('');
+                document.getElementById('domainInfoCard').style.display = '';
+            } else {
+                document.getElementById('domainInfoCard').style.display = 'none';
+            }
+
+            resultsSection.classList.add('active');
+            resultsSection.scrollIntoView({behavior: 'smooth'});
+        }
+
+        function reset() {
+            emailInput.value = '';
+            resultsSection.classList.remove('active');
+            emailInput.focus();
+        }
+    </script>
+</body>
+</html>

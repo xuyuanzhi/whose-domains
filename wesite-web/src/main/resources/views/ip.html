@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="template::template_head"></head>
+<body>
+	<header th:replace="template::template_header"></header>
+	<main class="layui-container">
+
+		<div class="page">
+			<div class="layui-row">
+				<div class="layui-col-md12 layui-col-sm12 layui-col-xs12">
+				
+					<div class="layui-card">
+                        <div class="layui-card-header"><h2 th:text="${ipAddr.ip}">xxx.xxx.xxx.xxx</h2></div>
+                        <div class="layui-card-body">
+			          		<ul class="detail-list">
+			          			<li><label th:text="#{site.location}">网站名称：</label><span th:text="${ipAddr.locationName}">Country, Province</span></li>
+			          			<li>
+			          			     <label th:text="#{site.name}">域名：</label>
+			          			     <ul>
+			          			         <li th:each="domainItem:${domainList}">
+			          			             <a th:href="@{/d/{domain}(domain=${domainItem.name})}" th:text="${domainItem.name}"></a>
+			          			         </li>
+			          			     </ul>
+			          			</li>
+			          			<li><label th:text="#{site.last_update_time}">最近更新日期：</label><span th:text="${ipAddr.lastOperateTimeText}">2023-09-02</span></li>
+			          		</ul>
+		          		</div>
+		          	</div>
+		          	
+          		</div>
+	    	</div>
+		</div>
+	</main>
+	<footer th:replace="template::template_footer"></footer>
+	<script src="/static/js/course.js"></script>
+</body>
+</html>

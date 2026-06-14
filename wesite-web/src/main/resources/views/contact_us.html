@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+
+	<main>
+		<section class="hero">
+			<div class="container">
+				<div class="hero-content">
+					<h1>Contact Us</h1>
+					<p>We're here to help! Get in touch with our team for any questions or support needs.</p>
+				</div>
+			</div>
+		</section>
+
+		<div class="container">
+			<div class="contact-us">
+				<div class="contact-grid">
+		            <div class="contact-form">
+		                <h2>Send us a Message</h2>
+		                <form id="contactForm">
+		                    <div class="form-group">
+		                        <label for="name">Full Name</label>
+		                        <div>
+		                        	<input type="text" id="name" name="name" required>
+		                        </div>
+		                    </div>
+		                    <div class="form-group">
+		                        <label for="email">Email Address</label>
+		                        <div>
+		                        	<input type="email" id="email" name="email" required>
+		                        </div>
+		                    </div>
+		                    <div class="form-group">
+		                        <label for="subject">Subject</label>
+		                        <div>
+		                        	<select id="subject" name="subject" required>
+			                            <option value="">Select a topic</option>
+			                            <option value="technical">Technical Support</option>
+			                            <option value="billing">Billing & Subscription</option>
+			                            <option value="api">API Access</option>
+			                            <option value="partnership">Partnership</option>
+			                            <option value="general">General Inquiry</option>
+			                        </select>
+		                        </div>
+		                    </div>
+		                    <div class="form-group">
+		                        <label for="message">Message</label>
+		                        <div>
+		                        	<textarea id="message" name="message" rows="5" required></textarea>
+		                        </div>
+		                    </div>
+		                    <div class="form-group">
+		                        <label></label>
+		                        <div>
+		                        	<button type="submit" class="btn btn-primary">Send Message</button>
+		                        </div>
+		                    </div>
+		                    
+		                </form>
+		                <div id="formMessage" class="form-message" style="display: none;"></div>
+		            </div>
+		        </div>
+			</div>
+	    </div>
+
+    </main>
+
+    <footer th:replace="~{template::template_footer}"></footer>
+    
+    <script>
+        (function() {
+            'use strict';
+
+            /**
+             * 表单验证工具类
+             */
+            const FormValidator = {
+                /**
+                 * 验证邮箱格式
+                 * @param {string} email - 邮箱地址
+                 * @returns {boolean} 是否有效
+                 */
+                validateEmail: function(email) {
+                    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                    return emailRegex.test(email);
+                },
+                
+                /**
+                 * 验证必填字段
+                 * @param {string} value - 字段值
+                 * @returns {boolean} 是否有效
+                 */
+                validateRequired: function(value) {
+                    return value && value.trim().length > 0;
+                }
+            };
+
+            /**
+             * 联系我们表单处理模块
+             * 使用页面现有的showNotification函数
+             */
+            const ContactFormHandler = {
+                
+                /**
+                 * 初始化表单事件监听器
+                 */
+                init: function() {
+                    const form = document.getElementById('contactForm');
+                    if (!form) {
+                        console.error('Contact form not found');
+                        return;
+                    }
+
+                    // 使用更简单的事件绑定方式
+                    form.onsubmit = (e) => this.handleSubmit(e);
+                },
+
+                /**
+                 * 处理表单提交事件
+                 * @param {Event} event - 提交事件
+                 */
+                handleSubmit: async function(event) {
+                    event.preventDefault();
+
+                    // 首先进行本地验证
+                    const formData = this.collectFormData();
+                    if (!this.validateForm(formData)) {
+                        // 使用页面现有的showNotification函数
+                        if (typeof showNotification !== 'undefined') {
+                            showNotification('Please fill in all required fields correctly.', 'warning');
+                        } else {
+                            alert('Please fill in all required fields correctly.');
+                        }
+                        return;
+                    }
+
+                    const submitButton = event.target.querySelector('button[type="submit"]');
+                    
+                    // 保存原始按钮文本并更新状态
+                    const originalText = submitButton.textContent;
+                    submitButton.disabled = true;
+                    submitButton.textContent = 'Sending...';
+
+                    try {
+                        const response = await this.submitForm(formData);
+                        
+                        // 根据响应显示相应的通知 (code为0表示成功，其他表示失败)
+                        if (response.code === 0) {
+                            // 显示成功通知
+                            if (typeof showNotification !== 'undefined') {
+                                showNotification(response.msg || 'Thank you for contacting us! We\'ll get back to you soon.', 'success');
+                            } else {
+                                alert(response.msg || 'Thank you for contacting us! We\'ll get back to you soon.');
+                            }
+                            
+                            // 清空表单
+                            event.target.reset();
+                        } else {
+                            // 显示失败通知
+                            if (typeof showNotification !== 'undefined') {
+                                showNotification(response.msg || 'An error occurred. Please try again.', 'warning');
+                            } else {
+                                alert(response.msg || 'An error occurred. Please try again.');
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Form submission error:', error);
+                        
+                        // 显示网络错误通知
+                        if (typeof showNotification !== 'undefined') {
+                            showNotification('Network error occurred. Please check your connection and try again.', 'error');
+                        } else {
+                            alert('Network error occurred. Please try again.');
+                        }
+                    } finally {
+                        // 恢复按钮状态
+                        submitButton.disabled = false;
+                        submitButton.textContent = originalText;
+                    }
+                },
+
+                /**
+                 * 验证表单数据
+                 * @param {Object} formData - 表单数据
+                 * @returns {boolean} 是否有效
+                 */
+                validateForm: function(formData) {
+                    return FormValidator.validateRequired(formData.name) &&
+                           FormValidator.validateEmail(formData.email) &&
+                           FormValidator.validateRequired(formData.subject) &&
+                           FormValidator.validateRequired(formData.message);
+                },
+
+                /**
+                 * 收集表单数据
+                 * @returns {Object} 表单数据对象
+                 */
+                collectFormData: function() {
+                    return {
+                        name: document.getElementById('name').value.trim(),
+                        email: document.getElementById('email').value.trim(),
+                        subject: document.getElementById('subject').value,
+                        message: document.getElementById('message').value.trim()
+                    };
+                },
+
+                /**
+                 * 提交表单到服务器
+                 * @param {Object} data - 表单数据
+                 * @returns {Promise<Object>} 服务器响应
+                 */
+                submitForm: async function(data) {
+                    const response = await fetch('/contact-us/submit', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(data)
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+
+                    return await response.json();
+                }
+            };
+
+            // 页面加载完成后初始化
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', () => ContactFormHandler.init());
+            } else {
+                ContactFormHandler.init();
+            }
+
+        })();
+    </script>
+</body>
+</html>

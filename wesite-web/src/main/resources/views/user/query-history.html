@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+
+    <main>
+        <section class="hero">
+            <div class="container">
+                <div class="hero-content">
+                    <h1>📋 Query History</h1>
+                    <p>Your recent domain lookups, availability checks, and tool queries in one place. Click any result to re-run.</p>
+                </div>
+            </div>
+        </section>
+
+        <div th:replace="~{template::ad_banner_top}"></div>
+
+        <div class="container" style="max-width:960px; padding-bottom:60px;">
+
+            <!-- Login required -->
+            <div id="loginRequired" style="display:none; text-align:center; padding:60px 20px;">
+                <div style="font-size:48px; margin-bottom:16px;">🔒</div>
+                <h2 style="margin-bottom:12px;">Sign in to view your history</h2>
+                <p style="color:var(--gray); margin-bottom:24px;">Query history is saved automatically when you're logged in.</p>
+                <button onclick="openAuthModal('login')" class="qh-btn-primary">Sign In</button>
+                <span style="margin:0 12px; color:var(--gray);">or</span>
+                <button onclick="openAuthModal('register')" class="qh-btn-secondary">Create Account</button>
+            </div>
+
+            <!-- Main UI -->
+            <div id="historyUI" style="display:none;">
+
+                <!-- Filter + actions bar -->
+                <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:24px;">
+                    <select id="typeFilter" onchange="loadHistory(1)"
+                        style="padding:9px 14px; border:1px solid var(--glass-border); border-radius:8px;
+                               background:var(--card-bg); color:#e2e8f0; font-size:14px; cursor:pointer; outline:none;">
+                        <option value="">All Types</option>
+                        <option value="WHOIS">WHOIS Lookup</option>
+                        <option value="RDAP">RDAP Lookup</option>
+                        <option value="DNS">DNS Analyzer</option>
+                        <option value="AVAILABILITY">Availability Check</option>
+                        <option value="BULK">Bulk Search</option>
+                        <option value="SSL">SSL Checker</option>
+                        <option value="EMAIL">Email Checker</option>
+                        <option value="VALUATION">Domain Valuation</option>
+                        <option value="SCORE">Domain Score</option>
+                        <option value="PORT">Port Checker</option>
+                        <option value="PING">Ping Test</option>
+                    </select>
+                    <span style="flex:1;"></span>
+                    <button onclick="clearHistory()" class="qh-btn-danger" id="clearBtn">
+                        <i class="fas fa-trash-alt"></i> Clear History
+                    </button>
+                </div>
+
+                <!-- History list -->
+                <div id="historyList"></div>
+
+                <!-- Pagination -->
+                <div id="pagination" style="display:flex; gap:8px; justify-content:center; margin-top:24px;"></div>
+            </div>
+        </div>
+    </main>
+
+    <footer th:replace="~{template::template_footer}"></footer>
+
+    <style>
+        .qh-btn-primary {
+            padding:10px 22px; border-radius:8px; border:none;
+            background:var(--primary,#64ffda); color:#0a192f;
+            font-weight:700; cursor:pointer; font-size:14px;
+        }
+        .qh-btn-secondary {
+            padding:10px 22px; border-radius:8px;
+            border:1px solid rgba(100,255,218,0.4);
+            background:transparent; color:#64ffda;
+            font-weight:600; cursor:pointer; font-size:14px;
+        }
+        .qh-btn-danger {
+            padding:9px 18px; border-radius:8px;
+            border:1px solid rgba(255,82,82,0.4);
+            background:rgba(255,82,82,0.08); color:#ff5252;
+            font-weight:600; cursor:pointer; font-size:13px;
+        }
+        .qh-item {
+            display:flex; align-items:center; gap:14px;
+            background:var(--card-bg); border:1px solid var(--glass-border);
+            border-radius:10px; padding:16px 18px; margin-bottom:10px;
+            transition:border-color .2s;
+        }
+        .qh-item:hover { border-color:rgba(100,255,218,0.4); }
+        .qh-badge {
+            display:inline-block; padding:3px 10px; border-radius:20px;
+            font-size:11px; font-weight:700; text-transform:uppercase;
+            letter-spacing:.05em; white-space:nowrap;
+        }
+        .badge-WHOIS       { background:rgba(100,255,218,0.12); color:#64ffda; }
+        .badge-RDAP        { background:rgba(100,180,255,0.12); color:#64b4ff; }
+        .badge-DNS         { background:rgba(255,193,7,0.12);   color:#ffc107; }
+        .badge-AVAILABILITY{ background:rgba(76,175,80,0.12);   color:#69f0ae; }
+        .badge-BULK        { background:rgba(156,39,176,0.12);  color:#ce93d8; }
+        .badge-SSL         { background:rgba(255,152,0,0.12);   color:#ffb74d; }
+        .badge-EMAIL       { background:rgba(33,150,243,0.12);  color:#64b5f6; }
+        .badge-VALUATION   { background:rgba(255,235,59,0.12);  color:#fff176; }
+        .badge-SCORE       { background:rgba(0,188,212,0.12);   color:#4dd0e1; }
+        .badge-PORT        { background:rgba(255,87,34,0.12);   color:#ff8a65; }
+        .badge-PING        { background:rgba(139,195,74,0.12);  color:#aed581; }
+        .qh-value { font-weight:600; color:#e2e8f0; font-size:15px; flex:1; }
+        .qh-summary { color:var(--gray,#8892b0); font-size:13px; }
+        .qh-time { color:var(--gray,#8892b0); font-size:12px; white-space:nowrap; }
+        .qh-actions { display:flex; gap:8px; }
+        .qh-rerun { padding:6px 14px; border-radius:16px; border:1px solid rgba(100,255,218,0.3);
+                    background:rgba(100,255,218,0.06); color:#64ffda;
+                    font-size:12px; font-weight:600; cursor:pointer; text-decoration:none; }
+        .qh-del { padding:6px 10px; border-radius:16px; border:1px solid rgba(255,82,82,0.3);
+                  background:rgba(255,82,82,0.06); color:#ff5252;
+                  font-size:12px; cursor:pointer; }
+        .pg-btn { padding:7px 13px; border-radius:6px; border:1px solid var(--glass-border);
+                  background:var(--card-bg); color:#e2e8f0; cursor:pointer; font-size:13px; }
+        .pg-btn.active { background:rgba(100,255,218,0.15); border-color:#64ffda; color:#64ffda; }
+    </style>
+
+    <script>
+        var currentPage = 1;
+
+        // Check auth on load
+        (function() {
+            var token = localStorage.getItem('token') || getCookie('token');
+            if (!token) {
+                document.getElementById('loginRequired').style.display = 'block';
+            } else {
+                document.getElementById('historyUI').style.display = 'block';
+                loadHistory(1);
+            }
+        })();
+
+        function loadHistory(page) {
+            currentPage = page;
+            var type = document.getElementById('typeFilter').value;
+            var url = '/api/user/query-history?page=' + page + '&size=20' + (type ? '&type=' + type : '');
+            fetch(url, { headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('token') || getCookie('token')) } })
+                .then(function(r) { return r.json(); })
+                .then(function(json) {
+                    if (json.code === 0) {
+                        renderList(json.data);
+                    } else {
+                        document.getElementById('historyList').innerHTML =
+                            '<p style="color:var(--gray);text-align:center;padding:40px;">No history found. Run a search on any tool to start recording.</p>';
+                    }
+                })
+                .catch(function() {
+                    document.getElementById('historyList').innerHTML =
+                        '<p style="color:#ff5252;text-align:center;padding:40px;">Failed to load history. Please try again.</p>';
+                });
+        }
+
+        function renderList(data) {
+            var list = document.getElementById('historyList');
+            var items = data.items;
+            if (!items || items.length === 0) {
+                list.innerHTML = '<div style="text-align:center;padding:60px;color:var(--gray);"><div style="font-size:40px;margin-bottom:12px;">🔍</div><p>No queries yet. Try a tool lookup and it will appear here.</p></div>';
+                document.getElementById('pagination').innerHTML = '';
+                return;
+            }
+            list.innerHTML = items.map(function(item) {
+                var link = getToolLink(item.queryType, item.queryValue);
+                return '<div class="qh-item">' +
+                    '<span class="qh-badge badge-' + item.queryType + '">' + typeName(item.queryType) + '</span>' +
+                    '<div style="flex:1;min-width:0;">' +
+                    '  <div class="qh-value">' + esc(item.queryValue) + '</div>' +
+                    (item.resultSummary ? '<div class="qh-summary">' + esc(item.resultSummary) + '</div>' : '') +
+                    '</div>' +
+                    '<div class="qh-time">' + formatDate(item.createTime) + '</div>' +
+                    '<div class="qh-actions">' +
+                    (link ? '<a href="' + link + '" class="qh-rerun"><i class="fas fa-redo"></i> Re-run</a>' : '') +
+                    '  <button class="qh-del" onclick="deleteItem(\'' + item.id + '\', this)" title="Delete"><i class="fas fa-times"></i></button>' +
+                    '</div>' +
+                    '</div>';
+            }).join('');
+
+            // Pagination
+            var total = data.total;
+            var size = data.size || 20;
+            var pages = Math.ceil(total / size);
+            var pg = document.getElementById('pagination');
+            if (pages <= 1) { pg.innerHTML = ''; return; }
+            var html = '';
+            for (var i = 1; i <= pages; i++) {
+                html += '<button class="pg-btn' + (i === currentPage ? ' active' : '') + '" onclick="loadHistory(' + i + ')">' + i + '</button>';
+            }
+            pg.innerHTML = html;
+        }
+
+        function deleteItem(id, btn) {
+            fetch('/api/user/query-history/' + id, {
+                method: 'DELETE',
+                headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('token') || getCookie('token')) }
+            }).then(function(r) { return r.json(); }).then(function(json) {
+                if (json.code === 0) {
+                    var row = btn.closest('.qh-item');
+                    row.style.transition = 'opacity .3s'; row.style.opacity = '0';
+                    setTimeout(function() { row.remove(); }, 300);
+                }
+            });
+        }
+
+        function clearHistory() {
+            if (!confirm('Clear all query history? This cannot be undone.')) return;
+            var type = document.getElementById('typeFilter').value;
+            var url = '/api/user/query-history/clear' + (type ? '?type=' + type : '');
+            fetch(url, {
+                method: 'DELETE',
+                headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('token') || getCookie('token')) }
+            }).then(function() { loadHistory(1); });
+        }
+
+        function getToolLink(type, value) {
+            var q = encodeURIComponent(value);
+            switch (type) {
+                case 'WHOIS':        return '/tools/whois-lookup?d=' + q;
+                case 'RDAP':         return '/tools/rdap-lookup?d=' + q;
+                case 'DNS':          return '/tools/dns-analyzer?d=' + q;
+                case 'AVAILABILITY': return '/tools/domain-availability?d=' + q;
+                case 'BULK':         return '/tools/bulk-domain-search';
+                case 'SSL':          return '/tools/ssl-checker?d=' + q;
+                case 'EMAIL':        return '/tools/email-checker?email=' + q;
+                case 'VALUATION':    return '/tools/domain-valuation?d=' + q;
+                case 'SCORE':        return '/tools/domain-score?d=' + q;
+                case 'PORT':         return '/tools/port-checker?host=' + q;
+                case 'PING':         return '/tools/ping-test?host=' + q;
+                default:             return null;
+            }
+        }
+
+        function typeName(t) {
+            var names = { WHOIS:'WHOIS', RDAP:'RDAP', DNS:'DNS', AVAILABILITY:'Availability',
+                          BULK:'Bulk', SSL:'SSL', EMAIL:'Email', VALUATION:'Valuation',
+                          SCORE:'Score', PORT:'Port', PING:'Ping' };
+            return names[t] || t;
+        }
+
+        function formatDate(ts) {
+            if (!ts) return '';
+            var d = new Date(ts);
+            return d.toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'})
+                + ' ' + d.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'});
+        }
+
+        function esc(s) {
+            if (!s) return '';
+            var d = document.createElement('div');
+            d.appendChild(document.createTextNode(s));
+            return d.innerHTML;
+        }
+
+        function getCookie(name) {
+            var v = document.cookie.match('(^|;) ?' + name + '=([^;]*)(;|$)');
+            return v ? v[2] : null;
+        }
+    </script>
+</body>
+</html>

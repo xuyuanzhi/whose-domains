@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+
+    <main>
+        <div class="container">
+            <div class="info-page">
+                <nav class="breadcrumb">
+                    <a href="/">Home</a> &gt; 
+                    <a href="/help-center">Help Center</a> &gt; 
+                    <span>Understanding Domain Auctions</span>
+                </nav>
+
+                <article class="info-content" itemscope itemtype="https://schema.org/Article">
+                    <h1>Understanding Domain Auctions</h1>
+                    
+                    <div class="info-section">
+                        <h2>How Domain Auctions Work</h2>
+                        <p>Domain auctions are competitive bidding events where domains are sold to the highest bidder. They're a key part of the domain aftermarket and offer opportunities to acquire valuable domain names.</p>
+
+                        <h3>Types of Domain Auctions</h3>
+
+                        <h4>Expiring Domain Auctions</h4>
+                        <p>When domain owners don't renew their registrations, registrars auction these domains before they become generally available:</p>
+                        <ul>
+                            <li>Domains enter auction after the grace period expires</li>
+                            <li>Often attract multiple bidders for desirable names</li>
+                            <li>Major platforms: GoDaddy Auctions, NameJet, DropCatch, SnapNames</li>
+                            <li>Check our <a href="/expiring-domains">Expiring Domains</a> page for opportunities</li>
+                        </ul>
+
+                        <h4>Seller-Initiated Auctions</h4>
+                        <p>Domain owners list their domains for competitive bidding:</p>
+                        <ul>
+                            <li>Seller sets a starting price and auction duration</li>
+                            <li>May include a reserve price (minimum acceptable bid)</li>
+                            <li>Buy-it-now option sometimes available</li>
+                        </ul>
+
+                        <h4>Closeout Auctions</h4>
+                        <p>Registry or registrar clearance sales of previously held domains, often at discounted starting prices.</p>
+
+                        <h3>Auction Strategies for Buyers</h3>
+                        <ul>
+                            <li><strong>Set a budget:</strong> Decide your maximum bid before the auction starts</li>
+                            <li><strong>Research the domain:</strong> Check WHOIS history, backlinks, traffic, and any issues</li>
+                            <li><strong>Don't bid early:</strong> Early bidding can drive up prices — wait until the final moments</li>
+                            <li><strong>Use bid sniping:</strong> Place your maximum bid in the last seconds (some platforms extend auctions)</li>
+                            <li><strong>Monitor multiple auctions:</strong> Have alternatives ready if you're outbid</li>
+                        </ul>
+
+                        <h3>Auction Strategies for Sellers</h3>
+                        <ul>
+                            <li><strong>Choose the right platform:</strong> Match your domain type to the platform's audience</li>
+                            <li><strong>Set an attractive starting price:</strong> Low starting prices attract more bidders</li>
+                            <li><strong>Use reserve prices wisely:</strong> Protects against selling too low but may discourage bidders</li>
+                            <li><strong>Time your auction:</strong> Weekday endings during business hours often perform better</li>
+                            <li><strong>Provide detailed information:</strong> Traffic data, revenue, and history increase buyer confidence</li>
+                        </ul>
+
+                        <h3>Auction Fees and Costs</h3>
+                        <ul>
+                            <li><strong>Buyer's premium:</strong> Some platforms charge 10-15% on top of the winning bid</li>
+                            <li><strong>Listing fees:</strong> Some platforms charge sellers to list</li>
+                            <li><strong>Commission:</strong> Sellers may pay 10-20% commission on the sale price</li>
+                            <li><strong>Transfer fees:</strong> Registration transfer costs (usually minimal)</li>
+                        </ul>
+
+                        <div class="info-box">
+                            <strong>Due Diligence:</strong> Always research a domain before bidding. Use our <a href="/">WHOIS lookup</a> to check registration details and <a href="/tools/domain-history">Domain History</a> tool to review past ownership.
+                        </div>
+                    </div>
+
+                    <div class="info-navigation">
+                        <a href="/info/domain-aftermarket-guide" class="btn btn-secondary">&larr; Previous: Domain Aftermarket Guide</a>
+                        <a href="/info/expired-domain-investing" class="btn btn-primary">Next: Expired Domain Investing &rarr;</a>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </main>
+
+    <footer th:replace="~{template::template_footer}"></footer>
+</body>
+</html>

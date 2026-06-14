@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+
+    <main>
+        <div class="container">
+            <div class="info-page">
+                <nav class="breadcrumb">
+                    <a href="/">Home</a> &gt; 
+                    <a href="/help-center">Help Center</a> &gt; 
+                    <span>Managing Multiple Domains</span>
+                </nav>
+
+                <article class="info-content" itemscope itemtype="https://schema.org/Article">
+                    <h1>Managing Multiple Domains</h1>
+                    
+                    <div class="info-section">
+                        <h2>Strategies for Multi-Domain Management</h2>
+                        <p>Organizations often manage dozens or hundreds of domain names for different brands, products, regions, and defensive registrations. Effective management prevents costly oversights and security risks.</p>
+
+                        <h3>Why Organizations Own Multiple Domains</h3>
+                        <ul>
+                            <li><strong>Brand protection:</strong> Registering variations to prevent typosquatting</li>
+                            <li><strong>Multiple TLDs:</strong> Securing .com, .net, .org, and ccTLDs</li>
+                            <li><strong>Product brands:</strong> Separate domains for different product lines</li>
+                            <li><strong>Regional presence:</strong> Country-specific domains for international markets</li>
+                            <li><strong>Marketing campaigns:</strong> Short, memorable domains for promotions</li>
+                            <li><strong>Investment:</strong> Domain portfolios held for future sale or use</li>
+                        </ul>
+
+                        <h3>Domain Portfolio Management</h3>
+
+                        <h4>Centralized Inventory</h4>
+                        <ul>
+                            <li>Maintain a master spreadsheet or use domain management software</li>
+                            <li>Track: domain name, registrar, expiration date, DNS provider, purpose, owner/department</li>
+                            <li>Review and update at least quarterly</li>
+                        </ul>
+
+                        <h4>Registrar Consolidation</h4>
+                        <ul>
+                            <li>Transfer domains to as few registrars as possible</li>
+                            <li>Use enterprise registrar accounts for volume discounts</li>
+                            <li>Choose registrars with strong APIs for automation</li>
+                            <li>Ensure the registrar supports all your TLDs</li>
+                        </ul>
+
+                        <h4>DNS Management</h4>
+                        <ul>
+                            <li>Use a centralized DNS provider for all domains</li>
+                            <li>Implement Infrastructure as Code for DNS (e.g., Terraform, OctoDNS)</li>
+                            <li>Version control your DNS configurations</li>
+                            <li>Use templates for common configurations</li>
+                        </ul>
+
+                        <h3>Security for Domain Portfolios</h3>
+                        <ul>
+                            <li>Enable transfer lock on all domains</li>
+                            <li>Use registry lock for high-value domains</li>
+                            <li>Implement role-based access control</li>
+                            <li>Use a dedicated, secured email for domain management</li>
+                            <li>Enable 2FA on all registrar accounts</li>
+                            <li>Audit access permissions regularly</li>
+                        </ul>
+
+                        <h3>Automation and Tools</h3>
+                        <ul>
+                            <li><strong>Registrar APIs:</strong> Automate renewal, DNS changes, and monitoring</li>
+                            <li><strong>Domain management platforms:</strong> CSC, MarkMonitor, Gandi Corporate</li>
+                            <li><strong>Monitoring services:</strong> Track expiration, DNS changes, and SSL status</li>
+                            <li><strong>WHOIS monitoring:</strong> Alert on unauthorized changes</li>
+                        </ul>
+
+                        <h3>Cost Optimization</h3>
+                        <ul>
+                            <li>Regularly review your portfolio — drop domains you no longer need</li>
+                            <li>Register important domains for multiple years for discounts</li>
+                            <li>Negotiate volume pricing with your registrar</li>
+                            <li>Evaluate whether defensive registrations are still necessary</li>
+                        </ul>
+
+                        <div class="info-box">
+                            <strong>Portfolio Check:</strong> Use our <a href="/tools/bulk-domain-search">Bulk Domain Search</a> to quickly check the status of multiple domains in your portfolio.
+                        </div>
+                    </div>
+
+                    <div class="info-navigation">
+                        <a href="/info/domain-renewal-best-practices" class="btn btn-secondary">&larr; Previous: Domain Renewal Best Practices</a>
+                        <a href="/info/domain-forwarding-and-redirects" class="btn btn-primary">Next: Domain Forwarding &amp; Redirects &rarr;</a>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </main>
+
+    <footer th:replace="~{template::template_footer}"></footer>
+</body>
+</html>

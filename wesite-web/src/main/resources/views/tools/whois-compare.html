@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+    <main>
+    <section class="hero">
+        <div class="container">
+            <div class="hero-content">
+                <h1>🔍 WHOIS Compare</h1>
+                <p>Compare registration data, DNS records, and ownership information of two domains side by side.</p>
+            </div>
+        </div>
+    </section>
+
+    <div th:replace="~{template::ad_banner_top}"></div>
+
+    <div class="container" style="max-width:1100px;">
+
+    <!-- Search Form -->
+    <div style="background:var(--card-bg); border-radius:10px; padding:25px; margin-bottom:30px; border:1px solid var(--glass-border);">
+        <div style="display:flex; gap:15px; align-items:flex-end; flex-wrap:wrap;">
+            <div style="flex:1; min-width:200px;">
+                <label style="display:block; font-weight:600; margin-bottom:5px;">Domain 1</label>
+                <input type="text" id="domain1" placeholder="e.g. google.com" 
+                       autocomplete="off" autocapitalize="none" spellcheck="false" inputmode="url"
+                       style="width:100%; padding:10px 14px; border:1px solid var(--glass-border); border-radius:6px; font-size:15px; box-sizing:border-box; background:rgba(255,255,255,0.05); color:#e2e8f0;">
+            </div>
+            <div style="font-size:24px; color:#999; padding-bottom:8px;">VS</div>
+            <div style="flex:1; min-width:200px;">
+                <label style="display:block; font-weight:600; margin-bottom:5px;">Domain 2</label>
+                <input type="text" id="domain2" placeholder="e.g. bing.com" 
+                       autocomplete="off" autocapitalize="none" spellcheck="false" inputmode="url"
+                       style="width:100%; padding:10px 14px; border:1px solid var(--glass-border); border-radius:6px; font-size:15px; box-sizing:border-box; background:rgba(255,255,255,0.05); color:#e2e8f0;">
+            </div>
+            <button id="compareBtn" onclick="compareDomains()" 
+                    style="padding:10px 30px; background:#2563eb; color:#fff; border:none; border-radius:6px; font-size:15px; cursor:pointer; white-space:nowrap;">
+                Compare
+            </button>
+        </div>
+    </div>
+
+    <!-- Loading -->
+    <div id="loading" style="display:none; text-align:center; padding:40px;">
+        <div style="font-size:18px; color:#7a8ba0;">⏳ Comparing domains... This may take a few seconds.</div>
+    </div>
+
+    <!-- Error -->
+    <div id="errorMsg" style="display:none; background:rgba(255,82,82,0.1); color:#ff5252; padding:15px 18px; border-radius:8px; margin-bottom:20px; border:1px solid rgba(255,82,82,0.2); display:none; align-items:center; gap:10px;">
+        <span style="font-size:18px;">⚠️</span>
+        <span id="errorText"></span>
+    </div>
+
+    <!-- Results -->
+    <div id="results" style="display:none;">
+
+        <!-- Similarity Score -->
+        <div id="similarityBox" style="background:var(--card-bg); border:1px solid var(--glass-border); border-radius:10px; padding:20px; margin-bottom:25px; text-align:center;">
+            <div style="font-size:14px; color:#7a8ba0; margin-bottom:5px;">Ownership Similarity Score</div>
+            <div id="similarityScore" style="font-size:48px; font-weight:700; color:var(--primary);">0%</div>
+            <div id="similarityLabel" style="font-size:13px; color:#888;">Indicates how likely these domains are owned by the same entity</div>
+        </div>
+
+        <!-- Comparison Table -->
+        <div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:10px;">
+            <button onclick="exportCompare('csv')" style="padding:6px 14px; font-size:13px; background:rgba(22,163,74,0.15); color:#4ade80; border:1px solid rgba(22,163,74,0.3); border-radius:6px; cursor:pointer;">📥 Export CSV</button>
+            <button onclick="exportCompare('json')" style="padding:6px 14px; font-size:13px; background:rgba(37,99,235,0.15); color:#60a5fa; border:1px solid rgba(37,99,235,0.3); border-radius:6px; cursor:pointer;">📥 Export JSON</button>
+        </div>
+        <div style="overflow-x:auto;">
+            <table id="compareTable" style="width:100%; border-collapse:collapse; font-size:14px;">
+                <thead>
+                    <tr style="background:rgba(255,255,255,0.04);">
+                        <th style="padding:12px 15px; text-align:left; border-bottom:2px solid var(--border); width:25%; color:var(--darker);">Field</th>
+                        <th id="th1" style="padding:12px 15px; text-align:left; border-bottom:2px solid var(--border); width:33%; color:var(--darker);">Domain 1</th>
+                        <th id="th2" style="padding:12px 15px; text-align:left; border-bottom:2px solid var(--border); width:33%; color:var(--darker);">Domain 2</th>
+                        <th style="padding:12px 15px; text-align:center; border-bottom:2px solid var(--border); width:9%; color:var(--darker);">Match</th>
+                    </tr>
+                </thead>
+                <tbody id="compareBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Use Cases -->
+    <div style="margin-top:40px; border-top:1px solid var(--border); padding-top:30px;">
+        <h2 style="font-size:20px; margin-bottom:15px;">Why Compare Domains?</h2>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(250px, 1fr)); gap:20px;">
+            <div style="background:var(--card-bg); padding:18px; border-radius:8px;">
+                <div style="font-size:18px; margin-bottom:6px;">🛡️ Brand Protection</div>
+                <p style="font-size:13px; color:#7a8ba0; margin:0;">Identify whether a suspicious domain shares ownership with a known brand, revealing potential cybersquatting or phishing.</p>
+            </div>
+            <div style="background:var(--card-bg); padding:18px; border-radius:8px;">
+                <div style="font-size:18px; margin-bottom:6px;">📊 Competitor Research</div>
+                <p style="font-size:13px; color:#7a8ba0; margin:0;">Compare competitors' domain configurations to understand their hosting infrastructure and technology choices.</p>
+            </div>
+            <div style="background:var(--card-bg); padding:18px; border-radius:8px;">
+                <div style="font-size:18px; margin-bottom:6px;">💰 Domain Investment</div>
+                <p style="font-size:13px; color:#7a8ba0; margin:0;">Evaluate domain portfolio patterns, compare registration dates and registrars to assess investment opportunities.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function compareDomains() {
+    var d1 = document.getElementById('domain1').value.trim();
+    var d2 = document.getElementById('domain2').value.trim();
+
+    if (!d1 || !d2) {
+        showError('Please enter both domain names.');
+        return;
+    }
+
+    // 前端友好校验：检测常见输入错误
+    var domainErr = validateDomain(d1) || validateDomain(d2);
+    if (domainErr) {
+        showError(domainErr);
+        return;
+    }
+
+    document.getElementById('loading').style.display = 'block';
+    document.getElementById('results').style.display = 'none';
+    document.getElementById('errorMsg').style.display = 'none';
+    document.getElementById('compareBtn').disabled = true;
+
+    fetch('/api/tools/compare?domain1=' + encodeURIComponent(d1) + '&domain2=' + encodeURIComponent(d2))
+        .then(function(resp) { return resp.json(); })
+        .then(function(json) {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('compareBtn').disabled = false;
+
+            if (json.code !== 0) {
+                showError(json.msg || 'Comparison failed.');
+                return;
+            }
+
+            var data = json.data;
+            renderResults(data);
+        })
+        .catch(function(err) {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('compareBtn').disabled = false;
+            showError('Network error. Please try again.');
+        });
+}
+
+function renderResults(data) {
+    _lastCompareData = data;
+    // Similarity score
+    var score = data.similarityScore || 0;
+    document.getElementById('similarityScore').innerText = score + '%';
+    var scoreEl = document.getElementById('similarityScore');
+    if (score >= 70) {
+        scoreEl.style.color = '#16a34a';
+        document.getElementById('similarityLabel').innerText = 'High similarity - these domains may share the same owner';
+    } else if (score >= 30) {
+        scoreEl.style.color = '#d97706';
+        document.getElementById('similarityLabel').innerText = 'Moderate similarity - some shared attributes detected';
+    } else {
+        scoreEl.style.color = '#2563eb';
+        document.getElementById('similarityLabel').innerText = 'Low similarity - these domains appear to be independently owned';
+    }
+
+    // Table headers
+    var d1Name = data.domain1 ? data.domain1.domain : '-';
+    var d2Name = data.domain2 ? data.domain2.domain : '-';
+    document.getElementById('th1').innerText = d1Name;
+    document.getElementById('th2').innerText = d2Name;
+
+    // Build table rows
+    var tbody = document.getElementById('compareBody');
+    tbody.innerHTML = '';
+
+    var diffs = data.differences || [];
+    for (var i = 0; i < diffs.length; i++) {
+        var d = diffs[i];
+        var tr = document.createElement('tr');
+        tr.style.borderBottom = '1px solid rgba(255,255,255,0.06)';
+        if (!d.match) {
+            tr.style.background = 'rgba(255, 170, 0, 0.08)';
+        }
+
+        tr.innerHTML = '<td style="padding:10px 15px; font-weight:600; color:' + (d.match ? 'var(--darker)' : '#ffab00') + ';">' + escapeHtml(d.field) + '</td>' +
+            '<td style="padding:10px 15px; word-break:break-all; color:var(--dark);">' + escapeHtml(d.domain1 || '-') + '</td>' +
+            '<td style="padding:10px 15px; word-break:break-all; color:var(--dark);">' + escapeHtml(d.domain2 || '-') + '</td>' +
+            '<td style="padding:10px 15px; text-align:center;">' + (d.match ? '✅' : '❌') + '</td>';
+        tbody.appendChild(tr);
+    }
+
+    document.getElementById('results').style.display = 'block';
+}
+
+function showError(msg) {
+    var el = document.getElementById('errorMsg');
+    document.getElementById('errorText').innerText = msg;
+    el.style.display = 'flex';
+}
+
+function validateDomain(input) {
+    if (!input) return null;
+    // 包含 http:// 或 https://
+    if (/^https?:\/\//i.test(input)) {
+        return 'Please enter a domain name only, without "http://" or "https://".';
+    }
+    // 逗号替代句点（如 bing,com）
+    if (input.indexOf(',') !== -1) {
+        var suggested = input.replace(/,/g, '.');
+        return 'Invalid domain "' + input + '". Did you mean ' + suggested + '?';
+    }
+    // 包含空格
+    if (/\s/.test(input)) {
+        return 'Domain name cannot contain spaces. Did you mean "' + input.replace(/\s+/g, '') + '"?';
+    }
+    // 包含非法字符（域名只允许字母、数字、连字符、点）
+    if (/[^a-zA-Z0-9.\-]/.test(input)) {
+        return 'Invalid domain "' + input + '". Domain names can only contain letters, numbers, hyphens, and dots.';
+    }
+    // 以句点开头或结尾
+    if (input.charAt(0) === '.' || input.charAt(input.length - 1) === '.') {
+        return 'Invalid domain "' + input + '". Domain cannot start or end with a dot.';
+    }
+    // 缺少 TLD（没有任何句点）
+    if (input.indexOf('.') === -1) {
+        return 'Invalid domain "' + input + '". Please include a valid extension, e.g. "' + input + '.com".';
+    }
+    return null;
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    var div = document.createElement('div');
+    div.appendChild(document.createTextNode(str));
+    return div.innerHTML;
+}
+
+// Enter key support
+document.addEventListener('DOMContentLoaded', function() {
+    ['domain1', 'domain2'].forEach(function(id) {
+        document.getElementById(id).addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') compareDomains();
+        });
+    });
+});
+
+var _lastCompareData = null;
+
+function exportCompare(format) {
+    if (!_lastCompareData) { alert('Please run a comparison first.'); return; }
+    var d = _lastCompareData;
+    var d1 = d.domain1 ? d.domain1.domain : 'domain1';
+    var d2 = d.domain2 ? d.domain2.domain : 'domain2';
+    var diffs = d.differences || [];
+    if (format === 'csv') {
+        var lines = ['"Field","' + d1 + '","' + d2 + '","Match"'];
+        diffs.forEach(function(row) {
+            lines.push(['"' + (row.field||'').replace(/"/g,'""') + '"',
+                        '"' + (row.domain1||'').replace(/"/g,'""') + '"',
+                        '"' + (row.domain2||'').replace(/"/g,'""') + '"',
+                        '"' + (row.match ? 'Yes' : 'No') + '"'].join(','));
+        });
+        downloadFile(lines.join('\r\n'), 'whois-compare-' + d1 + '-vs-' + d2 + '.csv', 'text/csv');
+    } else {
+        downloadFile(JSON.stringify(d, null, 2), 'whois-compare-' + d1 + '-vs-' + d2 + '.json', 'application/json');
+    }
+}
+
+function downloadFile(content, filename, mime) {
+    var blob = new Blob([content], { type: mime });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+}
+</script>
+    <div th:replace="~{template::ad_banner_bottom}"></div>
+    </main>        <div th:replace="~{fragments/related-tools::related(slug='whois-compare')}"></div>
+    
+    <footer th:replace="~{template::template_footer}"></footer>
+</body>
+</html>

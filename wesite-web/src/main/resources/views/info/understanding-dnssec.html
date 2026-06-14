@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+
+    <main>
+        <div class="container">
+            <div class="info-page">
+                <nav class="breadcrumb">
+                    <a href="/">Home</a> &gt; 
+                    <a href="/help-center">Help Center</a> &gt; 
+                    <span>Understanding DNSSEC</span>
+                </nav>
+
+                <article class="info-content" itemscope itemtype="https://schema.org/Article">
+                    <h1>Understanding DNSSEC</h1>
+                    
+                    <div class="info-section">
+                        <h2>DNS Security Extensions Explained</h2>
+                        <p>DNSSEC (Domain Name System Security Extensions) is a security protocol that adds cryptographic authentication to DNS responses, protecting against DNS spoofing and cache poisoning attacks.</p>
+                        
+                        <h3>What is DNSSEC?</h3>
+                        <p>DNSSEC is a suite of extensions that secures DNS by digitally signing DNS records. It ensures that DNS responses are authentic and haven't been tampered with during transmission.</p>
+                        
+                        <div class="info-box">
+                            <strong>Key Point:</strong> DNSSEC provides authentication and integrity, but NOT confidentiality. DNS data remains public, but you can verify it's from the legitimate source.
+                        </div>
+
+                        <h3>Why DNSSEC Matters</h3>
+                        
+                        <h4>Problems DNSSEC Solves</h4>
+                        <ul>
+                            <li><strong>DNS Spoofing:</strong> Attackers provide fake DNS responses</li>
+                            <li><strong>Cache Poisoning:</strong> Corrupting DNS cache with false data</li>
+                            <li><strong>Man-in-the-Middle:</strong> Intercepting and modifying DNS queries</li>
+                            <li><strong>Phishing:</strong> Redirecting users to fake websites</li>
+                        </ul>
+
+                        <h4>Real-World Impact</h4>
+                        <p>Without DNSSEC, attackers can:</p>
+                        <ul>
+                            <li>Redirect your website visitors to malicious sites</li>
+                            <li>Intercept email by changing MX records</li>
+                            <li>Steal credentials through fake login pages</li>
+                            <li>Distribute malware through compromised domains</li>
+                        </ul>
+
+                        <h3>How DNSSEC Works</h3>
+                        
+                        <h4>Digital Signatures</h4>
+                        <p>DNSSEC adds digital signatures to DNS records:</p>
+                        <ol>
+                            <li>Domain owner generates cryptographic keys</li>
+                            <li>DNS records are signed with private key</li>
+                            <li>Public key is published in DNS</li>
+                            <li>Resolvers verify signatures with public key</li>
+                            <li>Valid signatures confirm authenticity</li>
+                        </ol>
+
+                        <h4>Chain of Trust</h4>
+                        <p>DNSSEC creates a hierarchical chain of trust:</p>
+                        <ul>
+                            <li><strong>Root Zone:</strong> Top of the hierarchy (signed by ICANN)</li>
+                            <li><strong>TLD Zone:</strong> .com, .org, .cn, etc. (signed by registry)</li>
+                            <li><strong>Domain Zone:</strong> Your domain (signed by you/your registrar)</li>
+                        </ul>
+                        <p>Each level signs the level below, creating an unbroken chain from root to your domain.</p>
+
+                        <h3>Key DNSSEC Components</h3>
+                        
+                        <h4>Resource Records</h4>
+                        <ul>
+                            <li><strong>DNSKEY:</strong> Contains public keys</li>
+                            <li><strong>RRSIG:</strong> Contains digital signatures</li>
+                            <li><strong>DS:</strong> Delegation Signer (links parent to child)</li>
+                            <li><strong>NSEC/NSEC3:</strong> Proves non-existence of records</li>
+                        </ul>
+
+                        <h4>Key Types</h4>
+                        <ul>
+                            <li><strong>KSK (Key Signing Key):</strong> Signs other DNSKEY records</li>
+                            <li><strong>ZSK (Zone Signing Key):</strong> Signs actual DNS records</li>
+                        </ul>
+                        <p>Using separate keys allows easier key rotation for ZSK while keeping KSK stable.</p>
+
+                        <h3>Enabling DNSSEC</h3>
+                        
+                        <h4>Prerequisites</h4>
+                        <ul>
+                            <li>Registrar must support DNSSEC</li>
+                            <li>DNS provider must support DNSSEC signing</li>
+                            <li>TLD must support DNSSEC (most major TLDs do)</li>
+                        </ul>
+
+                        <h4>Setup Process</h4>
+                        <ol>
+                            <li><strong>Generate Keys:</strong> Create KSK and ZSK</li>
+                            <li><strong>Sign Zone:</strong> Sign your DNS records</li>
+                            <li><strong>Publish Keys:</strong> Add DNSKEY records to zone</li>
+                            <li><strong>Create DS Record:</strong> Generate DS from KSK</li>
+                            <li><strong>Submit DS:</strong> Provide DS to your registrar</li>
+                            <li><strong>Registrar Submits:</strong> Registrar sends DS to registry</li>
+                            <li><strong>Chain Complete:</strong> DNSSEC is active</li>
+                        </ol>
+
+                        <h4>Through Your Registrar</h4>
+                        <p>Many registrars simplify DNSSEC setup:</p>
+                        <ol>
+                            <li>Log into registrar account</li>
+                            <li>Navigate to DNSSEC settings</li>
+                            <li>Enable DNSSEC (often automatic)</li>
+                            <li>Registrar handles key management</li>
+                        </ol>
+
+                        <h3>DNSSEC Validation</h3>
+                        
+                        <h4>For Domain Owners</h4>
+                        <ul>
+                            <li>Use online DNSSEC verification tools</li>
+                            <li>Check with dig command: <code>dig +dnssec example.com</code></li>
+                            <li>Verify DS record is in parent zone</li>
+                            <li>Monitor key expiration dates</li>
+                        </ul>
+
+                        <h4>For End Users</h4>
+                        <ul>
+                            <li>Use DNS resolvers that validate DNSSEC</li>
+                            <li>Google Public DNS: 8.8.8.8, 8.8.4.4</li>
+                            <li>Cloudflare: 1.1.1.1, 1.0.0.1</li>
+                            <li>Quad9: 9.9.9.9 (security-focused)</li>
+                        </ul>
+
+                        <h3>Benefits of DNSSEC</h3>
+                        <ul>
+                            <li><strong>Authentication:</strong> Verifies DNS data来源</li>
+                            <li><strong>Integrity:</strong> Ensures data hasn't been modified</li>
+                            <li><strong>Trust:</strong> Builds confidence in your domain</li>
+                            <li><strong>Security:</strong> Prevents DNS-based attacks</li>
+                            <li><strong>Compliance:</strong> May be required for some industries</li>
+                        </ul>
+
+                        <h3>Limitations of DNSSEC</h3>
+                        <ul>
+                            <li><strong>No Encryption:</strong> DNS data still visible</li>
+                            <li><strong>No Availability:</strong> Doesn't prevent DDoS</li>
+                            <li><strong>Complexity:</strong> Adds management overhead</li>
+                            <li><strong>Key Management:</strong> Must rotate keys before expiration</li>
+                            <li><strong>Not Universal:</strong> Not all TLDs support it</li>
+                        </ul>
+
+                        <h3>DNSSEC and Other Security Measures</h3>
+                        <p>DNSSEC works alongside other security protocols:</p>
+                        <ul>
+                            <li><strong>SSL/TLS:</strong> Encrypts website traffic</li>
+                            <li><strong>DANE:</strong> Uses DNSSEC to secure TLS certificates</li>
+                            <strong>SPF/DKIM/DMARC:</strong> Secure email</li>
+                            <li><strong>DoT/DoH:</strong> Encrypt DNS queries (DNS over TLS/HTTPS)</li>
+                        </ul>
+
+                        <h3>Key Management Best Practices</h3>
+                        <ul>
+                            <li><strong>Monitor Expiration:</strong> Keys have limited validity</li>
+                            <li><strong>Regular Rotation:</strong> Rotate ZSK regularly (e.g., monthly)</li>
+                            <li><strong>Secure Storage:</strong> Protect private keys</li>
+                            <li><strong>Backup Keys:</strong> Have recovery procedures</li>
+                            <li><strong>Automate:</strong> Use tools for key management when possible</li>
+                        </ul>
+
+                        <h3>Troubleshooting DNSSEC</h3>
+                        
+                        <h4>Common Issues</h4>
+                        <ul>
+                            <li><strong>Broken Chain:</strong> DS record mismatch</li>
+                            <li><strong>Expired Keys:</strong> Keys past validity period</li>
+                            <li><strong>Algorithm Mismatch:</strong> Unsupported signing algorithm</li>
+                            <li><strong>Propagation Delay:</strong> Changes not yet visible</li>
+                        </ul>
+
+                        <h4>Validation Tools</h4>
+                        <ul>
+                            <li>ICANN DNSSEC Debugger</li>
+                            <li>Verisign DNSSEC Analyzer</li>
+                            <li>IntoDNS</li>
+                            <li>DNSViz</li>
+                        </ul>
+
+                        <h3>Should You Enable DNSSEC?</h3>
+                        
+                        <h4>Yes, If:</h4>
+                        <ul>
+                            <li>You run an e-commerce site</li>
+                            <li>You handle sensitive user data</li>
+                            <li>You're a financial institution</li>
+                            <li>You're a government entity</li>
+                            <li>Security is a top priority</li>
+                        </ul>
+
+                        <h4>Consider Carefully If:</h4>
+                        <ul>
+                            <li>You lack technical resources</li>
+                            <li>Your DNS provider doesn't support it well</li>
+                            <li>Your TLD doesn't support DNSSEC</li>
+                            <li>You can't monitor key expiration</li>
+                        </ul>
+                    </div>
+
+                    <div class="info-navigation">
+                        <a href="/info/domain-lock-and-transfer-protection" class="btn btn-secondary">&larr; Previous: Domain Lock and Transfer Protection</a>
+                        <a href="/info/preventing-domain-fraud" class="btn btn-primary">Next: Preventing Domain Fraud &rarr;</a>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </main>
+
+    <footer th:replace="~{template::template_footer}"></footer>
+</body>
+</html>

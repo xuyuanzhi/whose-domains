@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+
+    <main>
+        <div class="container">
+            <div class="info-page">
+                <nav class="breadcrumb">
+                    <a href="/">Home</a> &gt; 
+                    <a href="/help-center">Help Center</a> &gt; 
+                    <span>Preventing Domain Fraud</span>
+                </nav>
+
+                <article class="info-content" itemscope itemtype="https://schema.org/Article">
+                    <h1>Preventing Domain Fraud</h1>
+                    
+                    <div class="info-section">
+                        <h2>Protect Yourself from Domain-Related Fraud</h2>
+                        <p>Domain fraud encompasses various deceptive practices that exploit domain names and registration systems. Understanding these threats and implementing protective measures is essential for both domain owners and internet users.</p>
+                        
+                        <div class="info-box">
+                            <strong>Key Point:</strong> Domain fraud costs businesses and individuals billions annually. Awareness and proactive security measures are your best defense.
+                        </div>
+
+                        <h3>Common Types of Domain Fraud</h3>
+                        
+                        <h4>Phishing Domains</h4>
+                        <p>Fraudsters register domains that mimic legitimate brands to steal credentials:</p>
+                        <ul>
+                            <li><strong>Typosquatting:</strong> Registering common misspellings (e.g., "gooogle.com")</li>
+                            <li><strong>Homograph Attacks:</strong> Using similar-looking characters from different alphabets</li>
+                            <li><strong>Subdomain Spoofing:</strong> Creating URLs like "paypal.secure-login.com"</li>
+                            <li><strong>TLD Variations:</strong> Registering .net when you own .com</li>
+                        </ul>
+
+                        <h4>Domain Hijacking</h4>
+                        <p>Unauthorized takeover of legitimate domains through:</p>
+                        <ul>
+                            <li>Credential stuffing attacks</li>
+                            <li>Social engineering registrar support</li>
+                            <li>Email account compromise</li>
+                            <li>Insider threats at registrars</li>
+                        </ul>
+
+                        <h4>False Renewal Notices</h4>
+                        <p>Scammers send fake renewal invoices to:</p>
+                        <ul>
+                            <li>Collect payment for unnecessary services</li>
+                            <li>Steal credit card information</li>
+                            <li>Gain access to domain accounts</li>
+                            <li>Install malware through payment portals</li>
+                        </ul>
+
+                        <h4>Domain Slamming</h4>
+                        <p>Deceptive transfer requests that appear to be:</p>
+                        <ul>
+                            <li>Renewal confirmations</li>
+                            <li>Information updates</li>
+                            <li>Required verifications</li>
+                            <li>But actually initiate domain transfers</li>
+                        </ul>
+
+                        <h4>Counterfeit Registrar Scams</h4>
+                        <p>Fake companies posing as registrars offering:</p>
+                        <ul>
+                            <li>"Free" domain registrations (with hidden costs)</li>
+                            <li>Unauthorized "premium" services</li>
+                            <li>Fake SSL certificates</li>
+                            <li>Bogus SEO or marketing packages</li>
+                        </ul>
+
+                        <h3>How to Protect Yourself as a Domain Owner</h3>
+                        
+                        <h4>Secure Your Registrar Account</h4>
+                        <ul>
+                            <li><strong>Strong Password:</strong> Use unique, complex passwords</li>
+                            <li><strong>Two-Factor Authentication:</strong> Enable 2FA on all accounts</li>
+                            <li><strong>Account Alerts:</strong> Enable notifications for all changes</li>
+                            <li><strong>Access Controls:</strong> Limit who can manage your domains</li>
+                            <li><strong>Regular Audits:</strong> Review account access periodically</li>
+                        </ul>
+
+                        <h4>Enable Domain Protection Features</h4>
+                        <ul>
+                            <li><strong>Domain Lock:</strong> Prevent unauthorized transfers</li>
+                            <li><strong>WHOIS Privacy:</strong> Hide personal contact information</li>
+                            <li><strong>DNSSEC:</strong> Sign your DNS records</li>
+                            <li><strong>Transfer Authorization:</strong> Require codes for transfers</li>
+                            <li><strong>Registry Lock:</strong> Additional protection for critical domains</li>
+                        </ul>
+
+                        <h4>Monitor Your Domains</h4>
+                        <ul>
+                            <li>Set up renewal reminders (multiple)</li>
+                            <li>Monitor WHOIS changes</li>
+                            <li>Track DNS record modifications</li>
+                            <li>Watch for similar domain registrations</li>
+                            <li>Use domain monitoring services</li>
+                        </ul>
+
+                        <h4>Register Defensive Domains</h4>
+                        <p>Protect your brand by registering:</p>
+                        <ul>
+                            <li>Common misspellings of your domain</li>
+                            <li>Multiple TLDs (.com, .net, .org, country codes)</li>
+                            <li>Variations with hyphens</li>
+                            <li>Common product or service names</li>
+                        </ul>
+
+                        <h4>Keep Information Current</h4>
+                        <ul>
+                            <li>Maintain accurate WHOIS contact information</li>
+                            <li>Use email addresses you actively monitor</li>
+                            <li>Update phone numbers for verification</li>
+                            <li>Respond to registrar communications promptly</li>
+                        </ul>
+
+                        <h3>How to Protect Yourself as an Internet User</h3>
+                        
+                        <h4>Verify Website Authenticity</h4>
+                        <ul>
+                            <li><strong>Check the URL:</strong> Look for misspellings or unusual TLDs</li>
+                            <li><strong>Verify SSL Certificates:</strong> Click the padlock icon</li>
+                            <li><strong>Check Domain Age:</strong> New domains may be suspicious</li>
+                            <li><strong>Research the Company:</strong> Look for reviews and contact information</li>
+                            <li><strong>Use WHOIS Lookup:</strong> Verify domain ownership</li>
+                        </ul>
+
+                        <h4>Recognize Phishing Attempts</h4>
+                        <ul>
+                            <li>Urgent or threatening language</li>
+                            <li>Requests for sensitive information</li>
+                            <li>Suspicious sender addresses</li>
+                            <li>Generic greetings ("Dear Customer")</li>
+                            <li>Unexpected attachments or links</li>
+                            <li>Poor grammar or spelling</li>
+                        </ul>
+
+                        <h4>Verify Communications</h4>
+                        <ul>
+                            <li>Don't click links in unsolicited emails</li>
+                            <li>Navigate directly to official websites</li>
+                            <li>Call official numbers to verify requests</li>
+                            <li>Check sender email domains carefully</li>
+                            <li>Be skeptical of urgent payment requests</li>
+                        </ul>
+
+                        <h4>Use Security Tools</h4>
+                        <ul>
+                            <li>Browser security features</li>
+                            <li>Anti-phishing extensions</li>
+                            <li>Email filtering</li>
+                            <li>DNS filtering services (e.g., Quad9, Cloudflare)</li>
+                            <li>Password managers (to avoid fake login pages)</li>
+                        </ul>
+
+                        <h3>Red Flags to Watch For</h3>
+                        
+                        <h4>Suspicious Domain Characteristics</h4>
+                        <ul>
+                            <li>Recently registered (check WHOIS creation date)</li>
+                            <li>Hidden WHOIS information (not always bad, but notable)</li>
+                            <li>Unusual TLDs for the claimed business type</li>
+                            <li>Misspellings of well-known brands</li>
+                            <li>Excessive use of hyphens or numbers</li>
+                            <li>No HTTPS/SSL certificate</li>
+                        </ul>
+
+                        <h4>Suspicious Communication</h4>
+                        <ul>
+                            <li>Unexpected domain renewal notices</li>
+                            <li>Threats of immediate domain suspension</li>
+                            <li>Requests for payment via unusual methods</li>
+                            <li>Claims of "someone else registered your domain"</li>
+                            <li>Offers that seem too good to be true</li>
+                        </ul>
+
+                        <h3>What to Do If You're a Victim</h3>
+                        
+                        <h4>Immediate Actions</h4>
+                        <ol>
+                            <li><strong>Contact Your Registrar:</strong> Report the fraud immediately</li>
+                            <li><strong>Change Passwords:</strong> All related accounts</li>
+                            <li><strong>Enable 2FA:</strong> If not already enabled</li>
+                            <li><strong>Document Everything:</strong> Save all communications</li>
+                            <li><strong>Check Financial Accounts:</strong> Monitor for unauthorized charges</li>
+                        </ol>
+
+                        <h4>Recovery Steps</h4>
+                        <ul>
+                            <li>File a complaint with ICANN (if applicable)</li>
+                            <li>Report to relevant authorities (FBI IC3, local police)</li>
+                            <li>Contact your bank/credit card company</li>
+                            <li>Consider legal action for trademark infringement</li>
+                            <li>Notify affected customers or partners</li>
+                            <li>Work with your registrar on domain recovery</li>
+                        </ul>
+
+                        <h4>For Phishing Victims</h4>
+                        <ul>
+                            <li>Change compromised passwords immediately</li>
+                            <li>Enable 2FA on all affected accounts</li>
+                            <li>Monitor accounts for suspicious activity</li>
+                            <li>Report phishing to Anti-Phishing Working Group</li>
+                            <li>Report to the impersonated brand</li>
+                        </ul>
+
+                        <h3>Best Practices for Businesses</h3>
+                        
+                        <h4>Brand Protection Strategy</h4>
+                        <ul>
+                            <li>Register domains proactively (defensive registration)</li>
+                            <li>Monitor for infringing registrations</li>
+                            <li>Use trademark protection services</li>
+                            <li>Implement DMARC for email authentication</li>
+                            <li>Educate customers about official domains</li>
+                        </ul>
+
+                        <h4>Employee Training</h4>
+                        <ul>
+                            <li>Recognize phishing attempts</li>
+                            <li>Verify domain-related communications</li>
+                            <li>Follow security protocols</li>
+                            <li>Report suspicious activity promptly</li>
+                            <li>Regular security awareness updates</li>
+                        </ul>
+
+                        <h4>Technical Controls</h4>
+                        <ul>
+                            <li>Implement SPF, DKIM, and DMARC</li>
+                            <li>Use DNSSEC for all critical domains</li>
+                            <li>Monitor DNS changes</li>
+                            <li>Set up domain expiration alerts</li>
+                            <li>Use enterprise-grade domain management</li>
+                        </ul>
+
+                        <h3>Resources and Tools</h3>
+                        
+                        <h4>Verification Tools</h4>
+                        <ul>
+                            <li><strong>WHOIS Lookup:</strong> Check domain registration details</li>
+                            <li><strong>DNSViz:</strong> Visualize DNS configuration</li>
+                            <li><strong>Google Safe Browsing:</strong> Check if site is flagged</li>
+                            <li><strong>VirusTotal:</strong> Scan URLs for malware</li>
+                            <li><strong>SSL Labs:</strong> Verify SSL certificate quality</li>
+                        </ul>
+
+                        <h4>Reporting Resources</h4>
+                        <ul>
+                            <li><strong>ICANN Complaint:</strong> For registrar issues</li>
+                            <li><strong>FBI IC3:</strong> Internet Crime Complaint Center</li>
+                            <li><strong>APWG:</strong> Anti-Phishing Working Group</li>
+                            <li><strong>FTC:</strong> Federal Trade Commission (US)</li>
+                            <li><strong>Local Authorities:</strong> Your country's cybercrime unit</li>
+                        </ul>
+
+                        <h3>Staying Informed</h3>
+                        <p>Domain fraud tactics evolve constantly. Stay protected by:</p>
+                        <ul>
+                            <li>Following security news and blogs</li>
+                            <li>Subscribing to registrar security alerts</li>
+                            <li>Participating in industry forums</li>
+                            <li>Attending security webinars</li>
+                            <li>Regularly reviewing security practices</li>
+                        </ul>
+
+                        <div class="info-box">
+                            <strong>Remember:</strong> Prevention is far easier than recovery. Invest time in securing your domains and educating yourself about fraud tactics.
+                        </div>
+                    </div>
+
+                    <div class="info-navigation">
+                        <a href="/info/understanding-dnssec" class="btn btn-secondary">&larr; Previous: Understanding DNSSEC</a>
+                        <a href="/info/what-is-ssl-tls-certificate" class="btn btn-primary">Next: What is an SSL/TLS Certificate &rarr;</a>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </main>
+
+    <footer th:replace="~{template::template_footer}"></footer>
+</body>
+</html>

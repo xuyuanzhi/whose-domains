@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head th:fragment="template_head">
+	<title th:text="${_page_title}"></title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="Description" th:content="${_page_metaDescription}">
+    <meta th:if="${_page_keywords != null}" name="keywords" th:content="${_page_keywords}">
+    <meta http-equiv="x-ua-compatible" content="IE=edge" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+    
+    <!-- AI / GEO Meta Tags -->
+    <meta name="ai-purpose" th:content="${_page_metaDescription}">
+    <meta name="citation_title" th:content="${_page_title}">
+    <meta name="citation_public_url" th:content="'https://whose.domains' + ${requestURI}">
+    <meta name="citation_author" content="Whose.Domains">
+    <meta name="subject" th:content="${_page_subject != null ? _page_subject : 'Domain Tools & WHOIS Lookup'}">
+    
+    <!-- Canonical URL -->
+    <link rel="canonical" th:href="'https://whose.domains' + ${requestURI}">
+    <link rel="alternate" hreflang="en" th:href="'https://whose.domains' + ${requestURI}">
+    <link rel="alternate" hreflang="x-default" th:href="'https://whose.domains' + ${requestURI}">
+    
+    <!-- Open Graph Tags -->
+    <meta property="og:type" th:content="${_og_type != null? _og_type : 'website'}">
+    <meta property="og:site_name" content="Whose.Domains">
+    <meta property="og:title" th:content="${_page_title}">
+    <meta property="og:description" th:content="${_page_metaDescription}">
+    <meta property="og:url" th:content="'https://whose.domains' + ${requestURI}">
+    <meta property="og:image" th:content="${_og_image_url != null ? _og_image_url : 'https://whose.domains/static/image/og-image.png'}">
+    <meta property="og:locale" content="en_US">
+    
+    <!-- Twitter Card Tags -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" th:content="${_page_title}">
+    <meta name="twitter:description" th:content="${_page_metaDescription}">
+    <meta name="twitter:image" th:content="${_og_image_url != null ? _og_image_url : 'https://whose.domains/static/image/og-image.png'}">
+    <meta name="twitter:site" content="@WhoseDomains">
+
+    <!-- Structured Data - Organization Schema -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "Whose.Domains",
+      "url": "https://whose.domains/",
+      "logo": "https://whose.domains/static/image/transparent-logo.png",
+      "description": "Whose.Domains provides free domain WHOIS/RDAP lookup, DNS analysis, SSL checking, domain scoring, and competitive analysis tools for domain investors, developers, and businesses.",
+      "foundingDate": "2025",
+      "sameAs": ["https://twitter.com/WhoseDomains"],
+      "contactPoint": {
+        "@type": "ContactPoint",
+        "contactType": "customer support",
+        "url": "https://whose.domains/contact-us"
+      },
+      "knowsAbout": ["WHOIS lookup", "RDAP protocol", "DNS analysis", "SSL certificates", "domain registration", "domain investing", "domain health scoring", "competitor analysis"]
+    }
+    </script>
+    <!-- Structured Data - Speakable for AI/Voice -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebPage",
+      "speakable": {
+        "@type": "SpeakableSpecification",
+        "cssSelector": ["h1", ".hero-content p", ".section-title", ".section-subtitle"]
+      }
+    }
+    </script>
+    <!-- Structured Data - WebSite Schema with SearchAction -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "Whose.Domains",
+      "alternateName": "Whose Domains - Domain WHOIS Lookup",
+      "url": "https://whose.domains/",
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": {
+          "@type": "EntryPoint",
+          "urlTemplate": "https://whose.domains/domain/{search_term_string}"
+        },
+        "query-input": "required name=search_term_string"
+      },
+      "description": "Free domain WHOIS/RDAP lookup, DNS analysis, SSL checking, domain health scoring, and competitive analysis tools.",
+      "inLanguage": "en-US",
+      "publisher": {
+        "@type": "Organization",
+        "name": "Whose.Domains"
+      }
+    }
+    </script>
+    <!-- Structured Data - BreadcrumbList (dynamic) -->
+    <script th:if="${_breadcrumbs != null}" type="application/ld+json" th:utext="${_breadcrumbSchema}"></script>
+    <!-- Page-specific structured data -->
+    <script th:if="${_pageSchema != null}" type="application/ld+json" th:utext="${_pageSchema}"></script>
+    <!-- Page-specific FAQ structured data -->
+    <script th:if="${_faqSchema != null}" type="application/ld+json" th:utext="${_faqSchema}"></script>
+    <!-- 基本favicon -->
+  	<link rel="icon" href="/favicon.ico" type="image/x-icon">
+  	<!-- 可选：为不同尺寸提供PNG版本 -->
+  	<link rel="icon" type="image/png" sizes="32x32" href="/static/image/favicon-32x32.png">
+  	<link rel="icon" type="image/png" sizes="16x16" href="/static/image/favicon-16x16.png">
+
+  	<!-- 苹果设备 -->
+  	<link rel="apple-touch-icon" sizes="180x180" href="/static/image/apple-touch-icon.png">
+
+  	<!-- 安卓Chrome PWA -->
+  	<link rel="manifest" href="/site.webmanifest">
+
+  	<!-- Windows磁贴 -->
+  	<meta name="msapplication-TileImage" content="/mstile-150x150.png">
+  	<meta name="msapplication-TileColor" content="#ffffff">
+  	
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link type="text/css" rel="stylesheet" th:href="@{/static/font-awesome/6.4.0/css/all.min.css?v={v}(v=${version})}">
+    <link type="text/css" rel="stylesheet" th:href="@{/static/style/common.css?v={v}(v=${version})}" />
+    <!-- Google tag (gtag.js) - 仅在生产环境加载 -->
+	<th:block th:if="${_isProd}">
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-96K2E887W3"></script>
+	<script>
+	  window.dataLayer = window.dataLayer || [];
+	  function gtag(){dataLayer.push(arguments);}
+	  gtag('js', new Date());
+	  gtag('config', 'G-96K2E887W3');
+	</script>
+	</th:block>
+	<!-- Google AdSense - 仅在生产环境加载 -->
+	<script th:if="${_isProd}" async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7597293740550331" crossorigin="anonymous"></script>
+</head>
+<body>
+	<!-- Header -->
+    <header th:fragment="template_header">
+        <div class="container">
+            <nav class="navbar">
+                <a href="/" class="logo">
+                    <img alt="Whose.Domains - Domain WHOIS Lookup" src="/static/image/transparent-logo.png" width="160" height="40"/>
+                </a>
+                <!-- Hamburger (mobile only) -->
+                <button class="nav-hamburger" id="navHamburger" aria-label="Toggle navigation" onclick="toggleNav()">
+                    <span></span><span></span><span></span>
+                </button>
+                <ul class="nav-links" id="navLinks">
+                    <li><a href="/" th:class="${requestURI == '/'?'active':''}">Home</a></li>
+                    <li><a href="/tools" th:class="${requestURI != null && requestURI.startsWith('/tools')?'active':''}">Tools</a></li>
+                    <li><a href="/top-level-domains" th:class="${requestURI == '/top-level-domains'?'active':''}">TLDs</a></li>
+                    <li><a href="/expiring-domains" th:class="${requestURI == '/expiring-domains'?'active':''}">Expiring Domains</a></li>
+                    <li><a href="/api-docs" th:class="${requestURI == '/api-docs'?'active':''}">API</a></li>
+                    <li><a href="/blog" th:class="${requestURI != null && requestURI.startsWith('/blog')?'active':''}">Blog</a></li>
+                    <!-- User menu (dynamically shown by JS) -->
+                    <li id="navUserMenu" style="display:none;" class="nav-dropdown">
+                        <a href="#" onclick="event.preventDefault()" class="dropdown-toggle" id="navUserToggle">
+                            <i class="fas fa-user-circle"></i> <span id="navUserName">Account</span>
+                            <i class="fas fa-chevron-down" style="font-size:10px;margin-left:3px;"></i>
+                        </a>
+                        <div class="dropdown-menu dropdown-menu-right">
+                            <div class="dropdown-section">
+                                <a href="/user/domain-watch"><i class="fas fa-bell"></i> My Watchlist</a>
+                                <a href="javascript:void(0)" onclick="doLogout()"><i class="fas fa-sign-out-alt"></i> Sign Out</a>
+                            </div>
+                        </div>
+                    </li>
+                    <li id="navLoginBtn" style="display:none;">
+                        <a href="#" onclick="event.preventDefault(); openAuthModal('login')"
+                           style="background:var(--primary);color:#080c18;padding:6px 16px;border-radius:20px;font-weight:600;font-size:14px;">
+                            Sign In
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Auth Modal -->
+    <div id="authModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:99999;align-items:center;justify-content:center;">
+        <div style="background:#0d1117;border:1px solid rgba(100,255,218,0.2);border-radius:16px;padding:36px;width:100%;max-width:400px;margin:20px;position:relative;">
+            <button onclick="closeAuthModal()" style="position:absolute;top:14px;right:18px;background:none;border:none;color:#888;font-size:20px;cursor:pointer;">&times;</button>
+            <div id="loginForm">
+                <h2 style="margin-bottom:6px;color:#e2e8f0;">Sign In</h2>
+                <p style="color:#888;font-size:14px;margin-bottom:24px;">Sign in to access your Watchlist and more.</p>
+                <div style="margin-bottom:14px;">
+                    <label style="font-size:13px;color:#888;display:block;margin-bottom:6px;">Phone Number</label>
+                    <input id="loginPhone" type="text" placeholder="Your phone number"
+                           style="width:100%;padding:10px 14px;border:1px solid rgba(100,255,218,0.2);border-radius:8px;font-size:14px;background:rgba(255,255,255,0.05);color:#e2e8f0;outline:none;box-sizing:border-box;">
+                </div>
+                <div style="margin-bottom:20px;">
+                    <label style="font-size:13px;color:#888;display:block;margin-bottom:6px;">Password</label>
+                    <input id="loginPwd" type="password" placeholder="Your password"
+                           style="width:100%;padding:10px 14px;border:1px solid rgba(100,255,218,0.2);border-radius:8px;font-size:14px;background:rgba(255,255,255,0.05);color:#e2e8f0;outline:none;box-sizing:border-box;">
+                </div>
+                <div id="loginMsg" style="display:none;font-size:13px;margin-bottom:14px;color:#ff5252;"></div>
+                <button onclick="doLogin()" style="width:100%;padding:12px;background:#64ffda;color:#080c18;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;">Sign In</button>
+                <p style="text-align:center;margin-top:16px;font-size:13px;color:#888;">
+                    No account? <a href="#" onclick="event.preventDefault(); switchAuth('register')" style="color:#64ffda;">Create one</a>
+                </p>
+            </div>
+            <div id="registerForm" style="display:none;">
+                <h2 style="margin-bottom:6px;color:#e2e8f0;">Create Account</h2>
+                <p style="color:#888;font-size:14px;margin-bottom:24px;">Free forever. Monitor up to 50 domains.</p>
+                <div style="margin-bottom:14px;">
+                    <label style="font-size:13px;color:#888;display:block;margin-bottom:6px;">Your Name</label>
+                    <input id="regName" type="text" placeholder="Your name"
+                           style="width:100%;padding:10px 14px;border:1px solid rgba(100,255,218,0.2);border-radius:8px;font-size:14px;background:rgba(255,255,255,0.05);color:#e2e8f0;outline:none;box-sizing:border-box;">
+                </div>
+                <div style="margin-bottom:14px;">
+                    <label style="font-size:13px;color:#888;display:block;margin-bottom:6px;">Phone Number</label>
+                    <div style="display:flex;gap:8px;">
+                        <input id="regPhone" type="text" placeholder="Phone number"
+                               style="flex:1;padding:10px 14px;border:1px solid rgba(100,255,218,0.2);border-radius:8px;font-size:14px;background:rgba(255,255,255,0.05);color:#e2e8f0;outline:none;">
+                        <button onclick="sendVcode()" id="vcodeBtn"
+                                style="padding:10px 14px;background:rgba(100,255,218,0.1);color:#64ffda;border:1px solid rgba(100,255,218,0.3);border-radius:8px;font-size:13px;cursor:pointer;white-space:nowrap;">Get Code</button>
+                    </div>
+                </div>
+                <div style="margin-bottom:14px;">
+                    <label style="font-size:13px;color:#888;display:block;margin-bottom:6px;">Verification Code</label>
+                    <input id="regVcode" type="text" placeholder="6-digit code"
+                           style="width:100%;padding:10px 14px;border:1px solid rgba(100,255,218,0.2);border-radius:8px;font-size:14px;background:rgba(255,255,255,0.05);color:#e2e8f0;outline:none;box-sizing:border-box;">
+                </div>
+                <div style="margin-bottom:20px;">
+                    <label style="font-size:13px;color:#888;display:block;margin-bottom:6px;">Password</label>
+                    <input id="regPwd" type="password" placeholder="Set a password"
+                           style="width:100%;padding:10px 14px;border:1px solid rgba(100,255,218,0.2);border-radius:8px;font-size:14px;background:rgba(255,255,255,0.05);color:#e2e8f0;outline:none;box-sizing:border-box;">
+                </div>
+                <div id="regMsg" style="display:none;font-size:13px;margin-bottom:14px;"></div>
+                <button onclick="doRegister()" style="width:100%;padding:12px;background:#64ffda;color:#080c18;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;">Create Account</button>
+                <p style="text-align:center;margin-top:16px;font-size:13px;color:#888;">
+                    Already have one? <a href="#" onclick="event.preventDefault(); switchAuth('login')" style="color:#64ffda;">Sign in</a>
+                </p>
+            </div>
+        </div>
+    </div>
+    <script>
+    (function() {
+        var m = document.cookie.match('(?:^|;)\\s*token=([^;]*)');
+        if (m) {
+            var tok = decodeURIComponent(m[1]);
+            var parts = tok.split('.');
+            if (parts.length === 3) {
+                try {
+                    var payload = JSON.parse(atob(parts[1].replace(/-/g,'+').replace(/_/g,'/')));
+                    document.getElementById('navUserMenu').style.display = 'list-item';
+                    document.getElementById('navUserName').textContent   = payload.name || 'Account';
+                } catch(e) { document.getElementById('navLoginBtn').style.display = 'list-item'; }
+            } else { document.getElementById('navLoginBtn').style.display = 'list-item'; }
+        } else { document.getElementById('navLoginBtn').style.display = 'list-item'; }
+    })();
+    function openAuthModal(mode) { switchAuth(mode||'login'); document.getElementById('authModal').style.display='flex'; }
+    function closeAuthModal()    { document.getElementById('authModal').style.display='none'; }
+    function toggleNav() {
+        var links = document.getElementById('navLinks');
+        var btn   = document.getElementById('navHamburger');
+        var open  = links.classList.toggle('nav-open');
+        btn.classList.toggle('is-open', open);
+    }
+    // Close nav on outside click (mobile)
+    document.addEventListener('click', function(e) {
+        var links = document.getElementById('navLinks');
+        var btn   = document.getElementById('navHamburger');
+        if (links && links.classList.contains('nav-open') && !links.contains(e.target) && !btn.contains(e.target)) {
+            links.classList.remove('nav-open'); btn.classList.remove('is-open');
+        }
+    });
+    function switchAuth(mode)    {
+        document.getElementById('loginForm').style.display    = mode==='login'    ? 'block':'none';
+        document.getElementById('registerForm').style.display = mode==='register' ? 'block':'none';
+    }
+    document.getElementById('authModal').addEventListener('click',function(e){if(e.target===this)closeAuthModal();});
+    function doLogin() {
+        var phone=document.getElementById('loginPhone').value.trim(), pwd=document.getElementById('loginPwd').value;
+        if(!phone||!pwd){setAuthMsg('loginMsg','Please enter phone and password.','#ff5252');return;}
+        fetch('/user/login',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({phoneNo:phone,password:pwd})})
+        .then(function(r){return r.json();}).then(function(d){
+            if(d.code===0&&d.data&&d.data.token){
+                document.cookie='token='+encodeURIComponent(d.data.token)+';path=/;max-age='+(60*60*24*30);
+                closeAuthModal(); location.reload();
+            } else { setAuthMsg('loginMsg',d.msg||'Login failed.','#ff5252'); }
+        }).catch(function(){setAuthMsg('loginMsg','Network error.','#ff5252');});
+    }
+    function doLogout() {
+        fetch('/user/logout',{method:'POST',credentials:'include'}).finally(function(){
+            document.cookie='token=;path=/;max-age=0'; location.reload();
+        });
+    }
+    function sendVcode() {
+        var phone=document.getElementById('regPhone').value.trim();
+        if(!phone){setAuthMsg('regMsg','Please enter your phone number.','#ff5252');return;}
+        var btn=document.getElementById('vcodeBtn'); btn.disabled=true; btn.textContent='Sending…';
+        fetch('/user/sendVcode',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({phoneNo:phone})})
+        .then(function(r){return r.json();}).then(function(d){
+            if(d.code===0){
+                setAuthMsg('regMsg','Verification code sent!','#4caf50');
+                var s=60,t=setInterval(function(){btn.textContent=s--+'s';if(s<0){clearInterval(t);btn.disabled=false;btn.textContent='Get Code';}},1000);
+            } else {btn.disabled=false;btn.textContent='Get Code';setAuthMsg('regMsg',d.msg||'Failed.','#ff5252');}
+        }).catch(function(){btn.disabled=false;btn.textContent='Get Code';setAuthMsg('regMsg','Network error.','#ff5252');});
+    }
+    function doRegister() {
+        var name=document.getElementById('regName').value.trim(),phone=document.getElementById('regPhone').value.trim(),
+            vcode=document.getElementById('regVcode').value.trim(),pwd=document.getElementById('regPwd').value;
+        if(!name||!phone||!vcode||!pwd){setAuthMsg('regMsg','Please fill in all fields.','#ff5252');return;}
+        fetch('/user/create',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name,phoneNo:phone,vcode:vcode,password:pwd})})
+        .then(function(r){return r.json();}).then(function(d){
+            if(d.code===0){setAuthMsg('regMsg','Account created! Please sign in.','#4caf50');setTimeout(function(){switchAuth('login');},1500);}
+            else{setAuthMsg('regMsg',d.msg||'Registration failed.','#ff5252');}
+        }).catch(function(){setAuthMsg('regMsg','Network error.','#ff5252');});
+    }
+    function setAuthMsg(id,msg,color){var el=document.getElementById(id);el.style.display='block';el.style.color=color;el.textContent=msg;}
+    </script>
+
+	<!-- Footer -->
+    
+    <!-- 广告片段：工具页头部横幅 -->
+    <div th:fragment="ad_banner_top" th:if="${_isProd}" class="ad-container" style="max-width:1000px; margin:0 auto 25px;">
+        <ins class="adsbygoogle"
+             style="display:block"
+             data-ad-client="ca-pub-7597293740550331"
+             data-ad-slot="8301467356"
+             data-ad-format="horizontal"
+             data-full-width-responsive="true"></ins>
+        <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+    </div>
+    
+    <!-- 广告片段：工具页底部横幅 -->
+    <div th:fragment="ad_banner_bottom" th:if="${_isProd}" class="ad-container" style="max-width:1000px; margin:25px auto 0;">
+        <ins class="adsbygoogle"
+             style="display:block"
+             data-ad-client="ca-pub-7597293740550331"
+             data-ad-slot="5630964188"
+             data-ad-format="auto"
+             data-full-width-responsive="true"></ins>
+        <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+    </div>
+
+    <footer th:fragment="template_footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-column">
+                    <h3>Domain Tools</h3>
+                    <ul class="footer-links">
+                        <li><a href="/tools/whois-lookup"><i class="fas fa-search"></i> WHOIS Lookup</a></li>
+                        <li><a href="/tools/rdap-lookup"><i class="fas fa-layer-group"></i> RDAP Lookup</a></li>
+                        <li><a href="/tools/domain-availability"><i class="fas fa-check-circle"></i> Domain Availability</a></li>
+                        <li><a href="/tools/bulk-domain-search"><i class="fas fa-list"></i> Bulk Domain Search</a></li>
+                        <li><a href="/tools/whois-compare"><i class="fas fa-columns"></i> WHOIS Compare</a></li>
+                        <li><a href="/tools/related-domains"><i class="fas fa-project-diagram"></i> Related Domains</a></li>
+                        <li><a href="/expiring-domains"><i class="fas fa-clock"></i> Expiring Domains</a></li>
+                    </ul>
+                </div>
+
+                <div class="footer-column">
+                    <h3>Analysis Tools</h3>
+                    <ul class="footer-links">
+                        <li><a href="/tools/domain-analyzer"><i class="fas fa-chart-bar"></i> Domain Analyzer</a></li>
+                        <li><a href="/tools/domain-score"><i class="fas fa-star"></i> Domain Health Score</a></li>
+                        <li><a href="/tools/domain-valuation"><i class="fas fa-gem"></i> Domain Valuation</a></li>
+                        <li><a href="/tools/dns-analyzer"><i class="fas fa-server"></i> DNS Analyzer</a></li>
+                        <li><a href="/tools/ssl-checker"><i class="fas fa-lock"></i> SSL Checker</a></li>
+                        <li><a href="/tools/domain-history"><i class="fas fa-history"></i> WHOIS History</a></li>
+                        <li><a href="/tools/reverse-ip"><i class="fas fa-exchange-alt"></i> Reverse IP Lookup</a></li>
+                        <li><a href="/tools/competitor-analysis"><i class="fas fa-users"></i> Competitor Analysis</a></li>
+                    </ul>
+                </div>
+
+                <div class="footer-column">
+                    <h3>Utilities</h3>
+                    <ul class="footer-links">
+                        <li><a href="/tools/my-ip-address"><i class="fas fa-network-wired"></i> My IP Address</a></li>
+                        <li><a href="/tools/email-checker"><i class="fas fa-envelope-open-text"></i> Email Checker</a></li>
+                        <li><a href="/tools/port-checker"><i class="fas fa-plug"></i> Port Checker</a></li>
+                        <li><a href="/tools/ping-test"><i class="fas fa-satellite-dish"></i> Ping Test</a></li>
+                        <li><a href="/tools/json-formatter"><i class="fas fa-code"></i> JSON Formatter</a></li>
+                        <li><a href="/tools/timezone-converter"><i class="fas fa-globe"></i> Time Zone Converter</a></li>
+                        <li><a href="/top-level-domains"><i class="fas fa-sitemap"></i> Top Level Domains</a></li>
+                        <li><a href="/api-docs"><i class="fas fa-book"></i> API Documentation</a></li>
+                    </ul>
+                </div>
+                
+                <div class="footer-column">
+                    <h3>Company</h3>
+                    <ul class="footer-links">
+                        <li><a href="/blog"><i class="fas fa-rss"></i> Blog</a></li>
+                        <li><a href="/about-us"><i class="fas fa-info-circle"></i> About Us</a></li>
+                        <li><a href="/contact-us"><i class="fas fa-envelope"></i> Contact Us</a></li>
+                        <li><a href="/help-center"><i class="fas fa-question-circle"></i> Help Center</a></li>
+                        <li><a href="/privacy-policy"><i class="fas fa-file-alt"></i> Privacy Policy</a></li>
+                        <li><a href="/terms-of-service"><i class="fas fa-file-contract"></i> Terms of Service</a></li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="copyright">
+                <p>&copy; 2025-2026 Whose.Domains. All rights reserved.</p>
+            </div>
+        </div>
+        <!-- Loading Animation -->
+        <div id="loader" class="loader">
+            <div>
+                <div class="spinner"></div>
+                <p id="loaderText">Loading...</p>
+            </div>
+        </div>
+        <script th:src="@{/static/jquery/jquery-3.6.0.min.js?v={v}(v=${version})}"></script>
+		<script th:src="@{/static/js/common.js?v={v}(v=${version})}"></script>
+    </footer>
+</body>

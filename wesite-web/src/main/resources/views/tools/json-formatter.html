@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <div class="floating-shape shape-1"></div>
+    <div class="floating-shape shape-2"></div>
+    <header th:replace="~{template::template_header}"></header>
+
+    <main>
+        <section class="hero">
+            <div class="container">
+                <div class="hero-content">
+                    <h1>JSON Formatter & Validator</h1>
+                    <p>Format, validate, minify and explore JSON data with syntax highlighting. Paste your JSON to get started instantly.</p>
+                </div>
+            </div>
+        </section>
+
+        <div th:replace="~{template::ad_banner_top}"></div>
+
+        <div class="container">
+            <!-- Toolbar -->
+            <div class="jf-toolbar">
+                <div class="jf-toolbar-left">
+                    <button class="jf-btn jf-btn-primary" id="formatBtn"><i class="fas fa-indent"></i> Format</button>
+                    <button class="jf-btn jf-btn-secondary" id="minifyBtn"><i class="fas fa-compress-alt"></i> Minify</button>
+                    <button class="jf-btn jf-btn-ghost" id="validateBtn"><i class="fas fa-check"></i> Validate</button>
+                    <div class="jf-separator"></div>
+                    <label class="jf-label">Indent</label>
+                    <select id="indentSelect" class="jf-select">
+                        <option value="2" selected>2 spaces</option>
+                        <option value="4">4 spaces</option>
+                        <option value="tab">Tab</option>
+                    </select>
+                    <label class="jf-label jf-label-check"><input type="checkbox" id="sortKeys"> Sort keys</label>
+                </div>
+                <div class="jf-toolbar-right">
+                    <button class="jf-btn jf-btn-ghost" id="clearBtn"><i class="fas fa-trash-alt"></i> Clear</button>
+                    <button class="jf-btn jf-btn-ghost" id="loadSampleBtn"><i class="fas fa-flask"></i> Sample</button>
+                </div>
+            </div>
+
+            <!-- Status Bar -->
+            <div id="statusBar" class="jf-status idle">
+                <i class="fas fa-info-circle"></i>
+                <span id="statusText">Paste or type JSON, then click Format</span>
+            </div>
+
+            <!-- Main panels -->
+            <div class="jf-panels">
+                <!-- Input Panel -->
+                <div class="jf-panel">
+                    <div class="jf-panel-header">
+                        <span class="jf-panel-title"><i class="fas fa-keyboard"></i> Input</span>
+                        <div class="jf-panel-actions">
+                            <span class="jf-char-count" id="inputCount">0 chars</span>
+                            <button class="jf-icon-btn" title="Paste from clipboard" id="pasteBtn"><i class="fas fa-paste"></i></button>
+                        </div>
+                    </div>
+                    <textarea id="jsonInput" class="jf-textarea" placeholder='{"example": "Paste your JSON here..."}'
+                        spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"></textarea>
+                </div>
+
+                <!-- Output Panel -->
+                <div class="jf-panel">
+                    <div class="jf-panel-header">
+                        <span class="jf-panel-title"><i class="fas fa-code"></i> Output</span>
+                        <div class="jf-panel-actions">
+                            <div class="jf-view-toggle">
+                                <button class="jf-toggle-btn active" id="btnRaw">Raw</button>
+                                <button class="jf-toggle-btn" id="btnTree">Tree</button>
+                            </div>
+                            <button class="jf-icon-btn" title="Copy output" id="copyBtn"><i class="fas fa-copy"></i></button>
+                            <button class="jf-icon-btn" title="Download JSON" id="downloadBtn"><i class="fas fa-download"></i></button>
+                        </div>
+                    </div>
+                    <div class="jf-output-wrap">
+                        <pre id="jsonOutput" class="jf-output"><span class="jf-placeholder">Formatted JSON will appear here...</span></pre>
+                        <div id="treeOutput" class="jf-tree" style="display:none;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stats Bar -->
+            <div id="statsBar" class="jf-stats" style="display:none;">
+                <div class="jf-stat"><i class="fas fa-layer-group"></i> <strong id="statLines">0</strong> <span>lines</span></div>
+                <div class="jf-stat"><i class="fas fa-weight"></i> <strong id="statSize">0 B</strong> <span>size</span></div>
+                <div class="jf-stat"><i class="fas fa-key"></i> <strong id="statKeys">0</strong> <span>keys</span></div>
+                <div class="jf-stat"><i class="fas fa-sitemap"></i> <strong id="statDepth">0</strong> <span>depth</span></div>
+                <div class="jf-stat"><i class="fas fa-list"></i> <strong id="statType">—</strong> <span>root type</span></div>
+            </div>
+        </div>
+
+        <div th:replace="~{template::ad_banner_bottom}"></div>
+    </main>
+    <div th:replace="~{fragments/related-tools::related(slug='json-formatter')}"></div>
+
+    <footer th:replace="~{template::template_footer}"></footer>
+
+<style>
+/* ── Layout ──────────────────────────────────────────── */
+.jf-toolbar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px 16px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 12px 12px 0 0;
+    border-bottom: none;
+}
+.jf-toolbar-left  { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex: 1; }
+.jf-toolbar-right { display: flex; align-items: center; gap: 8px; }
+
+.jf-separator { width: 1px; height: 24px; background: rgba(255,255,255,0.1); margin: 0 4px; }
+
+/* Buttons */
+.jf-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 14px; border-radius: 8px; font-size: 0.85rem;
+    font-weight: 600; border: none; cursor: pointer; transition: all 0.15s;
+    white-space: nowrap;
+}
+.jf-btn-primary  { background: #64ffda; color: #0a0f1e; }
+.jf-btn-primary:hover  { background: #4dd8b8; }
+.jf-btn-secondary { background: rgba(100,163,218,0.15); color: #64a3da; border: 1px solid rgba(100,163,218,0.25); }
+.jf-btn-secondary:hover { background: rgba(100,163,218,0.25); }
+.jf-btn-ghost { background: rgba(255,255,255,0.06); color: #94a3b8; border: 1px solid rgba(255,255,255,0.08); }
+.jf-btn-ghost:hover { background: rgba(255,255,255,0.1); color: #e2e8f0; }
+
+.jf-icon-btn {
+    width: 30px; height: 30px; border-radius: 6px; border: none;
+    background: rgba(255,255,255,0.06); color: #94a3b8; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.8rem; transition: all 0.15s; flex-shrink: 0;
+}
+.jf-icon-btn:hover { background: rgba(255,255,255,0.12); color: #e2e8f0; }
+.jf-icon-btn.copied { background: rgba(0,230,118,0.15); color: #00e676; }
+
+.jf-label { font-size: 0.8rem; color: #64748b; white-space: nowrap; }
+.jf-label-check { display: flex; align-items: center; gap: 5px; cursor: pointer; }
+.jf-label-check input { accent-color: #64ffda; cursor: pointer; }
+
+.jf-select {
+    padding: 5px 10px; border-radius: 6px; font-size: 0.82rem;
+    background: rgba(255,255,255,0.06); color: #cbd5e1;
+    border: 1px solid rgba(255,255,255,0.1); cursor: pointer; outline: none;
+}
+.jf-select:focus { border-color: rgba(100,255,218,0.4); }
+
+/* Status bar */
+.jf-status {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 16px; font-size: 0.84rem; font-weight: 500;
+    border-left: 1px solid rgba(255,255,255,0.07);
+    border-right: 1px solid rgba(255,255,255,0.07);
+    transition: all 0.2s;
+}
+.jf-status.idle    { background: rgba(255,255,255,0.02); color: #64748b; }
+.jf-status.success { background: rgba(0,230,118,0.08); color: #4ade80; }
+.jf-status.error   { background: rgba(255,82,82,0.08); color: #ff7070; }
+.jf-status.warn    { background: rgba(255,171,0,0.08); color: #ffab00; }
+
+/* Panels */
+.jf-panels {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    border: 1px solid rgba(255,255,255,0.07);
+    border-top: none;
+    border-radius: 0;
+    min-height: 420px;
+}
+@media (max-width: 768px) {
+    .jf-panels { grid-template-columns: 1fr; }
+}
+
+.jf-panel {
+    display: flex; flex-direction: column;
+    border-right: 1px solid rgba(255,255,255,0.07);
+}
+.jf-panel:last-child { border-right: none; }
+
+.jf-panel-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 14px;
+    background: rgba(255,255,255,0.025);
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+    flex-shrink: 0;
+}
+.jf-panel-title { font-size: 0.8rem; font-weight: 600; color: #64748b; display: flex; align-items: center; gap: 6px; }
+.jf-panel-actions { display: flex; align-items: center; gap: 6px; }
+.jf-char-count { font-size: 0.75rem; color: #475569; }
+
+/* View toggle */
+.jf-view-toggle { display: flex; border-radius: 6px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); }
+.jf-toggle-btn {
+    padding: 3px 10px; font-size: 0.75rem; font-weight: 600; cursor: pointer;
+    background: transparent; border: none; color: #64748b; transition: all 0.15s;
+}
+.jf-toggle-btn.active { background: rgba(100,255,218,0.15); color: #64ffda; }
+.jf-toggle-btn:hover:not(.active) { background: rgba(255,255,255,0.06); color: #94a3b8; }
+
+/* Textarea */
+.jf-textarea {
+    flex: 1; width: 100%; min-height: 380px; padding: 14px;
+    background: #0d1117; color: #e2e8f0;
+    border: none; outline: none; resize: none;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+    font-size: 13px; line-height: 1.6; tab-size: 2;
+}
+.jf-textarea:focus { background: #0a0f1e; }
+.jf-textarea::placeholder { color: #334155; }
+
+/* Output */
+.jf-output-wrap { flex: 1; overflow: auto; position: relative; }
+.jf-output {
+    margin: 0; padding: 14px;
+    background: #0d1117; color: #e2e8f0;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+    font-size: 13px; line-height: 1.6;
+    white-space: pre-wrap; word-break: break-all;
+    min-height: 380px;
+}
+.jf-placeholder { color: #334155; font-style: italic; }
+
+/* Syntax highlight */
+.jf-key    { color: #79b8ff; }
+.jf-str    { color: #9ecbff; }
+.jf-num    { color: #f8c555; }
+.jf-bool   { color: #56d364; }
+.jf-null   { color: #ff7b72; font-style: italic; }
+.jf-punct  { color: #8b949e; }
+
+/* Stats bar */
+.jf-stats {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 0;
+    border: 1px solid rgba(255,255,255,0.07);
+    border-top: none;
+    border-radius: 0 0 12px 12px;
+    overflow: hidden;
+}
+.jf-stat {
+    flex: 1; display: flex; align-items: center; gap: 6px;
+    padding: 8px 16px; font-size: 0.8rem;
+    background: rgba(255,255,255,0.02);
+    border-right: 1px solid rgba(255,255,255,0.06);
+    color: #64748b;
+    white-space: nowrap;
+}
+.jf-stat:last-child { border-right: none; }
+.jf-stat i { color: #4f6070; font-size: 0.75rem; }
+.jf-stat strong { color: #94a3b8; }
+
+/* Tree view */
+.jf-tree {
+    padding: 14px; min-height: 380px; overflow: auto;
+    background: #0d1117; font-size: 13px; line-height: 1.8;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+}
+.jf-tree-node { padding-left: 20px; }
+.jf-tree-toggle {
+    cursor: pointer; user-select: none; color: #64748b;
+    padding: 0 4px; border-radius: 3px;
+}
+.jf-tree-toggle:hover { background: rgba(255,255,255,0.06); color: #94a3b8; }
+.jf-tree-key { color: #79b8ff; }
+.jf-tree-str { color: #9ecbff; }
+.jf-tree-num { color: #f8c555; }
+.jf-tree-bool { color: #56d364; }
+.jf-tree-null { color: #ff7b72; font-style: italic; }
+.jf-tree-bracket { color: #8b949e; }
+.jf-tree-count { color: #475569; font-size: 0.75rem; margin-left: 4px; }
+</style>
+
+    <script>
+    (function() {
+        var inputEl   = document.getElementById('jsonInput');
+        var outputEl  = document.getElementById('jsonOutput');
+        var treeEl    = document.getElementById('treeOutput');
+        var statusBar = document.getElementById('statusBar');
+        var statusTxt = document.getElementById('statusText');
+        var statsBar  = document.getElementById('statsBar');
+        var inputCount = document.getElementById('inputCount');
+
+        var currentMode = 'raw'; // 'raw' | 'tree'
+        var lastParsed = null;
+        var lastFormatted = '';
+
+        // ── Toolbar wiring ──────────────────────────────
+        document.getElementById('formatBtn').onclick   = doFormat;
+        document.getElementById('minifyBtn').onclick   = doMinify;
+        document.getElementById('validateBtn').onclick = doValidate;
+        document.getElementById('clearBtn').onclick    = doClear;
+        document.getElementById('copyBtn').onclick     = doCopy;
+        document.getElementById('downloadBtn').onclick = doDownload;
+        document.getElementById('loadSampleBtn').onclick = loadSample;
+        document.getElementById('pasteBtn').onclick    = doPaste;
+        document.getElementById('btnRaw').onclick      = function() { setMode('raw'); };
+        document.getElementById('btnTree').onclick     = function() { setMode('tree'); };
+
+        inputEl.addEventListener('input', function() {
+            inputCount.textContent = inputEl.value.length.toLocaleString() + ' chars';
+        });
+        inputEl.addEventListener('paste', function() {
+            setTimeout(function() {
+                inputCount.textContent = inputEl.value.length.toLocaleString() + ' chars';
+                doFormat();
+            }, 50);
+        });
+        inputEl.addEventListener('keydown', function(e) {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); doFormat(); }
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                var s = this.selectionStart, end = this.selectionEnd;
+                this.value = this.value.substring(0, s) + '  ' + this.value.substring(end);
+                this.selectionStart = this.selectionEnd = s + 2;
+            }
+        });
+
+        // ── Core functions ──────────────────────────────
+        function doFormat() {
+            var input = inputEl.value.trim();
+            if (!input) { setStatus('idle', 'Paste or type JSON, then click Format'); return; }
+            try {
+                var parsed = JSON.parse(input);
+                lastParsed = parsed;
+                var indent = getIndent();
+                var sortKeys = document.getElementById('sortKeys').checked;
+                var formatted;
+                try {
+                    formatted = JSON.stringify(sortKeys ? sortObj(parsed) : parsed, null, indent);
+                } catch(e2) {
+                    formatted = JSON.stringify(parsed, null, indent);
+                }
+                lastFormatted = formatted;
+                // Render & stats in separate try so parse success is never masked
+                try { renderOutput(formatted); } catch(e3) { outputEl.textContent = formatted; }
+                try { updateStats(parsed, formatted); statsBar.style.display = 'flex'; } catch(e4) { statsBar.style.display = 'none'; }
+                setStatus('success', '✓ Valid JSON — formatted successfully');
+            } catch (e) {
+                setStatus('error', '✗ ' + friendlyError(e, inputEl.value));
+                lastParsed = null;
+                statsBar.style.display = 'none';
+            }
+        }
+
+        function doMinify() {
+            var input = inputEl.value.trim();
+            if (!input) { setStatus('idle', 'Nothing to minify'); return; }
+            try {
+                var parsed = JSON.parse(input);
+                var minified = JSON.stringify(parsed);
+                lastFormatted = minified;
+                lastParsed = parsed;
+                try { renderRaw(minified); } catch(e2) { outputEl.textContent = minified; }
+                setStatus('success', '✓ Minified — ' + formatBytes(new Blob([minified]).size));
+                try { updateStats(parsed, minified); statsBar.style.display = 'flex'; } catch(e3) { statsBar.style.display = 'none'; }
+            } catch (e) {
+                setStatus('error', '✗ ' + friendlyError(e, input));
+            }
+        }
+
+        function doValidate() {
+            var input = inputEl.value.trim();
+            if (!input) { setStatus('idle', 'Nothing to validate'); return; }
+            try {
+                var parsed = JSON.parse(input);
+                var keys = 0;
+                try { keys = countKeys(parsed); } catch(e2) {}
+                var depth = 0;
+                try { depth = getDepth(parsed); } catch(e3) {}
+                setStatus('success', '✓ Valid JSON — ' + keys + ' key' + (keys !== 1 ? 's' : '') + ', depth ' + depth);
+            } catch (e) {
+                setStatus('error', '✗ ' + friendlyError(e, input));
+            }
+        }
+
+        function doClear() {
+            inputEl.value = ''; lastParsed = null; lastFormatted = '';
+            outputEl.innerHTML = '<span class="jf-placeholder">Formatted JSON will appear here...</span>';
+            treeEl.innerHTML = '';
+            statsBar.style.display = 'none';
+            inputCount.textContent = '0 chars';
+            setStatus('idle', 'Paste or type JSON, then click Format');
+        }
+
+        function doCopy() {
+            if (!lastFormatted) { return; }
+            navigator.clipboard.writeText(lastFormatted).then(function() {
+                var btn = document.getElementById('copyBtn');
+                btn.classList.add('copied');
+                btn.innerHTML = '<i class="fas fa-check"></i>';
+                setTimeout(function() { btn.classList.remove('copied'); btn.innerHTML = '<i class="fas fa-copy"></i>'; }, 2000);
+            });
+        }
+
+        function doDownload() {
+            if (!lastFormatted) return;
+            var blob = new Blob([lastFormatted], { type: 'application/json' });
+            var a = document.createElement('a');
+            a.href = URL.createObjectURL(blob); a.download = 'formatted.json';
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        }
+
+        function doPaste() {
+            navigator.clipboard.readText().then(function(text) {
+                inputEl.value = text;
+                inputCount.textContent = text.length.toLocaleString() + ' chars';
+                doFormat();
+            }).catch(function() {
+                inputEl.focus();
+                setStatus('warn', 'Click in the input box and paste manually (Ctrl+V)');
+            });
+        }
+
+        function loadSample() {
+            inputEl.value = JSON.stringify({
+                "name": "John Doe",
+                "age": 30,
+                "isActive": true,
+                "scores": [98, 87, 76],
+                "address": { "city": "New York", "zip": "10001" },
+                "tags": ["developer", "designer"],
+                "notes": null
+            });
+            inputCount.textContent = inputEl.value.length.toLocaleString() + ' chars';
+            doFormat();
+        }
+
+        // ── Render helpers ──────────────────────────────
+        function renderOutput(formatted) {
+            lastFormatted = formatted;
+            if (currentMode === 'raw') { renderRaw(formatted); }
+            else { renderTree(lastParsed); }
+        }
+
+        function renderRaw(str) {
+            outputEl.innerHTML = syntaxHighlight(str);
+        }
+
+        function setMode(mode) {
+            currentMode = mode;
+            document.getElementById('btnRaw').classList.toggle('active', mode === 'raw');
+            document.getElementById('btnTree').classList.toggle('active', mode === 'tree');
+            outputEl.style.display  = mode === 'raw'  ? 'block' : 'none';
+            treeEl.style.display    = mode === 'tree' ? 'block' : 'none';
+            if (mode === 'tree' && lastParsed !== null) renderTree(lastParsed);
+            if (mode === 'raw'  && lastFormatted)      renderRaw(lastFormatted);
+        }
+
+        // ── Syntax highlight ────────────────────────────
+        // Skip highlight for large JSON to avoid regex stack overflow
+        var HIGHLIGHT_LIMIT = 300 * 1024; // 300 KB
+        function syntaxHighlight(json) {
+            if (json.length > HIGHLIGHT_LIMIT) {
+                return esc(json); // plain text, no coloring
+            }
+            return json.replace(
+                /("(?:[^"\\]|\\.)*")(\s*:)?|(\btrue\b|\bfalse\b)|\bnull\b|(-?\d+(?:\.\d+)?(?:[eE][+\-]?\d+)?)|([{}\[\],:])/g,
+                function(match, str, colon, bool, num, punct) {
+                    if (str) return colon
+                        ? '<span class="jf-key">' + esc(str) + '</span><span class="jf-punct">:</span>'
+                        : '<span class="jf-str">' + esc(str) + '</span>';
+                    if (bool)  return '<span class="jf-bool">'  + bool  + '</span>';
+                    if (match === 'null') return '<span class="jf-null">null</span>';
+                    if (num)   return '<span class="jf-num">'   + num   + '</span>';
+                    if (punct) return '<span class="jf-punct">' + punct + '</span>';
+                    return match;
+                }
+            );
+        }
+
+        // ── Tree view ───────────────────────────────────
+        var TREE_MAX_DEPTH = 30;
+        var TREE_MAX_NODES = 2000;
+        var _treeNodeCount = 0;
+
+        function renderTree(data) {
+            _treeNodeCount = 0;
+            treeEl.innerHTML = buildTree(data, undefined, 0);
+            treeEl.querySelectorAll('.jf-tree-toggle').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    var node = this.parentElement.querySelector('.jf-tree-node');
+                    var collapsed = node.style.display === 'none';
+                    node.style.display = collapsed ? '' : 'none';
+                    this.textContent = collapsed ? '▾' : '▸';
+                });
+            });
+        }
+
+        function buildTree(val, key, depth) {
+            if (_treeNodeCount++ > TREE_MAX_NODES) return '';
+            var prefix = key !== undefined
+                ? '<span class="jf-tree-key">"' + esc(String(key)) + '"</span><span class="jf-punct">: </span>'
+                : '';
+            if (val === null) return '<div>' + prefix + '<span class="jf-tree-null">null</span></div>';
+            if (typeof val === 'boolean') return '<div>' + prefix + '<span class="jf-tree-bool">' + val + '</span></div>';
+            if (typeof val === 'number')  return '<div>' + prefix + '<span class="jf-tree-num">'  + val + '</span></div>';
+            if (typeof val === 'string')  return '<div>' + prefix + '<span class="jf-tree-str">"' + esc(val.length > 200 ? val.substring(0,200)+'…' : val) + '"</span></div>';
+            if (depth >= TREE_MAX_DEPTH) return '<div>' + prefix + '<span class="jf-tree-bracket">…</span></div>';
+            if (Array.isArray(val)) {
+                var count = val.length;
+                var inner = val.map(function(v, i) { return buildTree(v, i, depth + 1); }).join('');
+                return '<div>' + prefix +
+                    '<span class="jf-tree-toggle">▾</span> ' +
+                    '<span class="jf-tree-bracket">[</span>' +
+                    '<span class="jf-tree-count">' + count + ' item' + (count !== 1 ? 's' : '') + '</span>' +
+                    '<div class="jf-tree-node">' + inner + '</div>' +
+                    '<span class="jf-tree-bracket">]</span></div>';
+            }
+            if (typeof val === 'object') {
+                var keys = Object.keys(val);
+                var inner2 = keys.map(function(k) { return buildTree(val[k], k, depth + 1); }).join('');
+                return '<div>' + prefix +
+                    '<span class="jf-tree-toggle">▾</span> ' +
+                    '<span class="jf-tree-bracket">{</span>' +
+                    '<span class="jf-tree-count">' + keys.length + ' key' + (keys.length !== 1 ? 's' : '') + '</span>' +
+                    '<div class="jf-tree-node">' + inner2 + '</div>' +
+                    '<span class="jf-tree-bracket">}</span></div>';
+            }
+            return '<div>' + prefix + esc(String(val)) + '</div>';
+        }
+
+        // ── Stats ───────────────────────────────────────
+        function updateStats(parsed, formatted) {
+            document.getElementById('statLines').textContent = formatted.split('\n').length.toLocaleString();
+            document.getElementById('statSize').textContent = formatBytes(new Blob([formatted]).size);
+            document.getElementById('statKeys').textContent = countKeys(parsed).toLocaleString();
+            document.getElementById('statDepth').textContent = getDepth(parsed);
+            var t = Array.isArray(parsed) ? 'Array' : parsed === null ? 'null' : typeof parsed;
+            document.getElementById('statType').textContent = t.charAt(0).toUpperCase() + t.slice(1);
+        }
+
+        // Iterative countKeys — avoids stack overflow on large/deep JSON
+        function countKeys(obj) {
+            if (!obj || typeof obj !== 'object') return 0;
+            var n = 0;
+            var stack = [obj];
+            while (stack.length) {
+                var cur = stack.pop();
+                if (Array.isArray(cur)) {
+                    for (var i = 0; i < cur.length; i++) {
+                        if (cur[i] && typeof cur[i] === 'object') stack.push(cur[i]);
+                    }
+                } else {
+                    var ks = Object.keys(cur);
+                    n += ks.length;
+                    for (var j = 0; j < ks.length; j++) {
+                        if (cur[ks[j]] && typeof cur[ks[j]] === 'object') stack.push(cur[ks[j]]);
+                    }
+                }
+            }
+            return n;
+        }
+
+        // Iterative getDepth — avoids stack overflow
+        function getDepth(obj) {
+            if (!obj || typeof obj !== 'object') return 0;
+            var maxDepth = 0;
+            var stack = [{node: obj, depth: 1}];
+            while (stack.length) {
+                var item = stack.pop();
+                var cur = item.node, d = item.depth;
+                if (d > maxDepth) maxDepth = d;
+                if (d >= 500) continue; // safety cap
+                var vals = Array.isArray(cur) ? cur : Object.values(cur);
+                for (var i = 0; i < vals.length; i++) {
+                    if (vals[i] && typeof vals[i] === 'object') stack.push({node: vals[i], depth: d + 1});
+                }
+            }
+            return maxDepth;
+        }
+
+        function formatBytes(b) {
+            if (b < 1024) return b + ' B';
+            if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
+            return (b / 1048576).toFixed(2) + ' MB';
+        }
+
+        // ── Sort keys ───────────────────────────────────
+        function sortObj(val, depth) {
+            depth = depth || 0;
+            if (depth > 200) return val; // guard against extreme nesting
+            if (Array.isArray(val)) return val.map(function(v) { return sortObj(v, depth + 1); });
+            if (val && typeof val === 'object') {
+                return Object.keys(val).sort().reduce(function(acc, k) {
+                    acc[k] = sortObj(val[k], depth + 1); return acc;
+                }, {});
+            }
+            return val;
+        }
+
+        // ── Helpers ─────────────────────────────────────
+        function getIndent() {
+            var v = document.getElementById('indentSelect').value;
+            return v === 'tab' ? '\t' : parseInt(v);
+        }
+
+        function setStatus(type, msg) {
+            statusBar.className = 'jf-status ' + type;
+            statusTxt.textContent = msg;
+            var icon = type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : type === 'warn' ? 'fa-exclamation-triangle' : 'fa-info-circle';
+            statusBar.innerHTML = '<i class="fas ' + icon + '"></i> <span>' + msg + '</span>';
+        }
+
+        function friendlyError(e, input) {
+            var msg = e.message || String(e);
+            // Try to extract line/col from position
+            var pos = msg.match(/position (\d+)/i);
+            if (pos) {
+                var idx = parseInt(pos[1]);
+                var before = input.substring(0, idx);
+                var line = before.split('\n').length;
+                var col = idx - before.lastIndexOf('\n');
+                return 'Invalid JSON at line ' + line + ', col ' + col + ' — ' + msg;
+            }
+            return 'Invalid JSON — ' + msg;
+        }
+
+        function esc(s) {
+            return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        }
+
+        // ── URL param ───────────────────────────────────
+        (function() {
+            var p = new URLSearchParams(window.location.search);
+            var d = p.get('d') || p.get('json');
+            if (d) { try { inputEl.value = decodeURIComponent(d); doFormat(); } catch(e){} }
+        })();
+
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+
+    <main>
+        <div class="container">
+            <div class="info-page">
+                <nav class="breadcrumb">
+                    <a href="/">Home</a> &gt; 
+                    <a href="/help-center">Help Center</a> &gt; 
+                    <span>Domain Forwarding &amp; Redirects</span>
+                </nav>
+
+                <article class="info-content" itemscope itemtype="https://schema.org/Article">
+                    <h1>Domain Forwarding &amp; Redirects</h1>
+                    
+                    <div class="info-section">
+                        <h2>Redirecting Domains and URLs</h2>
+                        <p>Domain forwarding (also called domain redirection) automatically sends visitors from one domain to another. It's essential for managing multiple domains, rebranding, and consolidating web properties.</p>
+
+                        <h3>Types of Redirects</h3>
+
+                        <h4>301 Redirect (Permanent)</h4>
+                        <ul>
+                            <li>Indicates the domain has permanently moved to a new location</li>
+                            <li>Passes approximately 90-99% of link equity (SEO value)</li>
+                            <li>Search engines will update their index to the new URL</li>
+                            <li><strong>Best for:</strong> Rebranding, consolidating domains, moving to a new domain</li>
+                        </ul>
+
+                        <h4>302 Redirect (Temporary)</h4>
+                        <ul>
+                            <li>Indicates a temporary move — the original URL will return</li>
+                            <li>Does NOT pass link equity to the destination</li>
+                            <li>Search engines keep the original URL in their index</li>
+                            <li><strong>Best for:</strong> A/B testing, temporary promotions, maintenance pages</li>
+                        </ul>
+
+                        <h4>URL Frame (Masking)</h4>
+                        <ul>
+                            <li>Displays the destination content but keeps the original URL in the browser</li>
+                            <li>Uses an HTML frame/iframe</li>
+                            <li>Generally NOT recommended — poor for SEO and can cause issues</li>
+                        </ul>
+
+                        <h3>Common Use Cases</h3>
+
+                        <h4>Domain Consolidation</h4>
+                        <p>Redirect all TLD variations (.net, .org, etc.) and typo domains to your primary .com domain using 301 redirects.</p>
+
+                        <h4>Rebranding</h4>
+                        <p>When changing your brand name and domain, 301 redirect the old domain to the new one to preserve SEO value and redirect existing traffic.</p>
+
+                        <h4>Non-www to www (or vice versa)</h4>
+                        <p>Standardize your URL format by redirecting one version to the other to avoid duplicate content issues.</p>
+
+                        <h4>HTTP to HTTPS</h4>
+                        <p>Redirect all HTTP traffic to HTTPS to ensure visitors always use the secure version of your site.</p>
+
+                        <h3>Implementation Methods</h3>
+
+                        <h4>Registrar-Level Forwarding</h4>
+                        <p>Most registrars offer simple domain forwarding in their control panel. Quick to set up but limited in customization.</p>
+
+                        <h4>Web Server Configuration</h4>
+                        <ul>
+                            <li><strong>Apache:</strong> Use .htaccess with RewriteRule or Redirect directives</li>
+                            <li><strong>Nginx:</strong> Use return 301 or rewrite directives in server blocks</li>
+                            <li><strong>IIS:</strong> Configure URL Rewrite module</li>
+                        </ul>
+
+                        <h4>DNS-Level (CNAME + CDN)</h4>
+                        <p>Point the domain via CNAME to a CDN or hosting service that handles the redirect logic.</p>
+
+                        <h3>SEO Considerations</h3>
+                        <ul>
+                            <li>Always use 301 redirects for permanent moves</li>
+                            <li>Redirect individual pages to their equivalent (not all to homepage)</li>
+                            <li>Update internal links to point directly to the new URL</li>
+                            <li>Submit the new URL in Google Search Console</li>
+                            <li>Keep redirects in place for at least 1 year</li>
+                            <li>Avoid redirect chains (A → B → C; should be A → C)</li>
+                        </ul>
+
+                        <div class="info-box">
+                            <strong>Verify:</strong> After setting up redirects, use our <a href="/tools/domain-analyzer">Domain Analyzer</a> to verify that your domain is properly configured and redirecting as expected.
+                        </div>
+                    </div>
+
+                    <div class="info-navigation">
+                        <a href="/info/managing-multiple-domains" class="btn btn-secondary">&larr; Previous: Managing Multiple Domains</a>
+                        <a href="/info/domain-age-checker-guide" class="btn btn-primary">Next: Domain Age Checker Guide &rarr;</a>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </main>
+
+    <footer th:replace="~{template::template_footer}"></footer>
+</body>
+</html>

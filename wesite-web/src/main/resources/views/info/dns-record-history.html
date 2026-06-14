@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+
+    <main>
+        <div class="container">
+            <div class="info-page">
+                <nav class="breadcrumb">
+                    <a href="/">Home</a> &gt; 
+                    <a href="/help-center">Help Center</a> &gt; 
+                    <span>DNS Record History</span>
+                </nav>
+
+                <article class="info-content" itemscope itemtype="https://schema.org/Article">
+                    <h1>DNS Record History</h1>
+                    
+                    <div class="info-section">
+                        <h2>Understanding Historical DNS Data</h2>
+                        <p>DNS record history provides a timeline of how a domain's technical configuration has changed over time, offering insights into hosting changes, service migrations, and infrastructure evolution.</p>
+                        
+                        <h3>What are DNS Records?</h3>
+                        <p>DNS (Domain Name System) records map domain names to various resources. Common record types include:</p>
+                        <ul>
+                            <li><strong>A Record:</strong> Maps domain to IPv4 address</li>
+                            <li><strong>AAAA Record:</strong> Maps domain to IPv6 address</li>
+                            <li><strong>CNAME Record:</strong> Alias for another domain name</li>
+                            <li><strong>MX Record:</strong> Mail exchange servers for email</li>
+                            <li><strong>TXT Record:</strong> Text information (SPF, DKIM, verification)</li>
+                            <li><strong>NS Record:</strong> Nameservers authoritative for the domain</li>
+                            <li><strong>SOA Record:</strong> Start of Authority - administrative information</li>
+                            <li><strong>SRV Record:</strong> Service location records</li>
+                        </ul>
+
+                        <h3>Why DNS History Matters</h3>
+                        
+                        <h4>Hosting Provider Changes</h4>
+                        <p>IP address changes reveal:</p>
+                        <ul>
+                            <li>When a site changed hosting providers</li>
+                            <li>Migration patterns and timelines</li>
+                            <li>Infrastructure upgrades</li>
+                            <li>CDN implementation</li>
+                        </ul>
+
+                        <h4>Security Analysis</h4>
+                        <ul>
+                            <li>Identify suspicious DNS changes</li>
+                            <li>Detect DNS hijacking attempts</li>
+                            <li>Track malicious infrastructure</li>
+                            <li>Verify email security configurations</li>
+                        </ul>
+
+                        <h4>Business Intelligence</h4>
+                        <ul>
+                            <li>Understand technology stack evolution</li>
+                            <li>Identify service providers used</li>
+                            <li>Track infrastructure investments</li>
+                            <li>Monitor competitor changes</li>
+                        </ul>
+
+                        <h4>Troubleshooting</h4>
+                        <ul>
+                            <li>Diagnose DNS-related issues</li>
+                            <li>Understand when problems started</li>
+                            <li>Verify configuration changes</li>
+                            <li>Track propagation timelines</li>
+                        </ul>
+
+                        <h3>Key DNS History Data Points</h3>
+                        
+                        <h4>IP Address History</h4>
+                        <ul>
+                            <li>Previous hosting locations</li>
+                            <li>IP address changes over time</li>
+                            <li>Shared hosting vs. dedicated IPs</li>
+                            <li>Geographic location changes</li>
+                        </ul>
+
+                        <h4>Nameserver History</h4>
+                        <ul>
+                            <li>DNS provider changes</li>
+                            <li>Migration between DNS services</li>
+                            <li>Custom vs. provider nameservers</li>
+                            <li>Redundancy configurations</li>
+                        </ul>
+
+                        <h4>Mail Server History</h4>
+                        <ul>
+                            <li>Email provider changes</li>
+                            <li>MX record modifications</li>
+                            <li>Email security evolution (SPF, DKIM, DMARC)</li>
+                            <li>Third-party email services</li>
+                        </ul>
+
+                        <h3>Common DNS Change Patterns</h3>
+                        
+                        <h4>Website Migration</h4>
+                        <ol>
+                            <li>A/AAAA records updated to new IP</li>
+                            <li>May see temporary downtime</li>
+                            <li>CDN records may be added</li>
+                            <li>TTL values may be adjusted</li>
+                        </ol>
+
+                        <h4>Email Provider Change</h4>
+                        <ol>
+                            <li>MX records updated</li>
+                            <li>TXT records for SPF/DKIM modified</li>
+                            <li>May see overlap period with old and new</li>
+                            <li>DMARC records may be added</li>
+                        </ol>
+
+                        <h4>CDN Implementation</h4>
+                        <ol>
+                            <li>A records point to CDN IPs</li>
+                            <li>CNAME records for CDN endpoints</li>
+                            <li>Multiple IP addresses for redundancy</li>
+                            <li>Geographic distribution visible</li>
+                        </ol>
+
+                        <h4>Security Enhancements</h4>
+                        <ul>
+                            <li>SPF records added/updated</li>
+                            <li>DKIM keys published</li>
+                            <li>DMARC policies implemented</li>
+                            <li>DNSSEC records added</li>
+                        </ul>
+
+                        <h3>Tools for DNS History Research</h3>
+                        <ul>
+                            <li><strong>SecurityTrails:</strong> Comprehensive DNS history</li>
+                            <li><strong>DomainTools:</strong> Historical DNS data</li>
+                            <li><strong>WhoisXML API:</strong> DNS records history</li>
+                            <li><strong>Passive DNS Services:</strong> DNSDB, CIRCL</li>
+                            <li><strong>Free Tools:</strong> ViewDNS.info, DNS History</li>
+                        </ul>
+
+                        <h3>Reading DNS History Data</h3>
+                        
+                        <h4>IP Address Changes</h4>
+                        <ul>
+                            <li>Same IP range: Same hosting provider</li>
+                            <li>Different IP ranges: Provider change</li>
+                            <li>Multiple IPs: Load balancing or CDN</li>
+                            <li>Cloud provider IPs: AWS, Google Cloud, Azure, etc.</li>
+                        </ul>
+
+                        <h4>Nameserver Patterns</h4>
+                        <ul>
+                            <li>ns1.provider.com: Using provider's DNS</li>
+                            <li>ns1.domain.com: Custom nameservers</li>
+                            <li>Cloudflare nameservers: Using Cloudflare</li>
+                            <li>AWS Route53: Using Amazon DNS</li>
+                        </ul>
+
+                        <h3>Red Flags in DNS History</h3>
+                        <ul>
+                            <li><strong>Frequent IP Changes:</strong> May indicate instability or suspicious activity</li>
+                            <li><li><strong>Bulletproof Hosting:</strong> IPs associated with malicious activity</li>
+                            <li><strong>Fast Flux:</strong> Rapidly changing IPs (often malicious)</li>
+                            <li><strong>Sudden MX Changes:</strong> Possible email compromise</li>
+                            <li><strong>Missing Security Records:</strong> No SPF/DKIM/DMARC on active domains</li>
+                        </ul>
+
+                        <h3>Best Practices for DNS History Analysis</h3>
+                        <ul>
+                            <li><strong>Track Over Time:</strong> Monitor changes regularly</li>
+                            <li><strong>Correlate Events:</strong> Link DNS changes to other activities</li>
+                            <li><strong>Verify Sources:</strong> Use multiple DNS history providers</li>
+                            <li><strong>Understand Context:</strong> Consider business reasons for changes</li>
+                            <li><strong>Document Findings:</strong> Keep records of significant changes</li>
+                        </ul>
+                    </div>
+
+                    <div class="info-navigation">
+                        <a href="/info/tracking-ownership-changes" class="btn btn-secondary">&larr; Previous: Tracking Ownership Changes</a>
+                        <a href="/info/expiration-and-renewal-history" class="btn btn-primary">Next: Expiration and Renewal History &rarr;</a>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </main>
+
+    <footer th:replace="~{template::template_footer}"></footer>
+</body>
+</html>

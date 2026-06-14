@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+
+    <main>
+        <section class="hero">
+            <div class="container">
+                <div class="hero-content">
+                    <h1>🔔 My Domain Watchlist</h1>
+                    <p>Monitor your domains and get notified before they expire. Never lose a domain you care about.</p>
+                </div>
+            </div>
+        </section>
+
+        <div th:replace="~{template::ad_banner_top}"></div>
+
+        <div class="container" style="max-width:960px; padding-bottom:60px;">
+
+            <!-- Login required notice (shown when not logged in) -->
+            <div id="loginRequired" style="display:none; text-align:center; padding:60px 20px;">
+                <div style="font-size:48px; margin-bottom:16px;">🔒</div>
+                <h2 style="margin-bottom:12px; color:var(--darker);">Sign in to use your Watchlist</h2>
+                <p style="color:var(--gray); margin-bottom:24px;">Create a free account to monitor domains and receive expiry alerts.</p>
+                <button onclick="openAuthModal('login')" class="watch-btn-primary">Sign In</button>
+                <span style="margin:0 12px; color:var(--gray);">or</span>
+                <button onclick="openAuthModal('register')" class="watch-btn-secondary">Create Account</button>
+            </div>
+
+            <!-- Main watchlist UI (shown when logged in) -->
+            <div id="watchlistUI" style="display:none;">
+
+                <!-- Add domain bar -->
+                <div style="background:var(--card-bg); border:1px solid var(--glass-border); border-radius:12px; padding:24px; margin-bottom:28px;">
+                    <h2 style="font-size:18px; margin-bottom:16px; color:var(--darker);">
+                        <i class="fas fa-plus-circle" style="color:var(--primary);"></i> Add Domain to Watchlist
+                    </h2>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
+                        <div style="flex:2; min-width:200px;">
+                            <label style="font-size:13px; color:var(--gray); display:block; margin-bottom:6px;">Domain Name</label>
+                            <input type="text" id="addDomainInput" placeholder="e.g. example.com"
+                                   style="width:100%; padding:10px 14px; border:1px solid var(--glass-border); border-radius:8px; font-size:15px; background:rgba(255,255,255,0.06); color:#e2e8f0; outline:none; box-sizing:border-box;">
+                        </div>
+                        <div style="flex:1; min-width:180px;">
+                            <label style="font-size:13px; color:var(--gray); display:block; margin-bottom:6px;">Notify Me</label>
+                            <select id="addNotifyType"
+                                    style="width:100%; padding:10px 14px; border:1px solid var(--glass-border); border-radius:8px; font-size:14px; background:var(--card-bg); color:#e2e8f0; outline:none; cursor:pointer;">
+                                <option value="3">7 &amp; 30 days before</option>
+                                <option value="1">7 days before</option>
+                                <option value="2">30 days before</option>
+                                <option value="0">No notification</option>
+                            </select>
+                        </div>
+                        <div style="flex:1; min-width:180px;">
+                            <label style="font-size:13px; color:var(--gray); display:block; margin-bottom:6px;">Alert Email (optional)</label>
+                            <input type="email" id="addNotifyEmail" placeholder="your@email.com"
+                                   style="width:100%; padding:10px 14px; border:1px solid var(--glass-border); border-radius:8px; font-size:14px; background:rgba(255,255,255,0.06); color:#e2e8f0; outline:none; box-sizing:border-box;">
+                        </div>
+                        <div>
+                            <button id="addWatchBtn" onclick="addWatch()" class="watch-btn-primary">
+                                <i class="fas fa-bell"></i> Watch
+                            </button>
+                        </div>
+                    </div>
+                    <div id="addMsg" style="margin-top:12px; font-size:13px; display:none;"></div>
+                </div>
+
+                <!-- Stats bar -->
+                <div style="display:flex; gap:16px; margin-bottom:24px; flex-wrap:wrap;">
+                    <div class="stat-card">
+                        <div class="stat-num" id="statTotal">0</div>
+                        <div class="stat-label">Total Watched</div>
+                    </div>
+                    <div class="stat-card" style="border-color:rgba(255,82,82,0.3);">
+                        <div class="stat-num" id="statExpiring" style="color:#ff5252;">0</div>
+                        <div class="stat-label">Expiring Soon</div>
+                    </div>
+                    <div class="stat-card" style="border-color:rgba(255,193,7,0.3);">
+                        <div class="stat-num" id="statMonth" style="color:#ffc107;">0</div>
+                        <div class="stat-label">Within 30 Days</div>
+                    </div>
+                    <div class="stat-card" style="border-color:rgba(76,175,80,0.3);">
+                        <div class="stat-num" id="statSafe" style="color:#4caf50;">0</div>
+                        <div class="stat-label">Safe (&gt;30 Days)</div>
+                    </div>
+                </div>
+
+                <!-- Loading -->
+                <div id="listLoader" style="text-align:center; padding:40px; color:var(--gray);">
+                    <div class="spinner" style="margin:0 auto 12px;"></div>
+                    Loading your watchlist...
+                </div>
+
+                <!-- Empty state -->
+                <div id="emptyState" style="display:none; text-align:center; padding:60px 20px; color:var(--gray);">
+                    <div style="font-size:48px; margin-bottom:16px;">📭</div>
+                    <h3 style="margin-bottom:8px; color:var(--darker);">No domains watched yet</h3>
+                    <p>Add a domain above to start monitoring its expiry date.</p>
+                </div>
+
+                <!-- Domain list -->
+                <div id="watchList"></div>
+            </div>
+        </div>
+
+        <div th:replace="~{template::ad_banner_bottom}"></div>
+    </main>
+
+    <footer th:replace="~{template::template_footer}"></footer>
+
+    <!-- Edit modal -->
+    <div id="editModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:9999; align-items:center; justify-content:center;">
+        <div style="background:var(--card-bg); border:1px solid var(--glass-border); border-radius:14px; padding:30px; width:100%; max-width:440px; margin:20px;">
+            <h3 style="margin-bottom:20px; color:var(--darker);">Edit Watch Settings</h3>
+            <input type="hidden" id="editWatchId">
+            <div style="margin-bottom:16px;">
+                <label style="font-size:13px; color:var(--gray); display:block; margin-bottom:6px;">Domain</label>
+                <div id="editDomainName" style="font-weight:600; color:var(--darker); font-size:16px;"></div>
+            </div>
+            <div style="margin-bottom:16px;">
+                <label style="font-size:13px; color:var(--gray); display:block; margin-bottom:6px;">Notification</label>
+                <select id="editNotifyType"
+                        style="width:100%; padding:10px 14px; border:1px solid var(--glass-border); border-radius:8px; font-size:14px; background:var(--card-bg); color:#e2e8f0; outline:none; cursor:pointer;">
+                    <option value="3">7 &amp; 30 days before</option>
+                    <option value="1">7 days before</option>
+                    <option value="2">30 days before</option>
+                    <option value="0">No notification</option>
+                </select>
+            </div>
+            <div style="margin-bottom:24px;">
+                <label style="font-size:13px; color:var(--gray); display:block; margin-bottom:6px;">Alert Email (optional)</label>
+                <input type="email" id="editNotifyEmail" placeholder="your@email.com"
+                       style="width:100%; padding:10px 14px; border:1px solid var(--glass-border); border-radius:8px; font-size:14px; background:rgba(255,255,255,0.06); color:#e2e8f0; outline:none; box-sizing:border-box;">
+            </div>
+            <div style="display:flex; gap:10px; justify-content:flex-end;">
+                <button onclick="closeEditModal()" class="watch-btn-secondary">Cancel</button>
+                <button onclick="saveEdit()" class="watch-btn-primary">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .watch-btn-primary {
+            padding: 10px 20px; background: var(--primary); color: #080c18;
+            border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;
+            transition: opacity .2s; white-space: nowrap;
+        }
+        .watch-btn-primary:hover { opacity: .85; }
+        .watch-btn-secondary {
+            padding: 10px 20px; background: transparent; color: var(--darker);
+            border: 1px solid var(--glass-border); border-radius: 8px; font-size: 14px; cursor: pointer;
+            transition: background .2s; white-space: nowrap;
+        }
+        .watch-btn-secondary:hover { background: rgba(255,255,255,0.06); }
+        .watch-btn-danger {
+            padding: 6px 14px; background: transparent; color: #ff5252;
+            border: 1px solid rgba(255,82,82,0.4); border-radius: 6px; font-size: 13px; cursor: pointer;
+        }
+        .watch-btn-danger:hover { background: rgba(255,82,82,0.1); }
+        .watch-btn-edit {
+            padding: 6px 14px; background: transparent; color: var(--gray);
+            border: 1px solid var(--glass-border); border-radius: 6px; font-size: 13px; cursor: pointer;
+        }
+        .watch-btn-edit:hover { background: rgba(255,255,255,0.06); }
+        .stat-card {
+            flex: 1; min-width: 120px; background: var(--card-bg);
+            border: 1px solid var(--glass-border); border-radius: 10px; padding: 16px 20px; text-align: center;
+        }
+        .stat-num { font-size: 28px; font-weight: 700; color: var(--primary); }
+        .stat-label { font-size: 12px; color: var(--gray); margin-top: 4px; }
+        .domain-row {
+            background: var(--card-bg); border: 1px solid var(--glass-border);
+            border-radius: 10px; padding: 18px 20px; margin-bottom: 12px;
+            display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+        }
+        .domain-row:hover { border-color: rgba(100,255,218,0.3); }
+        .expiry-badge {
+            display: inline-block; padding: 3px 10px; border-radius: 20px;
+            font-size: 12px; font-weight: 600;
+        }
+        .badge-danger  { background: rgba(255,82,82,0.15); color: #ff5252; border:1px solid rgba(255,82,82,0.3); }
+        .badge-warning { background: rgba(255,193,7,0.15); color: #ffc107; border:1px solid rgba(255,193,7,0.3); }
+        .badge-safe    { background: rgba(76,175,80,0.15); color: #4caf50; border:1px solid rgba(76,175,80,0.3); }
+        .badge-unknown { background: rgba(150,150,150,0.15); color: #999; border:1px solid rgba(150,150,150,0.3); }
+    </style>
+
+    <script>
+    var isLoggedIn = false;
+
+    document.addEventListener('DOMContentLoaded', function () {
+        checkLoginAndLoad();
+    });
+
+    function checkLoginAndLoad() {
+        // Check session via API - if we can access the watch list endpoint we are logged in
+        fetch('/api/domain-watch/list', { credentials: 'include' })
+            .then(function(r) {
+                if (r.status === 401 || r.status === 403) {
+                    showLoginRequired();
+                } else {
+                    return r.json().then(function(data) {
+                        if (data.code === -401 || data.code === 401) {
+                            showLoginRequired();
+                        } else {
+                            isLoggedIn = true;
+                            document.getElementById('watchlistUI').style.display = 'block';
+                            renderList(data.data || []);
+                        }
+                    });
+                }
+            })
+            .catch(function() { showLoginRequired(); });
+    }
+
+    function showLoginRequired() {
+        document.getElementById('loginRequired').style.display = 'block';
+        document.getElementById('listLoader').style.display = 'none';
+    }
+
+    function renderList(list) {
+        document.getElementById('listLoader').style.display = 'none';
+
+        // Stats
+        var now = new Date();
+        var d7  = new Date(now.getTime() + 7  * 86400000);
+        var d30 = new Date(now.getTime() + 30 * 86400000);
+        var expiring = 0, month = 0, safe = 0;
+        list.forEach(function(w) {
+            if (!w.expiryDate) { return; }
+            var exp = new Date(w.expiryDate);
+            if (exp < d7)       expiring++;
+            else if (exp < d30) month++;
+            else                safe++;
+        });
+        document.getElementById('statTotal').textContent    = list.length;
+        document.getElementById('statExpiring').textContent = expiring;
+        document.getElementById('statMonth').textContent    = month;
+        document.getElementById('statSafe').textContent     = safe;
+
+        var container = document.getElementById('watchList');
+        container.innerHTML = '';
+
+        if (!list.length) {
+            document.getElementById('emptyState').style.display = 'block';
+            return;
+        }
+        document.getElementById('emptyState').style.display = 'none';
+
+        list.forEach(function(w) {
+            var expiryText = w.expiryDateText || 'Unknown';
+            var badge = '<span class="expiry-badge badge-unknown">Expiry Unknown</span>';
+            if (w.expiryDate) {
+                var exp = new Date(w.expiryDate);
+                var daysLeft = Math.ceil((exp - now) / 86400000);
+                if (daysLeft < 0) {
+                    badge = '<span class="expiry-badge badge-danger">Expired</span>';
+                } else if (daysLeft <= 7) {
+                    badge = '<span class="expiry-badge badge-danger">Expires in ' + daysLeft + 'd</span>';
+                } else if (daysLeft <= 30) {
+                    badge = '<span class="expiry-badge badge-warning">Expires in ' + daysLeft + 'd</span>';
+                } else {
+                    badge = '<span class="expiry-badge badge-safe">Expires in ' + daysLeft + 'd</span>';
+                }
+            }
+
+            var notifyLabel = ['No alert','7 days','30 days','7 &amp; 30 days'][w.notifyType || 0];
+            var registrar   = w.registrar ? ('<span style="color:var(--gray);font-size:13px;"><i class="fas fa-building" style="margin-right:4px;"></i>' + escHtml(w.registrar) + '</span>') : '';
+
+            var row = document.createElement('div');
+            row.className = 'domain-row';
+            row.innerHTML =
+                '<div style="flex:1; min-width:180px;">' +
+                    '<a href="/domain/' + escHtml(w.domainName) + '" target="_blank" ' +
+                       'style="font-weight:700; font-size:16px; color:var(--primary); text-decoration:none;">' +
+                        escHtml(w.domainName) + '</a>' +
+                    '<div style="margin-top:4px; font-size:13px; color:var(--gray);">' +
+                        (w.expiryDateText ? '<i class="fas fa-calendar-alt" style="margin-right:4px;"></i>Expires: ' + escHtml(w.expiryDateText) : '') +
+                    '</div>' +
+                '</div>' +
+                '<div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">' +
+                    badge +
+                    registrar +
+                    '<span style="color:var(--gray);font-size:13px;"><i class="fas fa-bell" style="margin-right:4px;"></i>' + notifyLabel + '</span>' +
+                '</div>' +
+                '<div style="display:flex; gap:8px; margin-left:auto;">' +
+                    '<button class="watch-btn-edit" onclick="openEditModal(\'' + w.id + '\',\'' + escHtml(w.domainName) + '\',' + (w.notifyType||0) + ',\'' + (w.notifyEmail||'') + '\')">' +
+                        '<i class="fas fa-cog"></i> Settings' +
+                    '</button>' +
+                    '<button class="watch-btn-danger" onclick="removeWatch(\'' + w.id + '\',this)">' +
+                        '<i class="fas fa-times"></i> Remove' +
+                    '</button>' +
+                '</div>';
+            container.appendChild(row);
+        });
+    }
+
+    function addWatch() {
+        var domain     = document.getElementById('addDomainInput').value.trim().toLowerCase();
+        var notifyType = parseInt(document.getElementById('addNotifyType').value);
+        var email      = document.getElementById('addNotifyEmail').value.trim();
+        var msgEl      = document.getElementById('addMsg');
+
+        if (!domain) { showAddMsg('Please enter a domain name.', 'error'); return; }
+
+        var btn = document.getElementById('addWatchBtn');
+        btn.disabled = true;
+        btn.textContent = 'Adding…';
+
+        fetch('/api/domain-watch/watch', {
+            method: 'POST', credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ domainName: domain, notifyType: notifyType, notifyEmail: email || null })
+        }).then(function(r) { return r.json(); }).then(function(data) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-bell"></i> Watch';
+            if (data.code === 0) {
+                document.getElementById('addDomainInput').value = '';
+                document.getElementById('addNotifyEmail').value = '';
+                showAddMsg('✅ ' + domain + ' added to your watchlist!', 'success');
+                reloadList();
+            } else if (data.code === -401 || data.code === 401) {
+                showLoginRequired();
+            } else {
+                showAddMsg(data.msg || 'Failed to add watch.', 'error');
+            }
+        }).catch(function() {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-bell"></i> Watch';
+            showAddMsg('Network error. Please try again.', 'error');
+        });
+    }
+
+    function showAddMsg(text, type) {
+        var el = document.getElementById('addMsg');
+        el.style.display = 'block';
+        el.style.color   = type === 'error' ? '#ff5252' : '#4caf50';
+        el.textContent   = text;
+        setTimeout(function() { el.style.display = 'none'; }, 4000);
+    }
+
+    function removeWatch(id, btn) {
+        if (!confirm('Remove this domain from your watchlist?')) return;
+        btn.disabled = true;
+        fetch('/api/domain-watch/unwatch/' + id, { method: 'DELETE', credentials: 'include' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.code === 0) reloadList();
+                else { btn.disabled = false; alert(data.msg || 'Failed to remove.'); }
+            });
+    }
+
+    function openEditModal(id, name, notifyType, email) {
+        document.getElementById('editWatchId').value       = id;
+        document.getElementById('editDomainName').textContent = name;
+        document.getElementById('editNotifyType').value    = notifyType;
+        document.getElementById('editNotifyEmail').value   = email;
+        document.getElementById('editModal').style.display = 'flex';
+    }
+
+    function closeEditModal() {
+        document.getElementById('editModal').style.display = 'none';
+    }
+
+    function saveEdit() {
+        var id         = document.getElementById('editWatchId').value;
+        var notifyType = parseInt(document.getElementById('editNotifyType').value);
+        var email      = document.getElementById('editNotifyEmail').value.trim();
+
+        fetch('/api/domain-watch/update/' + id, {
+            method: 'PUT', credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ notifyType: notifyType, notifyEmail: email || null })
+        }).then(function(r) { return r.json(); }).then(function(data) {
+            if (data.code === 0) { closeEditModal(); reloadList(); }
+            else alert(data.msg || 'Failed to save.');
+        });
+    }
+
+    function reloadList() {
+        document.getElementById('listLoader').style.display = 'block';
+        document.getElementById('watchList').innerHTML = '';
+        fetch('/api/domain-watch/list', { credentials: 'include' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) { renderList(data.data || []); });
+    }
+
+    function escHtml(str) {
+        return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    // Close modal on backdrop click
+    document.getElementById('editModal').addEventListener('click', function(e) {
+        if (e.target === this) closeEditModal();
+    });
+
+    // Allow Enter key to add watch
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && document.activeElement &&
+            (document.activeElement.id === 'addDomainInput' || document.activeElement.id === 'addNotifyEmail')) {
+            addWatch();
+        }
+    });
+    </script>
+</body>
+</html>

@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+
+    <main>
+        <div class="container">
+            <div class="info-page">
+                <nav class="breadcrumb">
+                    <a href="/">Home</a> &gt; 
+                    <a href="/help-center">Help Center</a> &gt; 
+                    <span>Reading WHOIS Results</span>
+                </nav>
+
+                <article class="info-content" itemscope itemtype="https://schema.org/Article">
+                    <h1>Reading WHOIS Results</h1>
+                    
+                    <div class="info-section">
+                        <h2>How to Interpret WHOIS Data</h2>
+                        <p>WHOIS results contain a wealth of information about a domain. Understanding how to read and interpret this data is essential for effective domain research.</p>
+                        
+                        <h3>Key Sections of WHOIS Results</h3>
+                        
+                        <h4>1. Domain Information</h4>
+                        <ul>
+                            <li><strong>Domain Name:</strong> The registered domain name</li>
+                            <li><strong>Registry Domain ID:</strong> Unique identifier assigned by the registry</li>
+                            <li><strong>Registrar WHOIS Server:</strong> The WHOIS server for the registrar</li>
+                            <li><strong>Registrar URL:</strong> Website of the domain registrar</li>
+                        </ul>
+
+                        <h4>2. Important Dates</h4>
+                        <ul>
+                            <li><strong>Creation Date:</strong> When the domain was first registered</li>
+                            <li><strong>Updated Date:</strong> Last time the WHOIS record was modified</li>
+                            <li><strong>Registry Expiry Date:</strong> When the domain registration expires</li>
+                        </ul>
+                        <p><strong>Tip:</strong> Older domains (based on creation date) are often more valuable and trustworthy.</p>
+
+                        <h4>3. Registrar Information</h4>
+                        <ul>
+                            <li><strong>Registrar:</strong> Company through which the domain was registered</li>
+                            <li><strong>Registrar IANA ID:</strong> Official identification number of the registrar</li>
+                            <li><strong>Registrar Abuse Contact:</strong> Email and phone for reporting abuse</li>
+                        </ul>
+
+                        <h4>4. Domain Status</h4>
+                        <p>Status codes indicate the current state and restrictions on the domain:</p>
+                        <ul>
+                            <li><strong>ok:</strong> Normal, active domain</li>
+                            <li><strong>clientTransferProhibited:</strong> Cannot be transferred (common security measure)</li>
+                            <li><strong>serverTransferProhibited:</strong> Registry-level transfer lock</li>
+                            <li><strong>clientDeleteProhibited:</strong> Cannot be deleted</li>
+                            <li><strong>redemptionPeriod:</strong> Expired but can still be renewed</li>
+                            <li><strong>pendingDelete:</strong> Will be deleted soon</li>
+                        </ul>
+
+                        <h4>5. Nameservers</h4>
+                        <p>Nameservers indicate where the domain's DNS is hosted:</p>
+                        <ul>
+                            <li>Shows the hosting provider or DNS service</li>
+                            <li>Can reveal related domains using the same nameservers</li>
+                            <li>Useful for identifying the technology stack</li>
+                        </ul>
+
+                        <h4>6. Contact Information</h4>
+                        <p>Three types of contacts may be listed:</p>
+                        <ul>
+                            <li><strong>Registrant:</strong> The domain owner</li>
+                            <li><strong>Administrative:</strong> Person managing administrative tasks</li>
+                            <li><strong>Technical:</strong> Person handling technical issues</li>
+                        </ul>
+                        <p><strong>Note:</strong> Due to GDPR and privacy protection, this information may be redacted or show privacy service details.</p>
+
+                        <h3>Sample WHOIS Output Explained</h3>
+                        <div class="code-block">
+                            <code>
+Domain Name: EXAMPLE.COM
+Registry Domain ID: 2336799_DOMAIN_COM-VRSN
+Registrar WHOIS Server: whois.registrar.com
+Registrar URL: http://www.registrar.com
+Updated Date: 2024-01-15T10:30:00Z
+Creation Date: 1995-08-14T04:00:00Z
+Registry Expiry Date: 2025-08-13T04:00:00Z
+Registrar: Example Registrar, Inc.
+Registrar IANA ID: 1234
+Domain Status: clientTransferProhibited
+Name Server: NS1.EXAMPLE.COM
+Name Server: NS2.EXAMPLE.COM
+                            </code>
+                        </div>
+
+                        <h3>Red Flags to Watch For</h3>
+                        <ul>
+                            <li><strong>Recently Created:</strong> Very new domains may be less trustworthy</li>
+                            <li><strong>Frequent Owner Changes:</strong> Multiple ownership changes in short time</li>
+                            <li><strong>Privacy on Established Domains:</strong> Long-time domains suddenly enabling privacy</li>
+                            <li><strong>Inconsistent Information:</strong> Mismatched contact details</li>
+                            <li><strong>Suspicious Nameservers:</strong> Known bulletproof hosting</li>
+                        </ul>
+
+                        <h3>Using WHOIS Data for Research</h3>
+                        <ul>
+                            <li><strong>Domain Age:</strong> Older domains typically have more authority</li>
+                            <li><strong>Owner Patterns:</strong> Identify portfolios of domains owned by same entity</li>
+                            <li><strong>Expiration Opportunities:</strong> Find domains expiring soon for potential acquisition</li>
+                            <li><strong>Hosting History:</strong> Track changes in nameservers over time</li>
+                            <li><strong>Geographic Clues:</strong> Contact information may reveal location</li>
+                        </ul>
+
+                        <h3>Limitations to Keep in Mind</h3>
+                        <ul>
+                            <li>Information may not be 100% accurate (relies on registrant honesty)</li>
+                            <li>Privacy protection hides true owner details</li>
+                            <li>Data may be cached and not reflect recent changes</li>
+                            <li>Different TLDs provide different levels of information</li>
+                            <li>GDPR has reduced publicly available personal information</li>
+                        </ul>
+                    </div>
+
+                    <div class="info-navigation">
+                        <a href="/info/how-to-perform-a-whois-lookup" class="btn btn-secondary">&larr; Previous: How to Perform a WHOIS Lookup</a>
+                        <a href="/info/domain-privacy-protection" class="btn btn-primary">Next: Domain Privacy Protection &rarr;</a>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </main>
+
+    <footer th:replace="~{template::template_footer}"></footer>
+</body>
+</html>

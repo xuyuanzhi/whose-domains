@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+
+    <main>
+        <div class="container">
+            <div class="admin-panel">
+                <h1>Contact Messages Management</h1>
+                
+                <div class="toolbar">
+                    <button id="refreshBtn" class="btn btn-secondary">Refresh</button>
+                    <button id="deleteSelectedBtn" class="btn btn-danger" disabled>Delete Selected</button>
+                </div>
+                
+                <div class="table-container">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th><input type="checkbox" id="selectAll"></th>
+                                <th>ID</th>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Subject</th>
+                                <th>Message</th>
+                                <th>IP Address</th>
+                                <th>Create Time</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="contactsTableBody">
+                            <!-- Data will be loaded dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="pagination">
+                    <button id="prevPage" class="btn btn-secondary">Previous</button>
+                    <span id="pageInfo">Page <span id="currentPage">1</span> of <span id="totalPages">1</span></span>
+                    <button id="nextPage" class="btn btn-secondary">Next</button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer th:replace="~{template::template_footer}"></footer>
+    
+    <script th:src="@{/static/js/jquery.min.js}"></script>
+    <script th:src="@{/static/js/admin-contacts.js}"></script>
+</body>
+</html>

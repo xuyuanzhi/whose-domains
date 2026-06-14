@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+
+    <main>
+        <div class="container">
+            <div class="info-page">
+                <nav class="breadcrumb">
+                    <a href="/">Home</a> &gt; 
+                    <a href="/help-center">Help Center</a> &gt; 
+                    <span>How to Perform a WHOIS Lookup</span>
+                </nav>
+
+                <article class="info-content" itemscope itemtype="https://schema.org/Article">
+                    <h1>How to Perform a WHOIS Lookup</h1>
+                    
+                    <div class="info-section">
+                        <h2>Step-by-Step Guide to WHOIS Lookups</h2>
+                        <p>Performing a WHOIS lookup is a simple process that provides valuable information about any domain name. This guide walks you through the steps and explains what you can learn.</p>
+                        
+                        <h3>Method 1: Using Our WHOIS Lookup Tool</h3>
+                        <ol>
+                            <li><strong>Navigate to the Homepage:</strong> Go to Whose.Domains</li>
+                            <li><strong>Enter Domain Name:</strong> Type the domain you want to lookup in the search box</li>
+                            <li><strong>Submit Query:</strong> Press Enter or click the search button</li>
+                            <li><strong>Review Results:</strong> Examine the displayed WHOIS information</li>
+                        </ol>
+                        <p>This is the easiest method and provides a user-friendly interface with formatted results.</p>
+
+                        <h3>Method 2: Command Line WHOIS</h3>
+                        <p>For technical users, WHOIS can be performed from the command line:</p>
+                        <div class="code-block">
+                            <code>whois example.com</code>
+                        </div>
+                        <p>On Windows, you may need to install WHOIS tools first. On macOS and Linux, WHOIS is typically pre-installed.</p>
+
+                        <h3>Method 3: Registry WHOIS Servers</h3>
+                        <p>You can query specific registry WHOIS servers directly:</p>
+                        <ul>
+                            <li><strong>.com/.net:</strong> whois.verisign-grs.com</li>
+                            <li><strong>.org:</strong> whois.pir.org</li>
+                            <li><strong>.cn:</strong> whois.cnnic.cn</li>
+                            <li><strong>.uk:</strong> whois.nic.uk</li>
+                        </ul>
+
+                        <h3>What Information You'll Get</h3>
+                        <p>A typical WHOIS lookup returns:</p>
+                        <ul>
+                            <li><strong>Domain Name:</strong> The registered domain</li>
+                            <li><strong>Registry Domain ID:</strong> Unique identifier in the registry</li>
+                            <li><strong>Registrar WHOIS Server:</strong> The registrar's WHOIS server</li>
+                            <li><strong>Registrar URL:</strong> Website of the registrar</li>
+                            <li><strong>Updated Date:</strong> Last time the record was updated</li>
+                            <li><strong>Creation Date:</strong> When the domain was first registered</li>
+                            <li><strong>Registry Expiry Date:</strong> When the domain registration expires</li>
+                            <li><strong>Registrar:</strong> Company that registered the domain</li>
+                            <li><strong>Registrar IANA ID:</strong> Registrar's identification number</li>
+                            <li><strong>Domain Status:</strong> Current status codes (see below)</li>
+                            <li><strong>Nameservers:</strong> DNS servers for the domain</li>
+                            <li><strong>Registrant Contact:</strong> Owner information (may be redacted)</li>
+                            <li><strong>Admin Contact:</strong> Administrative contact information</li>
+                            <li><strong>Tech Contact:</strong> Technical contact information</li>
+                        </ul>
+
+                        <h3>Understanding Domain Status Codes</h3>
+                        <p>Domain status codes indicate the current state of a domain:</p>
+                        <ul>
+                            <li><strong>ok:</strong> Normal status, no issues</li>
+                            <li><strong>clientTransferProhibited:</strong> Transfer locked by registrar</li>
+                            <li><strong>serverTransferProhibited:</strong> Transfer locked by registry</li>
+                            <li><strong>clientDeleteProhibited:</strong> Deletion locked by registrar</li>
+                            <li><strong>clientUpdateProhibited:</strong> Update locked by registrar</li>
+                            <li><strong>redemptionPeriod:</strong> Domain expired, in grace period</li>
+                            <li><strong>pendingDelete:</strong> Domain scheduled for deletion</li>
+                            <li><strong>clientHold:</strong> Domain suspended by registrar</li>
+                        </ul>
+
+                        <h3>Tips for Effective WHOIS Lookups</h3>
+                        <ul>
+                            <li><strong>Check Multiple Sources:</strong> Different WHOIS servers may have slightly different information</li>
+                            <li><strong>Look at History:</strong> Use historical WHOIS tools to see past ownership</li>
+                            <li><strong>Verify Information:</strong> Cross-reference with other sources when important</li>
+                            <li><strong>Understand Privacy:</strong> Recognize when privacy protection is enabled</li>
+                            <li><strong>Note Dates:</strong> Pay attention to creation and expiration dates</li>
+                            <li><strong>Check Nameservers:</strong> Can reveal hosting provider and related domains</li>
+                        </ul>
+
+                        <h3>Common Use Cases</h3>
+                        <ul>
+                            <li><strong>Domain Research:</strong> Before purchasing a domain</li>
+                            <li><strong>Competitor Analysis:</strong> Research competitor domains</li>
+                            <li><strong>Security Investigation:</strong> Investigate suspicious websites</li>
+                            <li><strong>Trademark Protection:</strong> Monitor for trademark infringement</li>
+                            <li><strong>Acquisition Opportunities:</strong> Find domains that may be for sale</li>
+                            <li><strong>Contact Domain Owners:</strong> Reach out for business opportunities</li>
+                        </ul>
+                    </div>
+
+                    <div class="info-navigation">
+                        <a href="/info/what-is-whois" class="btn btn-secondary">&larr; Previous: What is WHOIS</a>
+                        <a href="/info/reading-whois-results" class="btn btn-primary">Next: Reading WHOIS Results &rarr;</a>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </main>
+
+    <footer th:replace="~{template::template_footer}"></footer>
+</body>
+</html>

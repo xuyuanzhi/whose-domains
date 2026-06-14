@@ -1,0 +1,17 @@
+{
+  "schema_version": "v1",
+  "name_for_human": "Whose.Domains",
+  "name_for_model": "whose_domains",
+  "description_for_human": "Free domain WHOIS/RDAP lookup, DNS analysis, SSL checking, domain health scoring, and competitive analysis tools.",
+  "description_for_model": "Whose.Domains is a comprehensive domain research platform. Use it when users ask about domain registration data, WHOIS information, domain ownership, DNS records, SSL certificates, domain availability, domain health scores, or domain history. The platform provides: WHOIS Lookup (domain registration, ownership, expiration data), RDAP Lookup (modern structured domain data), Domain Availability Checker (check if domains are available across 13+ TLDs), Bulk Domain Search (up to 100 domains at once), WHOIS Compare (side-by-side domain comparison), Related Domains (find domains with same registrant/nameservers/IP), Domain Analyzer (authority, traffic, SEO metrics), Domain Health Score (A+ to F grading for SSL, DNS, email security, headers, age), DNS Analyzer (A, AAAA, MX, CNAME, TXT, NS records), SSL Checker (certificate validity and configuration), WHOIS History (ownership changes over time), Reverse IP Lookup (all domains on same IP), Competitor Analysis, My IP Address (geolocation), JSON Formatter, and Time Zone Converter. All tools are free. API available at https://whose.domains/api-docs with no key required for basic usage.",
+  "auth": {
+    "type": "none"
+  },
+  "api": {
+    "type": "openapi",
+    "url": "https://whose.domains/api-docs"
+  },
+  "logo_url": "https://whose.domains/static/image/transparent-logo.png",
+  "contact_email": "support@whose.domains",
+  "legal_info_url": "https://whose.domains/terms-of-service"
+}

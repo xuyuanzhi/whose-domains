@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+
+    <main>
+        <div class="container">
+            <div class="info-page">
+                <nav class="breadcrumb">
+                    <a href="/">Home</a> &gt; 
+                    <a href="/help-center">Help Center</a> &gt; 
+                    <span>What is WHOIS</span>
+                </nav>
+
+                <article class="info-content" itemscope itemtype="https://schema.org/Article">
+                    <h1>What is WHOIS?</h1>
+                    
+                    <div class="info-section">
+                        <h2>Understanding the WHOIS Protocol</h2>
+                        <p>WHOIS (pronounced "who is") is a query and response protocol used to query databases that store registered users or assignees of Internet resources, such as domain names and IP addresses.</p>
+                        
+                        <h3>What is the WHOIS Database?</h3>
+                        <p>The WHOIS database is a publicly accessible directory that contains information about registered domain names, including:</p>
+                        <ul>
+                            <li><strong>Registrant Information:</strong> Name, organization, contact details of the domain owner</li>
+                            <li><strong>Registration Dates:</strong> When the domain was created and when it expires</li>
+                            <li><strong>Registrar Information:</strong> Which company registered the domain</li>
+                            <li><strong>Nameservers:</strong> DNS servers associated with the domain</li>
+                            <li><strong>Domain Status:</strong> Current state of the domain (active, locked, expired, etc.)</li>
+                            <li><strong>Administrative and Technical Contacts:</strong> People responsible for managing the domain</li>
+                        </ul>
+
+                        <h3>History of WHOIS</h3>
+                        <p>WHOIS was created in 1982 as part of the ARPANET project to provide a way to look up information about network resources. It has evolved over the decades to become an essential tool for:</p>
+                        <ul>
+                            <li>Domain research and investigation</li>
+                            <li>Trademark protection</li>
+                            <li>Law enforcement investigations</li>
+                            <li>Network troubleshooting</li>
+                            <li>Business intelligence</li>
+                        </ul>
+
+                        <h3>How WHOIS Works</h3>
+                        <ol>
+                            <li><strong>Query Submission:</strong> User submits a domain name to a WHOIS lookup tool</li>
+                            <li><strong>Server Selection:</strong> The tool determines which WHOIS server to query based on the TLD</li>
+                            <li><strong>Database Query:</strong> The WHOIS server searches its database for the domain</li>
+                            <li><strong>Response:</strong> The server returns all available information about the domain</li>
+                            <li><strong>Display:</strong> The information is formatted and displayed to the user</li>
+                        </ol>
+
+                        <h3>WHOIS Server Hierarchy</h3>
+                        <p>WHOIS operates through a hierarchical system:</p>
+                        <ul>
+                            <li><strong>ICANN WHOIS:</strong> Central reference for all accredited registrars</li>
+                            <li><strong>Registry WHOIS:</strong> Maintained by TLD registries (e.g., Verisign for .com)</li>
+                            <li><strong>Registrar WHOIS:</strong> Maintained by individual registrars</li>
+                        </ul>
+
+                        <h3>Uses of WHOIS</h3>
+                        <p>WHOIS lookups are commonly used for:</p>
+                        <ul>
+                            <li><strong>Domain Availability:</strong> Check if a domain is available for registration</li>
+                            <li><strong>Ownership Verification:</strong> Verify who owns a domain</li>
+                            <li><strong>Contact Information:</strong> Find contact details for domain owners</li>
+                            <li><strong>Expiration Tracking:</strong> Monitor when domains expire</li>
+                            <li><strong>Trademark Protection:</strong> Identify potential trademark infringements</li>
+                            <li><strong>Fraud Investigation:</strong> Investigate suspicious websites</li>
+                            <li><strong>Competitive Research:</strong> Research competitor domains</li>
+                            <li><strong>Network Administration:</strong> Troubleshoot DNS and email issues</li>
+                        </ul>
+
+                        <h3>WHOIS Privacy and GDPR</h3>
+                        <p>With the implementation of GDPR (General Data Protection Regulation) in 2018, WHOIS data access has changed:</p>
+                        <ul>
+                            <li>Personal information may be redacted from public WHOIS results</li>
+                            <li>Domain privacy protection services have become more common</li>
+                            <li>Some registries require legitimate purpose for accessing full WHOIS data</li>
+                            <li>Contact methods are often provided through anonymized email forwarding</li>
+                        </ul>
+
+                        <h3>Limitations of WHOIS</h3>
+                        <ul>
+                            <li>Data accuracy depends on registrants providing correct information</li>
+                            <li>Privacy protection can hide owner details</li>
+                            <li>Different registries may have different data formats</li>
+                            <li>Some information may be delayed or cached</li>
+                            <li>Not all domains have the same level of information available</li>
+                        </ul>
+                    </div>
+
+                    <div class="info-navigation">
+                        <a href="/info/understanding-domain-ownership" class="btn btn-secondary">&larr; Previous: Understanding Domain Ownership</a>
+                        <a href="/info/how-to-perform-a-whois-lookup" class="btn btn-primary">Next: How to Perform a WHOIS Lookup &rarr;</a>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </main>
+
+    <footer th:replace="~{template::template_footer}"></footer>
+</body>
+</html>

@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}">
+
+</head>
+<body>
+	<header th:replace="~{template::template_header}"></header>
+	
+	<main>
+		<section class="results-section active" id="resultsSection">
+	        <div class="container">
+	        	<div class="nav">
+	        		<div class="path">
+	        			<a href="/">Home</a>&nbsp;&nbsp;>>&nbsp;&nbsp;<span>Domain Not Found</span>
+	        		</div>
+	        		<div class="search-container" style="margin:unset;">
+	                    <input type="text" class="search-input-small" id="domainInput" placeholder="Enter a domain name (e.g., example.com)" required>
+	                    <button class="search-btn search-btn-small" id="searchBtn">
+	                        <i class="fas fa-search"></i>
+	                        Search
+	                    </button>
+	                </div>
+	        	</div>
+	            
+	            <div class="error-container">
+			        <div class="error-icon">🌐</div>
+			        <div class="error-code">DOMAIN NOT FOUND</div>
+			        <h1>This Domain Is Not Found</h1>
+			        
+			        <p class="message">
+			            The domain you're looking for doesn't exist in our database or has not been registered yet.
+			        </p>
+			        
+			        <div class="suggestions">
+			            <h3>What you can do:</h3>
+			            <ul>
+			                <li>Check if you've entered the domain name correctly</li>
+			                <li>This domain might be available for registration</li>
+			                <li>Try searching for a different domain name</li>
+			                <li>Consider alternative domain extensions (.com, .net, .org, etc.)</li>
+			            </ul>
+			        </div>
+			        
+			        <div class="search-box">
+			            <input type="text" class="search-input" id="searchInput" placeholder="Search for another domain...">
+			            <button class="search-btn" onclick="searchDomain()">Search</button>
+			        </div>
+			        
+			        <div class="actions">
+			            <a href="/" class="btn btn-primary">Back to Homepage</a>
+			        </div>
+			    </div>
+	        </div>
+	    </section>
+
+	</main>
+	
+	<footer th:replace="~{template::template_footer}"></footer>
+	<script type="text/javascript">
+	function searchDomain() {
+		const value = document.getElementById('searchInput').value.trim();
+		if (!value || value == '') {
+			showNotification('Please enter a domain name', 'warning');
+	        return;
+		}
+		
+		if (!isValidDomain(value)) {
+	        showNotification('Please enter a valid domain name (e.g., example.com)', 'warning');
+	        return;
+	    }
+		
+		showLoader();
+		
+		window.location.href = '/domain/' + value;
+	}
+	</script>
+</body>
+</html>

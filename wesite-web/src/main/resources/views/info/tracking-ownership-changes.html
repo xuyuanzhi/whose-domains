@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+
+    <main>
+        <div class="container">
+            <div class="info-page">
+                <nav class="breadcrumb">
+                    <a href="/">Home</a> &gt; 
+                    <a href="/help-center">Help Center</a> &gt; 
+                    <span>Tracking Ownership Changes</span>
+                </nav>
+
+                <article class="info-content" itemscope itemtype="https://schema.org/Article">
+                    <h1>Tracking Ownership Changes</h1>
+                    
+                    <div class="info-section">
+                        <h2>Monitoring Domain Ownership Transitions</h2>
+                        <p>Tracking ownership changes helps you understand domain history, identify potential issues, and make informed decisions about domain acquisitions or security concerns.</p>
+                        
+                        <h3>What Constitutes an Ownership Change?</h3>
+                        <p>Domain ownership changes can occur through:</p>
+                        <ul>
+                            <li><strong>Domain Transfer:</strong> Domain moved to different registrar with new owner</li>
+                            <li><strong>Registrant Update:</strong> Contact information changed at same registrar</li>
+                            <li><strong>Sale/Acquisition:</strong> Domain sold between parties</li>
+                            <li><strong>Company Changes:</strong> Mergers, acquisitions, or business restructuring</li>
+                            <li><strong>Expiration and Re-registration:</strong> Domain dropped and registered by new party</li>
+                        </ul>
+
+                        <h3>Why Track Ownership Changes?</h3>
+                        
+                        <h4>Security Monitoring</h4>
+                        <ul>
+                            <li>Detect unauthorized transfers</li>
+                            <li>Identify potential domain hijacking</li>
+                            <li>Monitor competitor activities</li>
+                            <li>Track suspicious patterns</li>
+                        </ul>
+
+                        <h4>Business Intelligence</h4>
+                        <ul>
+                            <li>Understand competitor strategies</li>
+                            <li>Identify acquisition opportunities</li>
+                            <li>Track industry consolidation</li>
+                            <li>Monitor brand portfolio changes</li>
+                        </ul>
+
+                        <h4>Due Diligence</h4>
+                        <ul>
+                            <li>Assess domain value before purchase</li>
+                            <li>Verify ownership chain</li>
+                            <li>Identify potential legal issues</li>
+                            <li>Understand domain's market history</li>
+                        </ul>
+
+                        <h3>How to Track Ownership Changes</h3>
+                        
+                        <h4>WHOIS History Services</h4>
+                        <p>Specialized services maintain historical WHOIS records:</p>
+                        <ul>
+                            <li>WhoisHistory</li>
+                            <li>DomainTools</li>
+                            <li>WhoisXML API</li>
+                            <li>SecurityTrails</li>
+                        </ul>
+
+                        <h4>What to Monitor</h4>
+                        <ul>
+                            <li><strong>Registrant Name:</strong> Changes indicate ownership transfer</li>
+                            <li><strong>Organization:</strong> Company name changes</li>
+                            <li><strong>Email Address:</strong> Different contact emails</li>
+                            <li><strong>Registrar:</strong> Movement between registrars</li>
+                            <li><strong>Country:</strong> Geographic location changes</li>
+                        </ul>
+
+                        <h3>Interpreting Ownership Changes</h3>
+                        
+                        <h4>Normal Changes</h4>
+                        <ul>
+                            <li>Company rebranding</li>
+                            <li>Contact information updates</li>
+                            <li>Administrative changes within same organization</li>
+                            <li>Privacy protection enablement/disablement</li>
+                        </ul>
+
+                        <h4>Potentially Concerning Changes</h4>
+                        <ul>
+                            <li>Frequent transfers between unrelated parties</li>
+                            <li>Changes to high-risk countries</li>
+                            <li>Sudden privacy enablement on valuable domains</li>
+                            <li>Changes coinciding with suspicious activity</li>
+                            <li>Multiple changes in short time periods</li>
+                        </ul>
+
+                        <h3>Ownership Change Timeline</h3>
+                        <p>Typical transfer process takes 5-7 days:</p>
+                        <ol>
+                            <li>Domain unlocked by current owner</li>
+                            <li>Authorization code obtained</li>
+                            <li>Transfer initiated at new registrar</li>
+                            <li>Email confirmation sent to registrant</li>
+                            <li>Transfer approved (or auto-approved after 5 days)</li>
+                            <li>WHOIS updated with new owner information</li>
+                        </ol>
+
+                        <h3>Common Ownership Change Scenarios</h3>
+                        
+                        <h4>Domain Sales</h4>
+                        <p>Legitimate sales through marketplaces:</p>
+                        <ul>
+                            <li>Sedo, GoDaddy Auctions, Flippa</li>
+                            <li>Private sales between parties</li>
+                            <li>Broker-assisted transactions</li>
+                        </ul>
+
+                        <h4>Corporate Actions</h4>
+                        <ul>
+                            <li>Mergers and acquisitions</li>
+                            <li>Spin-offs and divestitures</li>
+                            <li>Bankruptcy proceedings</li>
+                            <li>Asset sales</li>
+                        </ul>
+
+                        <h4>Expiration and Drop</h4>
+                        <ul>
+                            <li>Owner fails to renew</li>
+                            <li>Domain enters redemption period</li>
+                            <li>Released to public registration</li>
+                            <li>Registered by new party (drop catching)</li>
+                        </ul>
+
+                        <h3>Setting Up Ownership Monitoring</h3>
+                        <ol>
+                            <li>Choose a WHOIS monitoring service</li>
+                            <li>Add domains to watchlist</li>
+                            <li>Configure alert preferences</li>
+                            <li>Set up email notifications</li>
+                            <li>Review alerts regularly</li>
+                            <li>Investigate suspicious changes</li>
+                        </ol>
+
+                        <h3>Legal Considerations</h3>
+                        <ul>
+                            <li>Historical WHOIS data is generally public information</li>
+                            <li>Some jurisdictions have privacy restrictions</li>
+                            <li>GDPR may limit access to personal data</li>
+                            <li>Use data responsibly and legally</li>
+                        </ul>
+
+                        <h3>Best Practices</h3>
+                        <ul>
+                            <li><strong>Monitor Regularly:</strong> Check important domains frequently</li>
+                            <li><strong>Keep Records:</strong> Document ownership history</li>
+                            <li><strong>Verify Changes:</strong> Confirm suspicious transfers</li>
+                            <li><strong>Act Quickly:</strong> Respond to unauthorized changes immediately</li>
+                            <li><strong>Use Multiple Sources:</strong> Cross-reference data</li>
+                        </ul>
+                    </div>
+
+                    <div class="info-navigation">
+                        <a href="/info/why-domain-history-matters" class="btn btn-secondary">&larr; Previous: Why Domain History Matters</a>
+                        <a href="/info/dns-record-history" class="btn btn-primary">Next: DNS Record History &rarr;</a>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </main>
+
+    <footer th:replace="~{template::template_footer}"></footer>
+</body>
+</html>

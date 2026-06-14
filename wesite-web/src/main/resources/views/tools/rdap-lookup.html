@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+
+	<main>
+		<section class="hero">
+			<div class="container">
+				<div class="hero-content">
+					<h1>RDAP Lookup</h1>
+					<p>Query domain registration data via the RDAP protocol — the modern, structured JSON replacement for WHOIS. Get machine-readable results with standardized fields.</p>
+					<div class="search-container">
+						<input type="text" id="domainInput" class="search-input" placeholder="Enter domain name (e.g., example.com)" autocomplete="off" autocapitalize="none" spellcheck="false" inputmode="url">
+						<button id="searchBtn" class="search-btn">
+							<i class="fas fa-search"></i> Lookup
+						</button>
+					</div>
+					<div class="example-text">Try: google.com, github.com, or yourdomain.com</div>
+				</div>
+			</div>
+		</section>
+
+		<div th:replace="~{template::ad_banner_top}"></div>
+
+		<div class="container">
+			<!-- Skeleton loader -->
+			<div id="skeletonLoader" style="display:none;">
+				<div class="skeleton-card">
+					<div class="skeleton skeleton-title"></div>
+					<div class="skeleton-row"><div class="skeleton"></div><div class="skeleton"></div></div>
+					<div class="skeleton-row"><div class="skeleton"></div><div class="skeleton"></div></div>
+					<div class="skeleton-row"><div class="skeleton"></div><div class="skeleton"></div></div>
+					<div class="skeleton-row"><div class="skeleton medium"></div><div class="skeleton"></div></div>
+				</div>
+				<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:20px;">
+					<div class="skeleton-card">
+						<div class="skeleton skeleton-title"></div>
+						<div class="skeleton-row"><div class="skeleton"></div><div class="skeleton"></div></div>
+						<div class="skeleton-row"><div class="skeleton"></div><div class="skeleton"></div></div>
+					</div>
+					<div class="skeleton-card">
+						<div class="skeleton skeleton-title"></div>
+						<div class="skeleton-row"><div class="skeleton"></div><div class="skeleton"></div></div>
+						<div class="skeleton-row"><div class="skeleton"></div><div class="skeleton"></div></div>
+					</div>
+				</div>
+			</div>
+
+			<div id="resultsSection" class="results-section">
+				<div class="results-header">
+					<h2 class="domain-name">
+						<span id="domainNameDisplay"></span>
+						<span class="domain-status">Registered</span>
+					</h2>
+					<div class="results-actions">
+						<button id="shareBtn" class="action-btn" onclick="shareResult()">
+							<i class="fas fa-share-alt"></i> <span id="shareBtnText">Share</span>
+						</button>
+						<button id="searchAgainBtn" class="search-again">
+							<i class="fas fa-sync-alt"></i> New Search
+						</button>
+					</div>
+				</div>
+
+				<div id="dataSource" class="data-source rdap" style="display:none;">
+					<i class="fas fa-plug"></i>
+					<span>Data from RDAP server: <strong id="rdapServerName">-</strong> (RESTful JSON API) &nbsp;|&nbsp;
+					<a id="rdapDirectLink" href="#" target="_blank">View raw response <i class="fas fa-external-link-alt" style="font-size:0.7rem"></i></a></span>
+				</div>
+
+				<div class="results-grid">
+					<div class="result-card">
+						<h3><i class="fas fa-info-circle"></i> Domain Information</h3>
+						<div class="info-row">
+							<span class="info-label">Domain Name</span>
+							<span class="info-value" id="rdapDomainName">-</span>
+						</div>
+						<div class="info-row">
+							<span class="info-label">Handle</span>
+							<span class="info-value" id="handle">-</span>
+						</div>
+						<div class="info-row">
+							<span class="info-label">Status</span>
+							<span class="info-value" id="status">-</span>
+						</div>
+						<div class="info-row">
+							<span class="info-label">Secure DNS</span>
+							<span class="info-value" id="secureDNS">-</span>
+						</div>
+					</div>
+
+					<div class="result-card">
+						<h3><i class="fas fa-calendar-alt"></i> Events</h3>
+						<div class="info-row">
+							<span class="info-label">Registration</span>
+							<span class="info-value" id="created">-</span>
+						</div>
+						<div class="info-row">
+							<span class="info-label">Last Changed</span>
+							<span class="info-value" id="updated">-</span>
+						</div>
+						<div class="info-row">
+							<span class="info-label">Expiration</span>
+							<span class="info-value" id="expires">-</span>
+						</div>
+					</div>
+
+					<div class="result-card">
+						<h3><i class="fas fa-server"></i> Nameservers</h3>
+						<div id="nameserversContainer"></div>
+					</div>
+
+					<div class="result-card">
+						<h3><i class="fas fa-building"></i> Registrar Entity</h3>
+						<div class="info-row">
+							<span class="info-label">Name</span>
+							<span class="info-value" id="registrarName">-</span>
+						</div>
+						<div class="info-row">
+							<span class="info-label">IANA ID</span>
+							<span class="info-value" id="registrarIanaId">-</span>
+						</div>
+						<div class="info-row">
+							<span class="info-label">URL</span>
+							<span class="info-value" id="registrarUrl">-</span>
+						</div>
+					</div>
+
+					<div class="result-card">
+						<h3><i class="fas fa-user"></i> Registrant Entity</h3>
+						<div class="info-row">
+							<span class="info-label">Organization</span>
+							<span class="info-value" id="registrantOrg">-</span>
+						</div>
+						<div class="info-row">
+							<span class="info-label">Name</span>
+							<span class="info-value" id="registrantName">-</span>
+						</div>
+						<div class="info-row">
+							<span class="info-label">Email</span>
+							<span class="info-value" id="registrantEmail">-</span>
+						</div>
+						<div class="info-row">
+							<span class="info-label">Country</span>
+							<span class="info-value" id="registrantCountry">-</span>
+						</div>
+					</div>
+				</div>
+
+				<div class="raw-whois-section">
+					<div class="raw-whois-header">
+						<h3><i class="fas fa-code"></i> Raw RDAP JSON Response</h3>
+						<button id="copyJsonBtn" class="copy-btn" onclick="copyJsonText()">
+							<i class="fas fa-copy"></i> Copy JSON
+						</button>
+					</div>
+					<div id="rawJsonContainer">
+						<pre class="raw-whois-text" id="rawJsonText"></pre>
+					</div>
+				</div>
+			</div>
+		</div>
+		<div th:replace="~{template::ad_banner_bottom}"></div>
+	</main>
+	<div th:replace="~{fragments/related-tools::related(slug='rdap-lookup')}"></div>
+
+    <footer th:replace="~{template::template_footer}"></footer>
+
+    <script>
+        var domainInput       = document.getElementById('domainInput');
+        var searchBtn         = document.getElementById('searchBtn');
+        var resultsSection    = document.getElementById('resultsSection');
+        var searchAgainBtn    = document.getElementById('searchAgainBtn');
+        var domainNameDisplay = document.getElementById('domainNameDisplay');
+
+        searchBtn.addEventListener('click', performRdapLookup);
+        domainInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') performRdapLookup();
+        });
+
+        searchAgainBtn.addEventListener('click', function() {
+            resultsSection.classList.remove('active');
+            domainInput.value = '';
+            domainInput.focus();
+        });
+
+        async function performRdapLookup() {
+            var domain = domainInput.value.trim();
+            if (!domain) { showNotification('Please enter a domain name', 'warning'); return; }
+            if (!isValidDomain(domain)) { showNotification('Please enter a valid domain name (e.g., example.com)', 'warning'); return; }
+
+            // ToolCache: try cache first
+            var cached = (typeof ToolCache !== 'undefined') ? ToolCache.get('rdap', domain) : null;
+            if (cached) { displayRdapResults(cached, domain); return; }
+
+            var skeletonEl = document.getElementById('skeletonLoader');
+            if (skeletonEl) skeletonEl.style.display = 'block';
+            resultsSection.classList.remove('active');
+
+            try {
+                var response = await fetch('/tools/rdap-lookup/submit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ domain: domain })
+                });
+                var result = await response.json();
+                if (result.code !== 0) {
+                    showNotification(result.msg || 'An error occurred during lookup', 'error');
+                    return;
+                }
+                if (typeof ToolCache !== 'undefined') ToolCache.set('rdap', domain, result.data);
+                displayRdapResults(result.data, domain);
+            } catch (error) {
+                console.error('RDAP lookup error:', error);
+                showNotification('Network error occurred. Please try again.', 'error');
+            } finally {
+                if (skeletonEl) skeletonEl.style.display = 'none';
+            }
+        }
+
+        function displayRdapResults(data, domain) {
+            domainNameDisplay.textContent = domain;
+
+            document.getElementById('rdapDomainName').textContent = data.domainName || domain;
+            document.getElementById('handle').textContent = data.handle || '-';
+            document.getElementById('status').textContent = data.status || '-';
+            var dnssec = data.secureDNS;
+            document.getElementById('secureDNS').textContent =
+                dnssec === 'true' ? 'Yes (DNSSEC Signed)' : (dnssec === 'false' ? 'No' : (dnssec || '-'));
+
+            document.getElementById('created').textContent = formatDate(data.createdAt) || '-';
+            document.getElementById('updated').textContent = formatDate(data.updatedAt) || '-';
+            document.getElementById('expires').textContent = formatDate(data.expiresAt) || '-';
+
+            var nsContainer = document.getElementById('nameserversContainer');
+            nsContainer.innerHTML = '';
+            var nameservers = data.nameservers || [];
+            if (nameservers.length === 0) {
+                nsContainer.innerHTML = '<div class="info-row"><span class="info-label">Nameservers</span><span class="info-value">-</span></div>';
+            } else {
+                nameservers.forEach(function(ns, i) {
+                    var row = document.createElement('div');
+                    row.className = 'info-row';
+                    row.innerHTML = '<span class="info-label">NS ' + (i + 1) + '</span><span class="info-value">' + escapeHtml(ns) + '</span>';
+                    nsContainer.appendChild(row);
+                });
+            }
+
+            document.getElementById('registrarName').textContent   = (data.registrar && data.registrar.name)   || '-';
+            document.getElementById('registrarIanaId').textContent = (data.registrar && data.registrar.ianaId) || '-';
+            document.getElementById('registrarUrl').textContent    = (data.registrar && data.registrar.url)    || '-';
+
+            document.getElementById('registrantOrg').textContent     = (data.registrant && data.registrant.organization) || '-';
+            document.getElementById('registrantName').textContent    = (data.registrant && data.registrant.name)         || '-';
+            document.getElementById('registrantEmail').textContent   = (data.registrant && data.registrant.email)        || '-';
+            document.getElementById('registrantCountry').textContent = (data.registrant && data.registrant.country)      || '-';
+
+            var dataSourceEl   = document.getElementById('dataSource');
+            var rdapDirectLink = document.getElementById('rdapDirectLink');
+            if (data.rdapServer) {
+                document.getElementById('rdapServerName').textContent = data.rdapServer;
+                dataSourceEl.style.display = 'flex';
+                rdapDirectLink.style.display = data.rdapUrl ? 'inline' : 'none';
+                if (data.rdapUrl) rdapDirectLink.href = data.rdapUrl;
+            } else {
+                dataSourceEl.style.display = 'none';
+            }
+
+            var rawJsonContainer = document.getElementById('rawJsonContainer');
+            if (data.rdapText) {
+                document.getElementById('rawJsonText').innerHTML = syntaxHighlight(data.rdapText);
+            } else {
+                rawJsonContainer.innerHTML = '<div class="no-whois-text"><i class="fas fa-info-circle"></i> Raw RDAP JSON is not available for this domain.<br>This TLD may only support WHOIS. Try <a href="/tools/whois-lookup">WHOIS Lookup</a> instead.</div>';
+            }
+
+            resultsSection.classList.add('active');
+            resultsSection.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function syntaxHighlight(json) {
+            if (typeof json !== 'string') json = JSON.stringify(json, null, 2);
+            json = escapeHtml(json);
+            return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function(match) {
+                var cls = 'json-number';
+                if (/^"/.test(match)) { cls = /:$/.test(match) ? 'json-key' : 'json-string'; }
+                else if (/true|false/.test(match)) { cls = 'json-boolean'; }
+                else if (/null/.test(match)) { cls = 'json-null'; }
+                return '<span class="' + cls + '">' + match + '</span>';
+            });
+        }
+
+        function copyJsonText() {
+            var text = document.getElementById('rawJsonText').textContent;
+            if (!text) return;
+            navigator.clipboard.writeText(text).then(function() {
+                var btn = document.getElementById('copyJsonBtn');
+                btn.classList.add('copied');
+                btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+                setTimeout(function() {
+                    btn.classList.remove('copied');
+                    btn.innerHTML = '<i class="fas fa-copy"></i> Copy JSON';
+                }, 2000);
+            });
+        }
+
+        function shareResult() {
+            var domain = domainInput.value.trim();
+            if (!domain) return;
+            var url = window.location.origin + '/tools/rdap-lookup?d=' + encodeURIComponent(domain);
+            var btn = document.getElementById('shareBtnText');
+            (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject()).then(function() {
+                btn.textContent = 'Copied!';
+                setTimeout(function() { btn.textContent = 'Share'; }, 2000);
+            }).catch(function() { window.prompt('Copy this link:', url); });
+        }
+
+        function escapeHtml(str) {
+            var div = document.createElement('div');
+            div.appendChild(document.createTextNode(str));
+            return div.innerHTML;
+        }
+
+        function isValidDomain(domain) {
+            return /^(?:(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)\.)+[a-z]{2,}$/i.test(domain);
+        }
+
+        function formatDate(dateString) {
+            if (!dateString) return '-';
+            try {
+                var date = new Date(dateString);
+                if (isNaN(date.getTime())) {
+                    date = new Date(parseInt(dateString));
+                    if (isNaN(date.getTime())) return dateString;
+                }
+                return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+            } catch (e) { return dateString; }
+        }
+
+        function showNotification(message, type) {
+            var n = document.createElement('div');
+            n.textContent = message;
+            n.style.cssText = 'position:fixed;top:20px;right:20px;padding:15px 20px;border-radius:var(--radius);color:white;font-weight:600;z-index:1000;box-shadow:var(--shadow);transform:translateX(150%);transition:transform 0.3s ease;';
+            n.style.background = type === 'warning' ? 'var(--warning)' : type === 'error' ? 'var(--danger)' : 'var(--primary)';
+            document.body.appendChild(n);
+            setTimeout(function() { n.style.transform = 'translateX(0)'; }, 100);
+            setTimeout(function() {
+                n.style.transform = 'translateX(150%)';
+                setTimeout(function() { document.body.removeChild(n); }, 300);
+            }, 3000);
+        }
+
+        // Auto-run from URL param
+        (function() {
+            var p = new URLSearchParams(window.location.search);
+            var d = p.get('d') || p.get('domain');
+            if (d) { domainInput.value = d.trim(); performRdapLookup(); }
+        })();
+    </script>
+</body>
+</html>

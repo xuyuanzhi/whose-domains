@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <div class="floating-shape shape-1"></div>
+    <div class="floating-shape shape-2"></div>
+    <header th:replace="~{template::template_header}"></header>
+
+    <main>
+        <section class="hero">
+            <div class="container">
+                <div class="hero-content">
+                    <h1>HTML Formatter & Beautifier</h1>
+                    <p>Format, beautify and minify HTML code with syntax highlighting. Validate structure, inspect tags, and clean up messy markup instantly.</p>
+                </div>
+            </div>
+        </section>
+
+        <div th:replace="~{template::ad_banner_top}"></div>
+
+        <div class="container">
+            <!-- Toolbar -->
+            <div class="jf-toolbar">
+                <div class="jf-toolbar-left">
+                    <button class="jf-btn jf-btn-primary" id="formatBtn"><i class="fas fa-indent"></i> Format</button>
+                    <button class="jf-btn jf-btn-secondary" id="minifyBtn"><i class="fas fa-compress-alt"></i> Minify</button>
+                    <button class="jf-btn jf-btn-ghost" id="previewBtn"><i class="fas fa-eye"></i> Preview</button>
+                    <div class="jf-separator"></div>
+                    <label class="jf-label">Indent</label>
+                    <select id="indentSelect" class="jf-select">
+                        <option value="2" selected>2 spaces</option>
+                        <option value="4">4 spaces</option>
+                        <option value="tab">Tab</option>
+                    </select>
+                    <label class="jf-label jf-label-check"><input type="checkbox" id="sortAttrs"> Sort attrs</label>
+                </div>
+                <div class="jf-toolbar-right">
+                    <button class="jf-btn jf-btn-ghost" id="clearBtn"><i class="fas fa-trash-alt"></i> Clear</button>
+                    <button class="jf-btn jf-btn-ghost" id="loadSampleBtn"><i class="fas fa-flask"></i> Sample</button>
+                </div>
+            </div>
+
+            <!-- Status Bar -->
+            <div id="statusBar" class="jf-status idle">
+                <i class="fas fa-info-circle"></i>
+                <span id="statusText">Paste or type HTML, then click Format</span>
+            </div>
+
+            <!-- Panels -->
+            <div class="jf-panels" id="mainPanels">
+                <div class="jf-panel">
+                    <div class="jf-panel-header">
+                        <span class="jf-panel-title"><i class="fas fa-keyboard"></i> Input</span>
+                        <div class="jf-panel-actions">
+                            <span class="jf-char-count" id="inputCount">0 chars</span>
+                            <button class="jf-icon-btn" title="Paste from clipboard" id="pasteBtn"><i class="fas fa-paste"></i></button>
+                        </div>
+                    </div>
+                    <textarea id="htmlInput" class="jf-textarea" placeholder="&lt;!DOCTYPE html&gt;&#10;&lt;html&gt;&#10;  &lt;body&gt;Paste your HTML here...&lt;/body&gt;&#10;&lt;/html&gt;"
+                        spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"></textarea>
+                </div>
+
+                <div class="jf-panel">
+                    <div class="jf-panel-header">
+                        <span class="jf-panel-title"><i class="fas fa-code"></i> Output</span>
+                        <div class="jf-panel-actions">
+                            <div class="jf-view-toggle">
+                                <button class="jf-toggle-btn active" id="btnRaw">Code</button>
+                                <button class="jf-toggle-btn" id="btnTree">Tree</button>
+                            </div>
+                            <button class="jf-icon-btn" title="Copy output" id="copyBtn"><i class="fas fa-copy"></i></button>
+                            <button class="jf-icon-btn" title="Download HTML" id="downloadBtn"><i class="fas fa-download"></i></button>
+                        </div>
+                    </div>
+                    <div class="jf-output-wrap">
+                        <pre id="htmlOutput" class="jf-output"><span class="jf-placeholder">Formatted HTML will appear here...</span></pre>
+                        <div id="treeOutput" class="jf-tree" style="display:none;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Preview Panel (hidden by default) -->
+            <div id="previewPanel" class="hf-preview-panel" style="display:none;">
+                <div class="jf-panel-header" style="border-radius:0;border-top:1px solid rgba(255,255,255,0.07);">
+                    <span class="jf-panel-title"><i class="fas fa-desktop"></i> Live Preview</span>
+                    <button class="jf-icon-btn" id="closePreviewBtn" title="Close preview"><i class="fas fa-times"></i></button>
+                </div>
+                <iframe id="previewFrame" class="hf-preview-frame" sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"></iframe>
+            </div>
+
+            <!-- Stats Bar -->
+            <div id="statsBar" class="jf-stats" style="display:none;">
+                <div class="jf-stat"><i class="fas fa-layer-group"></i> <strong id="statLines">0</strong> <span>lines</span></div>
+                <div class="jf-stat"><i class="fas fa-weight"></i> <strong id="statSize">0 B</strong> <span>size</span></div>
+                <div class="jf-stat"><i class="fas fa-tags"></i> <strong id="statTags">0</strong> <span>tags</span></div>
+                <div class="jf-stat"><i class="fas fa-image"></i> <strong id="statImages">0</strong> <span>images</span></div>
+                <div class="jf-stat"><i class="fas fa-link"></i> <strong id="statLinks">0</strong> <span>links</span></div>
+            </div>
+        </div>
+
+        <div th:replace="~{template::ad_banner_bottom}"></div>
+    </main>
+    <div th:replace="~{fragments/related-tools::related(slug='html-formatter')}"></div>
+
+    <footer th:replace="~{template::template_footer}"></footer>
+
+<style>
+.jf-toolbar {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+    padding: 12px 16px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 12px 12px 0 0; border-bottom: none;
+}
+.jf-toolbar-left  { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex: 1; }
+.jf-toolbar-right { display: flex; align-items: center; gap: 8px; }
+.jf-separator { width: 1px; height: 24px; background: rgba(255,255,255,0.1); margin: 0 4px; }
+.jf-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 14px; border-radius: 8px; font-size: 0.85rem;
+    font-weight: 600; border: none; cursor: pointer; transition: all 0.15s; white-space: nowrap;
+}
+.jf-btn-primary  { background: #64ffda; color: #0a0f1e; }
+.jf-btn-primary:hover  { background: #4dd8b8; }
+.jf-btn-secondary { background: rgba(100,163,218,0.15); color: #64a3da; border: 1px solid rgba(100,163,218,0.25); }
+.jf-btn-secondary:hover { background: rgba(100,163,218,0.25); }
+.jf-btn-ghost { background: rgba(255,255,255,0.06); color: #94a3b8; border: 1px solid rgba(255,255,255,0.08); }
+.jf-btn-ghost:hover { background: rgba(255,255,255,0.1); color: #e2e8f0; }
+.jf-icon-btn {
+    width: 30px; height: 30px; border-radius: 6px; border: none;
+    background: rgba(255,255,255,0.06); color: #94a3b8; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.8rem; transition: all 0.15s; flex-shrink: 0;
+}
+.jf-icon-btn:hover { background: rgba(255,255,255,0.12); color: #e2e8f0; }
+.jf-icon-btn.copied { background: rgba(0,230,118,0.15); color: #00e676; }
+.jf-label { font-size: 0.8rem; color: #64748b; white-space: nowrap; }
+.jf-label-check { display: flex; align-items: center; gap: 5px; cursor: pointer; }
+.jf-label-check input { accent-color: #64ffda; cursor: pointer; }
+.jf-select {
+    padding: 5px 10px; border-radius: 6px; font-size: 0.82rem;
+    background: rgba(255,255,255,0.06); color: #cbd5e1;
+    border: 1px solid rgba(255,255,255,0.1); cursor: pointer; outline: none;
+}
+.jf-status {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 16px; font-size: 0.84rem; font-weight: 500;
+    border-left: 1px solid rgba(255,255,255,0.07);
+    border-right: 1px solid rgba(255,255,255,0.07); transition: all 0.2s;
+}
+.jf-status.idle    { background: rgba(255,255,255,0.02); color: #64748b; }
+.jf-status.success { background: rgba(0,230,118,0.08); color: #4ade80; }
+.jf-status.error   { background: rgba(255,82,82,0.08); color: #ff7070; }
+.jf-status.warn    { background: rgba(255,171,0,0.08); color: #ffab00; }
+.jf-panels {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 0;
+    border: 1px solid rgba(255,255,255,0.07); border-top: none; min-height: 420px;
+}
+@media (max-width: 768px) { .jf-panels { grid-template-columns: 1fr; } }
+.jf-panel { display: flex; flex-direction: column; border-right: 1px solid rgba(255,255,255,0.07); }
+.jf-panel:last-child { border-right: none; }
+.jf-panel-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 14px; background: rgba(255,255,255,0.025);
+    border-bottom: 1px solid rgba(255,255,255,0.07); flex-shrink: 0;
+}
+.jf-panel-title { font-size: 0.8rem; font-weight: 600; color: #64748b; display: flex; align-items: center; gap: 6px; }
+.jf-panel-actions { display: flex; align-items: center; gap: 6px; }
+.jf-char-count { font-size: 0.75rem; color: #475569; }
+.jf-view-toggle { display: flex; border-radius: 6px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); }
+.jf-toggle-btn { padding: 3px 10px; font-size: 0.75rem; font-weight: 600; cursor: pointer; background: transparent; border: none; color: #64748b; transition: all 0.15s; }
+.jf-toggle-btn.active { background: rgba(100,255,218,0.15); color: #64ffda; }
+.jf-toggle-btn:hover:not(.active) { background: rgba(255,255,255,0.06); color: #94a3b8; }
+.jf-textarea {
+    flex: 1; width: 100%; min-height: 380px; padding: 14px;
+    background: #0d1117; color: #e2e8f0; border: none; outline: none; resize: none;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+    font-size: 13px; line-height: 1.6; tab-size: 2;
+}
+.jf-textarea:focus { background: #0a0f1e; }
+.jf-textarea::placeholder { color: #334155; }
+.jf-output-wrap { flex: 1; overflow: auto; }
+.jf-output {
+    margin: 0; padding: 14px; background: #0d1117; color: #e2e8f0;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+    font-size: 13px; line-height: 1.6; white-space: pre-wrap; word-break: break-all; min-height: 380px;
+}
+.jf-placeholder { color: #334155; font-style: italic; }
+
+/* HTML Syntax Colors */
+.h-doctype  { color: #d2a8ff; }
+.h-comment  { color: #8b949e; font-style: italic; }
+.h-tag      { color: #ff7b72; }
+.h-attr     { color: #79b8ff; }
+.h-attrval  { color: #a5d6ff; }
+.h-entity   { color: #f8c555; }
+.h-script   { color: #e6b450; }
+.h-style    { color: #7ee787; }
+.h-punct    { color: #8b949e; }
+
+/* Preview */
+.hf-preview-panel {
+    border: 1px solid rgba(255,255,255,0.07);
+    border-top: none;
+}
+.hf-preview-frame {
+    width: 100%; height: 400px; border: none;
+    background: #fff;
+    display: block;
+}
+
+.jf-stats {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 0;
+    border: 1px solid rgba(255,255,255,0.07); border-top: none;
+    border-radius: 0 0 12px 12px; overflow: hidden;
+}
+.jf-stat {
+    flex: 1; display: flex; align-items: center; gap: 6px;
+    padding: 8px 16px; font-size: 0.8rem;
+    background: rgba(255,255,255,0.02);
+    border-right: 1px solid rgba(255,255,255,0.06);
+    color: #64748b; white-space: nowrap;
+}
+.jf-stat:last-child { border-right: none; }
+.jf-stat i { color: #4f6070; font-size: 0.75rem; }
+.jf-stat strong { color: #94a3b8; }
+
+/* Tree */
+.jf-tree {
+    padding: 14px; min-height: 380px; overflow: auto;
+    background: #0d1117; font-size: 13px; line-height: 1.8;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+}
+.jf-tree-node { padding-left: 20px; }
+.jf-tree-toggle { cursor: pointer; user-select: none; color: #64748b; padding: 0 4px; border-radius: 3px; }
+.jf-tree-toggle:hover { background: rgba(255,255,255,0.06); color: #94a3b8; }
+.jf-tree-el   { color: #ff7b72; }
+.jf-tree-attr-name { color: #79b8ff; }
+.jf-tree-attr-val  { color: #a5d6ff; }
+.jf-tree-text  { color: #cbd5e1; font-style: italic; }
+.jf-tree-comm  { color: #8b949e; font-style: italic; }
+.jf-tree-meta  { color: #475569; font-size: 0.75rem; margin-left: 4px; }
+</style>
+
+<script>
+(function() {
+    var inputEl   = document.getElementById('htmlInput');
+    var outputEl  = document.getElementById('htmlOutput');
+    var treeEl    = document.getElementById('treeOutput');
+    var statusBar = document.getElementById('statusBar');
+    var statsBar  = document.getElementById('statsBar');
+    var inputCount = document.getElementById('inputCount');
+    var previewPanel = document.getElementById('previewPanel');
+    var previewFrame = document.getElementById('previewFrame');
+    var currentMode = 'raw';
+    var lastFormatted = '';
+    var lastDoc = null;
+    var previewVisible = false;
+
+    document.getElementById('formatBtn').onclick   = doFormat;
+    document.getElementById('minifyBtn').onclick   = doMinify;
+    document.getElementById('previewBtn').onclick  = togglePreview;
+    document.getElementById('clearBtn').onclick    = doClear;
+    document.getElementById('copyBtn').onclick     = doCopy;
+    document.getElementById('downloadBtn').onclick = doDownload;
+    document.getElementById('loadSampleBtn').onclick = loadSample;
+    document.getElementById('pasteBtn').onclick    = doPaste;
+    document.getElementById('btnRaw').onclick      = function() { setMode('raw'); };
+    document.getElementById('btnTree').onclick     = function() { setMode('tree'); };
+    document.getElementById('closePreviewBtn').onclick = togglePreview;
+
+    inputEl.addEventListener('input', function() { inputCount.textContent = inputEl.value.length.toLocaleString() + ' chars'; });
+    inputEl.addEventListener('paste', function() {
+        setTimeout(function() { inputCount.textContent = inputEl.value.length.toLocaleString() + ' chars'; doFormat(); }, 50);
+    });
+    inputEl.addEventListener('keydown', function(e) {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); doFormat(); }
+        if (e.key === 'Tab') {
+            e.preventDefault();
+            var s = this.selectionStart, end = this.selectionEnd;
+            this.value = this.value.substring(0, s) + '  ' + this.value.substring(end);
+            this.selectionStart = this.selectionEnd = s + 2;
+        }
+    });
+
+    // ── Parse ──────────────────────────────────────────
+    function parseHtml(str) {
+        var parser = new DOMParser();
+        var doc = parser.parseFromString(str, 'text/html');
+        return doc;
+    }
+
+    // ── Format ──────────────────────────────────────────
+    function doFormat() {
+        var input = inputEl.value.trim();
+        if (!input) { setStatus('idle', 'Paste or type HTML, then click Format'); return; }
+        try {
+            var doc = parseHtml(input);
+            lastDoc = doc;
+            var indent = getIndent();
+            var sortAttrs = document.getElementById('sortAttrs').checked;
+            var formatted = formatHtmlStr(input, indent, sortAttrs);
+            lastFormatted = formatted;
+            renderOutput(formatted);
+            updateStats(doc, formatted);
+            setStatus('success', '✓ HTML formatted successfully');
+            statsBar.style.display = 'flex';
+            if (previewVisible) updatePreview(input);
+        } catch (e) {
+            setStatus('error', '✗ Error: ' + e.message.substring(0, 150));
+        }
+    }
+
+    function doMinify() {
+        var input = inputEl.value.trim();
+        if (!input) { setStatus('idle', 'Nothing to minify'); return; }
+        try {
+            var minified = input
+                .replace(/<!--[\s\S]*?-->/g, '')          // remove comments
+                .replace(/\s{2,}/g, ' ')                  // collapse whitespace
+                .replace(/>\s+\x3C/g, '>\x3C')               // remove whitespace between tags
+                .replace(/\s*=\s*/g, '=')                 // remove spaces around =
+                .trim();
+            lastFormatted = minified;
+            lastDoc = parseHtml(minified);
+            renderRaw(minified);
+            updateStats(lastDoc, minified);
+            setStatus('success', '✓ Minified — ' + formatBytes(new Blob([minified]).size));
+            statsBar.style.display = 'flex';
+        } catch(e) {
+            setStatus('error', '✗ Error: ' + e.message);
+        }
+    }
+
+    function doClear() {
+        inputEl.value = ''; lastDoc = null; lastFormatted = '';
+        outputEl.innerHTML = '<span class="jf-placeholder">Formatted HTML will appear here...</span>';
+        treeEl.innerHTML = ''; statsBar.style.display = 'none';
+        inputCount.textContent = '0 chars';
+        setStatus('idle', 'Paste or type HTML, then click Format');
+        if (previewVisible) togglePreview();
+    }
+
+    function doCopy() {
+        if (!lastFormatted) return;
+        navigator.clipboard.writeText(lastFormatted).then(function() {
+            var btn = document.getElementById('copyBtn');
+            btn.classList.add('copied');
+            btn.innerHTML = '<i class="fas fa-check"></i>';
+            setTimeout(function() { btn.classList.remove('copied'); btn.innerHTML = '<i class="fas fa-copy"></i>'; }, 2000);
+        });
+    }
+
+    function doDownload() {
+        if (!lastFormatted) return;
+        var blob = new Blob([lastFormatted], { type: 'text/html' });
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob); a.download = 'formatted.html';
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    }
+
+    function doPaste() {
+        navigator.clipboard.readText().then(function(text) {
+            inputEl.value = text;
+            inputCount.textContent = text.length.toLocaleString() + ' chars';
+            doFormat();
+        }).catch(function() {
+            inputEl.focus();
+            setStatus('warn', 'Click in the input box and paste manually (Ctrl+V)');
+        });
+    }
+
+    function loadSample() {
+        inputEl.value = '<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="UTF-8">\n<meta name="viewport" content="width=device-width, initial-scale=1.0">\n<title>Sample Page</title>\n<style>body{font-family:sans-serif;margin:20px;}h1{color:#333;}</style>\n</head>\n<body>\n<h1>Hello World</h1>\n<p>This is a <strong>sample</strong> HTML document.</p>\n<ul><li>Item one</li><li>Item two</li><li>Item three</li></ul>\n<a href="https://example.com">Visit Example</a>\n<!-- This is a comment -->\n</body>\n</html>';
+        inputCount.textContent = inputEl.value.length.toLocaleString() + ' chars';
+        doFormat();
+    }
+
+    function togglePreview() {
+        previewVisible = !previewVisible;
+        previewPanel.style.display = previewVisible ? 'block' : 'none';
+        var btn = document.getElementById('previewBtn');
+        btn.innerHTML = previewVisible ? '<i class="fas fa-eye-slash"></i> Hide Preview' : '<i class="fas fa-eye"></i> Preview';
+        if (previewVisible) {
+            var src = lastFormatted || inputEl.value.trim();
+            if (src) { previewFrame.srcdoc = src; }
+            else { previewFrame.srcdoc = '<p style="font-family:sans-serif;color:#888;padding:20px;">Format or paste HTML first, then click Preview.</p>'; }
+        }
+    }
+
+    function updatePreview(html) {
+        previewFrame.srcdoc = html;
+    }
+
+    // ── Render ──────────────────────────────────────────
+    function renderOutput(formatted) {
+        lastFormatted = formatted;
+        if (currentMode === 'raw') renderRaw(formatted);
+        else if (lastDoc) renderTree(lastDoc);
+    }
+
+    function renderRaw(str) { outputEl.innerHTML = syntaxHighlightHtml(escHtml(str)); }
+
+    function setMode(mode) {
+        currentMode = mode;
+        document.getElementById('btnRaw').classList.toggle('active', mode === 'raw');
+        document.getElementById('btnTree').classList.toggle('active', mode === 'tree');
+        outputEl.style.display = mode === 'raw' ? 'block' : 'none';
+        treeEl.style.display   = mode === 'tree' ? 'block' : 'none';
+        if (mode === 'tree' && lastDoc) renderTree(lastDoc);
+        if (mode === 'raw' && lastFormatted) renderRaw(lastFormatted);
+    }
+
+    // ── HTML Formatter ─────────────────────────────────
+    // Void elements (self-closing in HTML5)
+    var VOID_TAGS = new Set(['area','base','br','col','embed','hr','img','input','link','meta','param','source','track','wbr']);
+    // Inline elements (don't add newlines)
+    var INLINE_TAGS = new Set(['a','abbr','acronym','b','bdo','big','br','button','cite','code','dfn','em','i','img','input','kbd','label','map','object','output','q','samp','select','small','span','strong','sub','sup','textarea','time','tt','u','var']);
+    // Raw content tags
+    var RAW_TAGS = new Set(['script','style','pre','code','textarea']);
+
+    function formatHtmlStr(input, indent, sortAttrs) {
+        // Use browser parser for accurate structure
+        var parser = new DOMParser();
+        var doc = parser.parseFromString(input, 'text/html');
+        // Detect fragment (no html/head/body tags in original)
+        var hasDoctype = /^\s*<!DOCTYPE/i.test(input);
+        var hasHtmlTag = /<html[\s>]/i.test(input);
+        if (!hasDoctype && !hasHtmlTag) {
+            // Format as fragment using body content
+            return serializeHtmlNode(doc.body, indent, -1, sortAttrs).trim();
+        }
+        var out = '';
+        if (hasDoctype) out += '<!DOCTYPE html>\n';
+        out += serializeHtmlNode(doc.documentElement, indent, 0, sortAttrs);
+        return out.trim();
+    }
+
+    function serializeHtmlNode(node, indent, depth, sortAttrs) {
+        var pad = depth < 0 ? '' : (typeof indent === 'string' ? indent.repeat(depth) : ' '.repeat(indent * depth));
+        var out = '';
+        switch (node.nodeType) {
+            case 1: { // Element
+                var tag = node.tagName.toLowerCase();
+                var attrs = getAttrsStr(node, sortAttrs);
+                var isVoid = VOID_TAGS.has(tag);
+                var isInline = INLINE_TAGS.has(tag);
+                var isRaw = RAW_TAGS.has(tag);
+                if (isVoid) {
+                    out += pad + '<' + tag + attrs + '>\n';
+                    break;
+                }
+                var children = Array.from(node.childNodes);
+                if (children.length === 0) { out += pad + '<' + tag + attrs + '></' + tag + '>\n'; break; }
+                if (isRaw) {
+                    var rawContent = node.innerHTML;
+                    out += pad + '<' + tag + attrs + '>' + rawContent + '</' + tag + '>\n';
+                    break;
+                }
+                var allText = children.every(function(c) { return c.nodeType === 3; });
+                if (allText || (isInline && children.length <= 3)) {
+                    var text = node.innerHTML.replace(/\s+/g, ' ').trim();
+                    out += pad + '<' + tag + attrs + '>' + text + '</' + tag + '>\n';
+                    break;
+                }
+                out += pad + '<' + tag + attrs + '>\n';
+                children.forEach(function(child) {
+                    out += serializeHtmlNode(child, indent, depth < 0 ? 0 : depth + 1, sortAttrs);
+                });
+                out += pad + '</' + tag + '>\n';
+                break;
+            }
+            case 3: { // Text
+                var txt = node.nodeValue.replace(/\s+/g, ' ').trim();
+                if (txt) out += pad + txt + '\n';
+                break;
+            }
+            case 8: // Comment
+                out += pad + '<!--' + node.nodeValue + '-->\n';
+                break;
+            case 10: // DocumentType
+                out += '<!DOCTYPE html>\n';
+                break;
+        }
+        return out;
+    }
+
+    function getAttrsStr(el, sort) {
+        var attrs = Array.from(el.attributes);
+        if (sort) attrs = attrs.slice().sort(function(a, b) { return a.name.localeCompare(b.name); });
+        return attrs.map(function(a) {
+            if (a.value === '') return ' ' + a.name;
+            return ' ' + a.name + '="' + a.value.replace(/&/g,'&amp;').replace(/"/g,'&quot;') + '"';
+        }).join('');
+    }
+
+    // ── Syntax Highlight ───────────────────────────────
+    function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+    function syntaxHighlightHtml(escaped) {
+        return escaped
+            .replace(/(&lt;!DOCTYPE[^&]*?&gt;)/gi, '<span class="h-doctype">$1</span>')
+            .replace(/(&lt;!--[\s\S]*?--&gt;)/g, '<span class="h-comment">$1</span>')
+            .replace(/(&lt;\/?)([a-zA-Z][a-zA-Z0-9:-]*)([^&]*?)(\/?&gt;)/g, function(m, open, name, rest, close) {
+                var tagLow = name.toLowerCase();
+                var tagClass = (tagLow === 'script') ? 'h-script' : (tagLow === 'style') ? 'h-style' : 'h-tag';
+                var attrsHtml = rest.replace(/([a-zA-Z_:][\w:.-]*)=(&quot;[^&]*?&quot;)/g,
+                    '<span class="h-attr">$1</span>=<span class="h-attrval">$2</span>')
+                    .replace(/\b([a-zA-Z_:][\w:.-]*)(?==)/g, '<span class="h-attr">$1</span>');
+                return '<span class="h-punct">' + open + '</span><span class="' + tagClass + '">' + name + '</span>' + attrsHtml + '<span class="h-punct">' + close + '</span>';
+            })
+            .replace(/(&amp;[a-zA-Z]+;|&amp;#\d+;)/g, '<span class="h-entity">$1</span>');
+    }
+
+    // ── Tree View ──────────────────────────────────────
+    function renderTree(doc) {
+        treeEl.innerHTML = buildHtmlTree(doc.documentElement || doc.body);
+        treeEl.querySelectorAll('.jf-tree-toggle').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var node = this.parentElement.querySelector('.jf-tree-node');
+                var col = node.style.display === 'none';
+                node.style.display = col ? '' : 'none';
+                this.textContent = col ? '▾' : '▸';
+            });
+        });
+    }
+
+    function buildHtmlTree(node) {
+        if (!node) return '';
+        var out = '';
+        switch (node.nodeType) {
+            case 1: {
+                var tag = node.tagName.toLowerCase();
+                var attrStr = '';
+                for (var j = 0; j < node.attributes.length; j++) {
+                    var a = node.attributes[j];
+                    attrStr += ' <span class="jf-tree-attr-name">' + escHtml(a.name) + '</span>=<span class="jf-tree-attr-val">"' + escHtml(a.value) + '"</span>';
+                }
+                var kids = Array.from(node.childNodes).filter(function(n) { return n.nodeType !== 3 || n.nodeValue.trim(); });
+                var count = node.querySelectorAll ? node.querySelectorAll('*').length : 0;
+                if (kids.length === 0 || VOID_TAGS.has(tag)) {
+                    out += '<div>&lt;<span class="jf-tree-el">' + tag + '</span>' + attrStr + '&gt;</div>';
+                } else {
+                    out += '<div>&lt;<span class="jf-tree-toggle">▾</span><span class="jf-tree-el">' + tag + '</span>' + attrStr + '&gt;' +
+                        (count > 0 ? '<span class="jf-tree-meta">' + count + ' child' + (count !== 1 ? 'ren' : '') + '</span>' : '') +
+                        '<div class="jf-tree-node">';
+                    for (var c = 0; c < node.childNodes.length; c++) out += buildHtmlTree(node.childNodes[c]);
+                    out += '</div>&lt;/<span class="jf-tree-el">' + tag + '</span>&gt;</div>';
+                }
+                break;
+            }
+            case 3: {
+                var txt = node.nodeValue.trim();
+                if (txt) out += '<div><span class="jf-tree-text">"' + escHtml(txt.length > 80 ? txt.substring(0,80)+'…' : txt) + '"</span></div>';
+                break;
+            }
+            case 8:
+                out += '<div><span class="jf-tree-comm">&lt;!--' + escHtml(node.nodeValue.trim().substring(0, 60)) + '--&gt;</span></div>';
+                break;
+        }
+        return out;
+    }
+
+    // ── Stats ───────────────────────────────────────────
+    function updateStats(doc, formatted) {
+        var allEls = doc.querySelectorAll('*');
+        var imgs   = doc.querySelectorAll('img').length;
+        var links  = doc.querySelectorAll('a').length;
+        document.getElementById('statLines').textContent = formatted.split('\n').length.toLocaleString();
+        document.getElementById('statSize').textContent  = formatBytes(new Blob([formatted]).size);
+        document.getElementById('statTags').textContent  = allEls.length.toLocaleString();
+        document.getElementById('statImages').textContent = imgs.toLocaleString();
+        document.getElementById('statLinks').textContent  = links.toLocaleString();
+    }
+
+    // ── Utils ───────────────────────────────────────────
+    function getIndent() { var v = document.getElementById('indentSelect').value; return v === 'tab' ? '\t' : parseInt(v); }
+    function formatBytes(b) { if (b < 1024) return b + ' B'; if (b < 1048576) return (b/1024).toFixed(1) + ' KB'; return (b/1048576).toFixed(2) + ' MB'; }
+    function setStatus(type, msg) {
+        statusBar.className = 'jf-status ' + type;
+        var icon = type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : type === 'warn' ? 'fa-exclamation-triangle' : 'fa-info-circle';
+        statusBar.innerHTML = '<i class="fas ' + icon + '"></i> <span>' + msg + '</span>';
+    }
+
+    // URL param
+    (function() {
+        var p = new URLSearchParams(window.location.search);
+        var d = p.get('d') || p.get('html');
+        if (d) { try { inputEl.value = decodeURIComponent(d); doFormat(); } catch(e){} }
+    })();
+})();
+</script>
+</body>
+</html>

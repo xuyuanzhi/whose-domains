@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+    <header th:replace="~{template::template_header}"></header>
+
+	<main>
+		<section class="hero">
+			<div class="container">
+				<div class="hero-content">
+					<h1>Terms of Service</h1>
+					<p>By accessing or using our services, you agree to these terms and conditions.</p>
+					<span class="last-updated">Last Updated: January 2026</span>
+				</div>
+			</div>
+		</section>
+
+		<div class="container">
+	       	<div class="policy-container">
+	            <aside class="toc">
+	                <h3>Table of Contents</h3>
+	                <ul>
+	                    <li><a href="#acceptance" class="active">
+	                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+	                            <path d="M14 4L8 12L2 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+	                        </svg>
+	                        Acceptance of Terms
+	                    </a></li>
+	                    <li><a href="#service-description">
+	                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+	                            <path d="M14 4L8 12L2 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+	                        </svg>
+	                        Service Description
+	                    </a></li>
+	                    <li><a href="#user-accounts">
+	                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+	                            <path d="M14 4L8 12L2 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+	                        </svg>
+	                        User Accounts
+	                    </a></li>
+	                    <li><a href="#acceptable-use">
+	                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+	                            <path d="M14 4L8 12L2 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+	                        </svg>
+	                        Acceptable Use
+	                    </a></li>
+	                    <li><a href="#api-usage">
+	                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+	                            <path d="M14 4L8 12L2 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+	                        </svg>
+	                        API Usage
+	                    </a></li>
+	                    <li><a href="#intellectual-property">
+	                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+	                            <path d="M14 4L8 12L2 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+	                        </svg>
+	                        Intellectual Property
+	                    </a></li>
+	                    <li><a href="#third-party-data">
+	                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+	                            <path d="M14 4L8 12L2 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+	                        </svg>
+	                        Third-Party Data
+	                    </a></li>
+	                    <li><a href="#payments">
+	                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+	                            <path d="M14 4L8 12L2 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+	                        </svg>
+	                        Subscriptions & Payments
+	                    </a></li>
+	                    <li><a href="#termination">
+	                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+	                            <path d="M14 4L8 12L2 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+	                        </svg>
+	                        Termination
+	                    </a></li>
+	                    <li><a href="#disclaimer">
+	                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+	                            <path d="M14 4L8 12L2 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+	                        </svg>
+	                        Disclaimer of Warranties
+	                    </a></li>
+	                    <li><a href="#liability">
+	                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+	                            <path d="M14 4L8 12L2 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+	                        </svg>
+	                        Limitation of Liability
+	                    </a></li>
+	                    <li><a href="#governing-law">
+	                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+	                            <path d="M14 4L8 12L2 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+	                        </svg>
+	                        Governing Law
+	                    </a></li>
+	                    <li><a href="#changes">
+	                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+	                            <path d="M14 4L8 12L2 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+	                        </svg>
+	                        Changes to Terms
+	                    </a></li>
+	                    <li><a href="#contact">
+	                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+	                            <path d="M14 4L8 12L2 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+	                        </svg>
+	                        Contact Information
+	                    </a></li>
+	                </ul>
+	            </aside>
+	            
+	            <div class="policy-content">
+	                <section id="acceptance" class="policy-section">
+	                    <h2>
+	                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+	                            <path d="M9 12L11 14L15 10M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+	                        </svg>
+	                        1. Acceptance of Terms
+	                    </h2>
+	                    <p>Welcome to <strong>Whose.Domains</strong>. These Terms of Service govern your use of our website and services. By accessing or using our services, you agree to comply with these terms and conditions. If you do not agree with these terms, you should not use our services.</p>
+	                    <div class="highlight-box">
+	                        <p><strong>Important:</strong> Using our services constitutes acceptance of these Terms of Service.</p>
+	                    </div>
+	                </section>
+	                
+	                <section id="service-description" class="policy-section">
+	                    <h2>
+	                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+	                            <path d="M12 2C6.477 2 2 6.477 2 12C2 17.523 6.477 22 12 22C17.523 22 22 17.523 22 12C22 6.477 17.523 2 12 2ZM12 8V12M12 16H12.01" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+	                        </svg>
+	                        2. Description of Service
+	                    </h2>
+	                    <p>Whose.Domains provides domain name WHOIS lookup services and related tools, including:</p>
+	                    <ul>
+	                        <li><strong>Single domain WHOIS queries</strong>: Detailed registration information for individual domains</li>
+	                        <li><strong>Bulk domain lookup capabilities</strong>: Mass querying of multiple domains at once</li>
+	                        <li><strong>Domain monitoring and alert services</strong>: Notifications when domain information changes</li>
+	                        <li><strong>Historical WHOIS data access</strong>: Historical records of domain ownership and changes</li>
+	                        <li><strong>Domain availability checking</strong>: Verification of domain registration status</li>
+	                    </ul>
+	                </section>
+	                
+	                <section id="user-accounts" class="policy-section">
+	                    <h2>
+	                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+	                            <path d="M12 11C14.2091 11 16 9.20914 16 7C16 4.79086 14.2091 3 12 3C9.79086 3 8 4.79086 8 7C8 9.20914 9.79086 11 12 11Z" stroke="currentColor" stroke-width="2"/>
+	                            <path d="M6 21V19C6 17.9391 6.42143 16.9217 7.17157 16.1716C7.92172 15.4214 8.93913 15 10 15H14C15.0609 15 16.0783 15.4214 16.8284 16.1716C17.5786 16.9217 18 17.9391 18 19V21" stroke="currentColor" stroke-width="2"/>
+	                        </svg>
+	                        3. User Accounts
+	                    </h2>
+	                    <p>To access certain premium features, you must create an account. When registering for an account, you agree to:</p>
+	                    <ul>
+	                        <li><strong>Provide accurate and complete information</strong>: Registration details must be truthful and up-to-date</li>
+	                        <li><strong>Maintain account security</strong>: Protect your password and account credentials</li>
+	                        <li><strong>Accept responsibility</strong>: You are responsible for all activities that occur under your account</li>
+	                        <li><strong>Notify promptly</strong>: Inform us immediately of any unauthorized use of your account</li>
+	                    </ul>
+	                </section>
+	                
+	                <section id="acceptable-use" class="policy-section">
+	                    <h2>
+	                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+	                            <path d="M18.364 5.636C15.0151 2.28661 9.98493 2.28661 6.636 5.636C3.28661 9.98493 3.28661 15.0151 6.636 18.364C9.98493 21.7134 15.0151 21.7134 18.364 18.364C21.7134 15.0151 21.7134 9.98493 18.364 5.636Z" stroke="currentColor" stroke-width="2"/>
+	                            <path d="M15 9L9 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+	                            <path d="M9 9L15 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+	                        </svg>
+	                        4. Acceptable Use
+	                    </h2>
+	                    <p>You agree not to use our services for any of the following purposes:</p>
+	                    <ul>
+	                        <li><strong>Illegal activities</strong>: Any use that violates applicable laws or regulations</li>
+	                        <li><strong>Abusive practices</strong>: Spam, phishing, fraud, or other deceptive activities</li>
+	                        <li><strong>Harassment</strong>: Using our services to harass, stalk, or threaten others</li>
+	                        <li><strong>Unauthorized commercial use</strong>: Scraping or extracting data without written permission</li>
+	                        <li><strong>Infrastructure abuse</strong>: Making excessive requests that overload our systems</li>
+	                        <li><strong>Security violations</strong>: Attempting to circumvent security measures or gain unauthorized access</li>
+	                    </ul>
+	                </section>
+	                
+	                <section id="api-usage" class="policy-section">
+	                    <h2>
+	                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+	                            <path d="M7 7H10L12 12L15 7H17V17H15V11L12 16L10 11V17H7V7Z" stroke="currentColor" stroke-width="2"/>
+	                            <path d="M17 7H20V17H17V7Z" stroke="currentColor" stroke-width="2"/>
+	                            <path d="M4 7H7V17H4V7Z" stroke="currentColor" stroke-width="2"/>
+	                        </svg>
+	                        5. API Usage
+	                    </h2>
+	                    <p>Commercial API access requires a separate agreement with our company. Automated access to our services without proper authorization is strictly prohibited. Rate limits apply to all users as follows:</p>
+	                    <table class="info-table">
+	                        <thead>
+	                            <tr>
+                                <th>Account Type</th>
+                                <th>Daily Query Limit</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Free accounts</strong></td>
+                                <td>20 queries per day</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Basic accounts</strong></td>
+                                <td>1,000 queries per day</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Professional accounts</strong></td>
+                                <td>10,000 queries per day</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Enterprise accounts</strong></td>
+                                <td>Custom limits (negotiated)</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </section>
+                
+                <section id="intellectual-property" class="policy-section">
+                    <h2>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M12 16C14.2091 16 16 14.2091 16 12C16 9.79086 14.2091 8 12 8C9.79086 8 8 9.79086 8 12C8 14.2091 9.79086 16 12 16Z" stroke="currentColor" stroke-width="2"/>
+                            <path d="M12 2C6.477 2 2 6.477 2 12C2 17.523 6.477 22 12 22C17.523 22 22 17.523 22 12C22 6.477 17.523 2 12 2Z" stroke="currentColor" stroke-width="2"/>
+                            <path d="M12 15V12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                            <path d="M12 9H12.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                        6. Intellectual Property
+                    </h2>
+                    <p>All content, features, and functionality on Whose.Domains, including but not limited to text, graphics, logos, icons, images, data compilations, software, and design elements, constitute proprietary intellectual property of Whose.Domains or its licensors and are protected by international copyright, trademark, and other intellectual property laws.</p>
+                </section>
+                
+                <section id="third-party-data" class="policy-section">
+                    <h2>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M22 12C22 16.9706 16.9706 22 12 22C7.02944 22 2 16.9706 2 12C2 7.02944 7.02944 2 12 2C16.9706 2 22 7.02944 22 12Z" stroke="currentColor" stroke-width="2"/>
+                            <path d="M12 16V12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                            <path d="M12 8H12.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                            <path d="M3 15H7L9 3H5L3 15Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M17 15H21L19 3H15L17 15Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        7. Third-Party Data
+                    </h2>
+                    <p>WHOIS data and other information displayed on our platform is sourced from various domain registries, registrars, and third-party providers. While we strive to ensure accuracy and completeness of this information, we cannot guarantee the timeliness, reliability, or accuracy of third-party data. Users should verify critical information independently.</p>
+                </section>
+                
+                <section id="payments" class="policy-section">
+                    <h2>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M19 7C19 5.89543 18.1046 5 17 5H7C5.89543 5 5 5.89543 5 7V17C5 18.1046 5.89543 19 7 19H17C18.1046 19 19 18.1046 19 17V7Z" stroke="currentColor" stroke-width="2"/>
+                            <path d="M2 10H22" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                            <path d="M16 14H16.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                            <path d="M13 14H13.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                            <path d="M10 14H10.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                        8. Subscriptions & Payments
+                    </h2>
+                    <p>Access to premium services requires payment of applicable fees. When purchasing our services, you agree to:</p>
+                    <ul>
+                        <li><strong>Pay all fees</strong>: All charges for purchased services must be paid as invoiced</li>
+                        <li><strong>Valid payment information</strong>: Provide current and valid payment information</li>
+                        <li><strong>Authorization</strong>: Authorize us to charge your designated payment method</li>
+                        <li><strong>Non-refundable fees</strong>: Except as required by applicable law, fees are non-refundable</li>
+                    </ul>
+                </section>
+                
+                <section id="termination" class="policy-section">
+                    <h2>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M12 2C6.477 2 2 6.477 2 12C2 17.523 6.477 22 12 22C17.523 22 22 17.523 22 12C22 6.477 17.523 2 12 2Z" stroke="currentColor" stroke-width="2"/>
+                            <path d="M8 12H16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                            <path d="M12 8V16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                        9. Termination
+                    </h2>
+                    <p>We reserve the right to suspend or terminate your access to our services in the following circumstances:</p>
+                    <ul>
+                        <li><strong>Terms violation</strong>: Violation of these Terms of Service or our policies</li>
+                        <li><strong>Non-payment</strong>: Failure to pay applicable fees or charges</li>
+                        <li><strong>Abusive behavior</strong>: Engaging in illegal, harmful, or abusive conduct</li>
+                        <li><strong>Inactivity</strong>: Extended periods of account inactivity (for free accounts)</li>
+                    </ul>
+                </section>
+                
+                <section id="disclaimer" class="policy-section">
+                    <h2>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M12 9V11M12 15H12.01M8 21H16C17.1046 21 18 20.1046 18 19V7C18 5.89543 17.1046 5 16 5H8C6.89543 5 6 5.89543 6 7V19C6 20.1046 6.89543 21 8 21Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        10. Disclaimer of Warranties
+                    </h2>
+                    <p>Our services are provided "as is" and "as available" without any warranties of any kind, either express or implied. We disclaim all warranties, including but not limited to merchantability, fitness for a particular purpose, and non-infringement. We do not warrant that our services will be uninterrupted, secure, or error-free.</p>
+                </section>
+                
+                <section id="liability" class="policy-section">
+                    <h2>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M12 2C6.477 2 2 6.477 2 12C2 17.523 6.477 22 12 22C17.523 22 22 17.523 22 12C22 6.477 17.523 2 12 2Z" stroke="currentColor" stroke-width="2"/>
+                            <path d="M12 16V12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                            <path d="M12 8H12.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                        11. Limitation of Liability
+                    </h2>
+                    <p>To the maximum extent permitted by applicable law, Whose.Domains shall not be liable for any indirect, incidental, special, consequential, or punitive damages, including but not limited to loss of profits, data, or business opportunities, arising out of or relating to your use of our services, regardless of the theory of liability, whether in contract, warranty, tort (including negligence), or otherwise.</p>
+                </section>
+                
+                <section id="governing-law" class="policy-section">
+                    <h2>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" stroke-width="2"/>
+                            <path d="M12 16V12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                            <path d="M12 8H12.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                            <path d="M8 3H16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                        12. Governing Law
+                    </h2>
+                    <p>These Terms of Service shall be governed by and construed in accordance with the laws of the State of Delaware, United States, without regard to its conflict of law principles. Any disputes arising under these terms shall be subject to the exclusive jurisdiction of the courts located in Delaware.</p>
+                </section>
+                
+                <section id="changes" class="policy-section">
+                    <h2>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M12 8V12L15 15M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        13. Changes to Terms
+                    </h2>
+                    <p>We reserve the right to modify these Terms of Service at any time. Any changes will be effective immediately upon posting the updated terms on our website. Your continued use of our services after the posting of changes constitutes acceptance of the modified terms. We recommend checking this page regularly for updates.</p>
+                </section>
+                
+                <section id="contact" class="policy-section">
+                    <h2>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M4 4H20C21.1 4 22 4.9 22 6V18C22 19.1 21.1 20 20 20H4C2.9 20 2 19.1 2 18V6C2 4.9 2.9 4 4 4Z" stroke="currentColor" stroke-width="2"/>
+                            <path d="M22 6L12 13L2 6" stroke="currentColor" stroke-width="2"/>
+                        </svg>
+                        14. Contact Information
+                    </h2>
+                    <p>If you have any questions, comments, or concerns about these Terms of Service, please contact us at:</p>
+                    <div class="highlight-box">
+                        <p style="margin-bottom: 0;"><strong>Email</strong>: legal@whose.domains</p>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
+
+    </main>
+
+    <footer th:replace="~{template::template_footer}"></footer>
+</body>
+</html>
