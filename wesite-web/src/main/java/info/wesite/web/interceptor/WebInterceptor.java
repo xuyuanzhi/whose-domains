@@ -16,7 +16,9 @@ import com.alibaba.fastjson2.JSONObject;
 import info.wesite.core.config.AccessControl;
 import info.wesite.core.config.UserHolder;
 import info.wesite.core.entity.User;
+import info.wesite.core.utils.ApiTokenUtils;
 import info.wesite.core.utils.Constants;
+import info.wesite.core.utils.IpUtils;
 import info.wesite.core.utils.TokenUtils;
 import info.wesite.core.view.ResponseJson;
 import jakarta.servlet.http.Cookie;
@@ -52,7 +54,12 @@ public class WebInterceptor implements HandlerInterceptor {
 			}
 		}
 		request.setAttribute("_isProd", isProd);
-		
+
+		// 页面级 API token：模板输出到 <meta name="api-token">，前端调受保护 API 时经 X-Api-Token 头回传
+		if (!request.getRequestURI().startsWith("/api/")) {
+			request.setAttribute("_api_token", ApiTokenUtils.createToken(IpUtils.getRequestIp(request)));
+		}
+
 		// GEO: Generate BreadcrumbList schema
 		generateBreadcrumbs(request);
     			

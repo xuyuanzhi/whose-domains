@@ -1201,7 +1201,7 @@ public class ViewController {
 				+ "&title=" + java.net.URLEncoder.encode(title, "UTF-8")
 				+ "&subtitle=" + java.net.URLEncoder.encode(subtitle, "UTF-8");
 		} catch (Exception e) {
-			return "https://whose.domains/static/image/og-image.png";
+			return "https://whose.domains/og-image.png";
 		}
 	}
 

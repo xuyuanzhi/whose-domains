@@ -38,11 +38,29 @@ public class OgImageController {
     private static final Color TEXT_LO   = new Color(122, 139, 160);
     private static final Color BORDER    = new Color(255, 255, 255, 20);
 
+    /**
+     * 旧的静态兜底路径已废弃（文件不存在导致抓取报错），301 到动态接口
+     */
+    @GetMapping("/static/image/og-image.png")
+    public ResponseEntity<Void> legacyRedirect() {
+        return ResponseEntity.status(org.springframework.http.HttpStatus.MOVED_PERMANENTLY)
+                .header(HttpHeaders.LOCATION, "/og-image.png")
+                .header(HttpHeaders.CACHE_CONTROL, CacheControl.maxAge(7, TimeUnit.DAYS).cachePublic().getHeaderValue())
+                .build();
+    }
+
     @GetMapping(value = "/og-image.png", produces = "image/png")
     public ResponseEntity<byte[]> generate(
             @RequestParam(defaultValue = "Whose.Domains") String title,
             @RequestParam(defaultValue = "Free Domain WHOIS Lookup & DNS Tools") String subtitle,
-            @RequestParam(defaultValue = "default") String type) throws IOException {
+            @RequestParam(defaultValue = "default") String type,
+            jakarta.servlet.http.HttpServletRequest request) throws IOException {
+
+        // 实时画图有 CPU 开销，按 IP 限流防滥用
+        String ip = info.wesite.core.utils.IpUtils.getRequestIp(request);
+        if (!info.wesite.core.utils.RateLimitUtils.isAllowed(ip, 30, 60000)) {
+            return ResponseEntity.status(429).build();
+        }
 
         // Sanitise
         title    = StringUtils.abbreviate(title,    72);

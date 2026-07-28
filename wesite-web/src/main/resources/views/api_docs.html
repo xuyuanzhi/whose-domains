@@ -61,6 +61,7 @@
             /api/tools/score/{domainName}
         </div>
         <p style="font-size:14px; color:#7a8ba0;">Comprehensive domain health scoring (0-100) with grade (A+ to F). Evaluates SSL, DNS, email security (SPF/DKIM/DMARC), security headers, and domain age.</p>
+        <p style="font-size:13px; color:#c9a227;"><i class="fas fa-lock"></i> This endpoint requires a page session token and can only be used from the <a href="/tools/domain-score">Domain Health Score</a> tool page.</p>
         <div style="font-size:13px; margin-top:8px;">
             <b>Response fields:</b> <code>totalScore</code>, <code>grade</code>, <code>categories</code> (each with score and recommendations)
         </div>
@@ -88,6 +89,7 @@
             /api/tools/related/{domainName}
         </div>
         <p style="font-size:14px; color:#7a8ba0;">Discover domains sharing the same registrant organization, email, nameservers, IP, or registrar. Powerful for brand protection and cybersecurity investigations.</p>
+        <p style="font-size:13px; color:#c9a227;"><i class="fas fa-lock"></i> This endpoint requires a page session token and can only be used from the <a href="/tools/related-domains">Related Domains</a> tool page.</p>
         <div style="font-size:13px; margin-top:8px;">
             <b>Response categories:</b> <code>sameRegistrantOrg</code>, <code>sameRegistrantEmail</code>, <code>sameIp</code>, <code>sameNameServer</code>, <code>sameRegistrar</code>
         </div>
@@ -116,6 +118,7 @@
     <!-- Domain History -->
     <div id="domain-history" class="api-section" style="margin-bottom:35px; border-bottom:1px solid var(--glass-border); padding-bottom:30px;">
         <h2 style="font-size:20px;">📜 WHOIS History &amp; Diff</h2>
+        <p style="font-size:13px; color:#c9a227;"><i class="fas fa-lock"></i> These endpoints require a page session token and can only be used from the <a href="/tools/domain-history">WHOIS History</a> tool page.</p>
         <div class="api-endpoint" style="background:rgba(255,255,255,0.04); padding:12px 16px; border-radius:6px; margin:10px 0; font-family:monospace; font-size:14px;">
             <span style="background:var(--primary); color:#fff; padding:2px 8px; border-radius:3px; font-size:12px; margin-right:8px;">GET</span>
             /api/domain-history/snapshots/{domainName}

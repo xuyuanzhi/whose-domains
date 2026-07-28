@@ -27,15 +27,40 @@
     <meta property="og:title" th:content="${_page_title}">
     <meta property="og:description" th:content="${_page_metaDescription}">
     <meta property="og:url" th:content="'https://whose.domains' + ${requestURI}">
-    <meta property="og:image" th:content="${_og_image_url != null ? _og_image_url : 'https://whose.domains/static/image/og-image.png'}">
+    <meta property="og:image" th:content="${_og_image_url != null ? _og_image_url : 'https://whose.domains/og-image.png'}">
     <meta property="og:locale" content="en_US">
     
     <!-- Twitter Card Tags -->
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" th:content="${_page_title}">
     <meta name="twitter:description" th:content="${_page_metaDescription}">
-    <meta name="twitter:image" th:content="${_og_image_url != null ? _og_image_url : 'https://whose.domains/static/image/og-image.png'}">
+    <meta name="twitter:image" th:content="${_og_image_url != null ? _og_image_url : 'https://whose.domains/og-image.png'}">
     <meta name="twitter:site" content="@WhoseDomains">
+
+    <!-- 页面级 API token：调用本站 /api/ 时通过 X-Api-Token 头回传。
+         fetch 覆盖必须在 head 里同步安装：部分工具页带 ?d= 参数时解析阶段就会发请求，等不到 footer 脚本 -->
+    <meta name="api-token" th:if="${_api_token != null}" th:content="${_api_token}">
+    <script th:if="${_api_token != null}">
+    (function () {
+        var meta = document.querySelector('meta[name="api-token"]');
+        var apiToken = meta ? meta.getAttribute('content') : '';
+        if (!apiToken || !window.fetch) return;
+        window.__apiToken = apiToken;
+        var origFetch = window.fetch;
+        window.fetch = function (input, init) {
+            try {
+                var url = (typeof input === 'string') ? input : (input && input.url);
+                if (url && (url.indexOf('/api/') === 0 || url.indexOf(location.origin + '/api/') === 0)) {
+                    init = init || {};
+                    var headers = new Headers(init.headers || (input && typeof input !== 'string' && input.headers) || undefined);
+                    headers.set('X-Api-Token', apiToken);
+                    init.headers = headers;
+                }
+            } catch (e) { /* 注入失败时按原样发出请求 */ }
+            return origFetch.call(this, input, init);
+        };
+    })();
+    </script>
 
     <!-- Structured Data - Organization Schema -->
     <script type="application/ld+json">
@@ -128,8 +153,7 @@
 	  gtag('config', 'G-96K2E887W3');
 	</script>
 	</th:block>
-	<!-- Google AdSense - 仅在生产环境加载 -->
-	<script th:if="${_isProd}" async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7597293740550331" crossorigin="anonymous"></script>
+	<!-- Google AdSense 脚本不在此处直接加载，由 footer 中的守卫脚本在确认真人信号后动态注入（防爬虫刷无效展示） -->
 </head>
 <body>
 	<!-- Header -->
@@ -311,26 +335,24 @@
 
 	<!-- Footer -->
     
-    <!-- 广告片段：工具页头部横幅 -->
-    <div th:fragment="ad_banner_top" th:if="${_isProd}" class="ad-container" style="max-width:1000px; margin:0 auto 25px;">
+    <!-- 广告片段：工具页头部横幅（push 由守卫脚本统一执行，min-height 防 CLS） -->
+    <div th:fragment="ad_banner_top" th:if="${_isProd}" class="ad-container" style="max-width:1000px; margin:0 auto 25px; min-height:90px;">
         <ins class="adsbygoogle"
              style="display:block"
              data-ad-client="ca-pub-7597293740550331"
              data-ad-slot="8301467356"
              data-ad-format="horizontal"
              data-full-width-responsive="true"></ins>
-        <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
     </div>
-    
-    <!-- 广告片段：工具页底部横幅 -->
-    <div th:fragment="ad_banner_bottom" th:if="${_isProd}" class="ad-container" style="max-width:1000px; margin:25px auto 0;">
+
+    <!-- 广告片段：工具页底部横幅（push 由守卫脚本统一执行，min-height 防 CLS） -->
+    <div th:fragment="ad_banner_bottom" th:if="${_isProd}" class="ad-container" style="max-width:1000px; margin:25px auto 0; min-height:90px;">
         <ins class="adsbygoogle"
              style="display:block"
              data-ad-client="ca-pub-7597293740550331"
              data-ad-slot="5630964188"
              data-ad-format="auto"
              data-full-width-responsive="true"></ins>
-        <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
     </div>
 
     <footer th:fragment="template_footer">
@@ -403,5 +425,46 @@
         </div>
         <script th:src="@{/static/jquery/jquery-3.6.0.min.js?v={v}(v=${version})}"></script>
 		<script th:src="@{/static/js/common.js?v={v}(v=${version})}"></script>
+		<!-- AdSense 守卫：排除无头浏览器，且仅在首次真人交互后才注入广告脚本，防止爬虫产生无效展示 -->
+		<script th:if="${_isProd}">
+		(function () {
+		    var loaded = false;
+		    var SIGNALS = ['pointermove', 'scroll', 'touchstart', 'keydown', 'wheel', 'click'];
+
+		    function isAutomated() {
+		        if (navigator.webdriver === true) return true;
+		        if (!navigator.languages || navigator.languages.length === 0) return true;
+		        if (/HeadlessChrome/.test(navigator.userAgent)) return true;
+		        if (window.outerWidth === 0 || window.outerHeight === 0) return true;
+		        return false;
+		    }
+
+		    function loadAds() {
+		        if (loaded) return;
+		        loaded = true;
+		        SIGNALS.forEach(function (e) { window.removeEventListener(e, loadAds, true); });
+
+		        var slots = document.querySelectorAll('ins.adsbygoogle');
+		        if (slots.length === 0) return;
+
+		        var s = document.createElement('script');
+		        s.async = true;
+		        s.crossOrigin = 'anonymous';
+		        s.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7597293740550331';
+		        s.onload = function () {
+		            slots.forEach(function () {
+		                (window.adsbygoogle = window.adsbygoogle || []).push({});
+		            });
+		        };
+		        document.head.appendChild(s);
+		    }
+
+		    if (isAutomated()) return;
+
+		    SIGNALS.forEach(function (e) {
+		        window.addEventListener(e, loadAds, { passive: true, capture: true });
+		    });
+		})();
+		</script>
     </footer>
 </body>

@@ -342,3 +342,18 @@ var ToolCache = (function() {
         }
     };
 })();
+/* ============================================================
+ * API token（jQuery 部分）：fetch 的覆盖在 template_head 内联脚本里
+ * 提前安装（见 template.html），这里只补 jQuery 通道。
+ * ============================================================ */
+(function () {
+    var apiToken = window.__apiToken || '';
+    if (!apiToken || !window.jQuery) return;
+
+    jQuery.ajaxPrefilter(function (options, originalOptions, jqXHR) {
+        var url = options.url;
+        if (url && (url.indexOf('/api/') === 0 || url.indexOf(location.origin + '/api/') === 0)) {
+            jqXHR.setRequestHeader('X-Api-Token', apiToken);
+        }
+    });
+})();
