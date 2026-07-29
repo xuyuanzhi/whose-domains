@@ -348,11 +348,11 @@ var ToolCache = (function() {
  * ============================================================ */
 (function () {
     var apiToken = window.__apiToken || '';
-    if (!apiToken || !window.jQuery) return;
+    var isApiUrl = window.__isApiUrl;
+    if (!apiToken || !isApiUrl || !window.jQuery) return;
 
     jQuery.ajaxPrefilter(function (options, originalOptions, jqXHR) {
-        var url = options.url;
-        if (url && (url.indexOf('/api/') === 0 || url.indexOf(location.origin + '/api/') === 0)) {
+        if (isApiUrl(options.url)) {
             jqXHR.setRequestHeader('X-Api-Token', apiToken);
         }
     });

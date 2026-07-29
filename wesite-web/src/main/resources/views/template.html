@@ -46,18 +46,35 @@
         var apiToken = meta ? meta.getAttribute('content') : '';
         if (!apiToken || !window.fetch) return;
         window.__apiToken = apiToken;
+        window.__isApiUrl = function (url) {
+            return !!url && (url.indexOf('/api/') === 0 || url.indexOf(location.origin + '/api/') === 0);
+        };
         var origFetch = window.fetch;
         window.fetch = function (input, init) {
+            var url;
             try {
-                var url = (typeof input === 'string') ? input : (input && input.url);
-                if (url && (url.indexOf('/api/') === 0 || url.indexOf(location.origin + '/api/') === 0)) {
+                url = (typeof input === 'string') ? input : (input && input.url);
+                if (window.__isApiUrl(url)) {
                     init = init || {};
                     var headers = new Headers(init.headers || (input && typeof input !== 'string' && input.headers) || undefined);
                     headers.set('X-Api-Token', apiToken);
                     init.headers = headers;
                 }
             } catch (e) { /* 注入失败时按原样发出请求 */ }
-            return origFetch.call(this, input, init);
+            return origFetch.call(this, input, init).then(function (resp) {
+                // token 过期/换网段导致的 403：自动刷新一次页面换取新 token，避免用户看到费解的报错。
+                // 用 sessionStorage 时间戳兜底，60 秒内不重复刷新，防止密钥配置错误时陷入刷新死循环。
+                if (resp && resp.status === 403 && window.__isApiUrl(url)) {
+                    try {
+                        var last = parseInt(sessionStorage.getItem('__apiTokenReloadTs') || '0', 10);
+                        if (Date.now() - last > 60000) {
+                            sessionStorage.setItem('__apiTokenReloadTs', String(Date.now()));
+                            location.reload();
+                        }
+                    } catch (e) { /* sessionStorage 不可用则不自动刷新 */ }
+                }
+                return resp;
+            });
         };
     })();
     </script>
@@ -425,19 +442,15 @@
         </div>
         <script th:src="@{/static/jquery/jquery-3.6.0.min.js?v={v}(v=${version})}"></script>
 		<script th:src="@{/static/js/common.js?v={v}(v=${version})}"></script>
-		<!-- AdSense 守卫：排除无头浏览器，且仅在首次真人交互后才注入广告脚本，防止爬虫产生无效展示 -->
+		<!-- AdSense 守卫：排除无头浏览器，且仅在首次真人交互后才注入广告脚本，防止爬虫产生无效展示。
+		     脚本在所有页面加载（以支持 Auto ads），仅在有手动广告位时执行 push。 -->
 		<script th:if="${_isProd}">
 		(function () {
+		    // 只用高可信度的自动化信号，避免误伤 App 内置浏览器 / 隐私浏览器等真人环境
+		    if (navigator.webdriver === true || /HeadlessChrome/.test(navigator.userAgent)) return;
+
 		    var loaded = false;
 		    var SIGNALS = ['pointermove', 'scroll', 'touchstart', 'keydown', 'wheel', 'click'];
-
-		    function isAutomated() {
-		        if (navigator.webdriver === true) return true;
-		        if (!navigator.languages || navigator.languages.length === 0) return true;
-		        if (/HeadlessChrome/.test(navigator.userAgent)) return true;
-		        if (window.outerWidth === 0 || window.outerHeight === 0) return true;
-		        return false;
-		    }
 
 		    function loadAds() {
 		        if (loaded) return;
@@ -445,12 +458,14 @@
 		        SIGNALS.forEach(function (e) { window.removeEventListener(e, loadAds, true); });
 
 		        var slots = document.querySelectorAll('ins.adsbygoogle');
-		        if (slots.length === 0) return;
+		        var client = slots.length > 0
+		            ? (slots[0].getAttribute('data-ad-client') || 'ca-pub-7597293740550331')
+		            : 'ca-pub-7597293740550331';
 
 		        var s = document.createElement('script');
 		        s.async = true;
 		        s.crossOrigin = 'anonymous';
-		        s.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7597293740550331';
+		        s.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=' + client;
 		        s.onload = function () {
 		            slots.forEach(function () {
 		                (window.adsbygoogle = window.adsbygoogle || []).push({});
@@ -458,8 +473,6 @@
 		        };
 		        document.head.appendChild(s);
 		    }
-
-		    if (isAutomated()) return;
 
 		    SIGNALS.forEach(function (e) {
 		        window.addEventListener(e, loadAds, { passive: true, capture: true });
