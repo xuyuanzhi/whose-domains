@@ -1,5 +1,6 @@
 # Copy this file to application-prod.properties and fill in your values.
-# Values referenced via ${ENV_VAR} can also be supplied as environment variables.
+# application-prod.properties is gitignored and must NEVER be committed.
+# Sensitive values referenced via ${ENV_VAR} should be supplied as environment variables.
 
 #server
 server.port = 8080

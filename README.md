@@ -105,10 +105,23 @@ URLs:
 
 ### Production deployment
 
+`application-prod.properties` is gitignored and is **not** bundled into the jar from a clean checkout, so supply it externally at runtime. Spring Boot automatically loads `application-prod.properties` from a `config/` directory (or the current directory) next to the jar, which overrides anything on the classpath:
+
 ```bash
 mvn clean package -DskipTests -P prod
+
+# Provide the prod config outside the jar (fill in real values, or leave ${ENV_VAR} refs)
+mkdir -p config
+cp wesite-web/src/main/resources/application-prod.properties.example config/application-prod.properties
+# edit config/application-prod.properties as needed
+
+# Secrets are best supplied as environment variables (see the table above)
+export WD_DB_PASSWORD=... JWT_SECRET=... REDIS_PASSWORD=... BLOG_INTERNAL_SECRET=... DEEPSEEK_API_KEY=...
+
 java -jar wesite-web/target/wesite-web-1.0.0.jar --spring.profiles.active=prod
 ```
+
+Alternatively point Spring at any path with `--spring.config.additional-location=file:/etc/whosedomains/`. Never place real secrets in a tracked file — keep them in environment variables or the external, gitignored `application-prod.properties`.
 
 ## Contributing
 
