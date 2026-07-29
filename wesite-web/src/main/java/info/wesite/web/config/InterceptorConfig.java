@@ -27,7 +27,8 @@ public class InterceptorConfig implements WebMvcConfigurer {
 		registry.addInterceptor(apiTokenInterceptor).addPathPatterns(
 				"/api/domain-history/**",
 				"/api/tools/score/**",
-				"/api/tools/related/**");
+				"/api/tools/related/**",
+				"/api/domain-report/**");
 	}
 
 	/**
