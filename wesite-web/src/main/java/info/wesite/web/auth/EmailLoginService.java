@@ -2,6 +2,7 @@ package info.wesite.web.auth;
 
 import java.util.Calendar;
 import java.util.Date;
+import java.util.Locale;
 import java.util.Set;
 
 import org.apache.commons.lang3.time.DateUtils;
@@ -50,7 +51,7 @@ public class EmailLoginService {
             throw new IllegalArgumentException("Unsupported email login redirect path");
         }
 
-        String email = rawEmail == null ? null : rawEmail.trim().toLowerCase();
+        String email = rawEmail == null ? null : rawEmail.trim().toLowerCase(Locale.ROOT);
         if (email == null || !email.matches("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")) {
             return EmailLoginRequestResult.failure("Please enter a valid email address.");
         }

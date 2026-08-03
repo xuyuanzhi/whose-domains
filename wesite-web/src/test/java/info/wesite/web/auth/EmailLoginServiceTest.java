@@ -6,6 +6,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.Locale;
+
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -61,6 +63,26 @@ class EmailLoginServiceTest {
         assertEquals("/user/watchlist?login=google_bind_required", savedLink.getValue().getRedirectPath());
         org.junit.jupiter.api.Assertions.assertNotNull(savedLink.getValue().getTokenHash());
         assertEquals("Check your inbox for a secure sign-in link.", result.message());
+    }
+
+    @Test
+    void normalizesEmailIndependentlyOfTheJvmDefaultLocale() {
+        EmailLoginLinkService links = mock(EmailLoginLinkService.class);
+        MailSender mailSender = mock(MailSender.class);
+        when(links.count(any())).thenReturn(0L, 0L);
+        when(mailSender.send(any())).thenReturn(MailSendResult.ok());
+        ArgumentCaptor<EmailLoginLink> savedLink = ArgumentCaptor.forClass(EmailLoginLink.class);
+        Locale previous = Locale.getDefault();
+
+        try {
+            Locale.setDefault(Locale.forLanguageTag("tr-TR"));
+            service(links, mailSender).request("I@EXAMPLE.COM", "/user/watchlist?login=success");
+        } finally {
+            Locale.setDefault(previous);
+        }
+
+        org.mockito.Mockito.verify(links).save(savedLink.capture());
+        assertEquals("i@example.com", savedLink.getValue().getEmail());
     }
 
     private EmailLoginService service(EmailLoginLinkService links) {
