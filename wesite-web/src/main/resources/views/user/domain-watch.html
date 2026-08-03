@@ -23,6 +23,12 @@
                 <div style="font-size:48px; margin-bottom:16px;">🔒</div>
                 <h2 style="margin-bottom:12px; color:var(--darker);">Sign in to use your Watchlist</h2>
                 <p style="color:var(--gray); margin-bottom:24px;">Create a free account to monitor domains and receive expiry alerts.</p>
+                <div style="max-width:460px;margin:0 auto 18px;display:flex;gap:8px;flex-wrap:wrap;">
+                    <input id="quickWatchDomain" type="text" placeholder="example.com" style="flex:1;min-width:180px;padding:10px 14px;border:1px solid var(--glass-border);border-radius:8px;background:rgba(255,255,255,.06);color:#e2e8f0;">
+                    <input id="quickWatchEmail" type="email" placeholder="you@example.com" style="flex:1;min-width:180px;padding:10px 14px;border:1px solid var(--glass-border);border-radius:8px;background:rgba(255,255,255,.06);color:#e2e8f0;">
+                    <button onclick="requestQuickWatch()" class="watch-btn-primary">Email me a link</button>
+                </div>
+                <div id="quickWatchMsg" style="display:none;font-size:13px;margin-bottom:16px;"></div>
                 <button onclick="openAuthModal('login')" class="watch-btn-primary">Sign In</button>
                 <span style="margin:0 12px; color:var(--gray);">or</span>
                 <button onclick="openAuthModal('register')" class="watch-btn-secondary">Create Account</button>
@@ -206,11 +212,31 @@
                             isLoggedIn = true;
                             document.getElementById('watchlistUI').style.display = 'block';
                             renderList(data.data || []);
+                            addPendingWatch();
                         }
                     });
                 }
             })
             .catch(function() { showLoginRequired(); });
+    }
+
+    function requestQuickWatch() {
+        var domain=document.getElementById('quickWatchDomain').value.trim().toLowerCase();
+        var email=document.getElementById('quickWatchEmail').value.trim();
+        var msg=document.getElementById('quickWatchMsg');
+        if(!domain || !email){msg.textContent='Enter a domain and email address.';msg.style.color='#ff5252';msg.style.display='block';return;}
+        localStorage.setItem('pendingDomainWatch', domain);
+        fetch('/user/email-login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email})})
+        .then(function(r){return r.json();}).then(function(d){msg.textContent=d.msg||'Check your inbox.';msg.style.color=d.code===0?'#4caf50':'#ff5252';msg.style.display='block';})
+        .catch(function(){msg.textContent='Network error.';msg.style.color='#ff5252';msg.style.display='block';});
+    }
+
+    function addPendingWatch() {
+        var domain=localStorage.getItem('pendingDomainWatch');
+        if(!domain) return;
+        localStorage.removeItem('pendingDomainWatch');
+        fetch('/api/domain-watch/watch',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({domainName:domain,notifyType:3})})
+        .then(function(r){return r.json();}).then(function(d){if(d.code===0){checkLoginAndLoad();}});
     }
 
     function showLoginRequired() {

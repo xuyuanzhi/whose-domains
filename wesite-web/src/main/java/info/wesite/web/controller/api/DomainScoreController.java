@@ -26,6 +26,7 @@ import org.xbill.DNS.Type;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 
 import info.wesite.core.entity.Domain;
+import info.wesite.core.config.AccessControl;
 import info.wesite.core.service.DomainService;
 import info.wesite.core.utils.DomainUtils;
 import info.wesite.core.utils.HttpUtils;
@@ -44,6 +45,7 @@ import jakarta.servlet.http.HttpServletRequest;
 @Tag(name = "Domain Score API")
 @RestController
 @RequestMapping("/api/tools")
+@AccessControl(level = AccessControl.Level.SESSION)
 public class DomainScoreController {
 
     private static final Logger log = LoggerFactory.getLogger(DomainScoreController.class);

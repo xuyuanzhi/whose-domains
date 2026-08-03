@@ -79,6 +79,7 @@ yarn-error.log*
 package-lock.json
 
 # Misc
+.worktrees/
 *.swp
 *.swo
 *~

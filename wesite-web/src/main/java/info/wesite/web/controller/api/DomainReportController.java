@@ -22,6 +22,7 @@ import com.alibaba.fastjson2.JSONWriter;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 
 import info.wesite.core.entity.Domain;
+import info.wesite.core.config.AccessControl;
 import info.wesite.core.entity.DomainDns;
 import info.wesite.core.entity.DomainSite;
 import info.wesite.core.entity.DomainSnapshot;
@@ -43,6 +44,7 @@ import jakarta.servlet.http.HttpServletRequest;
 @Tag(name = "Domain Report API")
 @RestController
 @RequestMapping("/api")
+@AccessControl(level = AccessControl.Level.SESSION)
 public class DomainReportController {
 
     private static final Logger log = LoggerFactory.getLogger(DomainReportController.class);

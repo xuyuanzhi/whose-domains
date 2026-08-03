@@ -128,7 +128,9 @@ public class WebInterceptor implements HandlerInterceptor {
     }
 
     private boolean isAjax(HttpServletRequest request) {
-        return "XMLHttpRequest".equals(request.getHeader("X-Requested-With"));
+        return "XMLHttpRequest".equals(request.getHeader("X-Requested-With"))
+                || request.getRequestURI().startsWith("/api/")
+                || (request.getHeader("Accept") != null && request.getHeader("Accept").contains("application/json"));
     }
 
     /**

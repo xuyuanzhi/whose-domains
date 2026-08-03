@@ -47,12 +47,21 @@
 	                <a th:href="@{'/tools/domain-history?d=' + ${domain.name}}" class="search-again" style="text-decoration:none; font-size:13px; padding:6px 14px;">
 	                    <i class="fas fa-history"></i> WHOIS History
 	                </a>
-	                <!-- <a th:if="${session.user == null}" href="/login" class="search-again" style="text-decoration:none; font-size:13px; padding:6px 14px; background-color:#ffeb3b; color:#333;">
+	                <button type="button" id="monitorDomainBtn" th:data-domain="${domain.name}" class="search-again" style="font-size:13px; padding:6px 14px; background-color:#ffeb3b; color:#333; border:0; cursor:pointer;">
 	                    <i class="fas fa-bell"></i> Monitor this domain
-	                </a>
-	                <a th:if="${session.user != null}" th:href="@{'/user/domain-watch?add=' + ${domain.name}}" class="search-again" style="text-decoration:none; font-size:13px; padding:6px 14px; background-color:#ffeb3b; color:#333;">
-	                    <i class="fas fa-bell"></i> Monitor this domain
-	                </a> -->
+	                </button>
+	                <a href="/api-docs" class="search-again" style="text-decoration:none;font-size:13px;padding:6px 14px;"><i class="fas fa-code"></i> Get this via API</a>
+	            </div>
+
+	            <div id="monitorModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:99999;align-items:center;justify-content:center;">
+	                <div style="width:min(420px,calc(100% - 40px));padding:28px;border-radius:14px;background:#0d1117;border:1px solid rgba(100,255,218,.25);position:relative;">
+	                    <button type="button" id="closeMonitorModal" aria-label="Close" style="position:absolute;right:14px;top:10px;border:0;background:transparent;color:#aaa;font-size:24px;cursor:pointer;">&times;</button>
+	                    <h3 style="margin:0 0 8px;color:#e2e8f0;">Monitor this domain</h3>
+	                    <p style="margin:0 0 16px;color:#9ca3af;font-size:14px;">We'll email a secure sign-in link, then start expiry alerts for <strong id="monitorDomainName"></strong>.</p>
+	                    <input id="monitorEmail" type="email" autocomplete="email" placeholder="you@example.com" style="width:100%;box-sizing:border-box;padding:11px 13px;border-radius:8px;border:1px solid rgba(100,255,218,.25);background:rgba(255,255,255,.05);color:#e2e8f0;">
+	                    <div id="monitorMessage" style="display:none;margin-top:12px;font-size:13px;"></div>
+	                    <button type="button" id="sendMonitorLink" style="width:100%;margin-top:16px;padding:11px;border:0;border-radius:8px;background:#64ffda;color:#080c18;font-weight:700;cursor:pointer;">Email me a sign-in link</button>
+	                </div>
 	            </div>
 	            
 	            <div class="ad-container" th:if="${_isProd}">
@@ -219,6 +228,90 @@
 	});
 	</script>
 	<script type="text/javascript">
+	(function () {
+	    var button = document.getElementById('monitorDomainBtn');
+	    var modal = document.getElementById('monitorModal');
+	    if (!button || !modal) return;
+	    // The results section is animated with transform, which would otherwise trap this
+	    // fixed overlay in its stacking context below the sticky header.
+	    document.body.appendChild(modal);
+	    var domain = button.getAttribute('data-domain');
+	    var message = document.getElementById('monitorMessage');
+	    var email = document.getElementById('monitorEmail');
+	    var sendLinkButton = document.getElementById('sendMonitorLink');
+	    document.getElementById('monitorDomainName').textContent = domain;
+
+	    function showMessage(text, color) { message.textContent = text; message.style.color = color; message.style.display = 'block'; }
+	    function setMonitoringState() {
+	        button.innerHTML = '<i class="fas fa-check"></i> Monitoring';
+	        button.disabled = true;
+	        button.style.backgroundColor = '#8bc34a';
+	        button.style.cursor = 'default';
+	        button.setAttribute('aria-label', 'This domain is already in your watchlist');
+	    }
+	    function setSendLinkLoading(loading) {
+	        sendLinkButton.disabled = loading;
+	        sendLinkButton.style.opacity = loading ? '.7' : '1';
+	        sendLinkButton.style.cursor = loading ? 'wait' : 'pointer';
+	        sendLinkButton.innerHTML = loading ? '<i class="fas fa-spinner fa-spin"></i> Sending link...' : 'Email me a sign-in link';
+	    }
+	    function startSignInLinkCooldown() {
+	        var remainingSeconds = 120;
+	        function renderCooldown() {
+	            var minutes = Math.floor(remainingSeconds / 60);
+	            var seconds = String(remainingSeconds % 60).padStart(2, '0');
+	            sendLinkButton.disabled = true;
+	            sendLinkButton.style.opacity = '.7';
+	            sendLinkButton.style.cursor = 'not-allowed';
+	            sendLinkButton.textContent = 'Resend in ' + minutes + ':' + seconds;
+	        }
+	        renderCooldown();
+	        var timer = window.setInterval(function () {
+	            remainingSeconds--;
+	            if (remainingSeconds <= 0) {
+	                window.clearInterval(timer);
+	                setSendLinkLoading(false);
+	                return;
+	            }
+	            renderCooldown();
+	        }, 1000);
+	    }
+	    function addWatch() {
+	        fetch('/api/domain-watch/watch', {method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body:JSON.stringify({domainName:domain, notifyType:3})})
+	        .then(function(r){return r.json();}).then(function(d){
+	            if(d.code===0){setMonitoringState();}
+	            else if(d.code===-401 || d.code===401){modal.style.display='flex';}
+	            else{showMessage(d.msg||'Could not add this domain to your watchlist.','#ff5252');}
+	        }).catch(function(){modal.style.display='flex';});
+	    }
+	    fetch('/api/domain-watch/check/' + encodeURIComponent(domain), {credentials:'include'})
+	    .then(function(r){return r.json();}).then(function(d){
+	        if(d.code===0 && d.data===true){setMonitoringState();}
+	    }).catch(function(){});
+	    button.addEventListener('click', function(){
+	        fetch('/user/session',{credentials:'include'}).then(function(r){return r.json();}).then(function(d){
+	            if(d.code===0){addWatch();}else{modal.style.display='flex';}
+	        }).catch(function(){modal.style.display='flex';});
+	    });
+	    document.getElementById('closeMonitorModal').addEventListener('click', function(){modal.style.display='none';});
+	    modal.addEventListener('click', function(e){if(e.target===modal) modal.style.display='none';});
+	    sendLinkButton.addEventListener('click', function(){
+	        var value=email.value.trim();
+	        if(!value){showMessage('Enter your email address.','#ff5252');return;}
+	        localStorage.setItem('pendingDomainWatch', domain);
+	        setSendLinkLoading(true);
+	        fetch('/user/email-login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:value})})
+	        .then(function(r){return r.json();}).then(function(d){
+	            showMessage(d.msg||'Check your inbox.',d.code===0?'#4caf50':'#ff5252');
+	            if(d.code===0){startSignInLinkCooldown();}else{setSendLinkLoading(false);}
+	        }).catch(function(){
+	            showMessage('Network error.','#ff5252');
+	            setSendLinkLoading(false);
+	        });
+	    });
+	})();
+	</script>
+	<script type="text/javascript">
 	// 导出报告：改用 fetch 下载，让 X-Api-Token 头随请求带上（<a> 导航带不了头）。
 	(function () {
 	    var btn = document.getElementById('exportReportBtn');
@@ -232,9 +325,16 @@
 	        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Exporting...';
 	        fetch('/api/domain-report/' + encodeURIComponent(domain))
 	            .then(function (resp) {
-	                if (resp.status === 403) return null; // token 过期：fetch 覆盖会自动刷新页面
 	                if (!resp.ok) throw new Error('HTTP ' + resp.status);
-	                return resp.blob();
+	                return resp.clone().json().then(function (body) {
+	                    if (body && (body.code === -401 || body.code === 401)) {
+	                        openAuthModal('login');
+	                        return null;
+	                    }
+	                    return resp.blob();
+	                }).catch(function () {
+	                    return resp.blob();
+	                });
 	            })
 	            .then(function (blob) {
 	                if (!blob) return;

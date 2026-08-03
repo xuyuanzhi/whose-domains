@@ -683,6 +683,13 @@ public class MainController {
 		return "user/domain-watch";
 	}
 
+	@GetMapping("/user/api-keys")
+	@info.wesite.core.config.AccessControl(level = info.wesite.core.config.AccessControl.Level.SESSION)
+	public String apiKeys(Model model) {
+		model.addAttribute(Constants.PAGE_TITLE, "API Keys - Whose.Domains");
+		return "user/api-keys";
+	}
+
 	@Operation(summary = "查询历史页面")
 	@GetMapping("/user/query-history")
 	public String queryHistory(Model model) {

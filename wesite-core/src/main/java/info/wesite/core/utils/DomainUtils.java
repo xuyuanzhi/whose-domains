@@ -25,6 +25,7 @@ import info.wesite.core.entity.Domain;
 import info.wesite.core.entity.DomainSite;
 import info.wesite.core.entity.DomainTld;
 import info.wesite.core.entity.DomainTldExt;
+import info.wesite.core.cache.DomainLookupCache;
 import info.wesite.core.service.DomainTldExtService;
 import info.wesite.core.service.DomainTldService;
 import jakarta.annotation.PostConstruct;
@@ -43,14 +44,18 @@ public class DomainUtils {
 	private DomainTldService domainTldService;
 	@Autowired
 	private DomainTldExtService domainTldExtService;
+	@Autowired
+	private DomainLookupCache domainLookupCache;
 	
 	private static DomainTldService s_domainTldService;
 	private static DomainTldExtService s_domainTldExtService;
+	private static DomainLookupCache s_domainLookupCache;
 
 	@PostConstruct
 	public void init() {
 		s_domainTldService = domainTldService;
 		s_domainTldExtService = domainTldExtService;
+		s_domainLookupCache = domainLookupCache;
 		refreshExtList();
 	}
 	
@@ -253,6 +258,18 @@ public class DomainUtils {
 	 * @throws IOException
 	 */
 	public static Domain getDomainInfoByMainName(String name) {
+		Domain cached = s_domainLookupCache.get(name);
+		if (cached != null) {
+			return cached;
+		}
+		Domain result = loadDomainInfoByMainName(name);
+		if (result != null) {
+			s_domainLookupCache.put(result);
+		}
+		return result;
+	}
+
+	private static Domain loadDomainInfoByMainName(String name) {
 		String tldName = getTldName(name);
 		DomainTld tld = s_domainTldService.getOne(Wrappers.<DomainTld>lambdaQuery().eq(DomainTld::getDisplayName, tldName));
 		if (tld == null) {
@@ -263,7 +280,8 @@ public class DomainUtils {
 		if (StringUtils.isNotBlank(tld.getRdapServer())) {
 			//使用rdap服务
 			result = getDomainInfoFromRdap(name, tld.getRdapServer());
-		} else if (StringUtils.isNotBlank(tld.getWhoisServer())) {
+		}
+		if (result == null && StringUtils.isNotBlank(tld.getWhoisServer())) {
 			//使用whois服务
 			result = getDomainInfoFromWhois(name, tld.getWhoisServer());
 		}

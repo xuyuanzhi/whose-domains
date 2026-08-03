@@ -5,7 +5,7 @@
 #server
 server.port = 8080
 server.servlet.context-path = /
-server.tomcat.max-threads=200
+server.tomcat.max-threads=120
 server.tomcat.min-spare-threads=20
 server.tomcat.accept-count=100
 server.tomcat.max-connections=10000
@@ -62,3 +62,22 @@ logging.level.org.springframework.web=WARN
 
 #shared secret between web and admin for internal blog endpoints
 blog.internal.secret = ${BLOG_INTERNAL_SECRET:change-me-to-a-long-random-string}
+
+# Public origin used in passwordless email links. Do not include a trailing slash.
+wesite.public-base-url=${WESITE_PUBLIC_BASE_URL:https://whose.domains}
+
+# Resend transactional email (SMTP over implicit TLS). Keep RESEND_API_KEY out of this file.
+spring.mail.host=smtp.resend.com
+spring.mail.port=465
+spring.mail.username=resend
+spring.mail.password=${RESEND_API_KEY:replace-with-resend-api-key}
+spring.mail.properties.mail.smtp.auth=true
+spring.mail.properties.mail.smtp.ssl.enable=true
+spring.mail.properties.mail.smtp.connectiontimeout=5000
+spring.mail.properties.mail.smtp.timeout=10000
+spring.mail.properties.mail.smtp.writetimeout=10000
+wesite.mail.enabled=true
+wesite.mail.from=${WESITE_MAIL_FROM:alerts@mail.whose.domains}
+wesite.mail.from-name=Whose.Domains
+wesite.mail.reply-to=${WESITE_MAIL_REPLY_TO:support@whose.domains}
+wesite.mail.send-rate-per-second=2

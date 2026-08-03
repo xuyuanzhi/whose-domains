@@ -174,7 +174,8 @@
 </head>
 <body>
 	<!-- Header -->
-    <header th:fragment="template_header">
+    <th:block th:fragment="template_header">
+    <header>
         <div class="container">
             <nav class="navbar">
                 <a href="/" class="logo">
@@ -186,10 +187,10 @@
                 </button>
                 <ul class="nav-links" id="navLinks">
                     <li><a href="/" th:class="${requestURI == '/'?'active':''}">Home</a></li>
+                    <li><a href="/api-docs" th:class="${requestURI == '/api-docs'?'active':''}">API Docs</a></li>
                     <li><a href="/tools" th:class="${requestURI != null && requestURI.startsWith('/tools')?'active':''}">Tools</a></li>
                     <li><a href="/top-level-domains" th:class="${requestURI == '/top-level-domains'?'active':''}">TLDs</a></li>
                     <li><a href="/expiring-domains" th:class="${requestURI == '/expiring-domains'?'active':''}">Expiring Domains</a></li>
-                    <li><a href="/api-docs" th:class="${requestURI == '/api-docs'?'active':''}">API</a></li>
                     <li><a href="/blog" th:class="${requestURI != null && requestURI.startsWith('/blog')?'active':''}">Blog</a></li>
                     <!-- User menu (dynamically shown by JS) -->
                     <li id="navUserMenu" style="display:none;" class="nav-dropdown">
@@ -199,7 +200,8 @@
                         </a>
                         <div class="dropdown-menu dropdown-menu-right">
                             <div class="dropdown-section">
-                                <a href="/user/domain-watch"><i class="fas fa-bell"></i> My Watchlist</a>
+                                <a href="/user/api-keys"><i class="fas fa-key"></i> API Keys</a>
+                                <a href="/user/watchlist"><i class="fas fa-bell"></i> My Watchlist</a>
                                 <a href="javascript:void(0)" onclick="doLogout()"><i class="fas fa-sign-out-alt"></i> Sign Out</a>
                             </div>
                         </div>
@@ -221,74 +223,27 @@
             <button onclick="closeAuthModal()" style="position:absolute;top:14px;right:18px;background:none;border:none;color:#888;font-size:20px;cursor:pointer;">&times;</button>
             <div id="loginForm">
                 <h2 style="margin-bottom:6px;color:#e2e8f0;">Sign In</h2>
-                <p style="color:#888;font-size:14px;margin-bottom:24px;">Sign in to access your Watchlist and more.</p>
+                <p style="color:#888;font-size:14px;margin-bottom:24px;">We'll email you a secure, password-free sign-in link.</p>
                 <div style="margin-bottom:14px;">
-                    <label style="font-size:13px;color:#888;display:block;margin-bottom:6px;">Phone Number</label>
-                    <input id="loginPhone" type="text" placeholder="Your phone number"
+                    <label style="font-size:13px;color:#888;display:block;margin-bottom:6px;">Email Address</label>
+                    <input id="loginEmail" type="email" placeholder="you@example.com"
                            style="width:100%;padding:10px 14px;border:1px solid rgba(100,255,218,0.2);border-radius:8px;font-size:14px;background:rgba(255,255,255,0.05);color:#e2e8f0;outline:none;box-sizing:border-box;">
                 </div>
-                <div style="margin-bottom:20px;">
-                    <label style="font-size:13px;color:#888;display:block;margin-bottom:6px;">Password</label>
-                    <input id="loginPwd" type="password" placeholder="Your password"
-                           style="width:100%;padding:10px 14px;border:1px solid rgba(100,255,218,0.2);border-radius:8px;font-size:14px;background:rgba(255,255,255,0.05);color:#e2e8f0;outline:none;box-sizing:border-box;">
-                </div>
+                <button id="sendEmailLoginButton" onclick="sendEmailLogin()" style="width:100%;padding:12px;background:#64ffda;color:#080c18;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;">Email Me a Sign-in Link</button>
                 <div id="loginMsg" style="display:none;font-size:13px;margin-bottom:14px;color:#ff5252;"></div>
-                <button onclick="doLogin()" style="width:100%;padding:12px;background:#64ffda;color:#080c18;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;">Sign In</button>
-                <p style="text-align:center;margin-top:16px;font-size:13px;color:#888;">
-                    No account? <a href="#" onclick="event.preventDefault(); switchAuth('register')" style="color:#64ffda;">Create one</a>
-                </p>
-            </div>
-            <div id="registerForm" style="display:none;">
-                <h2 style="margin-bottom:6px;color:#e2e8f0;">Create Account</h2>
-                <p style="color:#888;font-size:14px;margin-bottom:24px;">Free forever. Monitor up to 50 domains.</p>
-                <div style="margin-bottom:14px;">
-                    <label style="font-size:13px;color:#888;display:block;margin-bottom:6px;">Your Name</label>
-                    <input id="regName" type="text" placeholder="Your name"
-                           style="width:100%;padding:10px 14px;border:1px solid rgba(100,255,218,0.2);border-radius:8px;font-size:14px;background:rgba(255,255,255,0.05);color:#e2e8f0;outline:none;box-sizing:border-box;">
-                </div>
-                <div style="margin-bottom:14px;">
-                    <label style="font-size:13px;color:#888;display:block;margin-bottom:6px;">Phone Number</label>
-                    <div style="display:flex;gap:8px;">
-                        <input id="regPhone" type="text" placeholder="Phone number"
-                               style="flex:1;padding:10px 14px;border:1px solid rgba(100,255,218,0.2);border-radius:8px;font-size:14px;background:rgba(255,255,255,0.05);color:#e2e8f0;outline:none;">
-                        <button onclick="sendVcode()" id="vcodeBtn"
-                                style="padding:10px 14px;background:rgba(100,255,218,0.1);color:#64ffda;border:1px solid rgba(100,255,218,0.3);border-radius:8px;font-size:13px;cursor:pointer;white-space:nowrap;">Get Code</button>
-                    </div>
-                </div>
-                <div style="margin-bottom:14px;">
-                    <label style="font-size:13px;color:#888;display:block;margin-bottom:6px;">Verification Code</label>
-                    <input id="regVcode" type="text" placeholder="6-digit code"
-                           style="width:100%;padding:10px 14px;border:1px solid rgba(100,255,218,0.2);border-radius:8px;font-size:14px;background:rgba(255,255,255,0.05);color:#e2e8f0;outline:none;box-sizing:border-box;">
-                </div>
-                <div style="margin-bottom:20px;">
-                    <label style="font-size:13px;color:#888;display:block;margin-bottom:6px;">Password</label>
-                    <input id="regPwd" type="password" placeholder="Set a password"
-                           style="width:100%;padding:10px 14px;border:1px solid rgba(100,255,218,0.2);border-radius:8px;font-size:14px;background:rgba(255,255,255,0.05);color:#e2e8f0;outline:none;box-sizing:border-box;">
-                </div>
-                <div id="regMsg" style="display:none;font-size:13px;margin-bottom:14px;"></div>
-                <button onclick="doRegister()" style="width:100%;padding:12px;background:#64ffda;color:#080c18;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;">Create Account</button>
-                <p style="text-align:center;margin-top:16px;font-size:13px;color:#888;">
-                    Already have one? <a href="#" onclick="event.preventDefault(); switchAuth('login')" style="color:#64ffda;">Sign in</a>
-                </p>
             </div>
         </div>
     </div>
     <script>
     (function() {
-        var m = document.cookie.match('(?:^|;)\\s*token=([^;]*)');
-        if (m) {
-            var tok = decodeURIComponent(m[1]);
-            var parts = tok.split('.');
-            if (parts.length === 3) {
-                try {
-                    var payload = JSON.parse(atob(parts[1].replace(/-/g,'+').replace(/_/g,'/')));
-                    document.getElementById('navUserMenu').style.display = 'list-item';
-                    document.getElementById('navUserName').textContent   = payload.name || 'Account';
-                } catch(e) { document.getElementById('navLoginBtn').style.display = 'list-item'; }
-            } else { document.getElementById('navLoginBtn').style.display = 'list-item'; }
-        } else { document.getElementById('navLoginBtn').style.display = 'list-item'; }
+        fetch('/user/session',{credentials:'include'}).then(function(r){return r.json();}).then(function(d){
+            if(d.code===0&&d.data){
+                document.getElementById('navUserMenu').style.display='list-item';
+                document.getElementById('navUserName').textContent=d.data.name||'Account';
+            } else { document.getElementById('navLoginBtn').style.display='list-item'; }
+        }).catch(function(){document.getElementById('navLoginBtn').style.display='list-item';});
     })();
-    function openAuthModal(mode) { switchAuth(mode||'login'); document.getElementById('authModal').style.display='flex'; }
+    function openAuthModal() { document.getElementById('authModal').style.display='flex'; }
     function closeAuthModal()    { document.getElementById('authModal').style.display='none'; }
     function toggleNav() {
         var links = document.getElementById('navLinks');
@@ -296,6 +251,11 @@
         var open  = links.classList.toggle('nav-open');
         btn.classList.toggle('is-open', open);
     }
+    document.getElementById('navUserToggle').addEventListener('click', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        document.getElementById('navUserMenu').classList.toggle('is-open');
+    });
     // Close nav on outside click (mobile)
     document.addEventListener('click', function(e) {
         var links = document.getElementById('navLinks');
@@ -303,52 +263,36 @@
         if (links && links.classList.contains('nav-open') && !links.contains(e.target) && !btn.contains(e.target)) {
             links.classList.remove('nav-open'); btn.classList.remove('is-open');
         }
+        var userMenu = document.getElementById('navUserMenu');
+        if (userMenu && !userMenu.contains(e.target)) userMenu.classList.remove('is-open');
     });
-    function switchAuth(mode)    {
-        document.getElementById('loginForm').style.display    = mode==='login'    ? 'block':'none';
-        document.getElementById('registerForm').style.display = mode==='register' ? 'block':'none';
-    }
     document.getElementById('authModal').addEventListener('click',function(e){if(e.target===this)closeAuthModal();});
-    function doLogin() {
-        var phone=document.getElementById('loginPhone').value.trim(), pwd=document.getElementById('loginPwd').value;
-        if(!phone||!pwd){setAuthMsg('loginMsg','Please enter phone and password.','#ff5252');return;}
-        fetch('/user/login',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({phoneNo:phone,password:pwd})})
+    function sendEmailLogin() {
+        var email=document.getElementById('loginEmail').value.trim();
+        if(!email){setAuthMsg('loginMsg','Please enter your email address.','#ff5252');return;}
+        setEmailLoginLoading(true);
+        fetch('/user/email-login',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email})})
         .then(function(r){return r.json();}).then(function(d){
-            if(d.code===0&&d.data&&d.data.token){
-                document.cookie='token='+encodeURIComponent(d.data.token)+';path=/;max-age='+(60*60*24*30);
-                closeAuthModal(); location.reload();
-            } else { setAuthMsg('loginMsg',d.msg||'Login failed.','#ff5252'); }
-        }).catch(function(){setAuthMsg('loginMsg','Network error.','#ff5252');});
+            if(d.code===0){setAuthMsg('loginMsg',d.msg||'Check your inbox for a sign-in link.','#4caf50');}
+            else{setAuthMsg('loginMsg',d.msg||'Could not send the sign-in link.','#ff5252');}
+        }).catch(function(){setAuthMsg('loginMsg','Network error.','#ff5252');}).finally(function(){setEmailLoginLoading(false);});
+    }
+    function setEmailLoginLoading(loading) {
+        var button=document.getElementById('sendEmailLoginButton');
+        if(!button)return;
+        button.disabled=loading;
+        button.style.opacity=loading?'.7':'1';
+        button.style.cursor=loading?'wait':'pointer';
+        button.innerHTML=loading?'<i class="fas fa-spinner fa-spin"></i> Sending link...':'Email Me a Sign-in Link';
     }
     function doLogout() {
         fetch('/user/logout',{method:'POST',credentials:'include'}).finally(function(){
-            document.cookie='token=;path=/;max-age=0'; location.reload();
+            location.reload();
         });
-    }
-    function sendVcode() {
-        var phone=document.getElementById('regPhone').value.trim();
-        if(!phone){setAuthMsg('regMsg','Please enter your phone number.','#ff5252');return;}
-        var btn=document.getElementById('vcodeBtn'); btn.disabled=true; btn.textContent='Sending…';
-        fetch('/user/sendVcode',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({phoneNo:phone})})
-        .then(function(r){return r.json();}).then(function(d){
-            if(d.code===0){
-                setAuthMsg('regMsg','Verification code sent!','#4caf50');
-                var s=60,t=setInterval(function(){btn.textContent=s--+'s';if(s<0){clearInterval(t);btn.disabled=false;btn.textContent='Get Code';}},1000);
-            } else {btn.disabled=false;btn.textContent='Get Code';setAuthMsg('regMsg',d.msg||'Failed.','#ff5252');}
-        }).catch(function(){btn.disabled=false;btn.textContent='Get Code';setAuthMsg('regMsg','Network error.','#ff5252');});
-    }
-    function doRegister() {
-        var name=document.getElementById('regName').value.trim(),phone=document.getElementById('regPhone').value.trim(),
-            vcode=document.getElementById('regVcode').value.trim(),pwd=document.getElementById('regPwd').value;
-        if(!name||!phone||!vcode||!pwd){setAuthMsg('regMsg','Please fill in all fields.','#ff5252');return;}
-        fetch('/user/create',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name,phoneNo:phone,vcode:vcode,password:pwd})})
-        .then(function(r){return r.json();}).then(function(d){
-            if(d.code===0){setAuthMsg('regMsg','Account created! Please sign in.','#4caf50');setTimeout(function(){switchAuth('login');},1500);}
-            else{setAuthMsg('regMsg',d.msg||'Registration failed.','#ff5252');}
-        }).catch(function(){setAuthMsg('regMsg','Network error.','#ff5252');});
     }
     function setAuthMsg(id,msg,color){var el=document.getElementById(id);el.style.display='block';el.style.color=color;el.textContent=msg;}
     </script>
+    </th:block>
 
 	<!-- Footer -->
     
@@ -430,7 +374,7 @@
             </div>
             
             <div class="copyright">
-                <p>&copy; 2025-2026 Whose.Domains. All rights reserved.</p>
+                <p>&copy; <span id="copyrightYear"></span> Whose.Domains. All rights reserved.</p>
             </div>
         </div>
         <!-- Loading Animation -->
@@ -440,8 +384,9 @@
                 <p id="loaderText">Loading...</p>
             </div>
         </div>
-        <script th:src="@{/static/jquery/jquery-3.6.0.min.js?v={v}(v=${version})}"></script>
+		<script th:src="@{/static/jquery/jquery-3.6.0.min.js?v={v}(v=${version})}"></script>
 		<script th:src="@{/static/js/common.js?v={v}(v=${version})}"></script>
+		<script>document.getElementById('copyrightYear').textContent = new Date().getFullYear();</script>
 		<!-- AdSense 守卫：排除无头浏览器，且仅在首次真人交互后才注入广告脚本，防止爬虫产生无效展示。
 		     脚本在所有页面加载（以支持 Auto ads），仅在有手动广告位时执行 push。 -->
 		<script th:if="${_isProd}">

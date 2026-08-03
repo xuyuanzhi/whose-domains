@@ -20,6 +20,16 @@
         <b>Rate Limit:</b> 5-10 requests per minute per IP (varies by endpoint)<br/>
         <b>Format:</b> All responses are JSON
     </div>
+    <section class="api-docs-public-card">
+        <div class="api-docs-public-card__heading"><div><p class="api-key-console__eyebrow">Public API</p><h2>Start with an API key</h2></div><a href="/user/api-keys" class="api-key-button api-key-button--primary"><i class="fas fa-key" aria-hidden="true"></i> Manage API keys</a></div>
+        <div class="api-start-steps"><div><span>1</span><p>Sign in to your account</p></div><div><span>2</span><p>Create and copy an API key</p></div><div><span>3</span><p>Send it as <code>X-API-Key</code></p></div></div>
+        <p>Free accounts share 100 requests per day across all keys. Public API responses exclude registrant and technical-contact PII.</p>
+        <code style="display:block;white-space:pre;overflow:auto;">curl -H "X-API-Key: wd_your_key" https://whose.domains/api/v1/domains/example.com
+
+python -c "import requests; print(requests.get('https://whose.domains/api/v1/domains/example.com', headers={'X-API-Key':'wd_your_key'}).json())"
+
+fetch('https://whose.domains/api/v1/domains/example.com', {headers:{'X-API-Key':'wd_your_key'}}).then(r =&gt; r.json())</code>
+    </section>
 
     <!-- TOC -->
     <div style="background:var(--card-bg); border-radius:10px; padding:20px; margin-bottom:30px;">

@@ -24,6 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 
 import info.wesite.core.entity.Domain;
+import info.wesite.core.config.AccessControl;
 import info.wesite.core.entity.DomainDns;
 import info.wesite.core.service.DomainDnsService;
 import info.wesite.core.service.DomainService;
@@ -42,6 +43,7 @@ import jakarta.servlet.http.HttpServletRequest;
 @Tag(name = "Related Domains API")
 @RestController
 @RequestMapping("/api/tools")
+@AccessControl(level = AccessControl.Level.SESSION)
 public class RelatedDomainsController {
 
     private static final Logger log = LoggerFactory.getLogger(RelatedDomainsController.class);

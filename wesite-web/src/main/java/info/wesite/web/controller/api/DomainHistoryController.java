@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 
 import info.wesite.core.entity.DomainSnapshot;
+import info.wesite.core.config.AccessControl;
 import info.wesite.core.service.DomainSnapshotService;
 import info.wesite.core.utils.IpUtils;
 import info.wesite.core.utils.RateLimitUtils;
@@ -34,6 +35,7 @@ import jakarta.servlet.http.HttpServletRequest;
 @Tag(name = "Domain History API - WHOIS历史快照")
 @RestController
 @RequestMapping("/api/domain-history")
+@AccessControl(level = AccessControl.Level.SESSION)
 public class DomainHistoryController {
 
     private static final Logger log = LoggerFactory.getLogger(DomainHistoryController.class);

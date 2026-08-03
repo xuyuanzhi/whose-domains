@@ -22,13 +22,49 @@ CREATE TABLE `SYS_USER` (
   `UPDATE_TIME` datetime,
   `NAME`        varchar(100),
   `PHONE_NO`    varchar(50),
+  `EMAIL`       varchar(255),
   `PASSWORD`    varchar(200),
   `SECURE_KEY`  varchar(200),
   `VCODE`       varchar(50),
   `VCODE_TIME`  datetime,
   `USER_TYPE`   varchar(20),
   PRIMARY KEY (`ID`),
-  UNIQUE KEY `IDX_USER_PHONE` (`PHONE_NO`)
+  UNIQUE KEY `IDX_USER_PHONE` (`PHONE_NO`),
+  UNIQUE KEY `IDX_USER_EMAIL` (`EMAIL`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
+CREATE TABLE `WEB_EMAIL_LOGIN_LINK` (
+  `ID`          varchar(32)  NOT NULL,
+  `STATUS`      smallint(1)  DEFAULT '1',
+  `DELETED`     smallint(1)  DEFAULT '0',
+  `CREATE_BY`   varchar(50),
+  `CREATE_TIME` datetime,
+  `UPDATE_BY`   varchar(50),
+  `UPDATE_TIME` datetime,
+  `EMAIL`       varchar(255) NOT NULL,
+  `TOKEN_HASH`  varchar(64)  NOT NULL,
+  `USER_ID`     varchar(32),
+  `EXPIRES_AT`  datetime     NOT NULL,
+  `CONSUMED_AT` datetime,
+  `REDIRECT_PATH` varchar(500),
+  PRIMARY KEY (`ID`),
+  UNIQUE KEY `UK_EMAIL_LOGIN_TOKEN` (`TOKEN_HASH`),
+  KEY `IDX_EMAIL_LOGIN_EXPIRY` (`EXPIRES_AT`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
+CREATE TABLE `WEB_API_KEY` (
+  `ID` varchar(32) NOT NULL, `STATUS` smallint(1) DEFAULT '1', `DELETED` smallint(1) DEFAULT '0',
+  `CREATE_BY` varchar(50), `CREATE_TIME` datetime, `UPDATE_BY` varchar(50), `UPDATE_TIME` datetime,
+  `USER_ID` varchar(32) NOT NULL, `NAME` varchar(100) NOT NULL, `KEY_PREFIX` varchar(16) NOT NULL,
+  `KEY_HASH` varchar(64) NOT NULL, `LAST_USED_AT` datetime, `REVOKED_AT` datetime,
+  PRIMARY KEY (`ID`), UNIQUE KEY `UK_API_KEY_HASH` (`KEY_HASH`), KEY `IDX_API_KEY_USER` (`USER_ID`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
+CREATE TABLE `WEB_API_USAGE_DAILY` (
+  `ID` varchar(32) NOT NULL, `STATUS` smallint(1) DEFAULT '1', `DELETED` smallint(1) DEFAULT '0',
+  `CREATE_BY` varchar(50), `CREATE_TIME` datetime, `UPDATE_BY` varchar(50), `UPDATE_TIME` datetime,
+  `USER_ID` varchar(32) NOT NULL, `USAGE_DATE` char(10) NOT NULL, `REQUEST_COUNT` int NOT NULL DEFAULT 0,
+  PRIMARY KEY (`ID`), UNIQUE KEY `UK_API_USAGE_USER_DAY` (`USER_ID`, `USAGE_DATE`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 -- -----------------------------------------------------------------------------

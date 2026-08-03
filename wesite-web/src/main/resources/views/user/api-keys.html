@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+<header th:replace="~{template::template_header}"></header>
+
+<main class="api-key-console">
+    <div class="container api-key-console__container">
+        <section class="api-key-console__hero" aria-labelledby="apiKeysTitle">
+            <div>
+                <p class="api-key-console__eyebrow"><i class="fas fa-key" aria-hidden="true"></i> Developer access</p>
+                <h1 id="apiKeysTitle">Your API keys</h1>
+                <p class="api-key-console__intro">Create a key for the public Domain API. Keys identify your account; the daily allowance is shared across every key you create.</p>
+            </div>
+            <a class="api-key-console__docs-link" href="/api-docs"><i class="fas fa-book-open" aria-hidden="true"></i> Read API docs</a>
+        </section>
+
+        <section class="api-key-quota-grid" aria-label="API key limits">
+            <article class="api-key-quota-card">
+                <span class="api-key-quota-card__icon"><i class="fas fa-gauge-high" aria-hidden="true"></i></span>
+                <div><strong>100 requests</strong><span>Shared daily allowance</span></div>
+            </article>
+            <article class="api-key-quota-card">
+                <span class="api-key-quota-card__icon"><i class="fas fa-layer-group" aria-hidden="true"></i></span>
+                <div><strong>3 active keys</strong><span>Maximum per account</span></div>
+            </article>
+            <article class="api-key-quota-card">
+                <span class="api-key-quota-card__icon"><i class="fas fa-shield-halved" aria-hidden="true"></i></span>
+                <div><strong>Keep keys private</strong><span>Never commit them to code</span></div>
+            </article>
+        </section>
+
+        <section class="api-key-workspace" aria-labelledby="keyListTitle">
+            <div class="api-key-workspace__header">
+                <div><h2 id="keyListTitle">Active keys</h2><p>Use a descriptive name so you can recognize each integration later.</p></div>
+                <button type="button" id="showCreateKey" class="api-key-button api-key-button--primary"><i class="fas fa-plus" aria-hidden="true"></i> Create API key</button>
+            </div>
+
+            <form id="createKeyForm" class="api-key-create-form" hidden>
+                <label for="apiKeyName">Key name</label>
+                <div class="api-key-create-form__controls">
+                    <input id="apiKeyName" name="name" maxlength="100" autocomplete="off" placeholder="e.g. Local development" required>
+                    <button type="submit" id="createKeySubmit" class="api-key-button api-key-button--primary">Create key</button>
+                    <button type="button" id="cancelCreateKey" class="api-key-button api-key-button--quiet">Cancel</button>
+                </div>
+            </form>
+
+            <section id="createdKeyPanel" class="one-time-key-panel" hidden aria-live="polite">
+                <div class="one-time-key-panel__title"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i><strong>Copy this key now</strong><span>For security, it will not be shown again.</span></div>
+                <div class="one-time-key-panel__value"><code id="createdKeyValue"></code><button type="button" id="copyCreatedKey" class="api-key-copy-button"><i class="far fa-copy" aria-hidden="true"></i> Copy key</button></div>
+                <button type="button" id="dismissCreatedKey" class="api-key-dismiss-button">I have stored it safely</button>
+            </section>
+
+            <p id="apiKeyStatus" class="api-key-status" role="status" aria-live="polite"></p>
+            <div id="apiKeyList" class="api-key-list" aria-live="polite"><div class="api-key-loading"><i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Loading your keys…</div></div>
+        </section>
+    </div>
+</main>
+
+<footer th:replace="~{template::template_footer}"></footer>
+<script>
+(() => {
+    const list = document.getElementById('apiKeyList');
+    const status = document.getElementById('apiKeyStatus');
+    const form = document.getElementById('createKeyForm');
+    const nameInput = document.getElementById('apiKeyName');
+    const submit = document.getElementById('createKeySubmit');
+    const createdPanel = document.getElementById('createdKeyPanel');
+    const createdValue = document.getElementById('createdKeyValue');
+
+    function setStatus(message, type) { status.textContent = message || ''; status.className = 'api-key-status' + (type ? ' api-key-status--' + type : ''); }
+    function escapeHtml(value) { const element = document.createElement('span'); element.textContent = value || ''; return element.innerHTML; }
+    function formatDate(value) { return value ? new Intl.DateTimeFormat(undefined, {year:'numeric', month:'short', day:'numeric'}).format(new Date(value)) : 'Not used yet'; }
+
+    function renderKeys(items) {
+        if (!items.length) {
+            list.innerHTML = '<div class="api-key-empty-state"><span><i class="fas fa-key" aria-hidden="true"></i></span><h3>No API keys yet</h3><p>Create your first key to make authenticated requests to the public API.</p></div>';
+            return;
+        }
+        list.innerHTML = items.map(key => '<article class="api-key-row"><div class="api-key-row__identity"><span class="api-key-row__icon"><i class="fas fa-key" aria-hidden="true"></i></span><div><h3>' + escapeHtml(key.name) + '</h3><code>' + escapeHtml(key.prefix) + '…</code></div></div><dl class="api-key-row__metadata"><div><dt>Created</dt><dd>' + formatDate(key.createdAt) + '</dd></div><div><dt>Last used</dt><dd>' + formatDate(key.lastUsedAt) + '</dd></div></dl><button type="button" class="api-key-button api-key-button--danger" data-revoke-id="' + escapeHtml(key.id) + '" data-revoke-name="' + escapeHtml(key.name) + '">Revoke</button></article>').join('');
+        list.querySelectorAll('[data-revoke-id]').forEach(button => button.addEventListener('click', () => revokeKey(button.dataset.revokeId, button.dataset.revokeName)));
+    }
+
+    async function loadKeys() {
+        list.innerHTML = '<div class="api-key-loading"><i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Loading your keys…</div>';
+        try {
+            const response = await fetch('/user/api-keys/list', {credentials:'include'});
+            const body = await response.json();
+            if (!response.ok || body.code !== 0) throw new Error(body.msg || 'Could not load API keys.');
+            renderKeys((body.data || {}).items || []);
+        } catch (error) {
+            list.innerHTML = '<div class="api-key-empty-state api-key-empty-state--error"><span><i class="fas fa-triangle-exclamation" aria-hidden="true"></i></span><h3>Keys could not be loaded</h3><p>Refresh the page or sign in again, then try once more.</p></div>';
+            setStatus(error.message, 'error');
+        }
+    }
+
+    function showCreateForm() { form.hidden = false; nameInput.focus(); }
+    function hideCreateForm() { form.reset(); form.hidden = true; submit.disabled = false; submit.textContent = 'Create key'; }
+
+    async function copyCreatedKey() {
+        const key = createdValue.textContent;
+        try { await navigator.clipboard.writeText(key); setStatus('API key copied to your clipboard.', 'success'); }
+        catch (error) { setStatus('Copy failed. Select the key above and copy it manually.', 'error'); }
+    }
+
+    async function revokeKey(id, name) {
+        if (!window.confirm('Revoke “' + name + '”? Any integration using this key will stop working immediately.')) return;
+        setStatus('Revoking key…');
+        try {
+            const response = await fetch('/user/api-keys/' + encodeURIComponent(id), {method:'DELETE', credentials:'include'});
+            const body = await response.json();
+            if (!response.ok || body.code !== 0) throw new Error(body.msg || 'Could not revoke this key.');
+            setStatus('API key revoked.', 'success');
+            loadKeys();
+        } catch (error) { setStatus(error.message, 'error'); }
+    }
+
+    document.getElementById('showCreateKey').addEventListener('click', showCreateForm);
+    document.getElementById('cancelCreateKey').addEventListener('click', hideCreateForm);
+    document.getElementById('copyCreatedKey').addEventListener('click', copyCreatedKey);
+    document.getElementById('dismissCreatedKey').addEventListener('click', () => { createdValue.textContent = ''; createdPanel.hidden = true; });
+    form.addEventListener('keydown', event => { if (event.key === 'Escape') hideCreateForm(); });
+    form.addEventListener('submit', async event => {
+        event.preventDefault();
+        const name = nameInput.value.trim();
+        if (!name) return;
+        submit.disabled = true; submit.textContent = 'Creating…'; setStatus('');
+        try {
+            const response = await fetch('/user/api-keys', {method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name})});
+            const body = await response.json();
+            if (!response.ok || body.code !== 0 || !body.data || !body.data.key) throw new Error(body.msg || 'Could not create an API key.');
+            createdValue.textContent = body.data.key;
+            createdPanel.hidden = false;
+            hideCreateForm();
+            setStatus('API key created. Copy it before closing this message.', 'success');
+            loadKeys();
+        } catch (error) { submit.disabled = false; submit.textContent = 'Create key'; setStatus(error.message, 'error'); }
+    });
+    loadKeys();
+})();
+</script>
+</body>
+</html>
