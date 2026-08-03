@@ -104,7 +104,8 @@ public class UserController {
             userService.save(user);
         }
         HttpSession session = request.getSession(false);
-        PendingGoogleBinding pending = session == null ? null
+        PendingGoogleBinding pending = session == null || !GOOGLE_BIND_REQUIRED_REDIRECT.equals(link.getRedirectPath())
+                ? null
                 : pendingBinding(session.getAttribute(PendingGoogleBinding.SESSION_KEY));
         if (pending != null) {
             user = googleLoginService.completeConfirmedBinding(user, pending);

@@ -3,6 +3,7 @@ package info.wesite.web.controller;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -24,6 +25,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
+import org.springframework.aop.framework.ProxyFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.mock.web.MockHttpSession;
@@ -31,6 +33,12 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.annotation.AnnotationTransactionAttributeSource;
+import org.springframework.transaction.interceptor.TransactionInterceptor;
+import org.springframework.transaction.interceptor.TransactionAspectSupport;
+import org.springframework.transaction.support.AbstractPlatformTransactionManager;
+import org.springframework.transaction.support.DefaultTransactionStatus;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
@@ -57,6 +65,7 @@ class UserControllerGoogleBindingTest {
     private UserService userService;
     private GoogleLoginService googleLoginService;
     private AuthCookieService authCookieService;
+    private UserController controller;
     private MockMvc mockMvc;
     private ResponseCookie authCookie;
 
@@ -67,7 +76,7 @@ class UserControllerGoogleBindingTest {
         googleLoginService = mock(GoogleLoginService.class);
         authCookieService = mock(AuthCookieService.class);
 
-        UserController controller = new UserController();
+        controller = new UserController();
         ReflectionTestUtils.setField(controller, "emailLoginLinkService", emailLoginLinkService);
         ReflectionTestUtils.setField(controller, "userService", userService);
         ReflectionTestUtils.setField(controller, "googleLoginService", googleLoginService);
@@ -167,6 +176,81 @@ class UserControllerGoogleBindingTest {
     }
 
     @Test
+    void transactionalMvcCommitsBeforeCompletingTheLoginResponse() throws Exception {
+        EmailLoginLink link = validLink("/user/watchlist?login=google_bind_required");
+        User user = activeUser("email-user");
+        PendingGoogleBinding pending = livePending("email-user");
+        MockHttpSession session = sessionWith(pending);
+        stubValidLink(link);
+        when(userService.getOne(any(QueryWrapper.class))).thenReturn(user);
+        when(googleLoginService.completeConfirmedBinding(user, pending)).thenReturn(user);
+        when(authCookieService.create(user)).thenReturn(authCookie);
+        RecordingTransactionManager transactions = new RecordingTransactionManager();
+
+        transactionalMockMvc(transactions)
+                .perform(get("/user/verify-email").param("token", TOKEN).session(session))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/user/watchlist?login=success"))
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, authCookie.toString()));
+
+        assertEquals(1, transactions.commits);
+        assertEquals(0, transactions.rollbacks);
+        assertTrue(session.isInvalid());
+    }
+
+    @Test
+    void transactionalMvcRollsBackBindingFailureWithoutCompletingTheLoginResponse() throws Exception {
+        EmailLoginLink link = validLink("/user/watchlist?login=google_bind_required");
+        User user = activeUser("email-user");
+        PendingGoogleBinding pending = livePending("email-user");
+        MockHttpSession session = sessionWith(pending);
+        stubValidLink(link);
+        when(userService.getOne(any(QueryWrapper.class))).thenReturn(user);
+        when(googleLoginService.completeConfirmedBinding(user, pending))
+                .thenThrow(new GoogleLoginException(GoogleLoginException.Code.ACCOUNT_CONFLICT));
+        RecordingTransactionManager transactions = new RecordingTransactionManager();
+
+        transactionalMockMvc(transactions)
+                .perform(get("/user/verify-email").param("token", TOKEN).session(session))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/user/watchlist?login=google_conflict"))
+                .andExpect(header().doesNotExist(HttpHeaders.SET_COOKIE));
+
+        assertEquals(0, transactions.commits);
+        assertEquals(1, transactions.rollbacks);
+        assertFalse(session.isInvalid());
+        assertSame(pending, session.getAttribute(PendingGoogleBinding.SESSION_KEY));
+        verify(authCookieService, never()).create(any());
+    }
+
+    @Test
+    void transactionalMvcDoesNotRunRegisteredCompletionAfterRollbackOnly() throws Exception {
+        EmailLoginLink link = validLink("/user/watchlist?login=google_bind_required");
+        User user = activeUser("email-user");
+        PendingGoogleBinding pending = livePending("email-user");
+        MockHttpSession session = sessionWith(pending);
+        stubValidLink(link);
+        when(userService.getOne(any(QueryWrapper.class))).thenReturn(user);
+        when(googleLoginService.completeConfirmedBinding(user, pending)).thenAnswer(invocation -> {
+            TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+            return user;
+        });
+        when(authCookieService.create(user)).thenReturn(authCookie);
+        RecordingTransactionManager transactions = new RecordingTransactionManager();
+
+        transactionalMockMvc(transactions)
+                .perform(get("/user/verify-email").param("token", TOKEN).session(session))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/user/watchlist?login=success"))
+                .andExpect(header().doesNotExist(HttpHeaders.SET_COOKIE));
+
+        assertEquals(0, transactions.commits);
+        assertEquals(1, transactions.rollbacks);
+        assertFalse(session.isInvalid());
+        assertSame(pending, session.getAttribute(PendingGoogleBinding.SESSION_KEY));
+    }
+
+    @Test
     void crossBrowserConfirmationLogsInWithoutBindingAndKeepsTheFixedRetryRedirect() throws Exception {
         EmailLoginLink link = validLink("/user/watchlist?login=google_bind_required");
         User user = activeUser("email-user");
@@ -180,6 +264,47 @@ class UserControllerGoogleBindingTest {
                 .andExpect(header().string(HttpHeaders.SET_COOKIE, authCookie.toString()));
 
         verify(googleLoginService, never()).completeConfirmedBinding(any(), any());
+    }
+
+    @Test
+    void ordinaryEmailLoginIgnoresAndPreservesAResidualPendingBinding() throws Exception {
+        EmailLoginLink link = validLink("/user/watchlist?login=success");
+        User user = activeUser("email-user");
+        PendingGoogleBinding pending = livePending("email-user");
+        MockHttpSession session = sessionWith(pending);
+        stubValidLink(link);
+        when(userService.getOne(any(QueryWrapper.class))).thenReturn(user);
+        when(googleLoginService.completeConfirmedBinding(user, pending)).thenReturn(user);
+        when(authCookieService.create(user)).thenReturn(authCookie);
+
+        mockMvc.perform(get("/user/verify-email").param("token", TOKEN).session(session))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/user/watchlist?login=success"))
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, authCookie.toString()));
+
+        verify(googleLoginService, never()).completeConfirmedBinding(any(), any());
+        assertFalse(session.isInvalid());
+        assertSame(pending, session.getAttribute(PendingGoogleBinding.SESSION_KEY));
+    }
+
+    @Test
+    void nearMatchBindingRedirectDoesNotUseAResidualPendingBinding() throws Exception {
+        EmailLoginLink link = validLink("/user/watchlist?login=google_bind_required&unexpected=true");
+        User user = activeUser("email-user");
+        PendingGoogleBinding pending = livePending("email-user");
+        MockHttpSession session = sessionWith(pending);
+        stubValidLink(link);
+        when(userService.getOne(any(QueryWrapper.class))).thenReturn(user);
+        when(authCookieService.create(user)).thenReturn(authCookie);
+
+        mockMvc.perform(get("/user/verify-email").param("token", TOKEN).session(session))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/user/watchlist?login=success"))
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, authCookie.toString()));
+
+        verify(googleLoginService, never()).completeConfirmedBinding(any(), any());
+        assertFalse(session.isInvalid());
+        assertSame(pending, session.getAttribute(PendingGoogleBinding.SESSION_KEY));
     }
 
     @Test
@@ -261,6 +386,16 @@ class UserControllerGoogleBindingTest {
         return session;
     }
 
+    private MockMvc transactionalMockMvc(RecordingTransactionManager transactions) {
+        TransactionInterceptor interceptor = new TransactionInterceptor();
+        interceptor.setTransactionManager(transactions);
+        interceptor.setTransactionAttributeSource(new AnnotationTransactionAttributeSource());
+        ProxyFactory proxyFactory = new ProxyFactory(controller);
+        proxyFactory.setProxyTargetClass(true);
+        proxyFactory.addAdvice(interceptor);
+        return MockMvcBuilders.standaloneSetup(proxyFactory.getProxy()).build();
+    }
+
     private void assertAtomicConsumption(UpdateWrapper<EmailLoginLink> update, String linkId) {
         assertTrue(update.getSqlSet().contains("CONSUMED_AT"), update.getSqlSet());
         assertTrue(update.getSqlSet().contains("UPDATE_TIME"), update.getSqlSet());
@@ -273,5 +408,30 @@ class UserControllerGoogleBindingTest {
 
     private ArgumentCaptor<UpdateWrapper<EmailLoginLink>> updateCaptor() {
         return ArgumentCaptor.forClass((Class) UpdateWrapper.class);
+    }
+
+    private static final class RecordingTransactionManager extends AbstractPlatformTransactionManager {
+
+        private int commits;
+        private int rollbacks;
+
+        @Override
+        protected Object doGetTransaction() {
+            return new Object();
+        }
+
+        @Override
+        protected void doBegin(Object transaction, TransactionDefinition definition) {
+        }
+
+        @Override
+        protected void doCommit(DefaultTransactionStatus status) {
+            commits++;
+        }
+
+        @Override
+        protected void doRollback(DefaultTransactionStatus status) {
+            rollbacks++;
+        }
     }
 }
