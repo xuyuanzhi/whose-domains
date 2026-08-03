@@ -33,6 +33,46 @@
     --card-bg: rgba(15, 22, 40, 0.85);
 }
 
+/* Authentication modal */
+.auth-google-button {
+    display: flex;
+    width: 100%;
+    min-height: 46px;
+    align-items: center;
+    justify-content: center;
+    padding: 11px 16px;
+    border: 1px solid rgba(255,255,255,.22);
+    border-radius: var(--radius-sm);
+    background: #f8fafc;
+    color: #111827;
+    box-shadow: 0 6px 20px rgba(0,0,0,.22);
+    font-size: 15px;
+    font-weight: 700;
+    text-decoration: none;
+}
+.auth-google-button:hover { background: #e8f0f7; color: #111827; }
+.auth-login-divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 18px 0;
+    color: var(--gray);
+    font-size: 12px;
+    text-transform: uppercase;
+}
+.auth-login-divider::before,
+.auth-login-divider::after { content: ""; flex: 1; height: 1px; background: var(--glass-border); }
+.auth-google-button:focus-visible,
+.auth-modal-close:focus-visible,
+.auth-modal input:focus-visible,
+.auth-modal button:focus-visible {
+    outline: 3px solid rgba(0,229,255,.42);
+    outline-offset: 3px;
+}
+@media (max-width: 480px) {
+    .auth-modal-card { margin: 12px !important; padding: 30px 22px !important; }
+}
+
 body {
     background: #080c18;
     color: var(--darker);

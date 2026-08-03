@@ -21,6 +21,7 @@ import info.wesite.core.utils.Constants;
 import info.wesite.core.utils.IpUtils;
 import info.wesite.core.utils.TokenUtils;
 import info.wesite.core.view.ResponseJson;
+import info.wesite.web.config.GoogleLoginProperties;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -33,8 +34,14 @@ public class WebInterceptor implements HandlerInterceptor {
     //静态文件版本
   	private static final String VERSION = "5." + System.currentTimeMillis();
   	
-  	@Autowired
-  	private Environment environment;
+    private final Environment environment;
+    private final GoogleLoginProperties googleLoginProperties;
+
+    @Autowired
+    public WebInterceptor(Environment environment, GoogleLoginProperties googleLoginProperties) {
+        this.environment = environment;
+        this.googleLoginProperties = googleLoginProperties;
+    }
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler)
@@ -43,6 +50,7 @@ public class WebInterceptor implements HandlerInterceptor {
 		request.setAttribute("version", VERSION);
 		
 		request.setAttribute("requestURI", request.getRequestURI());
+		request.setAttribute("_googleLoginEnabled", googleLoginProperties.enabled());
 		
 		// 是否为生产环境（用于控制Google Analytics/Ads等第三方脚本的加载）
 		String[] activeProfiles = environment.getActiveProfiles();

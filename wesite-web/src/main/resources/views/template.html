@@ -218,12 +218,15 @@
     </header>
 
     <!-- Auth Modal -->
-    <div id="authModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:99999;align-items:center;justify-content:center;">
-        <div style="background:#0d1117;border:1px solid rgba(100,255,218,0.2);border-radius:16px;padding:36px;width:100%;max-width:400px;margin:20px;position:relative;">
-            <button onclick="closeAuthModal()" style="position:absolute;top:14px;right:18px;background:none;border:none;color:#888;font-size:20px;cursor:pointer;">&times;</button>
+    <div id="authModal" class="auth-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:99999;align-items:center;justify-content:center;">
+        <div class="auth-modal-card" style="background:#0d1117;border:1px solid rgba(100,255,218,0.2);border-radius:16px;padding:36px;width:100%;max-width:400px;margin:20px;position:relative;">
+            <button class="auth-modal-close" onclick="closeAuthModal()" aria-label="Close sign-in dialog" style="position:absolute;top:14px;right:18px;background:none;border:none;color:#888;font-size:20px;cursor:pointer;">&times;</button>
             <div id="loginForm">
                 <h2 style="margin-bottom:6px;color:#e2e8f0;">Sign In</h2>
                 <p style="color:#888;font-size:14px;margin-bottom:24px;">We'll email you a secure, password-free sign-in link.</p>
+                <a id="googleLoginButton" class="auth-google-button" href="/oauth2/authorization/google"
+                   th:if="${_googleLoginEnabled}">Continue with Google</a>
+                <div class="auth-login-divider" th:if="${_googleLoginEnabled}"><span>or</span></div>
                 <div style="margin-bottom:14px;">
                     <label style="font-size:13px;color:#888;display:block;margin-bottom:6px;">Email Address</label>
                     <input id="loginEmail" type="email" placeholder="you@example.com"
@@ -285,6 +288,29 @@
         button.style.cursor=loading?'wait':'pointer';
         button.innerHTML=loading?'<i class="fas fa-spinner fa-spin"></i> Sending link...':'Email Me a Sign-in Link';
     }
+    (function showLoginResult() {
+        var loginMessages={
+            invalid:{message:'This sign-in link is invalid or has expired.',color:'#ff5252'},
+            google_error:{message:'Google sign-in could not be completed. Please try again.',color:'#ff5252'},
+            google_invalid:{message:'Google did not provide the account details required to sign in.',color:'#ff5252'},
+            google_unverified:{message:'Your Google email address must be verified before signing in.',color:'#ff5252'},
+            google_conflict:{message:'This account is already connected to another Google identity.',color:'#ff5252'},
+            google_inactive:{message:'This account is not active.',color:'#ff5252'},
+            google_email_unavailable:{message:'We could not send the email needed to confirm this account.',color:'#ff5252'},
+            google_expired:{message:'This Google sign-in attempt has expired. Please try again.',color:'#ff5252'},
+            google_check_email:{message:'Check your email to confirm this account before continuing.',color:'#4caf50'},
+            google_bind_required:{message:'Email confirmed. Finish connecting your Google account.',color:'#4caf50'}
+        };
+        var loginCode=new URLSearchParams(location.search).get('login');
+        var result=loginMessages[loginCode];
+        if(!result)return;
+        if(loginCode==='google_bind_required'){
+            var button=document.getElementById('googleLoginButton');
+            if(button)button.textContent='Finish with Google';
+        }
+        setAuthMsg('loginMsg',result.message,result.color);
+        openAuthModal();
+    })();
     function doLogout() {
         fetch('/user/logout',{method:'POST',credentials:'include'}).finally(function(){
             location.reload();
