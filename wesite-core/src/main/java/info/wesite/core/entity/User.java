@@ -18,6 +18,7 @@ public class User extends BaseEntity {
     private String name;
     private String phoneNo;
     private String email;
+    private String googleSub;
     private String password;
     private String secureKey;
     private String vcode;

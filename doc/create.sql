@@ -22,7 +22,8 @@ CREATE TABLE `SYS_USER` (
   `UPDATE_TIME` datetime,
   `NAME`        varchar(100),
   `PHONE_NO`    varchar(50),
-  `EMAIL`       varchar(255),
+  `EMAIL`       varchar(255) COLLATE utf8mb4_unicode_ci NULL,
+  `GOOGLE_SUB`  varchar(255) COLLATE utf8mb4_bin NULL,
   `PASSWORD`    varchar(200),
   `SECURE_KEY`  varchar(200),
   `VCODE`       varchar(50),
@@ -30,7 +31,8 @@ CREATE TABLE `SYS_USER` (
   `USER_TYPE`   varchar(20),
   PRIMARY KEY (`ID`),
   UNIQUE KEY `IDX_USER_PHONE` (`PHONE_NO`),
-  UNIQUE KEY `IDX_USER_EMAIL` (`EMAIL`)
+  UNIQUE KEY `IDX_USER_EMAIL` (`EMAIL`),
+  UNIQUE KEY `IDX_USER_GOOGLE_SUB` (`GOOGLE_SUB`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 CREATE TABLE `WEB_EMAIL_LOGIN_LINK` (
