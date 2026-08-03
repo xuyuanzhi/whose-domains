@@ -9,6 +9,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Controller;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -31,11 +34,19 @@ import info.wesite.core.view.ResponseJson;
 import info.wesite.web.auth.AuthCookieService;
 import info.wesite.web.auth.EmailLoginRequestResult;
 import info.wesite.web.auth.EmailLoginService;
+import info.wesite.web.auth.google.GoogleLoginException;
+import info.wesite.web.auth.google.GoogleLoginService;
+import info.wesite.web.auth.google.PendingGoogleBinding;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 
 @Controller
 @RequestMapping("/user")
 public class UserController {
+
+    private static final String LOGIN_SUCCESS_REDIRECT = "/user/watchlist?login=success";
+    private static final String GOOGLE_BIND_REQUIRED_REDIRECT = "/user/watchlist?login=google_bind_required";
 
     @Autowired
     private UserService userService;
@@ -49,6 +60,9 @@ public class UserController {
     @Autowired
     private AuthCookieService authCookieService;
 
+    @Autowired
+    private GoogleLoginService googleLoginService;
+
     @PostMapping("/email-login")
     @ResponseBody
     public ResponseJson<Void> requestEmailLogin(@RequestBody User param) {
@@ -58,7 +72,7 @@ public class UserController {
 
     @GetMapping("/verify-email")
     @Transactional
-    public String verifyEmail(String token, HttpServletResponse response) {
+    public String verifyEmail(String token, HttpServletRequest request, HttpServletResponse response) {
         if (StringUtils.isBlank(token)) {
             return "redirect:/user/watchlist?login=invalid";
         }
@@ -89,8 +103,59 @@ public class UserController {
             user.setUserType(User.TYPE_PERSON);
             userService.save(user);
         }
-        response.addHeader(HttpHeaders.SET_COOKIE, authCookieService.create(user).toString());
-        return "redirect:/user/watchlist?login=success";
+        HttpSession session = request.getSession(false);
+        PendingGoogleBinding pending = session == null ? null
+                : pendingBinding(session.getAttribute(PendingGoogleBinding.SESSION_KEY));
+        if (pending != null) {
+            user = googleLoginService.completeConfirmedBinding(user, pending);
+        }
+
+        String cookie = authCookieService.create(user).toString();
+        completeLoginAfterCommit(response, cookie, pending == null ? null : session);
+        if (pending != null) {
+            return "redirect:" + LOGIN_SUCCESS_REDIRECT;
+        }
+        return "redirect:" + safeRedirectPath(link.getRedirectPath());
+    }
+
+    @ExceptionHandler(GoogleLoginException.class)
+    public String googleBindingFailure(GoogleLoginException exception) {
+        return "redirect:/user/watchlist?login=" + switch (exception.code()) {
+        case INVALID_IDENTITY -> "google_invalid";
+        case UNVERIFIED_EMAIL -> "google_unverified";
+        case ACCOUNT_CONFLICT -> "google_conflict";
+        case INACTIVE_USER -> "google_inactive";
+        case EMAIL_CONFIRMATION_UNAVAILABLE -> "google_email_unavailable";
+        case EXPIRED_FLOW -> "google_expired";
+        };
+    }
+
+    private PendingGoogleBinding pendingBinding(Object value) {
+        return value instanceof PendingGoogleBinding pending ? pending : null;
+    }
+
+    private String safeRedirectPath(String redirectPath) {
+        return GOOGLE_BIND_REQUIRED_REDIRECT.equals(redirectPath) ? GOOGLE_BIND_REQUIRED_REDIRECT
+                : LOGIN_SUCCESS_REDIRECT;
+    }
+
+    private void completeLoginAfterCommit(HttpServletResponse response, String cookie, HttpSession session) {
+        Runnable complete = () -> {
+            response.addHeader(HttpHeaders.SET_COOKIE, cookie);
+            if (session != null) {
+                session.invalidate();
+            }
+        };
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    complete.run();
+                }
+            });
+        } else {
+            complete.run();
+        }
     }
 
     @AccessControl(level = Level.SESSION)
