@@ -53,6 +53,33 @@ class AuthModalTemplateTest {
         assertTrue(template.contains("el.textContent=msg"));
     }
 
+    @Test
+    void authModalHasAccessibleDialogSemantics() throws IOException {
+        String template = template();
+
+        assertTrue(template.contains("id=\"authModal\""));
+        assertTrue(template.contains("aria-hidden=\"true\""));
+        assertTrue(template.contains("role=\"dialog\""));
+        assertTrue(template.contains("aria-modal=\"true\""));
+        assertTrue(template.contains("aria-labelledby=\"authModalTitle\""));
+        assertTrue(template.contains("id=\"authModalTitle\""));
+        assertTrue(template.contains("tabindex=\"-1\""));
+    }
+
+    @Test
+    void authModalMovesTrapsAndRestoresFocus() throws IOException {
+        String template = template();
+
+        assertTrue(template.contains("openAuthModal(this)"));
+        assertTrue(template.contains("authModal.setAttribute('aria-hidden','false')"));
+        assertTrue(template.contains("authModal.setAttribute('aria-hidden','true')"));
+        assertTrue(template.contains("document.getElementById('googleLoginButton')||document.getElementById('loginEmail')"));
+        assertTrue(template.contains("authModalTrigger.focus()"));
+        assertTrue(template.contains("event.key==='Escape'"));
+        assertTrue(template.contains("event.key!=='Tab'"));
+        assertTrue(template.contains("event.shiftKey"));
+    }
+
     private String template() throws IOException {
         try (InputStream input = getClass().getResourceAsStream(TEMPLATE_RESOURCE)) {
             return new String(input.readAllBytes(), StandardCharsets.UTF_8);

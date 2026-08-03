@@ -207,7 +207,7 @@
                         </div>
                     </li>
                     <li id="navLoginBtn" style="display:none;">
-                        <a href="#" onclick="event.preventDefault(); openAuthModal('login')"
+                        <a href="#" onclick="event.preventDefault(); openAuthModal(this)"
                            style="background:var(--primary);color:#080c18;padding:6px 16px;border-radius:20px;font-weight:600;font-size:14px;">
                             Sign In
                         </a>
@@ -218,11 +218,11 @@
     </header>
 
     <!-- Auth Modal -->
-    <div id="authModal" class="auth-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:99999;align-items:center;justify-content:center;">
-        <div class="auth-modal-card" style="background:#0d1117;border:1px solid rgba(100,255,218,0.2);border-radius:16px;padding:36px;width:100%;max-width:400px;margin:20px;position:relative;">
+    <div id="authModal" class="auth-modal" aria-hidden="true" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:99999;align-items:center;justify-content:center;">
+        <div class="auth-modal-card" role="dialog" aria-modal="true" aria-labelledby="authModalTitle" tabindex="-1" style="background:#0d1117;border:1px solid rgba(100,255,218,0.2);border-radius:16px;padding:36px;width:100%;max-width:400px;margin:20px;position:relative;">
             <button class="auth-modal-close" onclick="closeAuthModal()" aria-label="Close sign-in dialog" style="position:absolute;top:14px;right:18px;background:none;border:none;color:#888;font-size:20px;cursor:pointer;">&times;</button>
             <div id="loginForm">
-                <h2 style="margin-bottom:6px;color:#e2e8f0;">Sign In</h2>
+                <h2 id="authModalTitle" style="margin-bottom:6px;color:#e2e8f0;">Sign In</h2>
                 <p style="color:#888;font-size:14px;margin-bottom:24px;">We'll email you a secure, password-free sign-in link.</p>
                 <a id="googleLoginButton" class="auth-google-button" href="/oauth2/authorization/google"
                    th:if="${_googleLoginEnabled}">Continue with Google</a>
@@ -246,8 +246,23 @@
             } else { document.getElementById('navLoginBtn').style.display='list-item'; }
         }).catch(function(){document.getElementById('navLoginBtn').style.display='list-item';});
     })();
-    function openAuthModal() { document.getElementById('authModal').style.display='flex'; }
-    function closeAuthModal()    { document.getElementById('authModal').style.display='none'; }
+    var authModal=document.getElementById('authModal');
+    var authModalDialog=authModal.querySelector('[role="dialog"]');
+    var authModalTrigger=null;
+    var authModalFocusable='a[href],button:not([disabled]),input:not([disabled]),[tabindex]:not([tabindex="-1"])';
+    function openAuthModal(trigger) {
+        authModalTrigger=trigger&&typeof trigger.focus==='function'?trigger:null;
+        authModal.style.display='flex';
+        authModal.setAttribute('aria-hidden','false');
+        var initialFocus=document.getElementById('googleLoginButton')||document.getElementById('loginEmail')||authModalDialog;
+        initialFocus.focus();
+    }
+    function closeAuthModal() {
+        authModal.style.display='none';
+        authModal.setAttribute('aria-hidden','true');
+        if(authModalTrigger&&document.contains(authModalTrigger))authModalTrigger.focus();
+        authModalTrigger=null;
+    }
     function toggleNav() {
         var links = document.getElementById('navLinks');
         var btn   = document.getElementById('navHamburger');
@@ -270,6 +285,32 @@
         if (userMenu && !userMenu.contains(e.target)) userMenu.classList.remove('is-open');
     });
     document.getElementById('authModal').addEventListener('click',function(e){if(e.target===this)closeAuthModal();});
+    document.addEventListener('keydown',function(event){
+        if(authModal.getAttribute('aria-hidden')==='true')return;
+        if(event.key==='Escape'){
+            event.preventDefault();
+            closeAuthModal();
+            return;
+        }
+        if(event.key!=='Tab')return;
+        var focusable=Array.prototype.filter.call(authModal.querySelectorAll(authModalFocusable),function(element){
+            return element.offsetParent!==null;
+        });
+        if(!focusable.length){
+            event.preventDefault();
+            authModalDialog.focus();
+            return;
+        }
+        var first=focusable[0];
+        var last=focusable[focusable.length-1];
+        if(event.shiftKey&&(document.activeElement===first||!authModal.contains(document.activeElement))){
+            event.preventDefault();
+            last.focus();
+        }else if(!event.shiftKey&&(document.activeElement===last||!authModal.contains(document.activeElement))){
+            event.preventDefault();
+            first.focus();
+        }
+    });
     function sendEmailLogin() {
         var email=document.getElementById('loginEmail').value.trim();
         if(!email){setAuthMsg('loginMsg','Please enter your email address.','#ff5252');return;}
