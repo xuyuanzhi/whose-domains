@@ -163,6 +163,22 @@ class GoogleAuthenticationHandlerTest {
     }
 
     @Test
+    void currentUserResolutionFailureClearsOAuthStateBeforeUsingItsFixedRedirect() throws Exception {
+        GoogleIdentity identity = new GoogleIdentity("google-subject", "person@example.com", "Person", false);
+        when(identityParser.parse(oidcUser)).thenReturn(identity);
+        doThrow(new GoogleLoginException(GoogleLoginException.Code.INACTIVE_USER))
+                .when(currentUserResolver).resolve(request);
+        GoogleAuthenticationSuccessHandler handler = new GoogleAuthenticationSuccessHandler(identityParser,
+                currentUserResolver, googleLoginService, authCookieService, sessionCleaner);
+
+        handler.onAuthenticationSuccess(request, response, authentication);
+
+        verify(sessionCleaner).clear(request, response, authentication);
+        assertEquals("/?login=google_inactive", response.getRedirectedUrl());
+        assertFalse(response.containsHeader("Set-Cookie"));
+    }
+
+    @Test
     void loginServiceFailureClearsOAuthStateBeforeUsingItsFixedRedirect() throws Exception {
         GoogleIdentity identity = new GoogleIdentity("google-subject", "person@example.com", "Person", false);
         when(identityParser.parse(oidcUser)).thenReturn(identity);
