@@ -92,4 +92,15 @@ class GoogleIdentityParserTest {
 
         assertEquals(GoogleLoginException.Code.UNVERIFIED_EMAIL, exception.code());
     }
+
+    @Test
+    void rejectsMissingEmailVerifiedClaim() {
+        when(user.getSubject()).thenReturn("sub-6");
+        when(user.getEmail()).thenReturn("person@example.com");
+        when(user.getEmailVerified()).thenReturn(null);
+
+        GoogleLoginException exception = assertThrows(GoogleLoginException.class, () -> parser.parse(user));
+
+        assertEquals(GoogleLoginException.Code.UNVERIFIED_EMAIL, exception.code());
+    }
 }

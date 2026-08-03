@@ -12,7 +12,7 @@ public class GoogleIdentityParser {
         if (subject == null || email == null) {
             throw new GoogleLoginException(GoogleLoginException.Code.INVALID_IDENTITY);
         }
-        if (!user.getEmailVerified()) {
+        if (!Boolean.TRUE.equals(user.getEmailVerified())) {
             throw new GoogleLoginException(GoogleLoginException.Code.UNVERIFIED_EMAIL);
         }
 
