@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -145,6 +146,53 @@ class GoogleAuthenticationHandlerTest {
         assertEquals("/?login=google_invalid", response.getRedirectedUrl());
         assertFalse(response.containsHeader("Set-Cookie"));
         verify(authCookieService, never()).create(user("user-1"));
+    }
+
+    @Test
+    void parserFailureClearsOAuthStateBeforeUsingItsFixedRedirect() throws Exception {
+        GoogleLoginException failure = new GoogleLoginException(GoogleLoginException.Code.UNVERIFIED_EMAIL);
+        doThrow(failure).when(identityParser).parse(oidcUser);
+        GoogleAuthenticationSuccessHandler handler = new GoogleAuthenticationSuccessHandler(identityParser,
+                currentUserResolver, googleLoginService, authCookieService, sessionCleaner);
+
+        handler.onAuthenticationSuccess(request, response, authentication);
+
+        verify(sessionCleaner).clear(request, response, authentication);
+        assertEquals("/?login=google_unverified", response.getRedirectedUrl());
+        assertFalse(response.containsHeader("Set-Cookie"));
+    }
+
+    @Test
+    void loginServiceFailureClearsOAuthStateBeforeUsingItsFixedRedirect() throws Exception {
+        GoogleIdentity identity = new GoogleIdentity("google-subject", "person@example.com", "Person", false);
+        when(identityParser.parse(oidcUser)).thenReturn(identity);
+        when(currentUserResolver.resolve(request)).thenReturn(Optional.empty());
+        doThrow(new GoogleLoginException(GoogleLoginException.Code.ACCOUNT_CONFLICT))
+                .when(googleLoginService).authenticate(identity, null);
+        GoogleAuthenticationSuccessHandler handler = new GoogleAuthenticationSuccessHandler(identityParser,
+                currentUserResolver, googleLoginService, authCookieService, sessionCleaner);
+
+        handler.onAuthenticationSuccess(request, response, authentication);
+
+        verify(sessionCleaner).clear(request, response, authentication);
+        assertEquals("/?login=google_conflict", response.getRedirectedUrl());
+        assertFalse(response.containsHeader("Set-Cookie"));
+    }
+
+    @Test
+    void cleanupFailureDoesNotBlockTheOriginalFixedRedirectOrLeakProviderSecrets() throws Exception {
+        String providerSecret = "person@example.com/google-subject/auth-code/access-token";
+        doThrow(new GoogleLoginException(GoogleLoginException.Code.INVALID_IDENTITY)).when(identityParser).parse(oidcUser);
+        doThrow(new RuntimeException(providerSecret)).when(sessionCleaner).clear(request, response, authentication);
+        GoogleAuthenticationSuccessHandler handler = new GoogleAuthenticationSuccessHandler(identityParser,
+                currentUserResolver, googleLoginService, authCookieService, sessionCleaner);
+
+        handler.onAuthenticationSuccess(request, response, authentication);
+
+        verify(sessionCleaner).clear(request, response, authentication);
+        assertEquals("/?login=google_invalid", response.getRedirectedUrl());
+        assertFalse(response.containsHeader("Set-Cookie"));
+        assertFalse(response.getRedirectedUrl().contains(providerSecret));
     }
 
     private static Stream<Arguments> googleLoginCodes() {

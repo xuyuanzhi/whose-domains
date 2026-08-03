@@ -47,13 +47,27 @@ public class GoogleAuthenticationSuccessHandler implements AuthenticationSuccess
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
             Authentication authentication) throws IOException, ServletException {
+        OAuth2AuthenticationToken googleAuthentication;
         try {
-            OAuth2AuthenticationToken googleAuthentication = requiredGoogleAuthentication(authentication);
+            googleAuthentication = requiredGoogleAuthentication(authentication);
+        } catch (RuntimeException exception) {
+            GoogleAuthenticationFailureHandler.redirect(response, exception);
+            return;
+        }
+
+        GoogleLoginResult result;
+        try {
             OidcUser oidcUser = (OidcUser) googleAuthentication.getPrincipal();
             GoogleIdentity identity = identityParser.parse(oidcUser);
             User currentUser = currentUserResolver.resolve(request).orElse(null);
-            GoogleLoginResult result = googleLoginService.authenticate(identity, currentUser);
+            result = googleLoginService.authenticate(identity, currentUser);
+        } catch (RuntimeException exception) {
+            clearAfterFailedLogin(request, response, googleAuthentication);
+            GoogleAuthenticationFailureHandler.redirect(response, exception);
+            return;
+        }
 
+        try {
             if (result.status() == GoogleLoginResult.Status.SIGNED_IN) {
                 sessionCleaner.clear(request, response, googleAuthentication);
                 response.addHeader(HttpHeaders.SET_COOKIE, authCookieService.create(result.user()).toString());
@@ -65,6 +79,15 @@ public class GoogleAuthenticationSuccessHandler implements AuthenticationSuccess
             response.sendRedirect(PENDING_REDIRECT);
         } catch (RuntimeException exception) {
             GoogleAuthenticationFailureHandler.redirect(response, exception);
+        }
+    }
+
+    private void clearAfterFailedLogin(HttpServletRequest request, HttpServletResponse response,
+            OAuth2AuthenticationToken googleAuthentication) {
+        try {
+            sessionCleaner.clear(request, response, googleAuthentication);
+        } catch (RuntimeException ignored) {
+            // OAuthSessionCleaner has already cleared the security context and invalidated the session in its finally block.
         }
     }
 
