@@ -220,6 +220,7 @@ git commit -m "refactor: share email and cookie authentication services"
 ### Task 3: Validated Google identity parsing
 
 **Files:**
+- Modify: `wesite-web/pom.xml`
 - Create: `wesite-web/src/main/java/info/wesite/web/auth/google/GoogleIdentity.java`
 - Create: `wesite-web/src/main/java/info/wesite/web/auth/google/GoogleIdentityParser.java`
 - Create: `wesite-web/src/main/java/info/wesite/web/auth/google/GoogleLoginException.java`
@@ -252,7 +253,18 @@ void classifiesWorkspaceOnlyWhenHostedDomainMatchesEmail() {
 
 Also test Gmail, mismatched `hd`, missing `sub`, missing email, and `email_verified=false`.
 
-- [ ] **Step 2: Run the parser test and verify failure**
+- [ ] **Step 2: Add the OAuth2 Client dependency required by the OIDC parser**
+
+Add only to `wesite-web/pom.xml`:
+
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-oauth2-client</artifactId>
+</dependency>
+```
+
+- [ ] **Step 3: Run the parser test and verify failure**
 
 ```powershell
 mvn -pl wesite-web -am -Dtest=GoogleIdentityParserTest -Dsurefire.failIfNoSpecifiedTests=false test
@@ -260,11 +272,11 @@ mvn -pl wesite-web -am -Dtest=GoogleIdentityParserTest -Dsurefire.failIfNoSpecif
 
 Expected: compilation fails because the Google identity types do not exist.
 
-- [ ] **Step 3: Implement minimal immutable identity parsing**
+- [ ] **Step 4: Implement minimal immutable identity parsing**
 
 Normalize using `trim().toLowerCase(Locale.ROOT)`. Mark an email Google-managed only when its domain is `gmail.com`, or when `hd` is non-blank and exactly equals the normalized email domain. Use the email local part when `OidcUser.getFullName()` is blank. Throw `GoogleLoginException` without embedding claim values or provider responses in its public message.
 
-- [ ] **Step 4: Run the parser tests**
+- [ ] **Step 5: Run the parser tests**
 
 ```powershell
 mvn -pl wesite-web -am -Dtest=GoogleIdentityParserTest -Dsurefire.failIfNoSpecifiedTests=false test
@@ -272,10 +284,10 @@ mvn -pl wesite-web -am -Dtest=GoogleIdentityParserTest -Dsurefire.failIfNoSpecif
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit identity validation**
+- [ ] **Step 6: Commit identity validation**
 
 ```powershell
-git add -- wesite-web/src/main/java/info/wesite/web/auth/google/GoogleIdentity.java wesite-web/src/main/java/info/wesite/web/auth/google/GoogleIdentityParser.java wesite-web/src/main/java/info/wesite/web/auth/google/GoogleLoginException.java wesite-web/src/test/java/info/wesite/web/auth/google/GoogleIdentityParserTest.java
+git add -- wesite-web/pom.xml wesite-web/src/main/java/info/wesite/web/auth/google/GoogleIdentity.java wesite-web/src/main/java/info/wesite/web/auth/google/GoogleIdentityParser.java wesite-web/src/main/java/info/wesite/web/auth/google/GoogleLoginException.java wesite-web/src/test/java/info/wesite/web/auth/google/GoogleIdentityParserTest.java
 git commit -m "feat: validate Google OIDC identities"
 ```
 
@@ -479,7 +491,6 @@ git commit -m "feat: bridge Google login to application sessions"
 ### Task 7: Conditional OAuth configuration and pass-through security
 
 **Files:**
-- Modify: `wesite-web/pom.xml`
 - Create: `wesite-web/src/main/java/info/wesite/web/config/GoogleLoginProperties.java`
 - Create: `wesite-web/src/main/java/info/wesite/web/config/SecurityConfig.java`
 - Modify: `wesite-web/src/main/resources/application.properties`
@@ -507,18 +518,9 @@ mvn -pl wesite-web -am -Dtest=SecurityConfigTest -Dsurefire.failIfNoSpecifiedTes
 
 Expected: FAIL because OAuth2 Client and explicit chains are not configured.
 
-- [ ] **Step 4: Add the web-module dependency and properties**
+- [ ] **Step 4: Add environment-backed properties**
 
-Add only to `wesite-web/pom.xml`:
-
-```xml
-<dependency>
-    <groupId>org.springframework.boot</groupId>
-    <artifactId>spring-boot-starter-oauth2-client</artifactId>
-</dependency>
-```
-
-Add environment-backed properties with empty credentials and a false flag; never place secrets in either properties file.
+Add properties with empty credentials and a false flag; never place secrets in either properties file. The OAuth2 Client dependency was added by Task 3 and must not be duplicated.
 
 - [ ] **Step 5: Implement the two ordered chains**
 
@@ -535,7 +537,7 @@ Expected: PASS.
 - [ ] **Step 7: Commit configuration**
 
 ```powershell
-git add -- wesite-web/pom.xml wesite-web/src/main/java/info/wesite/web/config/GoogleLoginProperties.java wesite-web/src/main/java/info/wesite/web/config/SecurityConfig.java wesite-web/src/main/resources/application.properties wesite-web/src/main/resources/application-prod.properties.example wesite-web/src/test/java/info/wesite/web/config/SecurityConfigTest.java
+git add -- wesite-web/src/main/java/info/wesite/web/config/GoogleLoginProperties.java wesite-web/src/main/java/info/wesite/web/config/SecurityConfig.java wesite-web/src/main/resources/application.properties wesite-web/src/main/resources/application-prod.properties.example wesite-web/src/test/java/info/wesite/web/config/SecurityConfigTest.java
 git commit -m "feat: configure conditional Google OAuth login"
 ```
 
