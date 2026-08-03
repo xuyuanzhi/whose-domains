@@ -47,17 +47,15 @@ public class GoogleAuthenticationSuccessHandler implements AuthenticationSuccess
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
             Authentication authentication) throws IOException, ServletException {
-        OAuth2AuthenticationToken googleAuthentication;
-        try {
-            googleAuthentication = requiredGoogleAuthentication(authentication);
-        } catch (RuntimeException exception) {
-            GoogleAuthenticationFailureHandler.redirect(response, exception);
+        if (!(authentication instanceof OAuth2AuthenticationToken googleAuthentication)) {
+            GoogleAuthenticationFailureHandler.redirect(response,
+                    new GoogleLoginException(GoogleLoginException.Code.INVALID_IDENTITY));
             return;
         }
 
         GoogleLoginResult result;
         try {
-            OidcUser oidcUser = (OidcUser) googleAuthentication.getPrincipal();
+            OidcUser oidcUser = requiredOidcUser(googleAuthentication);
             GoogleIdentity identity = identityParser.parse(oidcUser);
             User currentUser = currentUserResolver.resolve(request).orElse(null);
             result = googleLoginService.authenticate(identity, currentUser);
@@ -91,11 +89,10 @@ public class GoogleAuthenticationSuccessHandler implements AuthenticationSuccess
         }
     }
 
-    private OAuth2AuthenticationToken requiredGoogleAuthentication(Authentication authentication) {
-        if (!(authentication instanceof OAuth2AuthenticationToken googleAuthentication)
-                || !(googleAuthentication.getPrincipal() instanceof OidcUser)) {
+    private OidcUser requiredOidcUser(OAuth2AuthenticationToken googleAuthentication) {
+        if (!(googleAuthentication.getPrincipal() instanceof OidcUser oidcUser)) {
             throw new GoogleLoginException(GoogleLoginException.Code.INVALID_IDENTITY);
         }
-        return googleAuthentication;
+        return oidcUser;
     }
 }

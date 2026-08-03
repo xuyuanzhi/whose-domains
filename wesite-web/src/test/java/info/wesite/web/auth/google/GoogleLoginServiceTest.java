@@ -229,6 +229,40 @@ class GoogleLoginServiceTest {
     }
 
     @Test
+    void duplicateSubjectUpdateIsIdempotentWhenTheSubjectOwnerIsTheCurrentUser() {
+        User emailUser = activeUser("email-user", "person@gmail.com", null);
+        User subjectOwner = activeUser("email-user", "person@gmail.com", "google-subject");
+        when(userService.getOne(any(QueryWrapper.class))).thenReturn(null, emailUser);
+        when(userService.update(isNull(), any(Wrapper.class)))
+                .thenThrow(new DuplicateKeyException("duplicate subject"));
+        when(userMapper.selectByGoogleSubForUpdate("google-subject")).thenReturn(subjectOwner);
+
+        GoogleLoginResult result = service.authenticate(gmailIdentity(), null);
+
+        assertSame(subjectOwner, result.user());
+        InOrder order = inOrder(userService, userMapper);
+        order.verify(userService, times(2)).getOne(any(QueryWrapper.class));
+        order.verify(userService).update(isNull(), any(Wrapper.class));
+        order.verify(userMapper).selectByGoogleSubForUpdate("google-subject");
+    }
+
+    @Test
+    void duplicateSubjectUpdateConflictsWhenAnotherUserOwnsTheSubject() {
+        User emailUser = activeUser("email-user", "person@gmail.com", null);
+        User subjectOwner = activeUser("other-user", "other@gmail.com", "google-subject");
+        when(userService.getOne(any(QueryWrapper.class))).thenReturn(null, emailUser);
+        when(userService.update(isNull(), any(Wrapper.class)))
+                .thenThrow(new DuplicateKeyException("duplicate subject"));
+        when(userMapper.selectByGoogleSubForUpdate("google-subject")).thenReturn(subjectOwner);
+
+        GoogleLoginException error = assertThrows(GoogleLoginException.class,
+                () -> service.authenticate(gmailIdentity(), null));
+
+        assertEquals(ACCOUNT_CONFLICT, error.code());
+        verify(userMapper).selectByGoogleSubForUpdate("google-subject");
+    }
+
+    @Test
     void retriesAConcurrentDuplicateEmailCreateByReloadingSubjectThenEmail() {
         User concurrentUser = activeUser("concurrent-user", "person@gmail.com", null);
         when(userService.getOne(any(QueryWrapper.class))).thenReturn(null);

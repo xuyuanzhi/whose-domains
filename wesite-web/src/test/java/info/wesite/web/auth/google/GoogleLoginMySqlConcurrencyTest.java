@@ -51,6 +51,7 @@ import info.wesite.core.mapper.UserMapper;
 import info.wesite.core.service.UserService;
 import info.wesite.core.service.impl.UserServiceImpl;
 import info.wesite.web.auth.EmailLoginService;
+import info.wesite.web.auth.EmailLoginCompletionService;
 
 @Testcontainers(disabledWithoutDocker = true)
 @Timeout(60)
@@ -87,7 +88,7 @@ class GoogleLoginMySqlConcurrencyTest {
                       UPDATE_TIME datetime,
                       NAME varchar(100),
                       PHONE_NO varchar(50),
-                      EMAIL varchar(255) COLLATE utf8mb4_unicode_ci,
+                      EMAIL varchar(255) COLLATE utf8mb4_bin,
                       GOOGLE_SUB varchar(255) COLLATE utf8mb4_bin,
                       PASSWORD varchar(200),
                       SECURE_KEY varchar(200),
@@ -131,6 +132,16 @@ class GoogleLoginMySqlConcurrencyTest {
     }
 
     @Test
+    void databaseKeepsAccentedNormalizedEmailsAsDistinctIdentities() throws SQLException {
+        try (Connection connection = dataSource.getConnection(); Statement statement = connection.createStatement()) {
+            statement.executeUpdate("INSERT INTO SYS_USER (ID, EMAIL) VALUES ('accented', 'caf\u00e9@example.com')");
+            statement.executeUpdate("INSERT INTO SYS_USER (ID, EMAIL) VALUES ('plain', 'cafe@example.com')");
+        }
+
+        assertEquals(2, userCount());
+    }
+
+    @Test
     void concurrentSameSubjectBindingIsIdempotentAcrossTwoRealTransactions() throws Exception {
         insert(activeUser("existing", "person@gmail.com", null));
         CyclicBarrier updatesReady = new CyclicBarrier(2);
@@ -166,6 +177,28 @@ class GoogleLoginMySqlConcurrencyTest {
         assertEquals(ACCOUNT_CONFLICT, conflict.code());
         assertEquals(successes.get(0).result().user().getGoogleSub(), selectById("existing").getGoogleSub());
         assertEquals(1, userCount());
+    }
+
+    @Test
+    void concurrentSameSubjectBindingToDifferentUsersReturnsOneConflictAcrossTwoRealTransactions() throws Exception {
+        insert(activeUser("user-a", "a@gmail.com", null));
+        insert(activeUser("user-b", "b@gmail.com", null));
+        CyclicBarrier updatesReady = new CyclicBarrier(2);
+        GoogleLoginService service = service(barrierBefore(realUserService, "update", updatesReady));
+
+        List<Attempt> attempts = concurrently(
+                () -> authenticate(service, identity("same-subject", "a@gmail.com")),
+                () -> authenticate(service, identity("same-subject", "b@gmail.com")));
+
+        List<Attempt> successes = attempts.stream().filter(attempt -> attempt.error() == null).toList();
+        List<Attempt> failures = attempts.stream().filter(attempt -> attempt.error() != null).toList();
+        assertEquals(1, successes.size());
+        assertEquals(1, failures.size());
+        GoogleLoginException conflict = assertInstanceOf(GoogleLoginException.class, failures.get(0).error());
+        assertEquals(ACCOUNT_CONFLICT, conflict.code());
+        assertEquals("same-subject", successes.get(0).result().user().getGoogleSub());
+        assertEquals(1, googleSubjectCount("same-subject"));
+        assertEquals(2, userCount());
     }
 
     @Test
@@ -207,8 +240,49 @@ class GoogleLoginMySqlConcurrencyTest {
         assertEquals(attempts.get(1).result().user().getId(), persisted.getId());
     }
 
+    @Test
+    void concurrentOrdinaryEmailCompletionsConvergeOnOneUserAcrossTwoRealTransactions() throws Exception {
+        CyclicBarrier savesReady = new CyclicBarrier(2);
+        UserService users = barrierBefore(realUserService, "save", savesReady);
+        EmailLoginCompletionService completion = completionService(users);
+
+        List<CompletionAttempt> attempts = concurrently(
+                () -> completeEmail(completion, null),
+                () -> completeEmail(completion, null));
+
+        assertNull(attempts.get(0).error());
+        assertNull(attempts.get(1).error());
+        assertEquals(attempts.get(0).user().getId(), attempts.get(1).user().getId());
+        assertEquals(1, userCount());
+    }
+
+    @Test
+    void concurrentGoogleEmailCompletionsConvergeOnOneBoundUserAcrossTwoRealTransactions() throws Exception {
+        CyclicBarrier savesReady = new CyclicBarrier(2);
+        UserService users = barrierBefore(realUserService, "save", savesReady);
+        EmailLoginCompletionService completion = completionService(users);
+        PendingGoogleBinding pending = new PendingGoogleBinding(null, "same-subject", "person@gmail.com",
+                java.time.Instant.now().plusSeconds(300));
+
+        List<CompletionAttempt> attempts = concurrently(
+                () -> completeEmail(completion, pending),
+                () -> completeEmail(completion, pending));
+
+        assertNull(attempts.get(0).error());
+        assertNull(attempts.get(1).error());
+        assertEquals(attempts.get(0).user().getId(), attempts.get(1).user().getId());
+        User persisted = selectByEmail("person@gmail.com");
+        assertNotNull(persisted);
+        assertEquals("same-subject", persisted.getGoogleSub());
+        assertEquals(1, userCount());
+    }
+
     private GoogleLoginService service(UserService users) {
         return new GoogleLoginService(users, userMapper, mock(EmailLoginService.class));
+    }
+
+    private EmailLoginCompletionService completionService(UserService users) {
+        return new EmailLoginCompletionService(users, userMapper, service(users));
     }
 
     private Attempt authenticate(GoogleLoginService service, GoogleIdentity identity) {
@@ -222,15 +296,26 @@ class GoogleLoginMySqlConcurrencyTest {
         }
     }
 
-    private List<Attempt> concurrently(Callable<Attempt> first, Callable<Attempt> second) throws Exception {
+    private CompletionAttempt completeEmail(EmailLoginCompletionService service, PendingGoogleBinding pending) {
+        TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+        transaction.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
+        try {
+            User user = transaction.execute(status -> service.complete("person@gmail.com", pending));
+            return new CompletionAttempt(user, null);
+        } catch (RuntimeException error) {
+            return new CompletionAttempt(null, error);
+        }
+    }
+
+    private <T> List<T> concurrently(Callable<T> first, Callable<T> second) throws Exception {
         ExecutorService executor = Executors.newFixedThreadPool(2);
         CountDownLatch start = new CountDownLatch(1);
         try {
-            Future<Attempt> firstFuture = executor.submit(() -> {
+            Future<T> firstFuture = executor.submit(() -> {
                 start.await(10, TimeUnit.SECONDS);
                 return first.call();
             });
-            Future<Attempt> secondFuture = executor.submit(() -> {
+            Future<T> secondFuture = executor.submit(() -> {
                 start.await(10, TimeUnit.SECONDS);
                 return second.call();
             });
@@ -320,8 +405,21 @@ class GoogleLoginMySqlConcurrencyTest {
         }
     }
 
+    private int googleSubjectCount(String subject) throws SQLException {
+        try (Connection connection = dataSource.getConnection(); Statement statement = connection.createStatement();
+                ResultSet result = statement.executeQuery(
+                        "SELECT COUNT(*) FROM SYS_USER WHERE GOOGLE_SUB = '" + subject + "'")) {
+            result.next();
+            return result.getInt(1);
+        }
+    }
+
     private GoogleIdentity identity(String subject) {
-        return new GoogleIdentity(subject, "person@gmail.com", "Person", true);
+        return identity(subject, "person@gmail.com");
+    }
+
+    private GoogleIdentity identity(String subject, String email) {
+        return new GoogleIdentity(subject, email, "Person", true);
     }
 
     private User activeUser(String id, String email, String subject) {
@@ -335,6 +433,9 @@ class GoogleLoginMySqlConcurrencyTest {
     }
 
     private record Attempt(GoogleLoginResult result, Throwable error) {
+    }
+
+    private record CompletionAttempt(User user, Throwable error) {
     }
 
     @FunctionalInterface

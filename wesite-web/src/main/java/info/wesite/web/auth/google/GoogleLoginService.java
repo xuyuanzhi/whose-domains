@@ -127,12 +127,22 @@ public class GoogleLoginService {
         }
 
         Date updatedAt = new Date();
-        boolean updated = userService.update(null, new UpdateWrapper<User>()
-                .set("GOOGLE_SUB", subject)
-                .set("UPDATE_TIME", updatedAt)
-                .eq("ID", user.getId())
-                .eq("STATUS", BaseEntity.STATUS_ACTIVE)
-                .isNull("GOOGLE_SUB"));
+        boolean updated;
+        try {
+            updated = userService.update(null, new UpdateWrapper<User>()
+                    .set("GOOGLE_SUB", subject)
+                    .set("UPDATE_TIME", updatedAt)
+                    .eq("ID", user.getId())
+                    .eq("STATUS", BaseEntity.STATUS_ACTIVE)
+                    .isNull("GOOGLE_SUB"));
+        } catch (DuplicateKeyException duplicate) {
+            User subjectOwner = userMapper.selectByGoogleSubForUpdate(subject);
+            if (subjectOwner != null && user.getId().equals(subjectOwner.getId())) {
+                requireActive(subjectOwner);
+                return subjectOwner;
+            }
+            throw new GoogleLoginException(Code.ACCOUNT_CONFLICT);
+        }
         if (updated) {
             user.setGoogleSub(subject);
             user.setUpdateTime(updatedAt);

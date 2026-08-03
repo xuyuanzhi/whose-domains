@@ -2,6 +2,8 @@ package info.wesite.web.auth.google;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.doThrow;
@@ -14,6 +16,7 @@ import java.util.Optional;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -21,10 +24,13 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.http.ResponseCookie;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.mock.web.MockHttpSession;
 import org.springframework.security.authentication.AuthenticationServiceException;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
+import org.springframework.security.oauth2.client.web.OAuth2AuthorizedClientRepository;
+import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 
 import info.wesite.core.entity.User;
@@ -54,6 +60,11 @@ class GoogleAuthenticationHandlerTest {
                 List.of(new SimpleGrantedAuthority("ROLE_USER")), "google");
         request = new MockHttpServletRequest();
         response = new MockHttpServletResponse();
+    }
+
+    @AfterEach
+    void clearSecurityContext() {
+        SecurityContextHolder.clearContext();
     }
 
     @Test
@@ -136,15 +147,27 @@ class GoogleAuthenticationHandlerTest {
     }
 
     @Test
-    void nonOidcAuthenticationUsesTheFixedInvalidRedirectWithoutWritingAnApplicationCookie() throws Exception {
+    void nonOidcOAuthAuthenticationClearsOAuthStateAndUsesTheFixedInvalidRedirect() throws Exception {
+        OAuth2AuthenticationToken nonOidcAuthentication = new OAuth2AuthenticationToken(
+                new DefaultOAuth2User(List.of(new SimpleGrantedAuthority("ROLE_USER")),
+                        java.util.Map.of("sub", "google-subject"), "sub"),
+                List.of(new SimpleGrantedAuthority("ROLE_USER")), "google");
+        OAuth2AuthorizedClientRepository clients = mock(OAuth2AuthorizedClientRepository.class);
+        OAuthSessionCleaner realSessionCleaner = new OAuthSessionCleaner(clients);
         GoogleAuthenticationSuccessHandler handler = new GoogleAuthenticationSuccessHandler(identityParser,
-                currentUserResolver, googleLoginService, authCookieService, sessionCleaner);
+                currentUserResolver, googleLoginService, authCookieService, realSessionCleaner);
+        MockHttpSession oldSession = (MockHttpSession) request.getSession();
+        oldSession.setAttribute("oauth-state", "state");
+        SecurityContextHolder.getContext().setAuthentication(nonOidcAuthentication);
 
-        handler.onAuthenticationSuccess(request, response,
-                UsernamePasswordAuthenticationToken.authenticated("person@example.com", "secret", List.of()));
+        handler.onAuthenticationSuccess(request, response, nonOidcAuthentication);
 
         assertEquals("/?login=google_invalid", response.getRedirectedUrl());
         assertFalse(response.containsHeader("Set-Cookie"));
+        verify(clients).removeAuthorizedClient("google", nonOidcAuthentication, request, response);
+        assertThrows(IllegalStateException.class, () -> oldSession.getAttribute("oauth-state"));
+        assertNull(request.getSession(false));
+        assertNull(SecurityContextHolder.getContext().getAuthentication());
         verify(authCookieService, never()).create(user("user-1"));
     }
 

@@ -27,15 +27,13 @@ import info.wesite.core.config.UserHolder;
 import info.wesite.core.entity.EmailLoginLink;
 import info.wesite.core.entity.User;
 import info.wesite.core.service.EmailLoginLinkService;
-import info.wesite.core.service.UserService;
 import info.wesite.core.utils.MagicLinkTokenUtils;
-import info.wesite.core.utils.RandomUtils;
 import info.wesite.core.view.ResponseJson;
 import info.wesite.web.auth.AuthCookieService;
+import info.wesite.web.auth.EmailLoginCompletionService;
 import info.wesite.web.auth.EmailLoginRequestResult;
 import info.wesite.web.auth.EmailLoginService;
 import info.wesite.web.auth.google.GoogleLoginException;
-import info.wesite.web.auth.google.GoogleLoginService;
 import info.wesite.web.auth.google.PendingGoogleBinding;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -49,9 +47,6 @@ public class UserController {
     private static final String GOOGLE_BIND_REQUIRED_REDIRECT = "/user/watchlist?login=google_bind_required";
 
     @Autowired
-    private UserService userService;
-
-    @Autowired
     private EmailLoginLinkService emailLoginLinkService;
 
     @Autowired
@@ -61,7 +56,7 @@ public class UserController {
     private AuthCookieService authCookieService;
 
     @Autowired
-    private GoogleLoginService googleLoginService;
+    private EmailLoginCompletionService emailLoginCompletionService;
 
     @PostMapping("/email-login")
     @ResponseBody
@@ -90,26 +85,11 @@ public class UserController {
             return "redirect:/user/watchlist?login=invalid";
         }
 
-        User user = userService.getOne(new QueryWrapper<User>().eq("EMAIL", link.getEmail()));
-        if (user == null) {
-            user = new User();
-            user.setId(RandomUtils.generateId());
-            user.setEmail(link.getEmail());
-            user.setName(link.getEmail().split("@", 2)[0]);
-            user.setSecureKey(RandomUtils.generateId());
-            user.setCreateBy(link.getEmail());
-            user.setCreateTime(new Date());
-            user.setStatus(User.STATUS_ACTIVE);
-            user.setUserType(User.TYPE_PERSON);
-            userService.save(user);
-        }
         HttpSession session = request.getSession(false);
         PendingGoogleBinding pending = session == null || !GOOGLE_BIND_REQUIRED_REDIRECT.equals(link.getRedirectPath())
                 ? null
                 : pendingBinding(session.getAttribute(PendingGoogleBinding.SESSION_KEY));
-        if (pending != null) {
-            user = googleLoginService.completeConfirmedBinding(user, pending);
-        }
+        User user = emailLoginCompletionService.complete(link.getEmail(), pending);
 
         String cookie = authCookieService.create(user).toString();
         completeLoginAfterCommit(response, cookie, pending == null ? null : session);

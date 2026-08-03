@@ -54,6 +54,13 @@ class AuthModalTemplateTest {
     }
 
     @Test
+    void loginResultsAreAnnouncedPolitely() throws IOException {
+        String template = template();
+
+        assertTrue(template.contains("id=\"loginMsg\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\""));
+    }
+
+    @Test
     void authModalHasAccessibleDialogSemantics() throws IOException {
         String template = template();
 

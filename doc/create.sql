@@ -22,7 +22,7 @@ CREATE TABLE `SYS_USER` (
   `UPDATE_TIME` datetime,
   `NAME`        varchar(100),
   `PHONE_NO`    varchar(50),
-  `EMAIL`       varchar(255) COLLATE utf8mb4_unicode_ci NULL,
+  `EMAIL`       varchar(255) COLLATE utf8mb4_bin NULL,
   `GOOGLE_SUB`  varchar(255) COLLATE utf8mb4_bin NULL,
   `PASSWORD`    varchar(200),
   `SECURE_KEY`  varchar(200),

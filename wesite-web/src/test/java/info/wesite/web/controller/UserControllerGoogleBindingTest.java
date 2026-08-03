@@ -2,7 +2,6 @@ package info.wesite.web.controller;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -48,11 +47,10 @@ import info.wesite.core.entity.BaseEntity;
 import info.wesite.core.entity.EmailLoginLink;
 import info.wesite.core.entity.User;
 import info.wesite.core.service.EmailLoginLinkService;
-import info.wesite.core.service.UserService;
 import info.wesite.core.utils.MagicLinkTokenUtils;
 import info.wesite.web.auth.AuthCookieService;
+import info.wesite.web.auth.EmailLoginCompletionService;
 import info.wesite.web.auth.google.GoogleLoginException;
-import info.wesite.web.auth.google.GoogleLoginService;
 import info.wesite.web.auth.google.PendingGoogleBinding;
 
 @SuppressWarnings({ "unchecked", "rawtypes" })
@@ -62,9 +60,8 @@ class UserControllerGoogleBindingTest {
     private static final String EMAIL = "person@outside.example";
 
     private EmailLoginLinkService emailLoginLinkService;
-    private UserService userService;
-    private GoogleLoginService googleLoginService;
     private AuthCookieService authCookieService;
+    private EmailLoginCompletionService emailLoginCompletionService;
     private UserController controller;
     private MockMvc mockMvc;
     private ResponseCookie authCookie;
@@ -72,15 +69,13 @@ class UserControllerGoogleBindingTest {
     @BeforeEach
     void setUp() {
         emailLoginLinkService = mock(EmailLoginLinkService.class);
-        userService = mock(UserService.class);
-        googleLoginService = mock(GoogleLoginService.class);
         authCookieService = mock(AuthCookieService.class);
+        emailLoginCompletionService = mock(EmailLoginCompletionService.class);
 
         controller = new UserController();
         ReflectionTestUtils.setField(controller, "emailLoginLinkService", emailLoginLinkService);
-        ReflectionTestUtils.setField(controller, "userService", userService);
-        ReflectionTestUtils.setField(controller, "googleLoginService", googleLoginService);
         ReflectionTestUtils.setField(controller, "authCookieService", authCookieService);
+        ReflectionTestUtils.setField(controller, "emailLoginCompletionService", emailLoginCompletionService);
         mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
 
         authCookie = ResponseCookie.from("TOKEN", "jwt")
@@ -94,8 +89,7 @@ class UserControllerGoogleBindingTest {
         PendingGoogleBinding pending = livePending("email-user");
         MockHttpSession session = sessionWith(pending);
         stubValidLink(link);
-        when(userService.getOne(any(QueryWrapper.class))).thenReturn(user);
-        when(googleLoginService.completeConfirmedBinding(user, pending)).thenReturn(user);
+        when(emailLoginCompletionService.complete(EMAIL, pending)).thenReturn(user);
         when(authCookieService.create(user)).thenReturn(authCookie);
 
         mockMvc.perform(get("/user/verify-email").param("token", TOKEN).session(session))
@@ -104,45 +98,32 @@ class UserControllerGoogleBindingTest {
                 .andExpect(header().string(HttpHeaders.SET_COOKIE, authCookie.toString()));
 
         ArgumentCaptor<UpdateWrapper<EmailLoginLink>> updateCaptor = updateCaptor();
-        InOrder order = inOrder(emailLoginLinkService, googleLoginService, authCookieService);
+        InOrder order = inOrder(emailLoginLinkService, emailLoginCompletionService, authCookieService);
         order.verify(emailLoginLinkService).update(isNull(), updateCaptor.capture());
-        order.verify(googleLoginService).completeConfirmedBinding(user, pending);
+        order.verify(emailLoginCompletionService).complete(EMAIL, pending);
         order.verify(authCookieService).create(user);
         assertAtomicConsumption(updateCaptor.getValue(), link.getId());
         assertTrue(session.isInvalid());
     }
 
     @Test
-    void createsAndBindsAStandardActivePersonalUserBeforeIssuingTheCookie() throws Exception {
+    void delegatesNewUserCreationAndBindingBeforeIssuingTheCookie() throws Exception {
         EmailLoginLink link = validLink("/user/watchlist?login=google_bind_required");
         PendingGoogleBinding pending = livePending(null);
         MockHttpSession session = sessionWith(pending);
+        User created = activeUser("created-user");
         stubValidLink(link);
-        when(userService.getOne(any(QueryWrapper.class))).thenReturn(null);
-        when(userService.save(any(User.class))).thenReturn(true);
-        when(googleLoginService.completeConfirmedBinding(any(User.class), any(PendingGoogleBinding.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
-        when(authCookieService.create(any(User.class))).thenReturn(authCookie);
+        when(emailLoginCompletionService.complete(EMAIL, pending)).thenReturn(created);
+        when(authCookieService.create(created)).thenReturn(authCookie);
 
         mockMvc.perform(get("/user/verify-email").param("token", TOKEN).session(session))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/user/watchlist?login=success"))
                 .andExpect(header().string(HttpHeaders.SET_COOKIE, authCookie.toString()));
 
-        ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
-        InOrder order = inOrder(userService, googleLoginService, authCookieService);
-        order.verify(userService).save(userCaptor.capture());
-        User created = userCaptor.getValue();
-        order.verify(googleLoginService).completeConfirmedBinding(created, pending);
+        InOrder order = inOrder(emailLoginCompletionService, authCookieService);
+        order.verify(emailLoginCompletionService).complete(EMAIL, pending);
         order.verify(authCookieService).create(created);
-        assertEquals(EMAIL, created.getEmail());
-        assertEquals("person", created.getName());
-        assertEquals(EMAIL, created.getCreateBy());
-        assertEquals(BaseEntity.STATUS_ACTIVE, created.getStatus());
-        assertEquals(User.TYPE_PERSON, created.getUserType());
-        assertNotNull(created.getCreateTime());
-        assertFalse(created.getId().isBlank());
-        assertFalse(created.getSecureKey().isBlank());
         assertTrue(session.isInvalid());
     }
 
@@ -153,8 +134,7 @@ class UserControllerGoogleBindingTest {
         PendingGoogleBinding pending = livePending("email-user");
         MockHttpSession session = sessionWith(pending);
         stubValidLink(link);
-        when(userService.getOne(any(QueryWrapper.class))).thenReturn(user);
-        when(googleLoginService.completeConfirmedBinding(user, pending)).thenReturn(user);
+        when(emailLoginCompletionService.complete(EMAIL, pending)).thenReturn(user);
         when(authCookieService.create(user)).thenReturn(authCookie);
 
         TransactionSynchronizationManager.initSynchronization();
@@ -182,8 +162,7 @@ class UserControllerGoogleBindingTest {
         PendingGoogleBinding pending = livePending("email-user");
         MockHttpSession session = sessionWith(pending);
         stubValidLink(link);
-        when(userService.getOne(any(QueryWrapper.class))).thenReturn(user);
-        when(googleLoginService.completeConfirmedBinding(user, pending)).thenReturn(user);
+        when(emailLoginCompletionService.complete(EMAIL, pending)).thenReturn(user);
         when(authCookieService.create(user)).thenReturn(authCookie);
         RecordingTransactionManager transactions = new RecordingTransactionManager();
 
@@ -205,8 +184,7 @@ class UserControllerGoogleBindingTest {
         PendingGoogleBinding pending = livePending("email-user");
         MockHttpSession session = sessionWith(pending);
         stubValidLink(link);
-        when(userService.getOne(any(QueryWrapper.class))).thenReturn(user);
-        when(googleLoginService.completeConfirmedBinding(user, pending))
+        when(emailLoginCompletionService.complete(EMAIL, pending))
                 .thenThrow(new GoogleLoginException(GoogleLoginException.Code.ACCOUNT_CONFLICT));
         RecordingTransactionManager transactions = new RecordingTransactionManager();
 
@@ -230,8 +208,7 @@ class UserControllerGoogleBindingTest {
         PendingGoogleBinding pending = livePending("email-user");
         MockHttpSession session = sessionWith(pending);
         stubValidLink(link);
-        when(userService.getOne(any(QueryWrapper.class))).thenReturn(user);
-        when(googleLoginService.completeConfirmedBinding(user, pending)).thenAnswer(invocation -> {
+        when(emailLoginCompletionService.complete(EMAIL, pending)).thenAnswer(invocation -> {
             TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
             return user;
         });
@@ -255,7 +232,7 @@ class UserControllerGoogleBindingTest {
         EmailLoginLink link = validLink("/user/watchlist?login=google_bind_required");
         User user = activeUser("email-user");
         stubValidLink(link);
-        when(userService.getOne(any(QueryWrapper.class))).thenReturn(user);
+        when(emailLoginCompletionService.complete(EMAIL, null)).thenReturn(user);
         when(authCookieService.create(user)).thenReturn(authCookie);
 
         mockMvc.perform(get("/user/verify-email").param("token", TOKEN))
@@ -263,7 +240,28 @@ class UserControllerGoogleBindingTest {
                 .andExpect(redirectedUrl("/user/watchlist?login=google_bind_required"))
                 .andExpect(header().string(HttpHeaders.SET_COOKIE, authCookie.toString()));
 
-        verify(googleLoginService, never()).completeConfirmedBinding(any(), any());
+        verify(emailLoginCompletionService).complete(EMAIL, null);
+    }
+
+    @Test
+    void crossBrowserGoogleConfirmationRejectsAnInactiveUserWithoutIssuingACookie() throws Exception {
+        EmailLoginLink link = validLink("/user/watchlist?login=google_bind_required");
+        User user = activeUser("email-user");
+        user.setStatus(BaseEntity.STATUS_INACTIVE);
+        stubValidLink(link);
+        when(emailLoginCompletionService.complete(EMAIL, null))
+                .thenThrow(new GoogleLoginException(GoogleLoginException.Code.INACTIVE_USER));
+        RecordingTransactionManager transactions = new RecordingTransactionManager();
+
+        transactionalMockMvc(transactions).perform(get("/user/verify-email").param("token", TOKEN))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/user/watchlist?login=google_inactive"))
+                .andExpect(header().doesNotExist(HttpHeaders.SET_COOKIE));
+
+        assertEquals(0, transactions.commits);
+        assertEquals(1, transactions.rollbacks);
+        verify(authCookieService, never()).create(any());
+        verify(emailLoginCompletionService).complete(EMAIL, null);
     }
 
     @Test
@@ -273,8 +271,7 @@ class UserControllerGoogleBindingTest {
         PendingGoogleBinding pending = livePending("email-user");
         MockHttpSession session = sessionWith(pending);
         stubValidLink(link);
-        when(userService.getOne(any(QueryWrapper.class))).thenReturn(user);
-        when(googleLoginService.completeConfirmedBinding(user, pending)).thenReturn(user);
+        when(emailLoginCompletionService.complete(EMAIL, null)).thenReturn(user);
         when(authCookieService.create(user)).thenReturn(authCookie);
 
         mockMvc.perform(get("/user/verify-email").param("token", TOKEN).session(session))
@@ -282,7 +279,7 @@ class UserControllerGoogleBindingTest {
                 .andExpect(redirectedUrl("/user/watchlist?login=success"))
                 .andExpect(header().string(HttpHeaders.SET_COOKIE, authCookie.toString()));
 
-        verify(googleLoginService, never()).completeConfirmedBinding(any(), any());
+        verify(emailLoginCompletionService).complete(EMAIL, null);
         assertFalse(session.isInvalid());
         assertSame(pending, session.getAttribute(PendingGoogleBinding.SESSION_KEY));
     }
@@ -294,7 +291,7 @@ class UserControllerGoogleBindingTest {
         PendingGoogleBinding pending = livePending("email-user");
         MockHttpSession session = sessionWith(pending);
         stubValidLink(link);
-        when(userService.getOne(any(QueryWrapper.class))).thenReturn(user);
+        when(emailLoginCompletionService.complete(EMAIL, null)).thenReturn(user);
         when(authCookieService.create(user)).thenReturn(authCookie);
 
         mockMvc.perform(get("/user/verify-email").param("token", TOKEN).session(session))
@@ -302,7 +299,7 @@ class UserControllerGoogleBindingTest {
                 .andExpect(redirectedUrl("/user/watchlist?login=success"))
                 .andExpect(header().string(HttpHeaders.SET_COOKIE, authCookie.toString()));
 
-        verify(googleLoginService, never()).completeConfirmedBinding(any(), any());
+        verify(emailLoginCompletionService).complete(EMAIL, null);
         assertFalse(session.isInvalid());
         assertSame(pending, session.getAttribute(PendingGoogleBinding.SESSION_KEY));
     }
@@ -312,14 +309,14 @@ class UserControllerGoogleBindingTest {
         EmailLoginLink link = validLink("https://attacker.example/steal");
         User user = activeUser("email-user");
         stubValidLink(link);
-        when(userService.getOne(any(QueryWrapper.class))).thenReturn(user);
+        when(emailLoginCompletionService.complete(EMAIL, null)).thenReturn(user);
         when(authCookieService.create(user)).thenReturn(authCookie);
 
         mockMvc.perform(get("/user/verify-email").param("token", TOKEN))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/user/watchlist?login=success"));
 
-        verify(googleLoginService, never()).completeConfirmedBinding(any(), any());
+        verify(emailLoginCompletionService).complete(EMAIL, null);
     }
 
     @Test
@@ -340,8 +337,7 @@ class UserControllerGoogleBindingTest {
         PendingGoogleBinding pending = livePending("email-user");
         MockHttpSession session = sessionWith(pending);
         stubValidLink(link);
-        when(userService.getOne(any(QueryWrapper.class))).thenReturn(user);
-        when(googleLoginService.completeConfirmedBinding(user, pending)).thenThrow(new GoogleLoginException(code));
+        when(emailLoginCompletionService.complete(EMAIL, pending)).thenThrow(new GoogleLoginException(code));
         when(authCookieService.create(user)).thenReturn(authCookie);
 
         mockMvc.perform(get("/user/verify-email").param("token", TOKEN).session(session))
