@@ -90,12 +90,24 @@ public class SecurityConfig {
 
     private static String validatedBaseUrl(String value, Environment environment) {
         requireText(value, "Google login public base URL must not be blank");
-        String baseUrl = value.trim().replaceFirst("/+$", "");
+        String baseUrl = value.trim();
         URI uri;
         try {
             uri = URI.create(baseUrl);
         } catch (IllegalArgumentException exception) {
             throw new IllegalStateException("Google login public base URL is invalid", exception);
+        }
+
+        String path = uri.getRawPath();
+        boolean origin = uri.isAbsolute()
+                && !uri.isOpaque()
+                && StringUtils.hasText(uri.getHost())
+                && uri.getRawUserInfo() == null
+                && uri.getRawQuery() == null
+                && uri.getRawFragment() == null
+                && (path == null || path.isEmpty() || "/".equals(path));
+        if (!origin) {
+            throw new IllegalStateException("Google login public base URL must be a valid origin");
         }
 
         boolean production = environment.acceptsProfiles(Profiles.of("prod"));
@@ -106,6 +118,6 @@ public class SecurityConfig {
         if (!https && !localHttp) {
             throw new IllegalStateException("Google login public base URL must use HTTPS");
         }
-        return baseUrl;
+        return "/".equals(path) ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
     }
 }
