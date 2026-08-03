@@ -24,18 +24,24 @@ public class OAuthSessionCleaner {
 
     public void clear(HttpServletRequest request, HttpServletResponse response,
             OAuth2AuthenticationToken authentication) {
-        authorizedClientRepository.removeAuthorizedClient(GOOGLE_REGISTRATION_ID, authentication, request, response);
-        SecurityContextHolder.clearContext();
-        HttpSession session = request.getSession(false);
-        if (session != null) {
-            session.invalidate();
+        try {
+            authorizedClientRepository.removeAuthorizedClient(GOOGLE_REGISTRATION_ID, authentication, request, response);
+        } finally {
+            SecurityContextHolder.clearContext();
+            HttpSession session = request.getSession(false);
+            if (session != null) {
+                session.invalidate();
+            }
         }
     }
 
     public void rotateToPending(HttpServletRequest request, HttpServletResponse response,
             OAuth2AuthenticationToken authentication, PendingGoogleBinding pending) {
         Objects.requireNonNull(pending, "pending binding must not be null");
-        clear(request, response, authentication);
-        request.getSession(true).setAttribute(PendingGoogleBinding.SESSION_KEY, pending);
+        try {
+            clear(request, response, authentication);
+        } finally {
+            request.getSession(true).setAttribute(PendingGoogleBinding.SESSION_KEY, pending);
+        }
     }
 }

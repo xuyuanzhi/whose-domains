@@ -44,11 +44,17 @@ public class CurrentJwtUserResolver {
         if (cookies == null) {
             return null;
         }
+        boolean found = false;
+        String token = null;
         for (Cookie cookie : cookies) {
             if (Constants.TOKEN_KEY.equals(cookie.getName())) {
-                return cookie.getValue();
+                if (found) {
+                    return null;
+                }
+                found = true;
+                token = cookie.getValue();
             }
         }
-        return null;
+        return token;
     }
 }

@@ -51,6 +51,27 @@ class CurrentJwtUserResolverTest {
     }
 
     @Test
+    void rejectsDuplicateAccessTokenCookiesWhenOneIsInvalid() {
+        User active = tokenUser("duplicate-user");
+        when(userService.getById("duplicate-user")).thenReturn(active);
+        String validToken = TokenUtils.createToken(active, 5);
+        MockHttpServletRequest request = requestWithTokens(validToken, "not-a-project-jwt");
+
+        assertFalse(resolver.resolve(request).isPresent());
+    }
+
+    @Test
+    void rejectsDuplicateAccessTokenCookiesWhenBothAreValid() {
+        User firstUser = tokenUser("first-duplicate-user");
+        User secondUser = tokenUser("second-duplicate-user");
+        when(userService.getById("first-duplicate-user")).thenReturn(firstUser);
+        MockHttpServletRequest request = requestWithTokens(
+                TokenUtils.createToken(firstUser, 5), TokenUtils.createToken(secondUser, 5));
+
+        assertFalse(resolver.resolve(request).isPresent());
+    }
+
+    @Test
     void returnsEmptyWhenTheJwtUserNoLongerExists() {
         User tokenUser = tokenUser("missing-user");
         when(userService.getById("missing-user")).thenReturn(null);
@@ -81,8 +102,16 @@ class CurrentJwtUserResolverTest {
     }
 
     private MockHttpServletRequest requestWithToken(String token) {
+        return requestWithTokens(token);
+    }
+
+    private MockHttpServletRequest requestWithTokens(String... tokens) {
         MockHttpServletRequest request = new MockHttpServletRequest();
-        request.setCookies(new Cookie(Constants.TOKEN_KEY, token));
+        Cookie[] cookies = new Cookie[tokens.length];
+        for (int i = 0; i < tokens.length; i++) {
+            cookies[i] = new Cookie(Constants.TOKEN_KEY, tokens[i]);
+        }
+        request.setCookies(cookies);
         return request;
     }
 
