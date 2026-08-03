@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -23,6 +24,7 @@ import java.time.temporal.ChronoUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.dao.DuplicateKeyException;
 
@@ -32,6 +34,7 @@ import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 
 import info.wesite.core.entity.BaseEntity;
 import info.wesite.core.entity.User;
+import info.wesite.core.mapper.UserMapper;
 import info.wesite.core.service.UserService;
 import info.wesite.web.auth.EmailLoginRequestResult;
 import info.wesite.web.auth.EmailLoginService;
@@ -40,14 +43,16 @@ import info.wesite.web.auth.EmailLoginService;
 class GoogleLoginServiceTest {
 
     private UserService userService;
+    private UserMapper userMapper;
     private EmailLoginService emailLoginService;
     private GoogleLoginService service;
 
     @BeforeEach
     void setUp() {
         userService = mock(UserService.class);
+        userMapper = mock(UserMapper.class);
         emailLoginService = mock(EmailLoginService.class);
-        service = new GoogleLoginService(userService, emailLoginService);
+        service = new GoogleLoginService(userService, userMapper, emailLoginService);
     }
 
     @Test
@@ -60,7 +65,7 @@ class GoogleLoginServiceTest {
         assertEquals(GoogleLoginResult.Status.SIGNED_IN, result.status());
         assertSame(subjectUser, result.user());
         assertNull(result.pendingBinding());
-        verify(userService, times(1)).getOne(any(QueryWrapper.class));
+        assertSubjectLookupOnly("google-subject");
         verify(userService, never()).update(any(), any(Wrapper.class));
     }
 
@@ -74,6 +79,7 @@ class GoogleLoginServiceTest {
                 () -> service.authenticate(gmailIdentity(), null));
 
         assertEquals(INACTIVE_USER, error.code());
+        assertSubjectLookupOnly("google-subject");
         verify(userService, never()).update(any(), any(Wrapper.class));
     }
 
@@ -87,7 +93,7 @@ class GoogleLoginServiceTest {
 
         assertSame(currentUser, result.user());
         assertEquals("google-subject", currentUser.getGoogleSub());
-        verify(userService, times(1)).getOne(any(QueryWrapper.class));
+        assertSubjectLookupOnly("google-subject");
         verify(userService).update(isNull(), any(Wrapper.class));
     }
 
@@ -101,11 +107,7 @@ class GoogleLoginServiceTest {
 
         assertSame(emailUser, result.user());
         assertEquals("google-subject", emailUser.getGoogleSub());
-        ArgumentCaptor<QueryWrapper<User>> queries = queryCaptor();
-        verify(userService, times(2)).getOne(queries.capture());
-        QueryWrapper<User> emailQuery = queries.getAllValues().get(1);
-        emailQuery.getSqlSegment();
-        assertTrue(emailQuery.getParamNameValuePairs().containsValue("person@gmail.com"));
+        assertSubjectThenEmailLookups("google-subject", "person@gmail.com");
     }
 
     @Test
@@ -126,6 +128,7 @@ class GoogleLoginServiceTest {
         assertEquals(User.TYPE_PERSON, user.getUserType());
         assertFalse(user.getId().isBlank());
         assertFalse(user.getSecureKey().isBlank());
+        assertSubjectThenEmailLookups("google-subject", "person@gmail.com");
     }
 
     @Test
@@ -148,6 +151,7 @@ class GoogleLoginServiceTest {
         verify(userService, never()).update(any(), any(Wrapper.class));
         verify(emailLoginService).request("person@outside.example",
                 "/user/watchlist?login=google_bind_required");
+        assertSubjectThenEmailLookups("google-subject", "person@outside.example");
     }
 
     @Test
@@ -164,6 +168,7 @@ class GoogleLoginServiceTest {
         verify(emailLoginService).request(
                 "person@outside.example",
                 "/user/watchlist?login=google_bind_required");
+        assertSubjectThenEmailLookups("google-subject", "person@outside.example");
     }
 
     @Test
@@ -175,6 +180,7 @@ class GoogleLoginServiceTest {
                 () -> service.authenticate(gmailIdentity(), null));
 
         assertEquals(ACCOUNT_CONFLICT, error.code());
+        assertSubjectThenEmailLookups("google-subject", "person@gmail.com");
         verify(userService, never()).update(any(), any(Wrapper.class));
     }
 
@@ -184,13 +190,16 @@ class GoogleLoginServiceTest {
         User racedUser = activeUser("email-user", "person@gmail.com", "google-subject");
         when(userService.getOne(any(QueryWrapper.class))).thenReturn(null, emailUser);
         when(userService.update(isNull(), any(Wrapper.class))).thenReturn(false);
-        when(userService.getById("email-user")).thenReturn(racedUser);
+        when(userMapper.selectByIdForUpdate("email-user")).thenReturn(racedUser);
         ArgumentCaptor<Wrapper<User>> wrapper = wrapperCaptor();
 
         GoogleLoginResult result = service.authenticate(gmailIdentity(), null);
 
         assertSame(racedUser, result.user());
-        verify(userService).update(isNull(), wrapper.capture());
+        assertSubjectThenEmailLookups("google-subject", "person@gmail.com");
+        InOrder reloadOrder = inOrder(userService, userMapper);
+        reloadOrder.verify(userService).update(isNull(), wrapper.capture());
+        reloadOrder.verify(userMapper).selectByIdForUpdate("email-user");
         UpdateWrapper<User> update = (UpdateWrapper<User>) wrapper.getValue();
         assertTrue(update.getSqlSet().contains("GOOGLE_SUB"));
         assertTrue(update.getSqlSet().contains("UPDATE_TIME"));
@@ -207,26 +216,90 @@ class GoogleLoginServiceTest {
         User racedUser = activeUser("email-user", "person@gmail.com", "different-subject");
         when(userService.getOne(any(QueryWrapper.class))).thenReturn(null, emailUser);
         when(userService.update(isNull(), any(Wrapper.class))).thenReturn(false);
-        when(userService.getById("email-user")).thenReturn(racedUser);
+        when(userMapper.selectByIdForUpdate("email-user")).thenReturn(racedUser);
 
         GoogleLoginException error = assertThrows(GoogleLoginException.class,
                 () -> service.authenticate(gmailIdentity(), null));
 
         assertEquals(ACCOUNT_CONFLICT, error.code());
+        assertSubjectThenEmailLookups("google-subject", "person@gmail.com");
+        InOrder reloadOrder = inOrder(userService, userMapper);
+        reloadOrder.verify(userService).update(isNull(), any(Wrapper.class));
+        reloadOrder.verify(userMapper).selectByIdForUpdate("email-user");
     }
 
     @Test
     void retriesAConcurrentDuplicateEmailCreateByReloadingSubjectThenEmail() {
         User concurrentUser = activeUser("concurrent-user", "person@gmail.com", null);
-        when(userService.getOne(any(QueryWrapper.class))).thenReturn(null, null, null, concurrentUser);
+        when(userService.getOne(any(QueryWrapper.class))).thenReturn(null);
         when(userService.save(any(User.class))).thenThrow(new DuplicateKeyException("duplicate"));
+        when(userMapper.selectByGoogleSubForUpdate("google-subject")).thenReturn(null);
+        when(userMapper.selectByEmailForUpdate("person@gmail.com")).thenReturn(concurrentUser);
         when(userService.update(isNull(), any(Wrapper.class))).thenReturn(true);
+        ArgumentCaptor<QueryWrapper<User>> query = queryCaptor();
 
         GoogleLoginResult result = service.authenticate(gmailIdentity(), null);
 
         assertSame(concurrentUser, result.user());
-        verify(userService, times(4)).getOne(any(QueryWrapper.class));
+        InOrder order = inOrder(userService, userMapper);
+        order.verify(userService, times(2)).getOne(query.capture());
+        order.verify(userService).save(any(User.class));
+        order.verify(userMapper).selectByGoogleSubForUpdate("google-subject");
+        order.verify(userMapper).selectByEmailForUpdate("person@gmail.com");
+        assertIndexedQuery(query.getAllValues().get(0), "GOOGLE_SUB", "google-subject");
+        assertIndexedQuery(query.getAllValues().get(1), "EMAIL", "person@gmail.com");
         verify(userService).update(isNull(), any(Wrapper.class));
+    }
+
+    @Test
+    void rejectsAnInactiveCurrentJwtUserWithoutUpdatingOrSendingEmail() {
+        User currentUser = activeUser("current-user", " Person@Gmail.com ", null);
+        currentUser.setStatus(BaseEntity.STATUS_INACTIVE);
+        when(userService.getOne(any(QueryWrapper.class))).thenReturn(null);
+
+        GoogleLoginException error = assertThrows(GoogleLoginException.class,
+                () -> service.authenticate(gmailIdentity(), currentUser));
+
+        assertEquals(INACTIVE_USER, error.code());
+        assertSubjectLookupOnly("google-subject");
+        verify(userService, never()).update(any(), any(Wrapper.class));
+        verify(emailLoginService, never()).request(any(), any());
+    }
+
+    @Test
+    void rejectsAnInactiveThirdPartyEmailUserWithoutUpdatingOrSendingEmail() {
+        User emailUser = activeUser("email-user", "person@outside.example", null);
+        emailUser.setStatus(BaseEntity.STATUS_INACTIVE);
+        when(userService.getOne(any(QueryWrapper.class))).thenReturn(null, emailUser);
+
+        GoogleLoginException error = assertThrows(GoogleLoginException.class,
+                () -> service.authenticate(thirdPartyIdentity(), null));
+
+        assertEquals(INACTIVE_USER, error.code());
+        assertSubjectThenEmailLookups("google-subject", "person@outside.example");
+        verify(userService, never()).update(any(), any(Wrapper.class));
+        verify(emailLoginService, never()).request(any(), any());
+    }
+
+    @Test
+    void rejectsAnInactiveEmailUserReloadedAfterDuplicateCreateWithoutUpdatingOrSendingEmail() {
+        User concurrentUser = activeUser("concurrent-user", "person@gmail.com", null);
+        concurrentUser.setStatus(BaseEntity.STATUS_INACTIVE);
+        when(userService.getOne(any(QueryWrapper.class))).thenReturn(null);
+        when(userService.save(any(User.class))).thenThrow(new DuplicateKeyException("duplicate"));
+        when(userMapper.selectByGoogleSubForUpdate("google-subject")).thenReturn(null);
+        when(userMapper.selectByEmailForUpdate("person@gmail.com")).thenReturn(concurrentUser);
+
+        GoogleLoginException error = assertThrows(GoogleLoginException.class,
+                () -> service.authenticate(gmailIdentity(), null));
+
+        assertEquals(INACTIVE_USER, error.code());
+        InOrder order = inOrder(userMapper);
+        order.verify(userMapper).selectByGoogleSubForUpdate("google-subject");
+        order.verify(userMapper).selectByEmailForUpdate("person@gmail.com");
+        assertSubjectThenEmailLookups("google-subject", "person@gmail.com");
+        verify(userService, never()).update(any(), any(Wrapper.class));
+        verify(emailLoginService, never()).request(any(), any());
     }
 
     @Test
@@ -239,7 +312,7 @@ class GoogleLoginServiceTest {
                 () -> service.authenticate(gmailIdentity(), null));
 
         assertSame(databaseFailure, error);
-        verify(userService, times(2)).getOne(any(QueryWrapper.class));
+        assertSubjectThenEmailLookups("google-subject", "person@gmail.com");
     }
 
     @Test
@@ -350,5 +423,25 @@ class GoogleLoginServiceTest {
 
     private ArgumentCaptor<Wrapper<User>> wrapperCaptor() {
         return ArgumentCaptor.forClass((Class) Wrapper.class);
+    }
+
+    private void assertSubjectLookupOnly(String subject) {
+        ArgumentCaptor<QueryWrapper<User>> queries = queryCaptor();
+        verify(userService).getOne(queries.capture());
+        assertIndexedQuery(queries.getValue(), "GOOGLE_SUB", subject);
+    }
+
+    private void assertSubjectThenEmailLookups(String subject, String email) {
+        ArgumentCaptor<QueryWrapper<User>> queries = queryCaptor();
+        verify(userService, times(2)).getOne(queries.capture());
+        assertIndexedQuery(queries.getAllValues().get(0), "GOOGLE_SUB", subject);
+        assertIndexedQuery(queries.getAllValues().get(1), "EMAIL", email);
+    }
+
+    private void assertIndexedQuery(QueryWrapper<User> query, String column, String value) {
+        String sql = query.getSqlSegment();
+        assertTrue(sql.contains(column + " ="), sql);
+        assertEquals(1, query.getParamNameValuePairs().size());
+        assertTrue(query.getParamNameValuePairs().containsValue(value), query.getParamNameValuePairs().toString());
     }
 }

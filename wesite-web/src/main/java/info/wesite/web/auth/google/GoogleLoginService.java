@@ -14,6 +14,7 @@ import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 
 import info.wesite.core.entity.BaseEntity;
 import info.wesite.core.entity.User;
+import info.wesite.core.mapper.UserMapper;
 import info.wesite.core.service.UserService;
 import info.wesite.core.utils.RandomUtils;
 import info.wesite.web.auth.EmailLoginRequestResult;
@@ -26,10 +27,12 @@ public class GoogleLoginService {
     private static final String BINDING_REDIRECT = "/user/watchlist?login=google_bind_required";
 
     private final UserService userService;
+    private final UserMapper userMapper;
     private final EmailLoginService emailLoginService;
 
-    public GoogleLoginService(UserService userService, EmailLoginService emailLoginService) {
+    public GoogleLoginService(UserService userService, UserMapper userMapper, EmailLoginService emailLoginService) {
         this.userService = userService;
+        this.userMapper = userMapper;
         this.emailLoginService = emailLoginService;
     }
 
@@ -102,12 +105,12 @@ public class GoogleLoginService {
             }
             return user;
         } catch (DuplicateKeyException duplicate) {
-            User subjectUser = findBySubject(subject);
+            User subjectUser = userMapper.selectByGoogleSubForUpdate(subject);
             if (subjectUser != null) {
                 requireActive(subjectUser);
                 return subjectUser;
             }
-            User emailUser = findByEmail(email);
+            User emailUser = userMapper.selectByEmailForUpdate(email);
             if (emailUser != null) {
                 requireActive(emailUser);
                 return bindSubject(emailUser, subject);
@@ -136,7 +139,7 @@ public class GoogleLoginService {
             return user;
         }
 
-        User reloaded = userService.getById(user.getId());
+        User reloaded = userMapper.selectByIdForUpdate(user.getId());
         if (reloaded == null) {
             throw new GoogleLoginException(Code.ACCOUNT_CONFLICT);
         }
