@@ -258,22 +258,39 @@
     var authModalTitleBar=document.getElementById('authModalTitleBar');
     var authModalDrag=null;
     var authModalEdgeGap=8;
-    function resetAuthModalPosition() {
+    var authModalMobileQuery=window.matchMedia('(max-width: 480px)');
+    function clearAuthModalDrag() {
+        var drag=authModalDrag;
         authModalDrag=null;
         authModalDialog.classList.remove('is-dragging');
+        if(drag&&authModalTitleBar.hasPointerCapture&&authModalTitleBar.hasPointerCapture(drag.pointerId)){
+            authModalTitleBar.releasePointerCapture(drag.pointerId);
+        }
+    }
+    function resetAuthModalPosition() {
+        clearAuthModalDrag();
         authModalDialog.style.left='';
         authModalDialog.style.top='';
         authModalDialog.style.transform='none';
     }
     function clampAuthModalPosition(left,top) {
         var edgeGap=authModalEdgeGap;
+        var maxLeft=Math.max(edgeGap,window.innerWidth-authModalDialog.offsetWidth-edgeGap);
+        var maxTop=Math.max(edgeGap,window.innerHeight-authModalDialog.offsetHeight-edgeGap);
         return {
-            left:Math.max(edgeGap,Math.min(left,window.innerWidth-authModalDialog.offsetWidth-edgeGap)),
-            top:Math.max(edgeGap,Math.min(top,window.innerHeight-authModalDialog.offsetHeight-edgeGap))
+            left:Math.max(edgeGap,Math.min(left,maxLeft)),
+            top:Math.max(edgeGap,Math.min(top,maxTop))
         };
     }
+    function reclampAuthModalPosition() {
+        if(authModalMobileQuery.matches||!authModalDialog.style.left||!authModalDialog.style.top)return;
+        var rect=authModalDialog.getBoundingClientRect();
+        var next=clampAuthModalPosition(rect.left,rect.top);
+        authModalDialog.style.left=next.left+'px';
+        authModalDialog.style.top=next.top+'px';
+    }
     function startAuthModalDrag(event) {
-        if(event.button!==0||event.target.closest('button,a,input')||window.matchMedia('(max-width: 480px)').matches)return;
+        if(event.button!==0||event.isPrimary===false||authModalDrag||event.target.closest('button,a,input')||authModalMobileQuery.matches)return;
         var rect=authModalDialog.getBoundingClientRect();
         authModalDrag={pointerId:event.pointerId,x:event.clientX,y:event.clientY,left:rect.left,top:rect.top};
         authModalDialog.style.left=rect.left+'px';
@@ -293,13 +310,22 @@
     }
     function endAuthModalDrag(event) {
         if(!authModalDrag||event.pointerId!==authModalDrag.pointerId)return;
-        authModalDrag=null;
-        authModalDialog.classList.remove('is-dragging');
+        clearAuthModalDrag();
+    }
+    function handleAuthModalBreakpoint(event) {
+        if(event.matches)resetAuthModalPosition();
+    }
+    function handleAuthModalResize() {
+        if(authModalMobileQuery.matches)resetAuthModalPosition();
+        else reclampAuthModalPosition();
     }
     authModalTitleBar.addEventListener('pointerdown',startAuthModalDrag);
     authModalTitleBar.addEventListener('pointermove',moveAuthModal);
     authModalTitleBar.addEventListener('pointerup',endAuthModalDrag);
     authModalTitleBar.addEventListener('pointercancel',endAuthModalDrag);
+    if(authModalMobileQuery.addEventListener)authModalMobileQuery.addEventListener('change',handleAuthModalBreakpoint);
+    else authModalMobileQuery.addListener(handleAuthModalBreakpoint);
+    window.addEventListener('resize',handleAuthModalResize);
     function openAuthModal(trigger) {
         authModalTrigger=trigger&&typeof trigger.focus==='function'?trigger:null;
         resetAuthModalPosition();
@@ -412,7 +438,14 @@
             location.reload();
         });
     }
-    function setAuthMsg(id,msg,color){var el=document.getElementById(id);el.style.display='block';el.style.color=color;el.textContent=msg;}
+    function setAuthMsg(id,msg,color){
+        var el=document.getElementById(id)||document.getElementById('emailLoginMsg');
+        if(!el)return;
+        el.style.display='block';
+        el.style.color=color;
+        el.textContent=msg;
+        reclampAuthModalPosition();
+    }
     </script>
     </th:block>
 

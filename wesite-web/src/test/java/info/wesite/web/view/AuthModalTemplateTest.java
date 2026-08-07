@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 class AuthModalTemplateTest {
 
     private static final String TEMPLATE_RESOURCE = "/views/template.html";
+    private static final String COMMON_CSS_RESOURCE = "/static/style/common.css";
 
     @Test
     void emailSignInButtonShowsAndClearsSendingState() throws IOException {
@@ -121,36 +122,32 @@ class AuthModalTemplateTest {
     }
 
     @Test
-    void authModalDraggingIsDesktopOnlyConstrainedAndReset() throws IOException {
-        String template = template();
+    void shortViewportsKeepTheTitleVisibleAndTheFormScrollable() throws IOException {
+        String css = resource(COMMON_CSS_RESOURCE);
+        String cardRule = cssRule(css, ".auth-modal-card");
+        String titleBarRule = cssRule(css, ".auth-modal-titlebar");
+        String formRule = cssRule(css, "#loginForm");
 
-        assertTrue(template.contains("window.matchMedia('(max-width: 480px)').matches"));
-        assertTrue(template.contains("event.button!==0"));
-        assertTrue(template.contains("event.target.closest('button,a,input')"));
-        assertTrue(template.contains("authModalTitleBar.setPointerCapture(event.pointerId)"));
-        assertTrue(template.contains("Math.max(edgeGap,Math.min(left,window.innerWidth-authModalDialog.offsetWidth-edgeGap))"));
-        assertTrue(template.contains("Math.max(edgeGap,Math.min(top,window.innerHeight-authModalDialog.offsetHeight-edgeGap))"));
-        assertTrue(template.contains("authModalDialog.style.transform='none'"));
-        assertTrue(template.contains("authModalTitleBar.addEventListener('pointerdown',startAuthModalDrag)"));
-        assertTrue(template.contains("authModalTitleBar.addEventListener('pointermove',moveAuthModal)"));
-        assertTrue(template.contains("authModalTitleBar.addEventListener('pointerup',endAuthModalDrag)"));
-        assertTrue(template.contains("authModalTitleBar.addEventListener('pointercancel',endAuthModalDrag)"));
-    }
-
-    @Test
-    void resettingAuthModalPositionClearsDraggingAppearance() throws IOException {
-        String template = template();
-
-        int resetStart = template.indexOf("function resetAuthModalPosition() {");
-        int resetEnd = template.indexOf("function clampAuthModalPosition", resetStart);
-
-        assertTrue(resetStart >= 0 && resetEnd > resetStart);
-        assertTrue(template.substring(resetStart, resetEnd).contains("authModalDialog.classList.remove('is-dragging')"));
+        assertTrue(cardRule.contains("max-height: calc(100vh - 16px)"));
+        assertTrue(cardRule.contains("flex-direction: column"));
+        assertTrue(titleBarRule.contains("flex: 0 0 auto"));
+        assertTrue(formRule.contains("overflow-y: auto"));
+        assertTrue(formRule.contains("min-height: 0"));
     }
 
     private String template() throws IOException {
-        try (InputStream input = getClass().getResourceAsStream(TEMPLATE_RESOURCE)) {
+        return resource(TEMPLATE_RESOURCE);
+    }
+
+    private String resource(String path) throws IOException {
+        try (InputStream input = getClass().getResourceAsStream(path)) {
             return new String(input.readAllBytes(), StandardCharsets.UTF_8);
         }
+    }
+
+    private String cssRule(String css, String selector) {
+        int start = css.indexOf(selector + " {");
+        int end = css.indexOf('}', start);
+        return start >= 0 && end > start ? css.substring(start, end) : "";
     }
 }
