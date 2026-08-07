@@ -34,7 +34,7 @@
 - `wesite-web/src/test/java/info/wesite/web/view/DomainWatchTemplateTest.java`：Watchlist 新结构和旧流程移除契约。
 - `wesite-web/src/test/js/domain-watch-runtime.test.js`：运行 Watchlist 真实脚本，验证未认证状态切换。
 
-### 任务 1：Google 登录按钮图标与稳定的文字更新
+### Task 1：Google 登录按钮图标与稳定的文字更新
 
 **文件：**
 - 修改：`wesite-web/src/main/resources/views/template.html:226-233,429-432`
@@ -129,7 +129,7 @@ git add -- wesite-web/src/main/resources/views/template.html wesite-web/src/main
 git commit -m "feat: add Google sign-in icon"
 ```
 
-### 任务 2：站内退出确认框与可靠退出状态机
+### Task 2：站内退出确认框与可靠退出状态机
 
 **文件：**
 - 修改：`wesite-web/src/main/resources/views/template.html:195-244,366-447`
@@ -281,7 +281,7 @@ git commit -m "feat: confirm account sign-out"
 
 预期：所有退出结构和可执行行为测试通过，diff check 无输出。
 
-### 任务 3：Watchlist 单焦点未登录卡与状态切换
+### Task 3：Watchlist 单焦点未登录卡与状态切换
 
 **文件：**
 - 修改：`wesite-web/src/main/resources/views/user/domain-watch.html:15-47,194-245`
@@ -404,7 +404,7 @@ git commit -m "feat: simplify Watchlist signed-out state"
 
 预期：两个 Node 测试文件、`wesite-core` 与 `wesite-web` 全部通过，diff check 无输出。
 
-### 任务 4：浏览器视觉与交互验收
+### Task 4：浏览器视觉与交互验收
 
 **文件：**
 - 只验证：`wesite-web/src/main/resources/views/template.html`
