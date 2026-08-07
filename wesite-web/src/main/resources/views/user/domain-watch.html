@@ -19,19 +19,18 @@
         <div class="container" style="max-width:960px; padding-bottom:60px;">
 
             <!-- Login required notice (shown when not logged in) -->
-            <div id="loginRequired" style="display:none; text-align:center; padding:60px 20px;">
-                <div style="font-size:48px; margin-bottom:16px;">🔒</div>
-                <h2 style="margin-bottom:12px; color:var(--darker);">Sign in to use your Watchlist</h2>
-                <p style="color:var(--gray); margin-bottom:24px;">Create a free account to monitor domains and receive expiry alerts.</p>
-                <div style="max-width:460px;margin:0 auto 18px;display:flex;gap:8px;flex-wrap:wrap;">
-                    <input id="quickWatchDomain" type="text" placeholder="example.com" style="flex:1;min-width:180px;padding:10px 14px;border:1px solid var(--glass-border);border-radius:8px;background:rgba(255,255,255,.06);color:#e2e8f0;">
-                    <input id="quickWatchEmail" type="email" placeholder="you@example.com" style="flex:1;min-width:180px;padding:10px 14px;border:1px solid var(--glass-border);border-radius:8px;background:rgba(255,255,255,.06);color:#e2e8f0;">
-                    <button onclick="requestQuickWatch()" class="watch-btn-primary">Email me a link</button>
+            <div id="loginRequired" class="watchlist-signed-out" style="display:none;">
+                <div class="watchlist-signin-card">
+                    <div class="watchlist-signin-icon" aria-hidden="true"><i class="fas fa-lock"></i></div>
+                    <h2>Sign in to view your Watchlist</h2>
+                    <p>Your monitored domains and alert settings are saved securely to your account.</p>
+                    <div class="watchlist-signin-benefits" aria-label="Watchlist benefits">
+                        <span><i class="fas fa-check" aria-hidden="true"></i> Expiry alerts</span>
+                        <span><i class="fas fa-check" aria-hidden="true"></i> Up to 50 domains</span>
+                    </div>
+                    <button type="button" onclick="openAuthModal(this)" class="watch-btn-primary">Sign In</button>
+                    <small>New domains can be added after signing in.</small>
                 </div>
-                <div id="quickWatchMsg" style="display:none;font-size:13px;margin-bottom:16px;"></div>
-                <button onclick="openAuthModal('login')" class="watch-btn-primary">Sign In</button>
-                <span style="margin:0 12px; color:var(--gray);">or</span>
-                <button onclick="openAuthModal('register')" class="watch-btn-secondary">Create Account</button>
             </div>
 
             <!-- Main watchlist UI (shown when logged in) -->
@@ -169,6 +168,27 @@
             border: 1px solid var(--glass-border); border-radius: 6px; font-size: 13px; cursor: pointer;
         }
         .watch-btn-edit:hover { background: rgba(255,255,255,0.06); }
+        .watchlist-signed-out { padding: 60px 20px; }
+        .watchlist-signin-card {
+            max-width: 520px; margin: 0 auto; padding: 36px;
+            text-align: center; background: var(--card-bg); border: 1px solid var(--glass-border);
+            border-radius: 14px;
+        }
+        .watchlist-signin-card h2 { margin-bottom: 12px; color: var(--darker); }
+        .watchlist-signin-card p { margin-bottom: 20px; color: var(--gray); }
+        .watchlist-signin-card small { display: block; margin-top: 16px; color: var(--gray); }
+        .watchlist-signin-icon {
+            width: 52px; height: 52px; display: grid; place-items: center; margin: 0 auto 16px;
+            border-radius: 50%; background: rgba(100,255,218,0.12); color: var(--primary); font-size: 22px;
+        }
+        .watchlist-signin-benefits {
+            display: flex; justify-content: center; gap: 16px; margin: 0 auto 24px; color: var(--gray); font-size: 14px;
+        }
+        .watchlist-signin-benefits i { color: var(--primary); margin-right: 5px; }
+        @media (max-width: 480px) {
+            .watchlist-signin-card { padding: 28px 20px; }
+            .watchlist-signin-benefits { flex-wrap: wrap; gap: 8px 16px; }
+        }
         .stat-card {
             flex: 1; min-width: 120px; background: var(--card-bg);
             border: 1px solid var(--glass-border); border-radius: 10px; padding: 16px 20px; text-align: center;
@@ -210,9 +230,9 @@
                             showLoginRequired();
                         } else {
                             isLoggedIn = true;
+                            document.getElementById('loginRequired').style.display = 'none';
                             document.getElementById('watchlistUI').style.display = 'block';
                             renderList(data.data || []);
-                            addPendingWatch();
                         }
                     });
                 }
@@ -220,28 +240,11 @@
             .catch(function() { showLoginRequired(); });
     }
 
-    function requestQuickWatch() {
-        var domain=document.getElementById('quickWatchDomain').value.trim().toLowerCase();
-        var email=document.getElementById('quickWatchEmail').value.trim();
-        var msg=document.getElementById('quickWatchMsg');
-        if(!domain || !email){msg.textContent='Enter a domain and email address.';msg.style.color='#ff5252';msg.style.display='block';return;}
-        localStorage.setItem('pendingDomainWatch', domain);
-        fetch('/user/email-login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email})})
-        .then(function(r){return r.json();}).then(function(d){msg.textContent=d.msg||'Check your inbox.';msg.style.color=d.code===0?'#4caf50':'#ff5252';msg.style.display='block';})
-        .catch(function(){msg.textContent='Network error.';msg.style.color='#ff5252';msg.style.display='block';});
-    }
-
-    function addPendingWatch() {
-        var domain=localStorage.getItem('pendingDomainWatch');
-        if(!domain) return;
-        localStorage.removeItem('pendingDomainWatch');
-        fetch('/api/domain-watch/watch',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({domainName:domain,notifyType:3})})
-        .then(function(r){return r.json();}).then(function(d){if(d.code===0){checkLoginAndLoad();}});
-    }
-
     function showLoginRequired() {
-        document.getElementById('loginRequired').style.display = 'block';
+        isLoggedIn = false;
         document.getElementById('listLoader').style.display = 'none';
+        document.getElementById('watchlistUI').style.display = 'none';
+        document.getElementById('loginRequired').style.display = 'block';
     }
 
     function renderList(list) {
