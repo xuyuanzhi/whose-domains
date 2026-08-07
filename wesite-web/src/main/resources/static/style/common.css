@@ -62,6 +62,46 @@
 }
 .auth-login-divider::before,
 .auth-login-divider::after { content: ""; flex: 1; height: 1px; background: var(--glass-border); }
+.auth-method-description {
+    margin: 0 0 16px;
+    color: #8b96a8;
+    font-size: 14px;
+}
+.auth-email-field { margin-bottom: 14px; }
+.auth-email-field label {
+    display: block;
+    margin-bottom: 6px;
+    color: #8b96a8;
+    font-size: 13px;
+}
+.auth-email-field input {
+    box-sizing: border-box;
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid rgba(100,255,218,.2);
+    border-radius: var(--radius-sm);
+    outline: none;
+    background: rgba(255,255,255,.05);
+    color: #e2e8f0;
+    font-size: 14px;
+}
+#sendEmailLoginButton {
+    width: 100%;
+    padding: 12px;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: #64ffda;
+    color: #080c18;
+    cursor: pointer;
+    font-size: 15px;
+    font-weight: 700;
+}
+.auth-method-message {
+    display: none;
+    margin-top: 10px;
+    font-size: 13px;
+    line-height: 1.45;
+}
 .auth-google-button:focus-visible,
 .auth-modal-close:focus-visible,
 .auth-modal input:focus-visible,

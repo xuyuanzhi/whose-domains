@@ -54,10 +54,34 @@ class AuthModalTemplateTest {
     }
 
     @Test
-    void loginResultsAreAnnouncedPolitely() throws IOException {
+    void authenticationMethodsKeepTheirCopyAndStatusTogether() throws IOException {
         String template = template();
 
-        assertTrue(template.contains("id=\"loginMsg\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\""));
+        int googleSection = template.indexOf("class=\"auth-method auth-google-section\"");
+        int googleButton = template.indexOf("id=\"googleLoginButton\"");
+        int googleMessage = template.indexOf("id=\"googleLoginMsg\"");
+        int divider = template.indexOf("class=\"auth-login-divider\"");
+        int emailSection = template.indexOf("class=\"auth-method auth-email-section\"");
+        int emailCopy = template.indexOf("We'll email you a secure, password-free sign-in link.");
+        int emailButton = template.indexOf("id=\"sendEmailLoginButton\"");
+        int emailMessage = template.indexOf("id=\"emailLoginMsg\"");
+
+        assertTrue(googleSection < googleButton && googleButton < googleMessage);
+        assertTrue(googleMessage < divider && divider < emailSection);
+        assertTrue(emailSection < emailCopy && emailCopy < emailButton && emailButton < emailMessage);
+        assertTrue(template.contains("id=\"googleLoginMsg\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\""));
+        assertTrue(template.contains("id=\"emailLoginMsg\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\""));
+    }
+
+    @Test
+    void authenticationResultsRouteToTheirOwnMethod() throws IOException {
+        String template = template();
+
+        assertTrue(template.contains("setAuthMsg('emailLoginMsg','Please enter your email address.'"));
+        assertTrue(template.contains("setAuthMsg('emailLoginMsg',d.msg||'Check your inbox for a sign-in link.'"));
+        assertTrue(template.contains("function loginMessageTarget(loginCode)"));
+        assertTrue(template.contains("return loginCode==='invalid'?'emailLoginMsg':'googleLoginMsg'"));
+        assertTrue(template.contains("setAuthMsg(loginMessageTarget(loginCode),result.message,result.color)"));
     }
 
     @Test

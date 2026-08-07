@@ -221,19 +221,22 @@
     <div id="authModal" class="auth-modal" aria-hidden="true" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:99999;align-items:center;justify-content:center;">
         <div class="auth-modal-card" role="dialog" aria-modal="true" aria-labelledby="authModalTitle" tabindex="-1" style="background:#0d1117;border:1px solid rgba(100,255,218,0.2);border-radius:16px;padding:36px;width:100%;max-width:400px;margin:20px;position:relative;">
             <button class="auth-modal-close" onclick="closeAuthModal()" aria-label="Close sign-in dialog" style="position:absolute;top:14px;right:18px;background:none;border:none;color:#888;font-size:20px;cursor:pointer;">&times;</button>
+            <h2 id="authModalTitle" style="margin-bottom:6px;color:#e2e8f0;">Sign In</h2>
             <div id="loginForm">
-                <h2 id="authModalTitle" style="margin-bottom:6px;color:#e2e8f0;">Sign In</h2>
-                <p style="color:#888;font-size:14px;margin-bottom:24px;">We'll email you a secure, password-free sign-in link.</p>
-                <a id="googleLoginButton" class="auth-google-button" href="/oauth2/authorization/google"
-                   th:if="${_googleLoginEnabled}">Continue with Google</a>
-                <div class="auth-login-divider" th:if="${_googleLoginEnabled}"><span>or</span></div>
-                <div style="margin-bottom:14px;">
-                    <label style="font-size:13px;color:#888;display:block;margin-bottom:6px;">Email Address</label>
-                    <input id="loginEmail" type="email" placeholder="you@example.com"
-                           style="width:100%;padding:10px 14px;border:1px solid rgba(100,255,218,0.2);border-radius:8px;font-size:14px;background:rgba(255,255,255,0.05);color:#e2e8f0;outline:none;box-sizing:border-box;">
+                <div class="auth-method auth-google-section" th:if="${_googleLoginEnabled}">
+                    <a id="googleLoginButton" class="auth-google-button" href="/oauth2/authorization/google">Continue with Google</a>
+                    <div id="googleLoginMsg" role="status" aria-live="polite" aria-atomic="true" class="auth-method-message"></div>
                 </div>
-                <button id="sendEmailLoginButton" onclick="sendEmailLogin()" style="width:100%;padding:12px;background:#64ffda;color:#080c18;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;">Email Me a Sign-in Link</button>
-                <div id="loginMsg" role="status" aria-live="polite" aria-atomic="true" style="display:none;font-size:13px;margin-bottom:14px;color:#ff5252;"></div>
+                <div class="auth-login-divider" th:if="${_googleLoginEnabled}"><span>or</span></div>
+                <div class="auth-method auth-email-section">
+                    <p class="auth-method-description">We'll email you a secure, password-free sign-in link.</p>
+                    <div class="auth-email-field">
+                        <label for="loginEmail">Email Address</label>
+                        <input id="loginEmail" type="email" placeholder="you@example.com">
+                    </div>
+                    <button id="sendEmailLoginButton" onclick="sendEmailLogin()">Email Me a Sign-in Link</button>
+                    <div id="emailLoginMsg" role="status" aria-live="polite" aria-atomic="true" class="auth-method-message"></div>
+                </div>
             </div>
         </div>
     </div>
@@ -313,13 +316,13 @@
     });
     function sendEmailLogin() {
         var email=document.getElementById('loginEmail').value.trim();
-        if(!email){setAuthMsg('loginMsg','Please enter your email address.','#ff5252');return;}
+        if(!email){setAuthMsg('emailLoginMsg','Please enter your email address.','#ff5252');return;}
         setEmailLoginLoading(true);
         fetch('/user/email-login',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email})})
         .then(function(r){return r.json();}).then(function(d){
-            if(d.code===0){setAuthMsg('loginMsg',d.msg||'Check your inbox for a sign-in link.','#4caf50');}
-            else{setAuthMsg('loginMsg',d.msg||'Could not send the sign-in link.','#ff5252');}
-        }).catch(function(){setAuthMsg('loginMsg','Network error.','#ff5252');}).finally(function(){setEmailLoginLoading(false);});
+            if(d.code===0){setAuthMsg('emailLoginMsg',d.msg||'Check your inbox for a sign-in link.','#4caf50');}
+            else{setAuthMsg('emailLoginMsg',d.msg||'Could not send the sign-in link.','#ff5252');}
+        }).catch(function(){setAuthMsg('emailLoginMsg','Network error.','#ff5252');}).finally(function(){setEmailLoginLoading(false);});
     }
     function setEmailLoginLoading(loading) {
         var button=document.getElementById('sendEmailLoginButton');
@@ -328,6 +331,9 @@
         button.style.opacity=loading?'.7':'1';
         button.style.cursor=loading?'wait':'pointer';
         button.innerHTML=loading?'<i class="fas fa-spinner fa-spin"></i> Sending link...':'Email Me a Sign-in Link';
+    }
+    function loginMessageTarget(loginCode) {
+        return loginCode==='invalid'?'emailLoginMsg':'googleLoginMsg';
     }
     (function showLoginResult() {
         var loginMessages={
@@ -349,7 +355,7 @@
             var button=document.getElementById('googleLoginButton');
             if(button)button.textContent='Finish with Google';
         }
-        setAuthMsg('loginMsg',result.message,result.color);
+        setAuthMsg(loginMessageTarget(loginCode),result.message,result.color);
         openAuthModal();
     })();
     function doLogout() {
