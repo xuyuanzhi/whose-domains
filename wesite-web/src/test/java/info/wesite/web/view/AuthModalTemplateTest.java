@@ -137,6 +137,17 @@ class AuthModalTemplateTest {
         assertTrue(template.contains("authModalTitleBar.addEventListener('pointercancel',endAuthModalDrag)"));
     }
 
+    @Test
+    void resettingAuthModalPositionClearsDraggingAppearance() throws IOException {
+        String template = template();
+
+        int resetStart = template.indexOf("function resetAuthModalPosition() {");
+        int resetEnd = template.indexOf("function clampAuthModalPosition", resetStart);
+
+        assertTrue(resetStart >= 0 && resetEnd > resetStart);
+        assertTrue(template.substring(resetStart, resetEnd).contains("authModalDialog.classList.remove('is-dragging')"));
+    }
+
     private String template() throws IOException {
         try (InputStream input = getClass().getResourceAsStream(TEMPLATE_RESOURCE)) {
             return new String(input.readAllBytes(), StandardCharsets.UTF_8);

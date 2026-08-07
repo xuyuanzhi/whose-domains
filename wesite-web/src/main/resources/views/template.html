@@ -260,6 +260,7 @@
     var authModalEdgeGap=8;
     function resetAuthModalPosition() {
         authModalDrag=null;
+        authModalDialog.classList.remove('is-dragging');
         authModalDialog.style.left='';
         authModalDialog.style.top='';
         authModalDialog.style.transform='none';
