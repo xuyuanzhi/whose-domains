@@ -18,6 +18,7 @@ class FakeElement {
         this.innerHTML = '';
         this.textContent = '';
         this.value = '';
+        this.disabled = false;
     }
 
     addEventListener(type, listener) {
@@ -59,13 +60,22 @@ function createHarness(fetch) {
     const loginRequired = document.register('loginRequired');
     const listLoader = document.register('listLoader');
     const watchlistUI = document.register('watchlistUI');
-    document.register('editModal');
+    const editModal = document.register('editModal');
     document.register('statTotal');
     document.register('statExpiring');
     document.register('statMonth');
     document.register('statSafe');
     document.register('watchList');
     document.register('emptyState');
+    const addDomainInput = document.register('addDomainInput');
+    const addNotifyType = document.register('addNotifyType');
+    const addNotifyEmail = document.register('addNotifyEmail');
+    const addWatchBtn = document.register('addWatchBtn');
+    document.register('addMsg');
+    const editWatchId = document.register('editWatchId');
+    const editNotifyType = document.register('editNotifyType');
+    const editNotifyEmail = document.register('editNotifyEmail');
+    const alerts = [];
 
     const context = vm.createContext({
         document,
@@ -75,13 +85,29 @@ function createHarness(fetch) {
         Math,
         setTimeout,
         confirm: () => true,
-        alert: () => {}
+        alert: (message) => alerts.push(message)
     });
     vm.runInContext(domainWatchScript, context, { filename: templatePath });
-    return { context, loginRequired, listLoader, watchlistUI };
+    return {
+        context,
+        loginRequired,
+        listLoader,
+        watchlistUI,
+        editModal,
+        addDomainInput,
+        addNotifyType,
+        addNotifyEmail,
+        addWatchBtn,
+        editWatchId,
+        editNotifyType,
+        editNotifyEmail,
+        alerts
+    };
 }
 
 async function flushPromises() {
+    await Promise.resolve();
+    await Promise.resolve();
     await Promise.resolve();
     await Promise.resolve();
     await Promise.resolve();
@@ -107,11 +133,42 @@ test('401 response hides loader and authenticated UI before showing sign-in card
 
 test('business 401 code shows the same signed-out state', async () => {
     const harness = createHarness(() => Promise.resolve({
+        ok: true,
         status: 200,
         json: () => Promise.resolve({ code: 401 })
     }));
 
     harness.context.isLoggedIn = true;
+    harness.context.checkLoginAndLoad();
+    await flushPromises();
+
+    assertSignedOut(harness);
+});
+
+test('HTTP 500 list response never enters the authenticated Watchlist UI', async () => {
+    const harness = createHarness(() => Promise.resolve({
+        ok: false,
+        status: 500,
+        json: () => Promise.resolve({ code: 0, data: [] })
+    }));
+
+    harness.context.isLoggedIn = true;
+    harness.watchlistUI.style.display = 'block';
+    harness.context.checkLoginAndLoad();
+    await flushPromises();
+
+    assertSignedOut(harness);
+});
+
+test('business 500 list response never enters the authenticated Watchlist UI', async () => {
+    const harness = createHarness(() => Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ code: 500, data: [] })
+    }));
+
+    harness.context.isLoggedIn = true;
+    harness.watchlistUI.style.display = 'block';
     harness.context.checkLoginAndLoad();
     await flushPromises();
 
@@ -130,6 +187,7 @@ test('network failure shows the same signed-out state', async () => {
 
 test('successful list response hides signed-out state and shows Watchlist UI', async () => {
     const harness = createHarness(() => Promise.resolve({
+        ok: true,
         status: 200,
         json: () => Promise.resolve({ code: 0, data: [] })
     }));
@@ -142,4 +200,70 @@ test('successful list response hides signed-out state and shows Watchlist UI', a
     assert.equal(harness.listLoader.style.display, 'none');
     assert.equal(harness.watchlistUI.style.display, 'block');
     assert.equal(harness.context.isLoggedIn, true);
+});
+
+const expiredOperationCases = [
+    {
+        name: 'add',
+        prepare(harness) {
+            harness.addDomainInput.value = 'example.com';
+            harness.addNotifyType.value = '3';
+            harness.addNotifyEmail.value = '';
+        },
+        invoke(harness) { harness.context.addWatch(); }
+    },
+    {
+        name: 'remove',
+        invoke(harness) { harness.context.removeWatch('watch-1', new FakeElement()); }
+    },
+    {
+        name: 'save',
+        prepare(harness) {
+            harness.editWatchId.value = 'watch-1';
+            harness.editNotifyType.value = '3';
+            harness.editNotifyEmail.value = '';
+            harness.editModal.style.display = 'flex';
+        },
+        invoke(harness) { harness.context.saveEdit(); }
+    },
+    {
+        name: 'reload',
+        invoke(harness) { harness.context.reloadList(); }
+    }
+];
+
+for (const operation of expiredOperationCases) {
+    test(`${operation.name} switches to signed-out state when its HTTP session has expired`, async () => {
+        const harness = createHarness(() => Promise.resolve({
+            ok: false,
+            status: 401,
+            json: () => Promise.resolve({ code: 500 })
+        }));
+        harness.context.isLoggedIn = true;
+        harness.loginRequired.style.display = 'none';
+        harness.watchlistUI.style.display = 'block';
+        if (operation.prepare) operation.prepare(harness);
+
+        operation.invoke(harness);
+        await flushPromises();
+
+        assertSignedOut(harness);
+        assert.equal(harness.editModal.style.display, 'none');
+    });
+}
+
+test('reload switches to signed-out state when the API returns a business auth code', async () => {
+    const harness = createHarness(() => Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ code: -401 })
+    }));
+    harness.context.isLoggedIn = true;
+    harness.loginRequired.style.display = 'none';
+    harness.watchlistUI.style.display = 'block';
+
+    harness.context.reloadList();
+    await flushPromises();
+
+    assertSignedOut(harness);
 });

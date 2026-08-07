@@ -60,6 +60,7 @@ class FakeElement {
         this.queryResult = null;
         this.queryResults = [];
         this.descendants = new Set();
+        this.parentNode = null;
     }
 
     addEventListener(type, listener) {
@@ -68,7 +69,13 @@ class FakeElement {
     }
 
     dispatch(type, event) {
+        if (!event.target) event.target = this;
+        if (!event.stopPropagation) {
+            event.stopPropagation = function () { this.propagationStopped = true; };
+        }
+        event.currentTarget = this;
         for (const listener of this.listeners.get(type) || []) listener.call(this, event);
+        if (!event.propagationStopped && this.parentNode) this.parentNode.dispatch(type, event);
     }
 
     setAttribute(name, value) {
@@ -168,6 +175,10 @@ class FakeDocument {
     }
 
     dispatch(type, event) {
+        if (!event.stopPropagation) {
+            event.stopPropagation = function () { this.propagationStopped = true; };
+        }
+        event.currentTarget = this;
         for (const listener of this.listeners.get(type) || []) listener.call(this, event);
     }
 
@@ -221,7 +232,7 @@ function createHarness(options = {}) {
     const logoutCancelButton = document.register('logoutCancelButton', { interactive: true, tagName: 'button' });
     const logoutConfirmButton = document.register('logoutConfirmButton', { interactive: true, tagName: 'button' });
     const logoutConfirmMsg = document.register('logoutConfirmMsg');
-    const signOutTrigger = document.register('signOutTrigger', { interactive: true, tagName: 'a' });
+    const signOutTrigger = document.register('signOutTrigger', { interactive: true, tagName: 'button' });
 
     const navUserMenu = document.register('navUserMenu');
     document.register('navUserName');
@@ -242,7 +253,14 @@ function createHarness(options = {}) {
     for (const element of [logoutConfirmDialog, logoutCancelButton, logoutConfirmButton, logoutConfirmMsg].filter(Boolean)) {
         logoutConfirmModal.descendants.add(element);
     }
-    navUserMenu.descendants = new Set();
+    navUserMenu.descendants = new Set([signOutTrigger]);
+    signOutTrigger.parentNode = navUserMenu;
+    navUserMenu.parentNode = document;
+    logoutCancelButton.parentNode = logoutConfirmDialog;
+    logoutConfirmButton.parentNode = logoutConfirmDialog;
+    logoutConfirmMsg.parentNode = logoutConfirmDialog;
+    logoutConfirmDialog.parentNode = logoutConfirmModal;
+    logoutConfirmModal.parentNode = document;
 
     const mediaQuery = new FakeMediaQueryList(options.mobile || false);
     const windowListeners = new Map();
@@ -301,6 +319,7 @@ function createHarness(options = {}) {
         logoutConfirmButton,
         logoutConfirmMsg,
         signOutTrigger,
+        navUserMenu,
         location,
         fetchCalls,
         run() {
@@ -512,6 +531,26 @@ test('Cancel, Escape and backdrop close restore focus to Sign Out', () => {
     harness.logoutConfirmModal.dispatch('click', { target: harness.logoutConfirmModal });
     assert.equal(harness.logoutConfirmModal.getAttribute('aria-hidden'), 'true');
     assert.equal(harness.document.activeElement, harness.signOutTrigger);
+});
+
+test('bubbling dialog clicks keep the restored Sign Out trigger visible in its open menu', () => {
+    const harness = createHarness().run();
+    harness.logoutCancelButton.addEventListener('click', () => harness.context.closeLogoutConfirm());
+
+    harness.context.openLogoutConfirm(harness.signOutTrigger);
+    assert.equal(harness.navUserMenu.classList.contains('is-open'), true);
+    harness.logoutCancelButton.dispatch('click', {});
+
+    assert.equal(harness.logoutConfirmModal.getAttribute('aria-hidden'), 'true');
+    assert.equal(harness.document.activeElement, harness.signOutTrigger);
+    assert.equal(harness.navUserMenu.classList.contains('is-open'), true);
+
+    harness.context.openLogoutConfirm(harness.signOutTrigger);
+    harness.logoutConfirmModal.dispatch('click', {});
+
+    assert.equal(harness.logoutConfirmModal.getAttribute('aria-hidden'), 'true');
+    assert.equal(harness.document.activeElement, harness.signOutTrigger);
+    assert.equal(harness.navUserMenu.classList.contains('is-open'), true);
 });
 
 test('Tab and Shift+Tab stay inside the sign-out confirmation', () => {

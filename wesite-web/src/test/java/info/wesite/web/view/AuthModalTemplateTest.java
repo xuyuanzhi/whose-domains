@@ -46,6 +46,13 @@ class AuthModalTemplateTest {
     }
 
     @Test
+    void googleButtonKeepsExplicitSpaceBetweenProviderIconAndLabel() throws IOException {
+        String googleButtonRule = cssRule(resource(COMMON_CSS_RESOURCE), ".auth-google-button");
+
+        assertTrue(googleButtonRule.contains("gap: 10px"));
+    }
+
+    @Test
     void loginResultUsesFixedCodesAndTextContent() throws IOException {
         String template = template();
 
@@ -126,13 +133,39 @@ class AuthModalTemplateTest {
     void signOutUsesAnAccessibleConfirmationDialog() throws IOException {
         String template = template();
 
-        assertTrue(template.contains("onclick=\"openLogoutConfirm(this)\""));
+        assertTrue(template.contains("<button type=\"button\" class=\"dropdown-menu-action\" onclick=\"openLogoutConfirm(this)\""));
         assertTrue(template.contains("id=\"logoutConfirmModal\" aria-hidden=\"true\""));
         assertTrue(template.contains("id=\"logoutConfirmDialog\" role=\"dialog\" aria-modal=\"true\""));
         assertTrue(template.contains("aria-labelledby=\"logoutConfirmTitle\""));
         assertTrue(template.contains("id=\"logoutConfirmMsg\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\""));
         assertTrue(template.contains("id=\"logoutCancelButton\""));
         assertTrue(template.contains("id=\"logoutConfirmButton\""));
+    }
+
+    @Test
+    void signOutButtonMatchesMenuActionsAndLogoutDialogIsScrollSafe() throws IOException {
+        String css = resource(COMMON_CSS_RESOURCE);
+        String menuButtonRule = cssRule(css, ".dropdown-menu .dropdown-menu-action");
+        String menuButtonFocusRule = cssRule(css, ".dropdown-menu .dropdown-menu-action:focus-visible");
+        String modalRule = cssRule(css, ".logout-confirm-modal");
+        String dialogRule = cssRule(css, ".logout-confirm-dialog");
+
+        assertTrue(menuButtonRule.contains("width: 100%"));
+        assertTrue(menuButtonRule.contains("font: inherit"));
+        assertTrue(menuButtonRule.contains("text-align: left"));
+        assertTrue(menuButtonFocusRule.contains("outline: 2px solid var(--primary)"));
+        assertTrue(modalRule.contains("overflow-y: auto"));
+        assertTrue(dialogRule.contains("max-height: calc(100vh - 32px)"));
+        assertTrue(dialogRule.contains("max-height: calc(100dvh - 32px)"));
+        assertTrue(dialogRule.contains("overflow-y: auto"));
+    }
+
+    @Test
+    void logoutDangerActionMeetsNormalTextContrast() throws IOException {
+        String rule = cssRule(resource(COMMON_CSS_RESOURCE), "#logoutConfirmButton");
+
+        assertTrue(rule.contains("background: #c62828"));
+        assertTrue(contrastRatio("#ffffff", "#c62828") >= 4.5);
     }
 
     @Test
@@ -172,5 +205,24 @@ class AuthModalTemplateTest {
         int start = css.indexOf(selector + " {");
         int end = css.indexOf('}', start);
         return start >= 0 && end > start ? css.substring(start, end) : "";
+    }
+
+    private double contrastRatio(String first, String second) {
+        double firstLuminance = luminance(first);
+        double secondLuminance = luminance(second);
+        return (Math.max(firstLuminance, secondLuminance) + 0.05)
+                / (Math.min(firstLuminance, secondLuminance) + 0.05);
+    }
+
+    private double luminance(String hex) {
+        int value = Integer.parseInt(hex.substring(1), 16);
+        return 0.2126 * linear((value >> 16) & 0xff)
+                + 0.7152 * linear((value >> 8) & 0xff)
+                + 0.0722 * linear(value & 0xff);
+    }
+
+    private double linear(int component) {
+        double value = component / 255.0;
+        return value <= 0.04045 ? value / 12.92 : Math.pow((value + 0.055) / 1.055, 2.4);
     }
 }

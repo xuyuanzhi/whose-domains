@@ -175,14 +175,14 @@
             border-radius: 14px;
         }
         .watchlist-signin-card h2 { margin-bottom: 12px; color: var(--darker); }
-        .watchlist-signin-card p { margin-bottom: 20px; color: var(--gray); }
-        .watchlist-signin-card small { display: block; margin-top: 16px; color: var(--gray); }
+        .watchlist-signin-card p { margin-bottom: 20px; color: #8b96a8; }
+        .watchlist-signin-card small { display: block; margin-top: 16px; color: #8b96a8; }
         .watchlist-signin-icon {
             width: 52px; height: 52px; display: grid; place-items: center; margin: 0 auto 16px;
             border-radius: 50%; background: rgba(100,255,218,0.12); color: var(--primary); font-size: 22px;
         }
         .watchlist-signin-benefits {
-            display: flex; justify-content: center; gap: 16px; margin: 0 auto 24px; color: var(--gray); font-size: 14px;
+            display: flex; justify-content: center; gap: 16px; margin: 0 auto 24px; color: #8b96a8; font-size: 14px;
         }
         .watchlist-signin-benefits i { color: var(--primary); margin-right: 5px; }
         @media (max-width: 480px) {
@@ -221,29 +221,41 @@
     function checkLoginAndLoad() {
         // Check session via API - if we can access the watch list endpoint we are logged in
         fetch('/api/domain-watch/list', { credentials: 'include' })
-            .then(function(r) {
-                if (r.status === 401 || r.status === 403) {
+            .then(readWatchResponse)
+            .then(function(data) {
+                if (!data) return;
+                if (data.code !== 0) {
                     showLoginRequired();
-                } else {
-                    return r.json().then(function(data) {
-                        if (data.code === -401 || data.code === 401) {
-                            showLoginRequired();
-                        } else {
-                            isLoggedIn = true;
-                            document.getElementById('loginRequired').style.display = 'none';
-                            document.getElementById('watchlistUI').style.display = 'block';
-                            renderList(data.data || []);
-                        }
-                    });
+                    return;
                 }
+                isLoggedIn = true;
+                document.getElementById('loginRequired').style.display = 'none';
+                document.getElementById('watchlistUI').style.display = 'block';
+                renderList(data.data || []);
             })
             .catch(function() { showLoginRequired(); });
+    }
+
+    function readWatchResponse(response) {
+        if (response.status === 401 || response.status === 403) {
+            showLoginRequired();
+            return Promise.resolve(null);
+        }
+        if (!response.ok) return Promise.reject(new Error('Watchlist request failed'));
+        return response.json().then(function(data) {
+            if (data && (data.code === -401 || data.code === 401)) {
+                showLoginRequired();
+                return null;
+            }
+            return data;
+        });
     }
 
     function showLoginRequired() {
         isLoggedIn = false;
         document.getElementById('listLoader').style.display = 'none';
         document.getElementById('watchlistUI').style.display = 'none';
+        document.getElementById('editModal').style.display = 'none';
         document.getElementById('loginRequired').style.display = 'block';
     }
 
@@ -340,9 +352,10 @@
             method: 'POST', credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ domainName: domain, notifyType: notifyType, notifyEmail: email || null })
-        }).then(function(r) { return r.json(); }).then(function(data) {
+        }).then(readWatchResponse).then(function(data) {
             btn.disabled = false;
             btn.innerHTML = '<i class="fas fa-bell"></i> Watch';
+            if (!data) return;
             if (data.code === 0) {
                 document.getElementById('addDomainInput').value = '';
                 document.getElementById('addNotifyEmail').value = '';
@@ -372,11 +385,13 @@
         if (!confirm('Remove this domain from your watchlist?')) return;
         btn.disabled = true;
         fetch('/api/domain-watch/unwatch/' + id, { method: 'DELETE', credentials: 'include' })
-            .then(function(r) { return r.json(); })
+            .then(readWatchResponse)
             .then(function(data) {
+                if (!data) return;
                 if (data.code === 0) reloadList();
                 else { btn.disabled = false; alert(data.msg || 'Failed to remove.'); }
-            });
+            })
+            .catch(function() { btn.disabled = false; alert('Network error. Please try again.'); });
     }
 
     function openEditModal(id, name, notifyType, email) {
@@ -400,18 +415,27 @@
             method: 'PUT', credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ notifyType: notifyType, notifyEmail: email || null })
-        }).then(function(r) { return r.json(); }).then(function(data) {
+        }).then(readWatchResponse).then(function(data) {
+            if (!data) return;
             if (data.code === 0) { closeEditModal(); reloadList(); }
             else alert(data.msg || 'Failed to save.');
-        });
+        }).catch(function() { alert('Network error. Please try again.'); });
     }
 
     function reloadList() {
         document.getElementById('listLoader').style.display = 'block';
         document.getElementById('watchList').innerHTML = '';
         fetch('/api/domain-watch/list', { credentials: 'include' })
-            .then(function(r) { return r.json(); })
-            .then(function(data) { renderList(data.data || []); });
+            .then(readWatchResponse)
+            .then(function(data) {
+                if (!data) return;
+                if (data.code !== 0) {
+                    showLoginRequired();
+                    return;
+                }
+                renderList(data.data || []);
+            })
+            .catch(function() { showLoginRequired(); });
     }
 
     function escHtml(str) {

@@ -202,7 +202,7 @@
                             <div class="dropdown-section">
                                 <a href="/user/api-keys"><i class="fas fa-key"></i> API Keys</a>
                                 <a href="/user/watchlist"><i class="fas fa-bell"></i> My Watchlist</a>
-                                <a href="javascript:void(0)" onclick="openLogoutConfirm(this)"><i class="fas fa-sign-out-alt"></i> Sign Out</a>
+                                <button type="button" class="dropdown-menu-action" onclick="openLogoutConfirm(this)"><i class="fas fa-sign-out-alt"></i> Sign Out</button>
                             </div>
                         </div>
                     </li>
@@ -370,6 +370,7 @@
     function openLogoutConfirm(trigger) {
         if(logoutRequestPending)return;
         logoutConfirmTrigger=trigger&&typeof trigger.focus==='function'?trigger:null;
+        document.getElementById('navUserMenu').classList.add('is-open');
         setLogoutLoading(false);
         setLogoutMessage('');
         logoutConfirmModal.style.display='flex';
@@ -461,7 +462,7 @@
         if (userMenu && !userMenu.contains(e.target)) userMenu.classList.remove('is-open');
     });
     document.getElementById('authModal').addEventListener('click',function(e){if(e.target===this)closeAuthModal();});
-    logoutConfirmModal.addEventListener('click',function(e){if(e.target===this)closeLogoutConfirm();});
+    logoutConfirmModal.addEventListener('click',function(e){e.stopPropagation();if(e.target===this)closeLogoutConfirm();});
     document.addEventListener('keydown',function(event){
         if(handleLogoutDialogKeydown(event))return;
         if(authModal.getAttribute('aria-hidden')==='true')return;
