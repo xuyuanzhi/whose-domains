@@ -111,6 +111,32 @@ class AuthModalTemplateTest {
         assertTrue(template.contains("event.shiftKey"));
     }
 
+    @Test
+    void authModalHasADedicatedTitleBar() throws IOException {
+        String template = template();
+
+        assertTrue(template.contains("id=\"authModalTitleBar\" class=\"auth-modal-titlebar\""));
+        assertTrue(template.contains("<h2 id=\"authModalTitle\">Sign In</h2>"));
+        assertTrue(template.contains("class=\"auth-modal-close\""));
+    }
+
+    @Test
+    void authModalDraggingIsDesktopOnlyConstrainedAndReset() throws IOException {
+        String template = template();
+
+        assertTrue(template.contains("window.matchMedia('(max-width: 480px)').matches"));
+        assertTrue(template.contains("event.button!==0"));
+        assertTrue(template.contains("event.target.closest('button,a,input')"));
+        assertTrue(template.contains("authModalTitleBar.setPointerCapture(event.pointerId)"));
+        assertTrue(template.contains("Math.max(edgeGap,Math.min(left,window.innerWidth-authModalDialog.offsetWidth-edgeGap))"));
+        assertTrue(template.contains("Math.max(edgeGap,Math.min(top,window.innerHeight-authModalDialog.offsetHeight-edgeGap))"));
+        assertTrue(template.contains("authModalDialog.style.transform='none'"));
+        assertTrue(template.contains("authModalTitleBar.addEventListener('pointerdown',startAuthModalDrag)"));
+        assertTrue(template.contains("authModalTitleBar.addEventListener('pointermove',moveAuthModal)"));
+        assertTrue(template.contains("authModalTitleBar.addEventListener('pointerup',endAuthModalDrag)"));
+        assertTrue(template.contains("authModalTitleBar.addEventListener('pointercancel',endAuthModalDrag)"));
+    }
+
     private String template() throws IOException {
         try (InputStream input = getClass().getResourceAsStream(TEMPLATE_RESOURCE)) {
             return new String(input.readAllBytes(), StandardCharsets.UTF_8);

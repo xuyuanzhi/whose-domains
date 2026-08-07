@@ -219,9 +219,11 @@
 
     <!-- Auth Modal -->
     <div id="authModal" class="auth-modal" aria-hidden="true" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:99999;align-items:center;justify-content:center;">
-        <div class="auth-modal-card" role="dialog" aria-modal="true" aria-labelledby="authModalTitle" tabindex="-1" style="background:#0d1117;border:1px solid rgba(100,255,218,0.2);border-radius:16px;padding:36px;width:100%;max-width:400px;margin:20px;position:relative;">
-            <button class="auth-modal-close" onclick="closeAuthModal()" aria-label="Close sign-in dialog" style="position:absolute;top:14px;right:18px;background:none;border:none;color:#888;font-size:20px;cursor:pointer;">&times;</button>
-            <h2 id="authModalTitle" style="margin-bottom:6px;color:#e2e8f0;">Sign In</h2>
+        <div class="auth-modal-card" role="dialog" aria-modal="true" aria-labelledby="authModalTitle" tabindex="-1">
+            <div id="authModalTitleBar" class="auth-modal-titlebar">
+                <h2 id="authModalTitle">Sign In</h2>
+                <button class="auth-modal-close" onclick="closeAuthModal()" aria-label="Close sign-in dialog">&times;</button>
+            </div>
             <div id="loginForm">
                 <div class="auth-method auth-google-section" th:if="${_googleLoginEnabled}">
                     <a id="googleLoginButton" class="auth-google-button" href="/oauth2/authorization/google">Continue with Google</a>
@@ -253,14 +255,60 @@
     var authModalDialog=authModal.querySelector('[role="dialog"]');
     var authModalTrigger=null;
     var authModalFocusable='a[href],button:not([disabled]),input:not([disabled]),[tabindex]:not([tabindex="-1"])';
+    var authModalTitleBar=document.getElementById('authModalTitleBar');
+    var authModalDrag=null;
+    var authModalEdgeGap=8;
+    function resetAuthModalPosition() {
+        authModalDrag=null;
+        authModalDialog.style.left='';
+        authModalDialog.style.top='';
+        authModalDialog.style.transform='none';
+    }
+    function clampAuthModalPosition(left,top) {
+        var edgeGap=authModalEdgeGap;
+        return {
+            left:Math.max(edgeGap,Math.min(left,window.innerWidth-authModalDialog.offsetWidth-edgeGap)),
+            top:Math.max(edgeGap,Math.min(top,window.innerHeight-authModalDialog.offsetHeight-edgeGap))
+        };
+    }
+    function startAuthModalDrag(event) {
+        if(event.button!==0||event.target.closest('button,a,input')||window.matchMedia('(max-width: 480px)').matches)return;
+        var rect=authModalDialog.getBoundingClientRect();
+        authModalDrag={pointerId:event.pointerId,x:event.clientX,y:event.clientY,left:rect.left,top:rect.top};
+        authModalDialog.style.left=rect.left+'px';
+        authModalDialog.style.top=rect.top+'px';
+        authModalDialog.classList.add('is-dragging');
+        authModalTitleBar.setPointerCapture(event.pointerId);
+        event.preventDefault();
+    }
+    function moveAuthModal(event) {
+        if(!authModalDrag||event.pointerId!==authModalDrag.pointerId)return;
+        var next=clampAuthModalPosition(
+            authModalDrag.left+event.clientX-authModalDrag.x,
+            authModalDrag.top+event.clientY-authModalDrag.y
+        );
+        authModalDialog.style.left=next.left+'px';
+        authModalDialog.style.top=next.top+'px';
+    }
+    function endAuthModalDrag(event) {
+        if(!authModalDrag||event.pointerId!==authModalDrag.pointerId)return;
+        authModalDrag=null;
+        authModalDialog.classList.remove('is-dragging');
+    }
+    authModalTitleBar.addEventListener('pointerdown',startAuthModalDrag);
+    authModalTitleBar.addEventListener('pointermove',moveAuthModal);
+    authModalTitleBar.addEventListener('pointerup',endAuthModalDrag);
+    authModalTitleBar.addEventListener('pointercancel',endAuthModalDrag);
     function openAuthModal(trigger) {
         authModalTrigger=trigger&&typeof trigger.focus==='function'?trigger:null;
+        resetAuthModalPosition();
         authModal.style.display='flex';
         authModal.setAttribute('aria-hidden','false');
         var initialFocus=document.getElementById('googleLoginButton')||document.getElementById('loginEmail')||authModalDialog;
         initialFocus.focus();
     }
     function closeAuthModal() {
+        resetAuthModalPosition();
         authModal.style.display='none';
         authModal.setAttribute('aria-hidden','true');
         if(authModalTrigger&&document.contains(authModalTrigger))authModalTrigger.focus();

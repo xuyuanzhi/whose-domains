@@ -34,6 +34,44 @@
 }
 
 /* Authentication modal */
+.auth-modal-card {
+    position: fixed;
+    width: calc(100% - 40px);
+    max-width: 400px;
+    overflow: hidden;
+    border: 1px solid rgba(100,255,218,.2);
+    border-radius: 16px;
+    background: #0d1117;
+    box-shadow: var(--shadow-lg);
+}
+.auth-modal-titlebar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 18px;
+    border-bottom: 1px solid var(--glass-border);
+    cursor: move;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+}
+.auth-modal-card.is-dragging .auth-modal-titlebar { cursor: grabbing; }
+.auth-modal-titlebar h2 {
+    margin: 0;
+    color: #e2e8f0;
+    font-size: 20px;
+    line-height: 1.2;
+}
+.auth-modal-close {
+    padding: 2px 5px;
+    border: 0;
+    background: none;
+    color: #8b96a8;
+    cursor: pointer;
+    font-size: 24px;
+    line-height: 1;
+}
+#loginForm { padding: 24px 28px 28px; }
 .auth-google-button {
     display: flex;
     width: 100%;
@@ -110,7 +148,9 @@
     outline-offset: 3px;
 }
 @media (max-width: 480px) {
-    .auth-modal-card { margin: 12px !important; padding: 30px 22px !important; }
+    .auth-modal-card { width: calc(100% - 24px); }
+    .auth-modal-titlebar { cursor: default; touch-action: auto; }
+    #loginForm { padding: 22px; }
 }
 
 body {
