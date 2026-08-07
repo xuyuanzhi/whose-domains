@@ -202,7 +202,7 @@
                             <div class="dropdown-section">
                                 <a href="/user/api-keys"><i class="fas fa-key"></i> API Keys</a>
                                 <a href="/user/watchlist"><i class="fas fa-bell"></i> My Watchlist</a>
-                                <a href="javascript:void(0)" onclick="doLogout()"><i class="fas fa-sign-out-alt"></i> Sign Out</a>
+                                <a href="javascript:void(0)" onclick="openLogoutConfirm(this)"><i class="fas fa-sign-out-alt"></i> Sign Out</a>
                             </div>
                         </div>
                     </li>
@@ -250,6 +250,19 @@
             </div>
         </div>
     </div>
+    <div id="logoutConfirmModal" aria-hidden="true" class="logout-confirm-modal">
+        <div id="logoutConfirmDialog" role="dialog" aria-modal="true" class="logout-confirm-dialog"
+             aria-labelledby="logoutConfirmTitle" aria-describedby="logoutConfirmDescription" tabindex="-1">
+            <div class="logout-confirm-icon" aria-hidden="true"><i class="fas fa-sign-out-alt"></i></div>
+            <h2 id="logoutConfirmTitle">Sign out?</h2>
+            <p id="logoutConfirmDescription">You’ll need to sign in again to access your Watchlist and account settings.</p>
+            <div id="logoutConfirmMsg" role="status" aria-live="polite" aria-atomic="true"></div>
+            <div class="logout-confirm-actions">
+                <button id="logoutCancelButton" type="button" onclick="closeLogoutConfirm()">Cancel</button>
+                <button id="logoutConfirmButton" type="button" onclick="confirmLogout()">Sign Out</button>
+            </div>
+        </div>
+    </div>
     <script>
     (function() {
         fetch('/user/session',{credentials:'include'}).then(function(r){return r.json();}).then(function(d){
@@ -263,6 +276,11 @@
     var authModalDialog=authModal.querySelector('[role="dialog"]');
     var authModalTrigger=null;
     var authModalFocusable='a[href],button:not([disabled]),input:not([disabled]),[tabindex]:not([tabindex="-1"])';
+    var logoutConfirmModal=document.getElementById('logoutConfirmModal');
+    var logoutConfirmDialog=document.getElementById('logoutConfirmDialog');
+    var logoutConfirmTrigger=null;
+    var logoutRequestPending=false;
+    var logoutConfirmFocusable='a[href],button:not([disabled]),input:not([disabled]),[tabindex]:not([tabindex="-1"])';
     var authModalTitleBar=document.getElementById('authModalTitleBar');
     var authModalDrag=null;
     var authModalEdgeGap=8;
@@ -349,6 +367,78 @@
         if(authModalTrigger&&document.contains(authModalTrigger))authModalTrigger.focus();
         authModalTrigger=null;
     }
+    function openLogoutConfirm(trigger) {
+        if(logoutRequestPending)return;
+        logoutConfirmTrigger=trigger&&typeof trigger.focus==='function'?trigger:null;
+        setLogoutLoading(false);
+        setLogoutMessage('');
+        logoutConfirmModal.style.display='flex';
+        logoutConfirmModal.setAttribute('aria-hidden','false');
+        document.getElementById('logoutCancelButton').focus();
+    }
+    function closeLogoutConfirm() {
+        if(logoutRequestPending)return;
+        logoutConfirmModal.style.display='none';
+        logoutConfirmModal.setAttribute('aria-hidden','true');
+        if(logoutConfirmTrigger&&document.contains(logoutConfirmTrigger))logoutConfirmTrigger.focus();
+        logoutConfirmTrigger=null;
+    }
+    function setLogoutLoading(loading) {
+        logoutRequestPending=loading;
+        var cancel=document.getElementById('logoutCancelButton');
+        var confirm=document.getElementById('logoutConfirmButton');
+        cancel.disabled=loading;
+        confirm.disabled=loading;
+        confirm.textContent=loading?'Signing out...':'Sign Out';
+    }
+    function setLogoutMessage(message) {
+        var status=document.getElementById('logoutConfirmMsg');
+        status.textContent=message;
+        status.style.display=message?'block':'none';
+    }
+    function confirmLogout() {
+        if(logoutRequestPending)return;
+        setLogoutLoading(true);
+        setLogoutMessage('');
+        fetch('/user/logout',{method:'POST',credentials:'include'}).then(function(response){
+            if(!response.ok)throw new Error('Logout failed');
+            return response.json();
+        }).then(function(result){
+            if(!result||result.code!==0)throw new Error('Logout failed');
+            location.reload();
+        }).catch(function(){
+            setLogoutLoading(false);
+            setLogoutMessage('Could not sign out. Please try again.');
+            document.getElementById('logoutConfirmButton').focus();
+        });
+    }
+    function handleLogoutDialogKeydown(event) {
+        if(logoutConfirmModal.getAttribute('aria-hidden')==='true')return false;
+        if(event.key==='Escape'){
+            event.preventDefault();
+            closeLogoutConfirm();
+            return true;
+        }
+        if(event.key!=='Tab')return true;
+        var focusable=Array.prototype.filter.call(logoutConfirmModal.querySelectorAll(logoutConfirmFocusable),function(element){
+            return element.offsetParent!==null&&!element.disabled;
+        });
+        if(!focusable.length){
+            event.preventDefault();
+            logoutConfirmDialog.focus();
+            return true;
+        }
+        var first=focusable[0];
+        var last=focusable[focusable.length-1];
+        if(event.shiftKey&&(document.activeElement===first||!logoutConfirmModal.contains(document.activeElement))){
+            event.preventDefault();
+            last.focus();
+        }else if(!event.shiftKey&&(document.activeElement===last||!logoutConfirmModal.contains(document.activeElement))){
+            event.preventDefault();
+            first.focus();
+        }
+        return true;
+    }
     function toggleNav() {
         var links = document.getElementById('navLinks');
         var btn   = document.getElementById('navHamburger');
@@ -371,7 +461,9 @@
         if (userMenu && !userMenu.contains(e.target)) userMenu.classList.remove('is-open');
     });
     document.getElementById('authModal').addEventListener('click',function(e){if(e.target===this)closeAuthModal();});
+    logoutConfirmModal.addEventListener('click',function(e){if(e.target===this)closeLogoutConfirm();});
     document.addEventListener('keydown',function(event){
+        if(handleLogoutDialogKeydown(event))return;
         if(authModal.getAttribute('aria-hidden')==='true')return;
         if(event.key==='Escape'){
             event.preventDefault();
@@ -441,11 +533,6 @@
         setAuthMsg(loginMessageTarget(loginCode),result.message,result.color);
         openAuthModal();
     })();
-    function doLogout() {
-        fetch('/user/logout',{method:'POST',credentials:'include'}).finally(function(){
-            location.reload();
-        });
-    }
     function setAuthMsg(id,msg,color){
         var el=document.getElementById(id)||document.getElementById('emailLoginMsg');
         if(!el)return;

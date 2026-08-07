@@ -156,10 +156,62 @@
     outline: 3px solid rgba(0,229,255,.42);
     outline-offset: 3px;
 }
+
+.logout-confirm-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 100000;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(0,0,0,.65);
+}
+.logout-confirm-dialog {
+    width: 100%;
+    max-width: 420px;
+    padding: 30px;
+    border: 1px solid rgba(255,82,82,.35);
+    border-radius: 16px;
+    background: #0d1117;
+    box-shadow: var(--shadow-lg);
+    text-align: center;
+}
+.logout-confirm-icon {
+    display: inline-flex;
+    width: 48px;
+    height: 48px;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 12px;
+    border-radius: 50%;
+    background: rgba(255,82,82,.12);
+    color: var(--danger);
+    font-size: 20px;
+}
+.logout-confirm-dialog h2 { margin: 0; color: #e2e8f0; font-size: 22px; }
+.logout-confirm-dialog p { margin: 10px 0 0; color: #8b96a8; font-size: 14px; }
+#logoutConfirmMsg { display: none; margin-top: 12px; color: var(--danger); font-size: 13px; }
+.logout-confirm-actions { display: flex; gap: 12px; margin-top: 24px; }
+.logout-confirm-actions button {
+    flex: 1;
+    min-height: 42px;
+    padding: 10px 16px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 700;
+}
+#logoutCancelButton { border: 1px solid rgba(255,255,255,.28); background: transparent; color: #e2e8f0; }
+#logoutConfirmButton { border: 1px solid var(--danger); background: var(--danger); color: #fff; }
+.logout-confirm-actions button:disabled { cursor: wait; opacity: .65; }
+.logout-confirm-actions button:focus-visible { outline: 3px solid rgba(0,229,255,.42); outline-offset: 3px; }
 @media (max-width: 480px) {
     .auth-modal-card { width: calc(100% - 24px); }
     .auth-modal-titlebar { cursor: default; touch-action: auto; }
     #loginForm { padding: 22px; }
+    .logout-confirm-dialog { padding: 24px; }
+    .logout-confirm-actions { flex-direction: column; }
 }
 
 body {

@@ -216,6 +216,12 @@ function createHarness(options = {}) {
     const googleButtonText = options.googleEnabled === false ? null : document.register('googleLoginButtonText');
     const googleIcon = options.googleEnabled === false ? null : document.register('googleIcon');
     const googleMessage = options.googleEnabled === false ? null : document.register('googleLoginMsg');
+    const logoutConfirmModal = document.register('logoutConfirmModal');
+    const logoutConfirmDialog = document.register('logoutConfirmDialog', { interactive: true, tagName: 'div' });
+    const logoutCancelButton = document.register('logoutCancelButton', { interactive: true, tagName: 'button' });
+    const logoutConfirmButton = document.register('logoutConfirmButton', { interactive: true, tagName: 'button' });
+    const logoutConfirmMsg = document.register('logoutConfirmMsg');
+    const signOutTrigger = document.register('signOutTrigger', { interactive: true, tagName: 'a' });
 
     const navUserMenu = document.register('navUserMenu');
     document.register('navUserName');
@@ -229,6 +235,12 @@ function createHarness(options = {}) {
     authModal.queryResults = [closeButton, googleButton, emailInput, emailButton].filter(Boolean);
     for (const element of [dialog, titleBar, closeButton, googleButton, emailInput, emailButton, emailMessage, googleMessage].filter(Boolean)) {
         authModal.descendants.add(element);
+    }
+    logoutConfirmModal.setAttribute('aria-hidden', 'true');
+    logoutConfirmModal.queryResult = logoutConfirmDialog;
+    logoutConfirmModal.queryResults = [logoutCancelButton, logoutConfirmButton];
+    for (const element of [logoutConfirmDialog, logoutCancelButton, logoutConfirmButton, logoutConfirmMsg].filter(Boolean)) {
+        logoutConfirmModal.descendants.add(element);
     }
     navUserMenu.descendants = new Set();
 
@@ -248,8 +260,14 @@ function createHarness(options = {}) {
     };
     const location = {
         search: options.search || (options.loginCode ? `?login=${options.loginCode}` : ''),
-        reload() {}
+        reloadCount: 0,
+        reload() { this.reloadCount += 1; }
     };
+    const fetchCalls = [];
+    const fetch = options.fetch || ((...args) => {
+        fetchCalls.push(args);
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ code: 1 }) });
+    });
     const context = vm.createContext({
         window,
         document,
@@ -257,7 +275,7 @@ function createHarness(options = {}) {
         URLSearchParams,
         JSON,
         console,
-        fetch: () => Promise.resolve({ json: () => Promise.resolve({ code: 1 }) }),
+        fetch,
         requestAnimationFrame: (callback) => callback()
     });
 
@@ -277,6 +295,14 @@ function createHarness(options = {}) {
         googleButtonText,
         googleIcon,
         googleMessage,
+        logoutConfirmModal,
+        logoutConfirmDialog,
+        logoutCancelButton,
+        logoutConfirmButton,
+        logoutConfirmMsg,
+        signOutTrigger,
+        location,
+        fetchCalls,
         run() {
             vm.runInContext(authScript, context, { filename: templatePath });
             return this;
@@ -298,6 +324,22 @@ function pointerEvent(target, overrides = {}) {
         },
         ...overrides
     };
+}
+
+function keyEvent(key, shiftKey = false) {
+    return {
+        key,
+        shiftKey,
+        defaultPrevented: false,
+        preventDefault() { this.defaultPrevented = true; }
+    };
+}
+
+async function flushPromises() {
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
 }
 
 test('disabled Google login falls back to a visible email status without aborting modal open', () => {
@@ -438,4 +480,134 @@ test('Tab and Shift+Tab cycle between the first and last modal controls', () => 
     harness.document.dispatch('keydown', backward);
     assert.equal(backward.defaultPrevented, true);
     assert.equal(harness.document.activeElement, last);
+});
+
+test('opening sign-out confirmation focuses Cancel and sends no request', () => {
+    const harness = createHarness().run();
+
+    harness.context.openLogoutConfirm(harness.signOutTrigger);
+
+    assert.equal(harness.logoutConfirmModal.getAttribute('aria-hidden'), 'false');
+    assert.equal(harness.logoutConfirmModal.style.display, 'flex');
+    assert.equal(harness.document.activeElement, harness.logoutCancelButton);
+    assert.equal(harness.fetchCalls.filter(([url]) => url === '/user/logout').length, 0);
+});
+
+test('Cancel, Escape and backdrop close restore focus to Sign Out', () => {
+    const harness = createHarness().run();
+
+    harness.context.openLogoutConfirm(harness.signOutTrigger);
+    harness.context.closeLogoutConfirm();
+    assert.equal(harness.logoutConfirmModal.getAttribute('aria-hidden'), 'true');
+    assert.equal(harness.document.activeElement, harness.signOutTrigger);
+
+    harness.context.openLogoutConfirm(harness.signOutTrigger);
+    const escape = keyEvent('Escape');
+    harness.document.dispatch('keydown', escape);
+    assert.equal(escape.defaultPrevented, true);
+    assert.equal(harness.logoutConfirmModal.getAttribute('aria-hidden'), 'true');
+    assert.equal(harness.document.activeElement, harness.signOutTrigger);
+
+    harness.context.openLogoutConfirm(harness.signOutTrigger);
+    harness.logoutConfirmModal.dispatch('click', { target: harness.logoutConfirmModal });
+    assert.equal(harness.logoutConfirmModal.getAttribute('aria-hidden'), 'true');
+    assert.equal(harness.document.activeElement, harness.signOutTrigger);
+});
+
+test('Tab and Shift+Tab stay inside the sign-out confirmation', () => {
+    const harness = createHarness().run();
+    const forward = keyEvent('Tab');
+    const backward = keyEvent('Tab', true);
+
+    harness.context.openAuthModal();
+    harness.context.openLogoutConfirm(harness.signOutTrigger);
+    harness.logoutConfirmButton.focus();
+    harness.document.dispatch('keydown', forward);
+    assert.equal(forward.defaultPrevented, true);
+    assert.equal(harness.document.activeElement, harness.logoutCancelButton);
+
+    harness.logoutCancelButton.focus();
+    harness.document.dispatch('keydown', backward);
+    assert.equal(backward.defaultPrevented, true);
+    assert.equal(harness.document.activeElement, harness.logoutConfirmButton);
+});
+
+test('confirming sign-out sends exactly one POST and disables both actions', async () => {
+    let resolveLogout;
+    let logoutCalls = 0;
+    const harness = createHarness({
+        fetch(url, options) {
+            if (url === '/user/logout') {
+                logoutCalls += 1;
+                assert.equal(options.method, 'POST');
+                assert.equal(options.credentials, 'include');
+                return new Promise((resolve) => { resolveLogout = resolve; });
+            }
+            return Promise.resolve({ json: () => Promise.resolve({ code: 1 }) });
+        }
+    }).run();
+
+    harness.context.openLogoutConfirm(harness.signOutTrigger);
+    harness.context.confirmLogout();
+    harness.context.confirmLogout();
+
+    assert.equal(logoutCalls, 1);
+    assert.equal(harness.context.logoutRequestPending, true);
+    assert.equal(harness.logoutCancelButton.disabled, true);
+    assert.equal(harness.logoutConfirmButton.disabled, true);
+    assert.equal(harness.logoutConfirmButton.textContent, 'Signing out...');
+    harness.context.openLogoutConfirm(harness.signOutTrigger);
+    assert.equal(logoutCalls, 1);
+    assert.equal(harness.context.logoutRequestPending, true);
+    assert.equal(harness.logoutConfirmButton.disabled, true);
+    harness.context.closeLogoutConfirm();
+    assert.equal(harness.logoutConfirmModal.getAttribute('aria-hidden'), 'false');
+    const escape = keyEvent('Escape');
+    harness.document.dispatch('keydown', escape);
+    harness.logoutConfirmModal.dispatch('click', { target: harness.logoutConfirmModal });
+    assert.equal(escape.defaultPrevented, true);
+    assert.equal(harness.logoutConfirmModal.getAttribute('aria-hidden'), 'false');
+
+    resolveLogout({ ok: true, json: () => Promise.resolve({ code: 0 }) });
+    await flushPromises();
+});
+
+test('successful sign-out reloads the current page', async () => {
+    const harness = createHarness({
+        fetch(url) {
+            return url === '/user/logout'
+                ? Promise.resolve({ ok: true, json: () => Promise.resolve({ code: 0 }) })
+                : Promise.resolve({ json: () => Promise.resolve({ code: 1 }) });
+        }
+    }).run();
+
+    harness.context.openLogoutConfirm(harness.signOutTrigger);
+    harness.context.confirmLogout();
+    await flushPromises();
+
+    assert.equal(harness.location.reloadCount, 1);
+});
+
+test('failed sign-out stays open, restores actions and announces the error', async () => {
+    const harness = createHarness({
+        fetch(url) {
+            return url === '/user/logout'
+                ? Promise.resolve({ ok: true, json: () => Promise.resolve({ code: 1 }) })
+                : Promise.resolve({ json: () => Promise.resolve({ code: 1 }) });
+        }
+    }).run();
+
+    harness.context.openLogoutConfirm(harness.signOutTrigger);
+    harness.context.confirmLogout();
+    await flushPromises();
+
+    assert.equal(harness.location.reloadCount, 0);
+    assert.equal(harness.logoutConfirmModal.getAttribute('aria-hidden'), 'false');
+    assert.equal(harness.context.logoutRequestPending, false);
+    assert.equal(harness.logoutCancelButton.disabled, false);
+    assert.equal(harness.logoutConfirmButton.disabled, false);
+    assert.equal(harness.logoutConfirmButton.textContent, 'Sign Out');
+    assert.equal(harness.logoutConfirmMsg.style.display, 'block');
+    assert.equal(harness.logoutConfirmMsg.textContent, 'Could not sign out. Please try again.');
+    assert.equal(harness.document.activeElement, harness.logoutConfirmButton);
 });

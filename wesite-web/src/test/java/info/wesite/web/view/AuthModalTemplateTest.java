@@ -123,6 +123,19 @@ class AuthModalTemplateTest {
     }
 
     @Test
+    void signOutUsesAnAccessibleConfirmationDialog() throws IOException {
+        String template = template();
+
+        assertTrue(template.contains("onclick=\"openLogoutConfirm(this)\""));
+        assertTrue(template.contains("id=\"logoutConfirmModal\" aria-hidden=\"true\""));
+        assertTrue(template.contains("id=\"logoutConfirmDialog\" role=\"dialog\" aria-modal=\"true\""));
+        assertTrue(template.contains("aria-labelledby=\"logoutConfirmTitle\""));
+        assertTrue(template.contains("id=\"logoutConfirmMsg\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\""));
+        assertTrue(template.contains("id=\"logoutCancelButton\""));
+        assertTrue(template.contains("id=\"logoutConfirmButton\""));
+    }
+
+    @Test
     void authModalHasADedicatedTitleBar() throws IOException {
         String template = template();
 
