@@ -36,6 +36,16 @@ class AuthModalTemplateTest {
     }
 
     @Test
+    void googleButtonHasDecorativeProviderIconAndIndependentText() throws IOException {
+        String template = template();
+
+        assertTrue(template.contains("class=\"auth-google-icon\" aria-hidden=\"true\""));
+        assertTrue(template.contains("id=\"googleLoginButtonText\">Continue with Google</span>"));
+        assertTrue(template.contains("document.getElementById('googleLoginButtonText')"));
+        assertTrue(template.contains("buttonText.textContent='Finish with Google'"));
+    }
+
+    @Test
     void loginResultUsesFixedCodesAndTextContent() throws IOException {
         String template = template();
 
@@ -50,7 +60,7 @@ class AuthModalTemplateTest {
         assertTrue(template.contains("google_expired:"));
         assertTrue(template.contains("google_check_email:"));
         assertTrue(template.contains("google_bind_required:"));
-        assertTrue(template.contains("button.textContent='Finish with Google'"));
+        assertTrue(template.contains("buttonText.textContent='Finish with Google'"));
         assertTrue(template.contains("el.textContent=msg"));
     }
 

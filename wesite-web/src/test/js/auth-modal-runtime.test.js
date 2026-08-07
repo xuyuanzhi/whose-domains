@@ -213,6 +213,8 @@ function createHarness(options = {}) {
     const googleButton = options.googleEnabled === false
         ? null
         : document.register('googleLoginButton', { interactive: true, tagName: 'a' });
+    const googleButtonText = options.googleEnabled === false ? null : document.register('googleLoginButtonText');
+    const googleIcon = options.googleEnabled === false ? null : document.register('googleIcon');
     const googleMessage = options.googleEnabled === false ? null : document.register('googleLoginMsg');
 
     const navUserMenu = document.register('navUserMenu');
@@ -245,7 +247,7 @@ function createHarness(options = {}) {
         }
     };
     const location = {
-        search: options.search || '',
+        search: options.search || (options.loginCode ? `?login=${options.loginCode}` : ''),
         reload() {}
     };
     const context = vm.createContext({
@@ -272,6 +274,8 @@ function createHarness(options = {}) {
         emailButton,
         emailMessage,
         googleButton,
+        googleButtonText,
+        googleIcon,
         googleMessage,
         run() {
             vm.runInContext(authScript, context, { filename: templatePath });
@@ -303,6 +307,13 @@ test('disabled Google login falls back to a visible email status without abortin
     assert.equal(harness.emailMessage.textContent, 'Google sign-in could not be completed. Please try again.');
     assert.equal(harness.emailMessage.style.display, 'block');
     assert.equal(harness.authModal.getAttribute('aria-hidden'), 'false');
+});
+
+test('Google binding result changes only the button label and keeps the icon node', () => {
+    const harness = createHarness({ loginCode: 'google_bind_required' }).run();
+
+    assert.equal(harness.googleButtonText.textContent, 'Finish with Google');
+    assert.ok(harness.googleIcon);
 });
 
 test('dragging follows pointer displacement and clamps against all four viewport edges', () => {

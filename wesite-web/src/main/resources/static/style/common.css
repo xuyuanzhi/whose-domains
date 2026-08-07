@@ -97,6 +97,7 @@
     text-decoration: none;
 }
 .auth-google-button:hover { background: #e8f0f7; color: #111827; }
+.auth-google-icon { width: 18px; height: 18px; flex: 0 0 auto; }
 .auth-login-divider {
     display: flex;
     align-items: center;
