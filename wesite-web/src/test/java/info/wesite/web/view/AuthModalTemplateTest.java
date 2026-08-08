@@ -72,6 +72,19 @@ class AuthModalTemplateTest {
     }
 
     @Test
+    void standaloneLoginPageOwnsCallbackRenderingWithoutOpeningTheSharedModal() throws IOException {
+        String template = template();
+        int callbackHandler = template.indexOf("(function showLoginResult() {");
+        int standaloneGuard = template.indexOf("if(location.pathname==='/login')return;", callbackHandler);
+        int callbackRead = template.indexOf("new URLSearchParams(location.search).get('login')", callbackHandler);
+        int modalOpen = template.indexOf("openAuthModal();", callbackHandler);
+
+        assertTrue(callbackHandler >= 0);
+        assertTrue(callbackHandler < standaloneGuard && standaloneGuard < callbackRead);
+        assertTrue(callbackRead < modalOpen);
+    }
+
+    @Test
     void authenticationMethodsKeepTheirCopyAndStatusTogether() throws IOException {
         String template = template();
 

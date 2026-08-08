@@ -512,6 +512,7 @@
         return loginCode==='invalid'?'emailLoginMsg':'googleLoginMsg';
     }
     (function showLoginResult() {
+        if(location.pathname==='/login')return;
         var loginMessages={
             invalid:{message:'This sign-in link is invalid or has expired.',color:'#ff5252'},
             google_error:{message:'Google sign-in could not be completed. Please try again.',color:'#ff5252'},

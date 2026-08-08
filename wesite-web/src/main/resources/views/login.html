@@ -22,18 +22,18 @@
                 </svg>
                 <span id="loginGatewayGoogleText">Continue with Google</span>
             </a>
-            <div id="googleLoginMsg" role="status" aria-live="polite" aria-atomic="true" class="login-gateway-message"></div>
+            <div id="gatewayGoogleLoginMsg" role="status" aria-live="polite" aria-atomic="true" class="login-gateway-message"></div>
         </div>
 
         <div class="login-gateway-divider" th:if="${_googleLoginEnabled}"><span>or use email</span></div>
 
         <form id="loginGatewayEmailForm" class="login-gateway-method login-gateway-email">
-            <label for="loginEmail">Email address</label>
-            <input id="loginEmail" name="email" type="email" autocomplete="email" inputmode="email"
+            <label for="gatewayLoginEmail">Email address</label>
+            <input id="gatewayLoginEmail" name="email" type="email" autocomplete="email" inputmode="email"
                    placeholder="you@example.com" required>
             <button id="loginGatewayEmailButton" type="submit">Email me a sign-in link</button>
             <p class="login-gateway-help">We’ll send a secure, password-free link to this address.</p>
-            <div id="emailLoginMsg" role="status" aria-live="polite" aria-atomic="true" class="login-gateway-message"></div>
+            <div id="gatewayEmailLoginMsg" role="status" aria-live="polite" aria-atomic="true" class="login-gateway-message"></div>
         </form>
 
         <p class="login-gateway-footnote"><i class="fas fa-lock" aria-hidden="true"></i> Your sign-in link is single-use and expires automatically.</p>
@@ -45,21 +45,21 @@
 (() => {
     const gateway = document.querySelector('.login-gateway-card');
     const form = gateway.querySelector('#loginGatewayEmailForm');
-    const emailInput = form.querySelector('#loginEmail');
+    const emailInput = form.querySelector('#gatewayLoginEmail');
     const submitButton = form.querySelector('#loginGatewayEmailButton');
     const returnTo = /*[[${returnTo}]]*/ '/user/watchlist?login=success';
 
     const loginMessages = {
-        invalid: ['emailLoginMsg', 'This sign-in link is invalid or has expired.', 'error'],
-        google_error: ['googleLoginMsg', 'Google sign-in could not be completed. Please try again.', 'error'],
-        google_invalid: ['googleLoginMsg', 'Google did not provide the account details required to sign in.', 'error'],
-        google_unverified: ['googleLoginMsg', 'Your Google email address must be verified before signing in.', 'error'],
-        google_conflict: ['googleLoginMsg', 'This account is already connected to another Google identity.', 'error'],
-        google_inactive: ['googleLoginMsg', 'This account is not active.', 'error'],
-        google_email_unavailable: ['googleLoginMsg', 'We could not send the email needed to confirm this account.', 'error'],
-        google_expired: ['googleLoginMsg', 'This Google sign-in attempt has expired. Please try again.', 'error'],
-        google_check_email: ['googleLoginMsg', 'Check your email to confirm this account before continuing.', 'success'],
-        google_bind_required: ['googleLoginMsg', 'Email confirmed. Finish connecting your Google account.', 'success']
+        invalid: ['gatewayEmailLoginMsg', 'This sign-in link is invalid or has expired.', 'error'],
+        google_error: ['gatewayGoogleLoginMsg', 'Google sign-in could not be completed. Please try again.', 'error'],
+        google_invalid: ['gatewayGoogleLoginMsg', 'Google did not provide the account details required to sign in.', 'error'],
+        google_unverified: ['gatewayGoogleLoginMsg', 'Your Google email address must be verified before signing in.', 'error'],
+        google_conflict: ['gatewayGoogleLoginMsg', 'This account is already connected to another Google identity.', 'error'],
+        google_inactive: ['gatewayGoogleLoginMsg', 'This account is not active.', 'error'],
+        google_email_unavailable: ['gatewayGoogleLoginMsg', 'We could not send the email needed to confirm this account.', 'error'],
+        google_expired: ['gatewayGoogleLoginMsg', 'This Google sign-in attempt has expired. Please try again.', 'error'],
+        google_check_email: ['gatewayGoogleLoginMsg', 'Check your email to confirm this account before continuing.', 'success'],
+        google_bind_required: ['gatewayGoogleLoginMsg', 'Email confirmed. Finish connecting your Google account.', 'success']
     };
 
     function setMessage(id, message, type) {
@@ -83,14 +83,14 @@
         event.preventDefault();
         const email = emailInput.value.trim();
         if (!email) {
-            setMessage('emailLoginMsg', 'Enter your email address to continue.', 'error');
+            setMessage('gatewayEmailLoginMsg', 'Enter your email address to continue.', 'error');
             emailInput.focus();
             return;
         }
 
         submitButton.disabled = true;
         submitButton.textContent = 'Sending link…';
-        setMessage('emailLoginMsg', '', '');
+        setMessage('gatewayEmailLoginMsg', '', '');
         try {
             const response = await fetch('/user/email-login', {
                 method: 'POST',
@@ -100,9 +100,9 @@
             });
             const body = await response.json();
             if (!response.ok || body.code !== 0) throw new Error(body.msg || 'Could not send the sign-in link.');
-            setMessage('emailLoginMsg', body.msg || 'Check your inbox for a sign-in link.', 'success');
+            setMessage('gatewayEmailLoginMsg', body.msg || 'Check your inbox for a sign-in link.', 'success');
         } catch (error) {
-            setMessage('emailLoginMsg', error.message || 'Network error. Try again.', 'error');
+            setMessage('gatewayEmailLoginMsg', error.message || 'Network error. Try again.', 'error');
         } finally {
             submitButton.disabled = false;
             submitButton.textContent = 'Email me a sign-in link';
