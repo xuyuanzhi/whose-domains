@@ -263,3 +263,20 @@ test('email link errors reopen the monitor dialog in the email status region', a
         url: '/domain/example.com'
     }]);
 });
+
+test('unknown login results continue normal initialization without changing the URL', async () => {
+    const harness = createHarness({
+        search: '?source=lookup&monitor=pending&login=unexpected_code',
+        hash: '#whois'
+    }).run();
+    await harness.flushPromises();
+
+    assert.equal(harness.modal.style.display, undefined);
+    assert.equal(harness.googleMessage.textContent, '');
+    assert.equal(harness.emailMessage.textContent, '');
+    assert.deepEqual(harness.historyCalls, []);
+    assert.deepEqual(harness.fetchCalls.map((call) => call.url), [
+        '/api/domain-watch/check/example.com'
+    ]);
+    assert.equal(harness.fetchCalls[0].options.credentials, 'include');
+});

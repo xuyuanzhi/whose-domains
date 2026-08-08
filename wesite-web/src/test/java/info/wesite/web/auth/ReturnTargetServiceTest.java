@@ -77,6 +77,9 @@ class ReturnTargetServiceTest {
     @Test
     void recognizesOnlyValidatedDomainMonitorContinuations() {
         assertTrue(service.isDomainMonitorContinuation("/domain/example.com?monitor=pending"));
+        assertFalse(service.isDomainMonitorContinuation("/domain/example.com"));
+        assertFalse(service.isDomainMonitorContinuation("/domain/example.com?monitor=other"));
+        assertFalse(service.isDomainMonitorContinuation("/domain/example.com?monitor="));
         assertFalse(service.isDomainMonitorContinuation("/user/watchlist?monitor=pending"));
         assertFalse(service.isDomainMonitorContinuation("https://evil.example/domain/example.com?monitor=pending"));
     }
