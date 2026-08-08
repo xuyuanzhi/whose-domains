@@ -67,6 +67,15 @@ class EmailLoginServiceTest {
     }
 
     @Test
+    void rejectsRedirectPathsLongerThanTheDatabaseColumnBeforePersistence() {
+        EmailLoginService service = new EmailLoginService();
+        ReflectionTestUtils.setField(service, "returnTargets", new ReturnTargetService());
+
+        assertThrows(IllegalArgumentException.class,
+                () -> service.request("person@example.com", "/" + "界".repeat(500)));
+    }
+
+    @Test
     void storesAnArbitraryValidatedLocalRedirectPath() {
         EmailLoginLinkService links = mock(EmailLoginLinkService.class);
         MailSender mailSender = mock(MailSender.class);

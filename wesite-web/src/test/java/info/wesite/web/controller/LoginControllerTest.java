@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.ui.ExtendedModelMap;
-import org.springframework.mock.web.MockHttpServletRequest;
 
 import info.wesite.core.config.UserHolder;
 import info.wesite.core.entity.User;
@@ -23,6 +22,38 @@ class LoginControllerTest {
     }
 
     @Test
+    void missingReturnTargetFallsBackToWatchlist() {
+        ExtendedModelMap model = new ExtendedModelMap();
+
+        assertEquals("login", controller.login(null, model));
+        assertEquals(ReturnTargetService.DEFAULT_TARGET, model.get("returnTo"));
+    }
+
+    @Test
+    void externalReturnTargetFallsBackToWatchlist() {
+        ExtendedModelMap model = new ExtendedModelMap();
+
+        assertEquals("login", controller.login("https://evil.example", model));
+        assertEquals(ReturnTargetService.DEFAULT_TARGET, model.get("returnTo"));
+    }
+
+    @Test
+    void authenticationEndpointReturnTargetFallsBackToWatchlist() {
+        ExtendedModelMap model = new ExtendedModelMap();
+
+        assertEquals("login", controller.login("/user/verify-email?token=attacker-token", model));
+        assertEquals(ReturnTargetService.DEFAULT_TARGET, model.get("returnTo"));
+    }
+
+    @Test
+    void overlongReturnTargetFallsBackToWatchlist() {
+        ExtendedModelMap model = new ExtendedModelMap();
+
+        assertEquals("login", controller.login("/" + "a".repeat(500), model));
+        assertEquals(ReturnTargetService.DEFAULT_TARGET, model.get("returnTo"));
+    }
+
+    @Test
     void signedInVisitorSkipsGateway() {
         UserHolder.set(new User());
         try {
@@ -33,10 +64,14 @@ class LoginControllerTest {
     }
 
     @Test
-    void googleStartStoresTarget() {
-        MockHttpServletRequest request = new MockHttpServletRequest();
-
-        assertEquals("redirect:/oauth2/authorization/google", controller.google("/user/api-keys", request));
-        assertEquals("/user/api-keys", request.getSession().getAttribute("LOGIN_RETURN_TO"));
+    void signedInVisitorCannotBeRedirectedIntoAnotherAuthenticationFlow() {
+        UserHolder.set(new User());
+        try {
+            assertEquals("redirect:" + ReturnTargetService.DEFAULT_TARGET,
+                    controller.login("/user/verify-email?token=attacker-token", new ExtendedModelMap()));
+        } finally {
+            UserHolder.remove();
+        }
     }
+
 }

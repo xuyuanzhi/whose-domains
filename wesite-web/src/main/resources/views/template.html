@@ -226,7 +226,7 @@
             </div>
             <div id="loginForm">
                 <div class="auth-method auth-google-section" th:if="${_googleLoginEnabled}">
-                    <a id="googleLoginButton" class="auth-google-button" href="/oauth2/authorization/google">
+                    <a id="googleLoginButton" class="auth-google-button" href="/login/google">
                         <svg class="auth-google-icon" aria-hidden="true" viewBox="0 0 18 18" focusable="false">
                             <path fill="#4285F4" d="M17.64 9.205c0-.638-.057-1.252-.164-1.841H9v3.482h4.844a4.14 4.14 0 0 1-1.797 2.715v2.258h2.909c1.702-1.567 2.684-3.874 2.684-6.614Z"/>
                             <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.181l-2.909-2.258c-.806.54-1.835.859-3.047.859-2.344 0-4.328-1.585-5.037-3.714H.956v2.332A9 9 0 0 0 9 18Z"/>
@@ -512,7 +512,7 @@
         return loginCode==='invalid'?'emailLoginMsg':'googleLoginMsg';
     }
     (function showLoginResult() {
-        if(location.pathname==='/login')return;
+        if(document.documentElement.hasAttribute('data-login-gateway'))return;
         var loginMessages={
             invalid:{message:'This sign-in link is invalid or has expired.',color:'#ff5252'},
             google_error:{message:'Google sign-in could not be completed. Please try again.',color:'#ff5252'},

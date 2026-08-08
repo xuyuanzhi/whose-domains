@@ -23,8 +23,11 @@ import org.springframework.security.web.servlet.util.matcher.PathPatternRequestM
 import org.springframework.security.web.util.matcher.OrRequestMatcher;
 import org.springframework.util.StringUtils;
 
+import info.wesite.web.auth.ReturnTargetService;
 import info.wesite.web.auth.google.GoogleAuthenticationFailureHandler;
 import info.wesite.web.auth.google.GoogleAuthenticationSuccessHandler;
+import info.wesite.web.auth.google.GoogleOAuth2AuthorizationRequestRepository;
+import info.wesite.web.auth.google.GoogleOAuth2AuthorizationRequestResolver;
 
 @Configuration(proxyBeanMethods = false)
 @EnableWebSecurity
@@ -49,19 +52,38 @@ public class SecurityConfig {
     }
 
     @Bean
+    @ConditionalOnProperty(prefix = "wesite.google-login", name = "enabled", havingValue = "true")
+    GoogleOAuth2AuthorizationRequestRepository googleOAuth2AuthorizationRequestRepository() {
+        return new GoogleOAuth2AuthorizationRequestRepository();
+    }
+
+    @Bean
+    @ConditionalOnProperty(prefix = "wesite.google-login", name = "enabled", havingValue = "true")
+    GoogleOAuth2AuthorizationRequestResolver googleOAuth2AuthorizationRequestResolver(
+            ClientRegistrationRepository clientRegistrationRepository, ReturnTargetService returnTargets) {
+        return new GoogleOAuth2AuthorizationRequestResolver(clientRegistrationRepository, returnTargets);
+    }
+
+    @Bean
     @Order(1)
     @ConditionalOnProperty(prefix = "wesite.google-login", name = "enabled", havingValue = "true")
     SecurityFilterChain googleOAuthSecurityFilterChain(HttpSecurity http,
             ClientRegistrationRepository clientRegistrationRepository,
+            GoogleOAuth2AuthorizationRequestResolver authorizationRequestResolver,
+            GoogleOAuth2AuthorizationRequestRepository authorizationRequestRepository,
             GoogleAuthenticationSuccessHandler successHandler,
             GoogleAuthenticationFailureHandler failureHandler) throws Exception {
         PathPatternRequestMatcher.Builder paths = PathPatternRequestMatcher.withDefaults();
         http.securityMatcher(new OrRequestMatcher(
                 paths.matcher("/oauth2/**"),
+                paths.matcher("/login/google"),
                 paths.matcher("/login/oauth2/**")))
                 .authorizeHttpRequests(authorize -> authorize.anyRequest().permitAll())
                 .oauth2Login(oauth -> oauth
                         .clientRegistrationRepository(clientRegistrationRepository)
+                        .authorizationEndpoint(authorization -> authorization
+                                .authorizationRequestResolver(authorizationRequestResolver)
+                                .authorizationRequestRepository(authorizationRequestRepository))
                         .successHandler(successHandler)
                         .failureHandler(failureHandler));
         return http.build();

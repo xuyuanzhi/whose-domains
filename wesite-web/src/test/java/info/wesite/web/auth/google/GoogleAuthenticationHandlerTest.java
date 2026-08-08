@@ -37,7 +37,6 @@ import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 
 import info.wesite.core.entity.User;
 import info.wesite.web.auth.AuthCookieService;
-import info.wesite.web.auth.ReturnTargetService;
 
 class GoogleAuthenticationHandlerTest {
 
@@ -103,13 +102,13 @@ class GoogleAuthenticationHandlerTest {
         GoogleAuthenticationSuccessHandler handler = new GoogleAuthenticationSuccessHandler(identityParser,
                 currentUserResolver, googleLoginService, authCookieService, realSessionCleaner);
         MockHttpSession oldSession = (MockHttpSession) request.getSession();
-        oldSession.setAttribute(ReturnTargetService.GOOGLE_RETURN_TARGET_SESSION_KEY, "/user/api-keys");
+        request.setAttribute(GoogleOAuth2AuthorizationRequestRepository.CURRENT_RETURN_TARGET_ATTRIBUTE,
+                "/user/api-keys");
 
         handler.onAuthenticationSuccess(request, response, authentication);
 
         assertEquals("/user/api-keys", response.getRedirectedUrl());
-        assertThrows(IllegalStateException.class,
-                () -> oldSession.getAttribute(ReturnTargetService.GOOGLE_RETURN_TARGET_SESSION_KEY));
+        assertThrows(IllegalStateException.class, () -> oldSession.getAttribute("any-attribute"));
     }
 
     @Test
@@ -140,7 +139,8 @@ class GoogleAuthenticationHandlerTest {
         when(identityParser.parse(oidcUser)).thenReturn(identity);
         when(currentUserResolver.resolve(request)).thenReturn(Optional.empty());
         when(googleLoginService.authenticate(identity, null)).thenReturn(GoogleLoginResult.pending(pending));
-        request.getSession().setAttribute(ReturnTargetService.GOOGLE_RETURN_TARGET_SESSION_KEY, "/user/api-keys");
+        request.setAttribute(GoogleOAuth2AuthorizationRequestRepository.CURRENT_RETURN_TARGET_ATTRIBUTE,
+                "/user/api-keys");
         GoogleAuthenticationSuccessHandler handler = new GoogleAuthenticationSuccessHandler(identityParser,
                 currentUserResolver, googleLoginService, authCookieService, sessionCleaner);
 
@@ -182,7 +182,8 @@ class GoogleAuthenticationHandlerTest {
     @Test
     void gatewayProviderFailureReturnsToLoginWithTheCapturedTargetAndFixedCode() throws Exception {
         GoogleAuthenticationFailureHandler handler = new GoogleAuthenticationFailureHandler();
-        request.getSession().setAttribute(ReturnTargetService.GOOGLE_RETURN_TARGET_SESSION_KEY, "/user/api-keys");
+        request.setAttribute(GoogleOAuth2AuthorizationRequestRepository.CURRENT_RETURN_TARGET_ATTRIBUTE,
+                "/user/api-keys");
         AuthenticationServiceException providerFailure = new AuthenticationServiceException(
                 "person@example.com/google-subject/auth-code/access-token");
 

@@ -15,12 +15,16 @@ import org.springframework.core.env.Environment;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.ui.Model;
 import org.springframework.web.method.HandlerMethod;
 
-import info.wesite.core.config.AccessControl;
+import info.wesite.core.service.ApiKeyService;
 import info.wesite.core.utils.ApiTokenUtils;
 import info.wesite.core.view.ResponseJson;
 import info.wesite.web.config.GoogleLoginProperties;
+import info.wesite.web.controller.ApiKeyController;
+import info.wesite.web.controller.MainController;
+import info.wesite.web.controller.UserController;
 import info.wesite.web.seo.CanonicalUrlService;
 
 class ProtectedPageLoginRedirectTest {
@@ -38,19 +42,32 @@ class ProtectedPageLoginRedirectTest {
         request.setQueryString("tab=active&sort=new");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
-        assertFalse(interceptor().preHandle(request, response, protectedHandler()));
+        assertFalse(interceptor().preHandle(request, response, protectedPageHandler()));
 
         assertEquals("/login?returnTo=%2Fuser%2Fapi-keys%3Ftab%3Dactive%26sort%3Dnew",
                 response.getRedirectedUrl());
     }
 
     @Test
-    void jsonRequestKeepsExistingNoAuthResponse() throws Exception {
+    void realRestControllerFetchWithBrowserDefaultHeadersKeepsExistingNoAuthResponse() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/user/api-keys/list");
-        request.addHeader("Accept", "application/json");
+        request.addHeader("Accept", "*/*");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
-        assertFalse(interceptor().preHandle(request, response, protectedHandler()));
+        assertFalse(interceptor().preHandle(request, response, apiKeyListHandler()));
+
+        assertNull(response.getRedirectedUrl());
+        assertEquals("application/json;charset=utf-8", response.getContentType());
+        assertTrue(response.getContentAsString().contains("\"code\":" + ResponseJson.CODE_NOAUTH));
+    }
+
+    @Test
+    void realResponseBodyMethodWithBrowserDefaultHeadersKeepsExistingNoAuthResponse() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/user/session");
+        request.addHeader("Accept", "*/*");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        assertFalse(interceptor().preHandle(request, response, userSessionHandler()));
 
         assertNull(response.getRedirectedUrl());
         assertEquals("application/json;charset=utf-8", response.getContentType());
@@ -63,15 +80,18 @@ class ProtectedPageLoginRedirectTest {
         return new WebInterceptor(environment, new GoogleLoginProperties(false, "", ""), new CanonicalUrlService());
     }
 
-    private HandlerMethod protectedHandler() throws NoSuchMethodException {
-        Method method = ProtectedHandler.class.getDeclaredMethod("protectedEndpoint");
-        return new HandlerMethod(new ProtectedHandler(), method);
+    private HandlerMethod protectedPageHandler() throws NoSuchMethodException {
+        Method method = MainController.class.getMethod("apiKeys", Model.class);
+        return new HandlerMethod(new MainController(), method);
     }
 
-    static class ProtectedHandler {
+    private HandlerMethod apiKeyListHandler() throws NoSuchMethodException {
+        Method method = ApiKeyController.class.getMethod("list");
+        return new HandlerMethod(new ApiKeyController(mock(ApiKeyService.class)), method);
+    }
 
-        @AccessControl(level = AccessControl.Level.SESSION)
-        void protectedEndpoint() {
-        }
+    private HandlerMethod userSessionHandler() throws NoSuchMethodException {
+        Method method = UserController.class.getMethod("session");
+        return new HandlerMethod(new UserController(), method);
     }
 }

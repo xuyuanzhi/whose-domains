@@ -16,7 +16,6 @@ import info.wesite.web.auth.ReturnTargetService;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.http.HttpSession;
 
 @Component
 public class GoogleAuthenticationSuccessHandler implements AuthenticationSuccessHandler {
@@ -95,12 +94,9 @@ public class GoogleAuthenticationSuccessHandler implements AuthenticationSuccess
     }
 
     private String returnTarget(HttpServletRequest request) {
-        HttpSession session = request.getSession(false);
-        if (session == null) {
-            return null;
-        }
-        Object candidate = session.getAttribute(ReturnTargetService.GOOGLE_RETURN_TARGET_SESSION_KEY);
-        return candidate instanceof String target ? returnTargets.validated(target).orElse(null) : null;
+        return GoogleOAuth2AuthorizationRequestRepository.consumeReturnTarget(request)
+                .flatMap(returnTargets::validated)
+                .orElse(null);
     }
 
     private void clearAfterFailedLogin(HttpServletRequest request, HttpServletResponse response,

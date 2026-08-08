@@ -8,7 +8,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import info.wesite.core.config.UserHolder;
 import info.wesite.core.utils.Constants;
 import info.wesite.web.auth.ReturnTargetService;
-import jakarta.servlet.http.HttpServletRequest;
 
 @Controller
 public class LoginController {
@@ -31,10 +30,4 @@ public class LoginController {
         return "login";
     }
 
-    @GetMapping("/login/google")
-    public String google(@RequestParam(required = false) String returnTo, HttpServletRequest request) {
-        request.getSession(true).setAttribute(ReturnTargetService.GOOGLE_RETURN_TARGET_SESSION_KEY,
-                returnTargets.resolve(returnTo));
-        return "redirect:/oauth2/authorization/google";
-    }
 }

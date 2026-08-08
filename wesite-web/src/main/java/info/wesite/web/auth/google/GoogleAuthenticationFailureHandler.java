@@ -16,7 +16,6 @@ import info.wesite.web.auth.ReturnTargetService;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.http.HttpSession;
 
 @Component
 public class GoogleAuthenticationFailureHandler implements AuthenticationFailureHandler {
@@ -44,10 +43,8 @@ public class GoogleAuthenticationFailureHandler implements AuthenticationFailure
     @Override
     public void onAuthenticationFailure(HttpServletRequest request, HttpServletResponse response,
             AuthenticationException exception) throws IOException, ServletException {
-        HttpSession session = request.getSession(false);
-        Object candidate = session == null ? null
-                : session.getAttribute(ReturnTargetService.GOOGLE_RETURN_TARGET_SESSION_KEY);
-        redirect(response, exception, returnTargets, candidate instanceof String target ? target : null);
+        String returnTo = GoogleOAuth2AuthorizationRequestRepository.consumeReturnTarget(request).orElse(null);
+        redirect(response, exception, returnTargets, returnTo);
     }
 
     static void redirect(HttpServletResponse response, Throwable exception) throws IOException {

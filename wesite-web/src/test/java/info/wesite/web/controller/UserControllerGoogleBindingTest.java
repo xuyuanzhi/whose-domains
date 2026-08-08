@@ -9,6 +9,7 @@ import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -299,6 +300,27 @@ class UserControllerGoogleBindingTest {
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/user/api-keys"))
                 .andExpect(header().string(HttpHeaders.SET_COOKIE, authCookie.toString()));
+    }
+
+    @Test
+    void authenticationEndpointReturnTargetCannotChainASecondMagicLinkOrReplaceTheFirstIdentity() throws Exception {
+        EmailLoginLink victimLink = validLink("/user/verify-email?token=attacker-token");
+        User victim = activeUser("victim-user");
+        ResponseCookie victimCookie = ResponseCookie.from("TOKEN", "victim-jwt")
+                .httpOnly(true).secure(true).sameSite("Lax").path("/").build();
+        stubValidLink(victimLink);
+        when(emailLoginCompletionService.complete(EMAIL, null)).thenReturn(victim);
+        when(authCookieService.create(victim)).thenReturn(victimCookie);
+
+        mockMvc.perform(get("/user/verify-email").param("token", TOKEN))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl(ReturnTargetService.DEFAULT_TARGET))
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, victimCookie.toString()));
+
+        verify(emailLoginLinkService, times(1)).getOne(any(QueryWrapper.class));
+        verify(emailLoginLinkService, times(1)).update(isNull(), any(UpdateWrapper.class));
+        verify(emailLoginCompletionService).complete(EMAIL, null);
+        verify(authCookieService).create(victim);
     }
 
     @Test

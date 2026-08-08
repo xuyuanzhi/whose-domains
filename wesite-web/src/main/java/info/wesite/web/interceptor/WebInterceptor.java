@@ -4,8 +4,10 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.annotation.AnnotatedElementUtils;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
+import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.HandlerInterceptor;
 
@@ -141,7 +143,7 @@ public class WebInterceptor implements HandlerInterceptor {
             return true;
         }
 
-        if (isAjax(request)) {
+        if (isAjax(request, handler)) {
             response.setContentType("application/json;charset=utf-8");
             response.getWriter().write(JSON.toJSONString(ResponseJson.response(ResponseJson.CODE_NOAUTH, "请登录")));
             response.getWriter().flush();
@@ -162,10 +164,19 @@ public class WebInterceptor implements HandlerInterceptor {
         UserHolder.remove();
     }
 
-    private boolean isAjax(HttpServletRequest request) {
-        return "XMLHttpRequest".equals(request.getHeader("X-Requested-With"))
+    private boolean isAjax(HttpServletRequest request, Object handler) {
+        return isResponseBodyHandler(handler)
+                || "XMLHttpRequest".equals(request.getHeader("X-Requested-With"))
                 || request.getRequestURI().startsWith("/api/")
                 || (request.getHeader("Accept") != null && request.getHeader("Accept").contains("application/json"));
+    }
+
+    private boolean isResponseBodyHandler(Object handler) {
+        if (!(handler instanceof HandlerMethod handlerMethod)) {
+            return false;
+        }
+        return AnnotatedElementUtils.hasAnnotation(handlerMethod.getMethod(), ResponseBody.class)
+                || AnnotatedElementUtils.hasAnnotation(handlerMethod.getBeanType(), ResponseBody.class);
     }
 
     /**

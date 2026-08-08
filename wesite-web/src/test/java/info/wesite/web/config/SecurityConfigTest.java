@@ -33,6 +33,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import info.wesite.web.auth.ReturnTargetService;
 import info.wesite.web.auth.google.GoogleAuthenticationFailureHandler;
 import info.wesite.web.auth.google.GoogleAuthenticationSuccessHandler;
 
@@ -94,6 +95,9 @@ class SecurityConfigTest {
                     .andExpect(status().isOk())
                     .andExpect(header().doesNotExist(HttpHeaders.WWW_AUTHENTICATE));
             mvc.perform(get("/oauth2/authorization/google"))
+                    .andExpect(status().is3xxRedirection())
+                    .andExpect(redirectedUrlPattern("https://accounts.google.com/**"));
+            mvc.perform(get("/login/google").param("returnTo", "/user/api-keys"))
                     .andExpect(status().is3xxRedirection())
                     .andExpect(redirectedUrlPattern("https://accounts.google.com/**"));
         });
@@ -184,6 +188,11 @@ class SecurityConfigTest {
         @Bean
         GoogleAuthenticationFailureHandler googleAuthenticationFailureHandler() {
             return mock(GoogleAuthenticationFailureHandler.class);
+        }
+
+        @Bean
+        ReturnTargetService returnTargetService() {
+            return new ReturnTargetService();
         }
     }
 

@@ -6,7 +6,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -24,6 +26,7 @@ class LoginPageTemplateTest {
     void standaloneGatewayKeepsBothSignInPathsAndIndependentStatusRegions() throws IOException {
         String template = resource(LOGIN_TEMPLATE_RESOURCE);
 
+        assertTrue(template.contains("<html xmlns:th=\"http://www.thymeleaf.org\" lang=\"en\" data-login-gateway>"));
         assertTrue(template.contains("<h1 id=\"loginGatewayTitle\">Sign In</h1>"));
         assertTrue(template.contains("th:if=\"${_googleLoginEnabled}\""));
         assertTrue(template.contains("th:href=\"@{/login/google(returnTo=${returnTo})}\""));
@@ -35,9 +38,25 @@ class LoginPageTemplateTest {
     }
 
     @Test
+    void standaloneGatewayIdsAreUniqueWithinItsOwnTemplate() throws IOException {
+        Map<String, Integer> counts = idCounts(resource(LOGIN_TEMPLATE_RESOURCE));
+
+        assertTrue(duplicateIds(counts).isEmpty(),
+                () -> "IDs duplicated within login.html: " + duplicateIds(counts));
+    }
+
+    @Test
+    void sharedFragmentIdsAreUniqueWithinItsOwnTemplate() throws IOException {
+        Map<String, Integer> counts = idCounts(resource(SHARED_TEMPLATE_RESOURCE));
+
+        assertTrue(duplicateIds(counts).isEmpty(),
+                () -> "IDs duplicated within template.html: " + duplicateIds(counts));
+    }
+
+    @Test
     void standaloneGatewayIdsDoNotCollideWithSharedFragments() throws IOException {
-        Set<String> gatewayIds = ids(resource(LOGIN_TEMPLATE_RESOURCE));
-        Set<String> sharedIds = ids(resource(SHARED_TEMPLATE_RESOURCE));
+        Set<String> gatewayIds = idCounts(resource(LOGIN_TEMPLATE_RESOURCE)).keySet();
+        Set<String> sharedIds = idCounts(resource(SHARED_TEMPLATE_RESOURCE)).keySet();
         Set<String> collisions = new LinkedHashSet<>(gatewayIds);
 
         collisions.retainAll(sharedIds);
@@ -70,12 +89,22 @@ class LoginPageTemplateTest {
         return start >= 0 && end > start ? css.substring(start, end) : "";
     }
 
-    private Set<String> ids(String html) {
-        Set<String> ids = new LinkedHashSet<>();
+    private Map<String, Integer> idCounts(String html) {
+        Map<String, Integer> counts = new LinkedHashMap<>();
         Matcher matcher = ID_ATTRIBUTE.matcher(html);
         while (matcher.find()) {
-            ids.add(matcher.group(1));
+            counts.merge(matcher.group(1), 1, Integer::sum);
         }
-        return ids;
+        return counts;
+    }
+
+    private Set<String> duplicateIds(Map<String, Integer> counts) {
+        Set<String> duplicates = new LinkedHashSet<>();
+        counts.forEach((id, count) -> {
+            if (count > 1) {
+                duplicates.add(id);
+            }
+        });
+        return duplicates;
     }
 }

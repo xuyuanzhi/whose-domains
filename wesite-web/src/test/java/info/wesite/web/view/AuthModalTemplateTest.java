@@ -1,5 +1,6 @@
 package info.wesite.web.view;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
@@ -28,7 +29,7 @@ class AuthModalTemplateTest {
 
         assertTrue(template.contains("id=\"googleLoginButton\""));
         assertTrue(template.contains("th:if=\"${_googleLoginEnabled}\""));
-        assertTrue(template.contains("href=\"/oauth2/authorization/google\""));
+        assertTrue(template.contains("href=\"/login/google\""));
         assertTrue(template.contains("Continue with Google"));
         assertTrue(template.contains("class=\"auth-login-divider\""));
         assertTrue(template.contains(">or<"));
@@ -72,16 +73,18 @@ class AuthModalTemplateTest {
     }
 
     @Test
-    void standaloneLoginPageOwnsCallbackRenderingWithoutOpeningTheSharedModal() throws IOException {
+    void serverRenderedGatewayMarkerOwnsCallbackRenderingForEveryLoginPathAlias() throws IOException {
         String template = template();
         int callbackHandler = template.indexOf("(function showLoginResult() {");
-        int standaloneGuard = template.indexOf("if(location.pathname==='/login')return;", callbackHandler);
+        int standaloneGuard = template.indexOf(
+                "if(document.documentElement.hasAttribute('data-login-gateway'))return;", callbackHandler);
         int callbackRead = template.indexOf("new URLSearchParams(location.search).get('login')", callbackHandler);
         int modalOpen = template.indexOf("openAuthModal();", callbackHandler);
 
         assertTrue(callbackHandler >= 0);
         assertTrue(callbackHandler < standaloneGuard && standaloneGuard < callbackRead);
         assertTrue(callbackRead < modalOpen);
+        assertFalse(template.contains("location.pathname==='/login'"));
     }
 
     @Test
