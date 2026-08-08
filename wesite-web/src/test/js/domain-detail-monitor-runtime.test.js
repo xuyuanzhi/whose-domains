@@ -89,6 +89,14 @@ function response(statusOrData, responseData) {
     });
 }
 
+function responseWithJsonFailure(status, message = 'invalid JSON') {
+    return Promise.resolve({
+        ok: status >= 200 && status < 300,
+        status,
+        json: () => Promise.reject(new Error(message))
+    });
+}
+
 function createHarness({
     pathname = '/domain/example.com',
     search = '',
@@ -446,4 +454,174 @@ test('an HTTP add failure cannot report success from a business success payload'
     assert.equal(harness.button.textContent.includes('Monitoring'), false);
     assert.equal(harness.modal.style.display, 'flex');
     assert.equal(harness.emailMessage.textContent, 'Domain could not be watched.');
+});
+
+test('an authenticated monitor button click adds the domain and enters Monitoring', async () => {
+    const harness = createHarness({
+        responses: {
+            '/api/domain-watch/check/example.com': response(200, {code: 0, data: false}),
+            '/user/session': response(200, {code: 0}),
+            '/api/domain-watch/watch': response(200, {code: 0})
+        }
+    }).run();
+    await harness.flushPromises();
+
+    harness.button.dispatch('click');
+    await harness.flushPromises();
+
+    assert.deepEqual(harness.fetchCalls.map((call) => call.url), [
+        '/api/domain-watch/check/example.com',
+        '/user/session',
+        '/api/domain-watch/watch'
+    ]);
+    const watchRequest = harness.fetchCalls.at(-1);
+    assert.deepEqual(JSON.parse(watchRequest.options.body), {domainName: 'example.com', notifyType: 3});
+    assert.equal(harness.button.textContent.includes('Monitoring'), true);
+});
+
+test('a signed-out monitor button click opens the dialog without posting a watch', async () => {
+    const harness = createHarness({
+        responses: {
+            '/api/domain-watch/check/example.com': response(200, {code: 0, data: false}),
+            '/user/session': response(401, {code: 401})
+        }
+    }).run();
+    await harness.flushPromises();
+
+    harness.button.dispatch('click');
+    await harness.flushPromises();
+
+    assert.equal(harness.modal.style.display, 'flex');
+    assert.equal(harness.googleLink.focused, true);
+    assert.equal(harness.emailMessage.textContent, '');
+    assert.equal(harness.fetchCalls.some((call) => call.url === '/api/domain-watch/watch'), false);
+});
+
+test('addWatch network and JSON failures open the dialog with a visible retryable error', async () => {
+    const cases = [
+        {name: 'network rejection', watch: () => Promise.reject(new Error('network unavailable'))},
+        {name: 'JSON rejection', watch: responseWithJsonFailure(200)}
+    ];
+
+    for (const scenario of cases) {
+        const harness = createHarness({
+            responses: {
+                '/api/domain-watch/check/example.com': response(200, {code: 0, data: false}),
+                '/user/session': response(200, {code: 0}),
+                '/api/domain-watch/watch': scenario.watch
+            }
+        }).run();
+        await harness.flushPromises();
+
+        harness.button.dispatch('click');
+        await harness.flushPromises();
+
+        assert.equal(harness.modal.style.display, 'flex', scenario.name);
+        assert.equal(
+            harness.emailMessage.textContent,
+            'Could not add this domain to your watchlist.',
+            scenario.name
+        );
+        assert.equal(harness.emailMessage.style.display, 'block', scenario.name);
+        assert.equal(harness.button.disabled, false, scenario.name);
+    }
+});
+
+test('pending continuation fetch and JSON failures show the continuation error', async () => {
+    const cases = [
+        {name: 'fetch rejection', session: () => Promise.reject(new Error('network unavailable'))},
+        {name: 'JSON rejection', session: responseWithJsonFailure(200)}
+    ];
+
+    for (const scenario of cases) {
+        const harness = createHarness({
+            search: '?monitor=pending',
+            responses: {'/user/session': scenario.session}
+        }).run();
+        await harness.flushPromises();
+
+        assert.equal(harness.modal.style.display, 'flex', scenario.name);
+        assert.equal(
+            harness.emailMessage.textContent,
+            'Could not start monitoring. Please try again.',
+            scenario.name
+        );
+        assert.equal(harness.emailMessage.style.display, 'block', scenario.name);
+        assert.deepEqual(harness.fetchCalls.map((call) => call.url), ['/user/session'], scenario.name);
+    }
+});
+
+test('monitor button session fetch and JSON failures open sign-in without posting a watch', async () => {
+    const cases = [
+        {name: 'fetch rejection', session: () => Promise.reject(new Error('network unavailable'))},
+        {name: 'JSON rejection', session: responseWithJsonFailure(200)}
+    ];
+
+    for (const scenario of cases) {
+        const harness = createHarness({
+            responses: {
+                '/api/domain-watch/check/example.com': response(200, {code: 0, data: false}),
+                '/user/session': scenario.session
+            }
+        }).run();
+        await harness.flushPromises();
+
+        harness.button.dispatch('click');
+        await harness.flushPromises();
+
+        assert.equal(harness.modal.style.display, 'flex', scenario.name);
+        assert.equal(harness.googleLink.focused, true, scenario.name);
+        assert.equal(harness.emailMessage.textContent, '', scenario.name);
+        assert.equal(harness.fetchCalls.some((call) => call.url === '/api/domain-watch/watch'), false, scenario.name);
+    }
+});
+
+test('a failed add can be retried and the second click enters Monitoring', async () => {
+    let watchAttempts = 0;
+    const harness = createHarness({
+        responses: {
+            '/api/domain-watch/check/example.com': response(200, {code: 0, data: false}),
+            '/user/session': response(200, {code: 0}),
+            '/api/domain-watch/watch': () => {
+                watchAttempts++;
+                return watchAttempts === 1
+                    ? Promise.reject(new Error('network unavailable'))
+                    : response(200, {code: 0});
+            }
+        }
+    }).run();
+    await harness.flushPromises();
+
+    harness.button.dispatch('click');
+    await harness.flushPromises();
+    assert.equal(harness.emailMessage.textContent, 'Could not add this domain to your watchlist.');
+    assert.equal(harness.button.disabled, false);
+
+    harness.modal.style.display = 'none';
+    harness.button.dispatch('click');
+    await harness.flushPromises();
+
+    assert.equal(watchAttempts, 2);
+    assert.equal(harness.button.textContent.includes('Monitoring'), true);
+});
+
+test('pending continuation clears its URL marker before requesting the session', async () => {
+    let historyCountWhenSessionRequested = -1;
+    const harness = createHarness({
+        pathname: '/domain/example.com',
+        search: '?source=email&monitor=pending',
+        hash: '#whois',
+        responses: {
+            '/user/session': () => {
+                historyCountWhenSessionRequested = harness.historyCalls.length;
+                return response(401, {code: 401});
+            }
+        }
+    });
+
+    harness.run();
+    await harness.flushPromises();
+
+    assert.equal(historyCountWhenSessionRequested, 1);
+    assert.deepEqual(harness.historyUrls, ['/domain/example.com?source=email#whois']);
 });
