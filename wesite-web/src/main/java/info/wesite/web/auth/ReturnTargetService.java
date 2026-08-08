@@ -28,7 +28,7 @@ public class ReturnTargetService {
             URI uri = URI.create(candidate);
             String path = uri.getRawPath();
             if (uri.isAbsolute() || uri.getRawAuthority() != null || !StringUtils.hasText(path)
-                    || path.indexOf('%') >= 0
+                    || path.indexOf('%') >= 0 || containsDotSegment(path)
                     || "/login".equals(path) || path.startsWith("/login/")) {
                 return Optional.empty();
             }
@@ -36,6 +36,15 @@ public class ReturnTargetService {
         } catch (IllegalArgumentException exception) {
             return Optional.empty();
         }
+    }
+
+    private boolean containsDotSegment(String path) {
+        for (String segment : path.split("/", -1)) {
+            if (".".equals(segment) || "..".equals(segment)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public String loginUrl(String target) {

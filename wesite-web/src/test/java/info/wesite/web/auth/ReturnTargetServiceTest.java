@@ -15,8 +15,9 @@ class ReturnTargetServiceTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"https://evil.example/", "//evil.example/", "/\\evil", "/login",
-            "/login?returnTo=/user/api-keys", "/login/google", "/%2F%2Fevil.example/", "/%5Cevil",
-            "/%6Cogin", "/bad\r\nLocation:https://evil.example"})
+            "/login?returnTo=/user/api-keys", "/login/google", "/./login", "/x/../login",
+            "/login/./google", "/x/../login/google", "/../login", "/a/../../login",
+            "/%2F%2Fevil.example/", "/%5Cevil", "/%6Cogin", "/bad\r\nLocation:https://evil.example"})
     void unsafeOrLoopingTargetsFallBack(String candidate) {
         assertEquals("/user/watchlist?login=success", service.resolve(candidate));
         assertTrue(service.validated(candidate).isEmpty());
