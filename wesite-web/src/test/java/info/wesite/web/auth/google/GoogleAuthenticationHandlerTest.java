@@ -4,9 +4,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -21,6 +22,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.mockito.ArgumentCaptor;
 import org.springframework.http.ResponseCookie;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -35,6 +37,7 @@ import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 
 import info.wesite.core.entity.User;
 import info.wesite.web.auth.AuthCookieService;
+import info.wesite.web.auth.ReturnTargetService;
 
 class GoogleAuthenticationHandlerTest {
 
@@ -87,6 +90,29 @@ class GoogleAuthenticationHandlerTest {
     }
 
     @Test
+    void signedInGoogleResultReturnsToTheGatewayTargetCapturedBeforeOAuthCleanup() throws Exception {
+        GoogleIdentity identity = new GoogleIdentity("google-subject", "person@example.com", "Person", true);
+        User user = user("user-1");
+        ResponseCookie cookie = ResponseCookie.from("wesite-auth", "application-token").path("/").build();
+        when(identityParser.parse(oidcUser)).thenReturn(identity);
+        when(currentUserResolver.resolve(request)).thenReturn(Optional.empty());
+        when(googleLoginService.authenticate(identity, null)).thenReturn(GoogleLoginResult.signedIn(user));
+        when(authCookieService.create(user)).thenReturn(cookie);
+        OAuth2AuthorizedClientRepository clients = mock(OAuth2AuthorizedClientRepository.class);
+        OAuthSessionCleaner realSessionCleaner = new OAuthSessionCleaner(clients);
+        GoogleAuthenticationSuccessHandler handler = new GoogleAuthenticationSuccessHandler(identityParser,
+                currentUserResolver, googleLoginService, authCookieService, realSessionCleaner);
+        MockHttpSession oldSession = (MockHttpSession) request.getSession();
+        oldSession.setAttribute(ReturnTargetService.GOOGLE_RETURN_TARGET_SESSION_KEY, "/user/api-keys");
+
+        handler.onAuthenticationSuccess(request, response, authentication);
+
+        assertEquals("/user/api-keys", response.getRedirectedUrl());
+        assertThrows(IllegalStateException.class,
+                () -> oldSession.getAttribute(ReturnTargetService.GOOGLE_RETURN_TARGET_SESSION_KEY));
+    }
+
+    @Test
     void pendingGoogleResultDoesNotWriteApplicationCookieRotatesOAuthStateAndRedirects() throws Exception {
         GoogleIdentity identity = new GoogleIdentity("google-subject", "person@example.com", "Person", false);
         PendingGoogleBinding pending = new PendingGoogleBinding("user-1", "google-subject", "person@example.com",
@@ -104,6 +130,25 @@ class GoogleAuthenticationHandlerTest {
         verify(sessionCleaner).rotateToPending(request, response, authentication, pending);
         verify(sessionCleaner, never()).clear(request, response, authentication);
         verify(authCookieService, never()).create(user("user-1"));
+    }
+
+    @Test
+    void pendingGoogleResultCarriesTheGatewayTargetIntoTheRotatedSession() throws Exception {
+        GoogleIdentity identity = new GoogleIdentity("google-subject", "person@example.com", "Person", false);
+        PendingGoogleBinding pending = new PendingGoogleBinding("user-1", "google-subject", "person@example.com",
+                Instant.parse("2030-01-01T00:00:00Z"));
+        when(identityParser.parse(oidcUser)).thenReturn(identity);
+        when(currentUserResolver.resolve(request)).thenReturn(Optional.empty());
+        when(googleLoginService.authenticate(identity, null)).thenReturn(GoogleLoginResult.pending(pending));
+        request.getSession().setAttribute(ReturnTargetService.GOOGLE_RETURN_TARGET_SESSION_KEY, "/user/api-keys");
+        GoogleAuthenticationSuccessHandler handler = new GoogleAuthenticationSuccessHandler(identityParser,
+                currentUserResolver, googleLoginService, authCookieService, sessionCleaner);
+
+        handler.onAuthenticationSuccess(request, response, authentication);
+
+        ArgumentCaptor<PendingGoogleBinding> pendingCaptor = ArgumentCaptor.forClass(PendingGoogleBinding.class);
+        verify(sessionCleaner).rotateToPending(eq(request), eq(response), eq(authentication), pendingCaptor.capture());
+        assertEquals("/user/api-keys", pendingCaptor.getValue().returnTo());
     }
 
     @Test
@@ -132,6 +177,18 @@ class GoogleAuthenticationHandlerTest {
         handler.onAuthenticationFailure(request, response, providerFailure);
 
         assertEquals("/?login=google_error", response.getRedirectedUrl());
+    }
+
+    @Test
+    void gatewayProviderFailureReturnsToLoginWithTheCapturedTargetAndFixedCode() throws Exception {
+        GoogleAuthenticationFailureHandler handler = new GoogleAuthenticationFailureHandler();
+        request.getSession().setAttribute(ReturnTargetService.GOOGLE_RETURN_TARGET_SESSION_KEY, "/user/api-keys");
+        AuthenticationServiceException providerFailure = new AuthenticationServiceException(
+                "person@example.com/google-subject/auth-code/access-token");
+
+        handler.onAuthenticationFailure(request, response, providerFailure);
+
+        assertEquals("/login?login=google_error&returnTo=%2Fuser%2Fapi-keys", response.getRedirectedUrl());
     }
 
     @ParameterizedTest

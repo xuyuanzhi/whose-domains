@@ -45,7 +45,6 @@ import jakarta.servlet.http.HttpSession;
 @RequestMapping("/user")
 public class UserController {
 
-    private static final String LOGIN_SUCCESS_REDIRECT = "/user/watchlist?login=success";
     private static final String GOOGLE_BIND_REQUIRED_REDIRECT = "/user/watchlist?login=google_bind_required";
 
     @Autowired
@@ -102,7 +101,7 @@ public class UserController {
         String cookie = authCookieService.create(user).toString();
         completeLoginAfterCommit(response, cookie, pending == null ? null : session);
         if (pending != null) {
-            return "redirect:" + LOGIN_SUCCESS_REDIRECT;
+            return "redirect:" + returnTargets.resolve(pending.returnTo());
         }
         return "redirect:" + safeRedirectPath(link.getRedirectPath());
     }

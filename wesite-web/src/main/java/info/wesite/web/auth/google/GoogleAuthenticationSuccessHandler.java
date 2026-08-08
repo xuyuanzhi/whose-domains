@@ -12,14 +12,15 @@ import org.springframework.stereotype.Component;
 
 import info.wesite.core.entity.User;
 import info.wesite.web.auth.AuthCookieService;
+import info.wesite.web.auth.ReturnTargetService;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 
 @Component
 public class GoogleAuthenticationSuccessHandler implements AuthenticationSuccessHandler {
 
-    private static final String SUCCESS_REDIRECT = "/user/watchlist?login=success";
     private static final String PENDING_REDIRECT = "/?login=google_check_email";
 
     private final GoogleIdentityParser identityParser;
@@ -27,29 +28,41 @@ public class GoogleAuthenticationSuccessHandler implements AuthenticationSuccess
     private final GoogleLoginService googleLoginService;
     private final AuthCookieService authCookieService;
     private final OAuthSessionCleaner sessionCleaner;
+    private final ReturnTargetService returnTargets;
 
     @Autowired
     public GoogleAuthenticationSuccessHandler(CurrentJwtUserResolver currentUserResolver,
-            GoogleLoginService googleLoginService, AuthCookieService authCookieService, OAuthSessionCleaner sessionCleaner) {
-        this(new GoogleIdentityParser(), currentUserResolver, googleLoginService, authCookieService, sessionCleaner);
+            GoogleLoginService googleLoginService, AuthCookieService authCookieService, OAuthSessionCleaner sessionCleaner,
+            ReturnTargetService returnTargets) {
+        this(new GoogleIdentityParser(), currentUserResolver, googleLoginService, authCookieService, sessionCleaner,
+                returnTargets);
     }
 
     public GoogleAuthenticationSuccessHandler(GoogleIdentityParser identityParser,
             CurrentJwtUserResolver currentUserResolver, GoogleLoginService googleLoginService,
             AuthCookieService authCookieService, OAuthSessionCleaner sessionCleaner) {
+        this(identityParser, currentUserResolver, googleLoginService, authCookieService, sessionCleaner,
+                new ReturnTargetService());
+    }
+
+    public GoogleAuthenticationSuccessHandler(GoogleIdentityParser identityParser,
+            CurrentJwtUserResolver currentUserResolver, GoogleLoginService googleLoginService,
+            AuthCookieService authCookieService, OAuthSessionCleaner sessionCleaner, ReturnTargetService returnTargets) {
         this.identityParser = identityParser;
         this.currentUserResolver = currentUserResolver;
         this.googleLoginService = googleLoginService;
         this.authCookieService = authCookieService;
         this.sessionCleaner = sessionCleaner;
+        this.returnTargets = returnTargets;
     }
 
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
             Authentication authentication) throws IOException, ServletException {
+        String returnTo = returnTarget(request);
         if (!(authentication instanceof OAuth2AuthenticationToken googleAuthentication)) {
             GoogleAuthenticationFailureHandler.redirect(response,
-                    new GoogleLoginException(GoogleLoginException.Code.INVALID_IDENTITY));
+                    new GoogleLoginException(GoogleLoginException.Code.INVALID_IDENTITY), returnTargets, returnTo);
             return;
         }
 
@@ -61,7 +74,7 @@ public class GoogleAuthenticationSuccessHandler implements AuthenticationSuccess
             result = googleLoginService.authenticate(identity, currentUser);
         } catch (RuntimeException exception) {
             clearAfterFailedLogin(request, response, googleAuthentication);
-            GoogleAuthenticationFailureHandler.redirect(response, exception);
+            GoogleAuthenticationFailureHandler.redirect(response, exception, returnTargets, returnTo);
             return;
         }
 
@@ -69,15 +82,25 @@ public class GoogleAuthenticationSuccessHandler implements AuthenticationSuccess
             if (result.status() == GoogleLoginResult.Status.SIGNED_IN) {
                 sessionCleaner.clear(request, response, googleAuthentication);
                 response.addHeader(HttpHeaders.SET_COOKIE, authCookieService.create(result.user()).toString());
-                response.sendRedirect(SUCCESS_REDIRECT);
+                response.sendRedirect(returnTargets.resolve(returnTo));
                 return;
             }
 
-            sessionCleaner.rotateToPending(request, response, googleAuthentication, result.pendingBinding());
+            sessionCleaner.rotateToPending(request, response, googleAuthentication,
+                    result.pendingBinding().withReturnTo(returnTo));
             response.sendRedirect(PENDING_REDIRECT);
         } catch (RuntimeException exception) {
-            GoogleAuthenticationFailureHandler.redirect(response, exception);
+            GoogleAuthenticationFailureHandler.redirect(response, exception, returnTargets, returnTo);
         }
+    }
+
+    private String returnTarget(HttpServletRequest request) {
+        HttpSession session = request.getSession(false);
+        if (session == null) {
+            return null;
+        }
+        Object candidate = session.getAttribute(ReturnTargetService.GOOGLE_RETURN_TARGET_SESSION_KEY);
+        return candidate instanceof String target ? returnTargets.validated(target).orElse(null) : null;
     }
 
     private void clearAfterFailedLogin(HttpServletRequest request, HttpServletResponse response,

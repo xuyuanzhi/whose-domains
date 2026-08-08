@@ -161,7 +161,8 @@ class UserControllerGoogleBindingTest {
     void transactionalMvcCommitsBeforeCompletingTheLoginResponse() throws Exception {
         EmailLoginLink link = validLink("/user/watchlist?login=google_bind_required");
         User user = activeUser("email-user");
-        PendingGoogleBinding pending = livePending("email-user");
+        PendingGoogleBinding pending = new PendingGoogleBinding("email-user", "google-subject", EMAIL,
+                Instant.now().plus(15, ChronoUnit.MINUTES), "/user/api-keys");
         MockHttpSession session = sessionWith(pending);
         stubValidLink(link);
         when(emailLoginCompletionService.complete(EMAIL, pending)).thenReturn(user);
@@ -171,7 +172,7 @@ class UserControllerGoogleBindingTest {
         transactionalMockMvc(transactions)
                 .perform(get("/user/verify-email").param("token", TOKEN).session(session))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/user/watchlist?login=success"))
+                .andExpect(redirectedUrl("/user/api-keys"))
                 .andExpect(header().string(HttpHeaders.SET_COOKIE, authCookie.toString()));
 
         assertEquals(1, transactions.commits);
