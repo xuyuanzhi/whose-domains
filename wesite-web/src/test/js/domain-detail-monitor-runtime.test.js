@@ -192,17 +192,27 @@ test('Google monitor login carries the current domain continuation target', () =
     );
 });
 
-test('email monitor login sends the same continuation target and uses only its own message region', async () => {
-    const harness = createHarness({ pathname: '/domain/example.com', search: '' }).run();
+test('Google and email monitor logins share a sanitized continuation target', async () => {
+    const returnTo = '/domain/example.com?source=lookup&monitor=pending';
+    const harness = createHarness({
+        pathname: '/domain/example.com',
+        search: '?source=lookup&login=google_error'
+    }).run();
     harness.email.value = 'person@example.com';
     harness.sendLinkButton.dispatch('click');
     await harness.flushPromises();
 
     const request = harness.fetchCalls.find((call) => call.url === '/user/email-login');
+    assert.equal(
+        harness.googleLink.href,
+        '/login/google?returnTo=' + encodeURIComponent(returnTo)
+    );
     assert.deepEqual(JSON.parse(request.options.body), {
         email: 'person@example.com',
-        returnTo: '/domain/example.com?monitor=pending'
+        returnTo
     });
+    assert.doesNotMatch(harness.googleLink.href, /login=google_error/);
+    assert.doesNotMatch(JSON.parse(request.options.body).returnTo, /login=google_error/);
     assert.equal(harness.emailMessage.textContent, 'Check your inbox.');
     assert.equal(harness.googleMessage.textContent, '');
 });
