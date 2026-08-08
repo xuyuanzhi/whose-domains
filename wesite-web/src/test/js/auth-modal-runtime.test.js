@@ -153,10 +153,15 @@ class FakeElement {
 }
 
 class FakeDocument {
-    constructor() {
+    constructor(loginGateway = false) {
         this.elements = new Map();
         this.listeners = new Map();
         this.activeElement = null;
+        this.documentElement = {
+            hasAttribute(name) {
+                return name === 'data-login-gateway' && loginGateway;
+            }
+        };
     }
 
     register(id, options) {
@@ -208,7 +213,7 @@ class FakeMediaQueryList {
 }
 
 function createHarness(options = {}) {
-    const document = new FakeDocument();
+    const document = new FakeDocument(options.loginGateway);
     const authModal = document.register('authModal');
     const dialog = document.register('authModalDialog', {
         width: options.dialogWidth || 400,
@@ -360,6 +365,13 @@ async function flushPromises() {
     await Promise.resolve();
     await Promise.resolve();
 }
+
+test('login gateway Google error does not reopen the shared auth modal', () => {
+    const harness = createHarness({ loginGateway: true, search: '?login=google_error' }).run();
+
+    assert.equal(harness.authModal.getAttribute('aria-hidden'), 'true');
+    assert.equal(harness.authModal.style.display, undefined);
+});
 
 test('disabled Google login falls back to a visible email status without aborting modal open', () => {
     const harness = createHarness({ googleEnabled: false, search: '?login=google_error' });
