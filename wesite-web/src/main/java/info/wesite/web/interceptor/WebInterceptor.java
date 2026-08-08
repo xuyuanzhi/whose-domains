@@ -21,6 +21,7 @@ import info.wesite.core.utils.Constants;
 import info.wesite.core.utils.IpUtils;
 import info.wesite.core.utils.TokenUtils;
 import info.wesite.core.view.ResponseJson;
+import info.wesite.web.auth.ReturnTargetService;
 import info.wesite.web.config.GoogleLoginProperties;
 import info.wesite.web.seo.CanonicalUrlService;
 import jakarta.servlet.http.Cookie;
@@ -38,18 +39,26 @@ public class WebInterceptor implements HandlerInterceptor {
     private final Environment environment;
     private final GoogleLoginProperties googleLoginProperties;
     private final CanonicalUrlService canonicalUrlService;
+    private final ReturnTargetService returnTargetService;
+
+    @Autowired(required = false)
+    public WebInterceptor(Environment environment, GoogleLoginProperties googleLoginProperties,
+            CanonicalUrlService canonicalUrlService, ReturnTargetService returnTargetService) {
+        this.environment = environment;
+        this.googleLoginProperties = googleLoginProperties;
+        this.canonicalUrlService = canonicalUrlService;
+        this.returnTargetService = returnTargetService;
+    }
 
     @Autowired(required = false)
     public WebInterceptor(Environment environment, GoogleLoginProperties googleLoginProperties,
             CanonicalUrlService canonicalUrlService) {
-        this.environment = environment;
-        this.googleLoginProperties = googleLoginProperties;
-        this.canonicalUrlService = canonicalUrlService;
+        this(environment, googleLoginProperties, canonicalUrlService, new ReturnTargetService());
     }
 
     @Autowired(required = false)
     public WebInterceptor(Environment environment, GoogleLoginProperties googleLoginProperties) {
-        this(environment, googleLoginProperties, new CanonicalUrlService());
+        this(environment, googleLoginProperties, new CanonicalUrlService(), new ReturnTargetService());
     }
 
     @Override
@@ -137,7 +146,11 @@ public class WebInterceptor implements HandlerInterceptor {
             response.getWriter().write(JSON.toJSONString(ResponseJson.response(ResponseJson.CODE_NOAUTH, "请登录")));
             response.getWriter().flush();
         } else {
-            response.sendRedirect("/");
+            String target = request.getRequestURI();
+            if (StringUtils.isNotBlank(request.getQueryString())) {
+                target += "?" + request.getQueryString();
+            }
+            response.sendRedirect(returnTargetService.loginUrl(target));
         }
 
         return false;
