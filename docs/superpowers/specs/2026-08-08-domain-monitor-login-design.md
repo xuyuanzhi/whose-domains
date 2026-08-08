@@ -89,4 +89,3 @@ Google 登录不可用时，不渲染 Google 区域和分隔线，Email Link 仍
   - 普通失败显示在正确提示区；
   - 处理后只移除 `monitor` 参数并防止重复提交。
 - 运行相关 Node 测试、聚焦 Java 模板测试及完整 Maven reactor。
-
