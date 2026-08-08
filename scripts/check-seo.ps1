@@ -1,8 +1,50 @@
-param([string]$BaseUrl = 'https://whose.domains')
+param(
+    [string]$BaseUrl = 'https://whose.domains',
+    [switch]$SelfTest
+)
 
 $ErrorActionPreference = 'Stop'
 $BaseUrl = $BaseUrl.TrimEnd('/')
 $failures = [System.Collections.Generic.List[string]]::new()
+
+function Add-SeoFailure([System.Collections.Generic.List[string]]$failureList, [string]$message) {
+    [void]$failureList.Add($message)
+}
+
+function Get-CanonicalLinkInfo([string]$html) {
+    $canonicalHrefs = [System.Collections.Generic.List[string]]::new()
+    $canonicalRelationCount = 0
+    $linkMatches = [regex]::Matches($html, '<link\b[^>]*>', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+
+    foreach ($linkMatch in $linkMatches) {
+        $linkTag = $linkMatch.Value
+        $relMatch = [regex]::Match(
+            $linkTag,
+            '(?:^|\s)rel\s*=\s*["'']([^"'']*)["'']',
+            [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+        if (-not $relMatch.Success -or -not [regex]::IsMatch(
+                $relMatch.Groups[1].Value,
+                '(?:^|\s)canonical(?:\s|$)',
+                [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)) {
+            continue
+        }
+
+        $canonicalRelationCount++
+        $hrefMatch = [regex]::Match(
+            $linkTag,
+            '(?:^|\s)href\s*=\s*["'']([^"'']+)["'']',
+            [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+        if ($hrefMatch.Success -and -not [string]::IsNullOrWhiteSpace($hrefMatch.Groups[1].Value)) {
+            $canonicalHrefs.Add($hrefMatch.Groups[1].Value.Trim())
+        }
+    }
+
+    return [pscustomobject]@{
+        RelationCount = $canonicalRelationCount
+        Hrefs = @($canonicalHrefs)
+    }
+}
+
 Add-Type -AssemblyName System.Net.Http
 $handler = [System.Net.Http.HttpClientHandler]::new()
 $handler.AllowAutoRedirect = $false
@@ -13,7 +55,7 @@ function Get-SeoResponse([string]$url) {
     try {
         return $client.GetAsync($url).GetAwaiter().GetResult()
     } catch {
-        $failures.Add("GET failed: $url - $($_.Exception.Message)")
+        Add-SeoFailure $failures "GET failed: $url - $($_.Exception.Message)"
         return $null
     }
 }
@@ -24,7 +66,7 @@ function Read-SeoBody($response, [string]$url) {
     try {
         return $response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
     } catch {
-        $failures.Add("Could not read response body: $url - $($_.Exception.Message)")
+        Add-SeoFailure $failures "Could not read response body: $url - $($_.Exception.Message)"
         return $null
     }
 }
@@ -38,16 +80,70 @@ function Get-RedirectLocation($response, [string]$requestUrl) {
     return [uri]::new([uri]$requestUrl, $location).AbsoluteUri
 }
 
+function Invoke-SeoSelfTest {
+    $selfTestFailures = [System.Collections.Generic.List[string]]::new()
+
+    $hrefFirst = Get-CanonicalLinkInfo '<link href="https://whose.domains/tools/whois-lookup" rel="canonical">'
+    if ($hrefFirst.RelationCount -ne 1 -or $hrefFirst.Hrefs.Count -ne 1 -or $hrefFirst.Hrefs[0] -ne 'https://whose.domains/tools/whois-lookup') {
+        Add-SeoFailure $selfTestFailures 'href-before-rel canonical link was not recognized'
+    }
+
+    $tokenizedRel = Get-CanonicalLinkInfo "<link rel='alternate canonical' href='https://whose.domains/'>"
+    if ($tokenizedRel.RelationCount -ne 1 -or $tokenizedRel.Hrefs.Count -ne 1) {
+        Add-SeoFailure $selfTestFailures 'canonical rel token was not recognized'
+    }
+
+    $dataRel = Get-CanonicalLinkInfo '<link data-rel="canonical" href="https://whose.domains/">'
+    if ($dataRel.RelationCount -ne 0 -or $dataRel.Hrefs.Count -ne 0) {
+        Add-SeoFailure $selfTestFailures 'data-rel was mistaken for rel'
+    }
+
+    $duplicateCanonical = Get-CanonicalLinkInfo '<link rel="canonical" href="https://whose.domains/"><link href="https://whose.domains/other" rel="canonical">'
+    if ($duplicateCanonical.RelationCount -ne 2 -or $duplicateCanonical.Hrefs.Count -ne 2) {
+        Add-SeoFailure $selfTestFailures 'duplicate canonical links were not counted'
+    }
+
+    $relativeResponse = [pscustomobject]@{ Headers = [pscustomobject]@{ Location = [uri]::new('/tools/whois-lookup', [System.UriKind]::Relative) } }
+    if ((Get-RedirectLocation $relativeResponse 'https://whose.domains/tools/whois-lookup/') -ne 'https://whose.domains/tools/whois-lookup') {
+        Add-SeoFailure $selfTestFailures 'relative redirect location was not normalized'
+    }
+
+    $absoluteResponse = [pscustomobject]@{ Headers = [pscustomobject]@{ Location = [uri]'https://whose.domains/' } }
+    if ((Get-RedirectLocation $absoluteResponse 'https://www.whose.domains/') -ne 'https://whose.domains/') {
+        Add-SeoFailure $selfTestFailures 'absolute redirect location was not preserved'
+    }
+
+    $aggregatedFailures = [System.Collections.Generic.List[string]]::new()
+    Add-SeoFailure $aggregatedFailures 'first failure'
+    Add-SeoFailure $aggregatedFailures 'second failure'
+    if ($aggregatedFailures.Count -ne 2 -or $aggregatedFailures[0] -ne 'first failure' -or $aggregatedFailures[1] -ne 'second failure') {
+        Add-SeoFailure $selfTestFailures 'failures were not aggregated in order'
+    }
+
+    if ($selfTestFailures.Count -gt 0) {
+        $selfTestFailures | ForEach-Object { Write-Error $_ -ErrorAction Continue }
+        return $false
+    }
+
+    Write-Host 'SEO offline self-test passed.'
+    return $true
+}
+
+if ($SelfTest) {
+    if (Invoke-SeoSelfTest) { exit 0 }
+    exit 1
+}
+
 $locations = @()
 try {
     $robotsResponse = Get-SeoResponse "$BaseUrl/robots.txt"
     try {
         if ($null -eq $robotsResponse -or [int]$robotsResponse.StatusCode -ne 200) {
-            $failures.Add('robots.txt must return HTTP 200')
+            Add-SeoFailure $failures 'robots.txt must return HTTP 200'
         } else {
             $robots = Read-SeoBody $robotsResponse "$BaseUrl/robots.txt"
             if ($robots -notmatch '(?im)^Sitemap:\s+https://whose\.domains/sitemap_all\.xml\s*$') {
-                $failures.Add('robots.txt does not declare the production sitemap')
+                Add-SeoFailure $failures 'robots.txt does not declare the production sitemap'
             }
         }
     } finally {
@@ -57,13 +153,13 @@ try {
     $sitemapResponse = Get-SeoResponse "$BaseUrl/sitemap_all.xml"
     try {
         if ($null -eq $sitemapResponse -or [int]$sitemapResponse.StatusCode -ne 200) {
-            $failures.Add('sitemap_all.xml must return HTTP 200')
+            Add-SeoFailure $failures 'sitemap_all.xml must return HTTP 200'
         } else {
             try {
                 [xml]$sitemap = Read-SeoBody $sitemapResponse "$BaseUrl/sitemap_all.xml"
                 $locations = @($sitemap.urlset.url.loc | ForEach-Object { [string]$_ })
             } catch {
-                $failures.Add("sitemap_all.xml is not valid XML: $($_.Exception.Message)")
+                Add-SeoFailure $failures "sitemap_all.xml is not valid XML: $($_.Exception.Message)"
             }
         }
     } finally {
@@ -72,7 +168,7 @@ try {
 
     foreach ($location in $locations) {
         if (-not $location.StartsWith('https://whose.domains/')) {
-            $failures.Add("Non-canonical sitemap origin or root slash: $location")
+            Add-SeoFailure $failures "Non-canonical sitemap origin or root slash: $location"
             continue
         }
 
@@ -80,7 +176,7 @@ try {
         try {
             if ($null -eq $response) { continue }
             if ([int]$response.StatusCode -ne 200) {
-                $failures.Add("Sitemap URL must directly return 200: $location returned $([int]$response.StatusCode)")
+                Add-SeoFailure $failures "Sitemap URL must directly return 200: $location returned $([int]$response.StatusCode)"
                 continue
             }
 
@@ -88,15 +184,11 @@ try {
             $mediaType = if ($null -eq $contentType) { $null } else { $contentType.MediaType }
             if ($mediaType -eq 'text/html') {
                 $html = Read-SeoBody $response $location
-                # Canonical selector shape: rel=["']canonical
-                $canonicalMatches = [regex]::Matches(
-                    $html,
-                    '<link[^>]+rel=["'']canonical["''][^>]+href=["'']([^"'']+)["''][^>]*>',
-                    [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
-                if ($canonicalMatches.Count -ne 1) {
-                    $failures.Add("Expected one canonical link: $location found $($canonicalMatches.Count)")
-                } elseif ($canonicalMatches[0].Groups[1].Value -ne $location) {
-                    $failures.Add("Canonical mismatch: $location -> $($canonicalMatches[0].Groups[1].Value)")
+                $canonicalInfo = Get-CanonicalLinkInfo $html
+                if ($canonicalInfo.RelationCount -ne 1 -or $canonicalInfo.Hrefs.Count -ne 1) {
+                    Add-SeoFailure $failures "Expected one canonical link with href: $location found $($canonicalInfo.RelationCount) canonical rel values and $($canonicalInfo.Hrefs.Count) href values"
+                } elseif ($canonicalInfo.Hrefs[0] -ne $location) {
+                    Add-SeoFailure $failures "Canonical mismatch: $location -> $($canonicalInfo.Hrefs[0])"
                 }
             }
         } finally {
@@ -109,7 +201,7 @@ try {
     try {
         $slashLocation = Get-RedirectLocation $slashResponse $slashUrl
         if ($null -eq $slashResponse -or [int]$slashResponse.StatusCode -ne 301 -or $slashLocation -ne 'https://whose.domains/tools/whois-lookup') {
-            $failures.Add('Trailing-slash tool URL must 301 to its canonical URL')
+            Add-SeoFailure $failures 'Trailing-slash tool URL must 301 to its canonical URL'
         }
     } finally {
         if ($null -ne $slashResponse) { $slashResponse.Dispose() }
@@ -120,7 +212,7 @@ try {
     try {
         $wwwLocation = Get-RedirectLocation $wwwResponse $wwwUrl
         if ($null -eq $wwwResponse -or [int]$wwwResponse.StatusCode -ne 301 -or $wwwLocation -ne 'https://whose.domains/') {
-            $failures.Add('www homepage must 301 to the canonical homepage')
+            Add-SeoFailure $failures 'www homepage must 301 to the canonical homepage'
         }
     } finally {
         if ($null -ne $wwwResponse) { $wwwResponse.Dispose() }
