@@ -22,6 +22,7 @@ class EmailLoginServiceTest {
     @Test
     void rejectsExternalRedirectPaths() {
         EmailLoginService service = new EmailLoginService();
+        ReflectionTestUtils.setField(service, "returnTargets", new ReturnTargetService());
 
         assertThrows(IllegalArgumentException.class,
                 () -> service.request("person@example.com", "https://evil.example/"));
@@ -66,6 +67,20 @@ class EmailLoginServiceTest {
     }
 
     @Test
+    void storesAnArbitraryValidatedLocalRedirectPath() {
+        EmailLoginLinkService links = mock(EmailLoginLinkService.class);
+        MailSender mailSender = mock(MailSender.class);
+        when(links.count(any())).thenReturn(0L, 0L);
+        when(mailSender.send(any())).thenReturn(MailSendResult.ok());
+        ArgumentCaptor<EmailLoginLink> savedLink = ArgumentCaptor.forClass(EmailLoginLink.class);
+
+        service(links, mailSender).request("person@example.com", "/user/api-keys?tab=active");
+
+        org.mockito.Mockito.verify(links).save(savedLink.capture());
+        assertEquals("/user/api-keys?tab=active", savedLink.getValue().getRedirectPath());
+    }
+
+    @Test
     void normalizesEmailIndependentlyOfTheJvmDefaultLocale() {
         EmailLoginLinkService links = mock(EmailLoginLinkService.class);
         MailSender mailSender = mock(MailSender.class);
@@ -93,6 +108,7 @@ class EmailLoginServiceTest {
         EmailLoginService service = new EmailLoginService();
         ReflectionTestUtils.setField(service, "emailLoginLinkService", links);
         ReflectionTestUtils.setField(service, "mailSender", mailSender);
+        ReflectionTestUtils.setField(service, "returnTargets", new ReturnTargetService());
         ReflectionTestUtils.setField(service, "publicBaseUrl", "http://localhost:8080");
         return service;
     }

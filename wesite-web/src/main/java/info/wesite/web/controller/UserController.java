@@ -31,8 +31,10 @@ import info.wesite.core.utils.MagicLinkTokenUtils;
 import info.wesite.core.view.ResponseJson;
 import info.wesite.web.auth.AuthCookieService;
 import info.wesite.web.auth.EmailLoginCompletionService;
+import info.wesite.web.auth.EmailLoginRequest;
 import info.wesite.web.auth.EmailLoginRequestResult;
 import info.wesite.web.auth.EmailLoginService;
+import info.wesite.web.auth.ReturnTargetService;
 import info.wesite.web.auth.google.GoogleLoginException;
 import info.wesite.web.auth.google.PendingGoogleBinding;
 import jakarta.servlet.http.HttpServletRequest;
@@ -58,10 +60,13 @@ public class UserController {
     @Autowired
     private EmailLoginCompletionService emailLoginCompletionService;
 
+    @Autowired
+    private ReturnTargetService returnTargets;
+
     @PostMapping("/email-login")
     @ResponseBody
-    public ResponseJson<Void> requestEmailLogin(@RequestBody User param) {
-        EmailLoginRequestResult result = emailLoginService.request(param.getEmail(), "/user/watchlist?login=success");
+    public ResponseJson<Void> requestEmailLogin(@RequestBody EmailLoginRequest param) {
+        EmailLoginRequestResult result = emailLoginService.request(param.email(), returnTargets.resolve(param.returnTo()));
         return result.success() ? ResponseJson.success(result.message(), null) : ResponseJson.failure(result.message());
     }
 
@@ -73,8 +78,11 @@ public class UserController {
         }
         EmailLoginLink link = emailLoginLinkService.getOne(new QueryWrapper<EmailLoginLink>()
                 .eq("TOKEN_HASH", MagicLinkTokenUtils.hash(token)).isNull("CONSUMED_AT"));
-        if (link == null || link.getExpiresAt().before(new Date())) {
+        if (link == null) {
             return "redirect:/user/watchlist?login=invalid";
+        }
+        if (link.getExpiresAt().before(new Date())) {
+            return invalidLinkRedirect(link);
         }
 
         Date consumedAt = new Date();
@@ -82,7 +90,7 @@ public class UserController {
                 new UpdateWrapper<EmailLoginLink>().set("CONSUMED_AT", consumedAt).set("UPDATE_TIME", consumedAt)
                         .eq("ID", link.getId()).isNull("CONSUMED_AT").gt("EXPIRES_AT", consumedAt));
         if (!consumed) {
-            return "redirect:/user/watchlist?login=invalid";
+            return invalidLinkRedirect(link);
         }
 
         HttpSession session = request.getSession(false);
@@ -117,7 +125,13 @@ public class UserController {
 
     private String safeRedirectPath(String redirectPath) {
         return GOOGLE_BIND_REQUIRED_REDIRECT.equals(redirectPath) ? GOOGLE_BIND_REQUIRED_REDIRECT
-                : LOGIN_SUCCESS_REDIRECT;
+                : returnTargets.resolve(redirectPath);
+    }
+
+    private String invalidLinkRedirect(EmailLoginLink link) {
+        return returnTargets.validated(link.getRedirectPath()).isPresent()
+                ? "redirect:" + returnTargets.loginFailureUrl("invalid", link.getRedirectPath())
+                : "redirect:/user/watchlist?login=invalid";
     }
 
     private void completeLoginAfterCommit(HttpServletResponse response, String cookie, HttpSession session) {

@@ -3,7 +3,6 @@ package info.wesite.web.auth;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.Locale;
-import java.util.Set;
 
 import org.apache.commons.lang3.time.DateUtils;
 import org.slf4j.Logger;
@@ -27,8 +26,7 @@ public class EmailLoginService {
     private static final Logger logger = LoggerFactory.getLogger(EmailLoginService.class);
     private static final int EMAIL_LOGIN_LINK_COOLDOWN_MINUTES = 2;
     private static final int EMAIL_LOGIN_LINK_DAILY_LIMIT = 10;
-    private static final Set<String> ALLOWED_REDIRECT_PATHS = Set.of(
-            "/user/watchlist?login=success", "/user/watchlist?login=google_bind_required");
+    private static final String GOOGLE_BIND_REQUIRED_REDIRECT = "/user/watchlist?login=google_bind_required";
     private static final Object[] EMAIL_LOGIN_LOCKS = new Object[64];
 
     static {
@@ -43,12 +41,16 @@ public class EmailLoginService {
     @Autowired(required = false)
     private MailSender mailSender;
 
+    @Autowired
+    private ReturnTargetService returnTargets;
+
     @Value("${wesite.public-base-url:https://whose.domains}")
     private String publicBaseUrl;
 
     public EmailLoginRequestResult request(String rawEmail, String redirectPath) {
-        if (!ALLOWED_REDIRECT_PATHS.contains(redirectPath)) {
-            throw new IllegalArgumentException("Unsupported email login redirect path");
+        if (!GOOGLE_BIND_REQUIRED_REDIRECT.equals(redirectPath)) {
+            redirectPath = returnTargets.validated(redirectPath)
+                    .orElseThrow(() -> new IllegalArgumentException("Unsupported email login redirect path"));
         }
 
         String email = rawEmail == null ? null : rawEmail.trim().toLowerCase(Locale.ROOT);

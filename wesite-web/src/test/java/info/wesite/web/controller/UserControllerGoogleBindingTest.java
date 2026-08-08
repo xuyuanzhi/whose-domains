@@ -50,6 +50,7 @@ import info.wesite.core.service.EmailLoginLinkService;
 import info.wesite.core.utils.MagicLinkTokenUtils;
 import info.wesite.web.auth.AuthCookieService;
 import info.wesite.web.auth.EmailLoginCompletionService;
+import info.wesite.web.auth.ReturnTargetService;
 import info.wesite.web.auth.google.GoogleLoginException;
 import info.wesite.web.auth.google.PendingGoogleBinding;
 
@@ -76,6 +77,7 @@ class UserControllerGoogleBindingTest {
         ReflectionTestUtils.setField(controller, "emailLoginLinkService", emailLoginLinkService);
         ReflectionTestUtils.setField(controller, "authCookieService", authCookieService);
         ReflectionTestUtils.setField(controller, "emailLoginCompletionService", emailLoginCompletionService);
+        ReflectionTestUtils.setField(controller, "returnTargets", new ReturnTargetService());
         mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
 
         authCookie = ResponseCookie.from("TOKEN", "jwt")
@@ -285,6 +287,62 @@ class UserControllerGoogleBindingTest {
     }
 
     @Test
+    void ordinaryEmailLoginReturnsToItsPersistedSafeTarget() throws Exception {
+        EmailLoginLink link = validLink("/user/api-keys");
+        User user = activeUser("email-user");
+        stubValidLink(link);
+        when(emailLoginCompletionService.complete(EMAIL, null)).thenReturn(user);
+        when(authCookieService.create(user)).thenReturn(authCookie);
+
+        mockMvc.perform(get("/user/verify-email").param("token", TOKEN))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/user/api-keys"))
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, authCookie.toString()));
+    }
+
+    @Test
+    void expiredEmailLoginReturnsToLoginWithItsPersistedSafeTarget() throws Exception {
+        EmailLoginLink link = validLink("/user/api-keys");
+        link.setExpiresAt(Date.from(Instant.now().minus(1, ChronoUnit.MINUTES)));
+        when(emailLoginLinkService.getOne(any(QueryWrapper.class))).thenReturn(link);
+
+        mockMvc.perform(get("/user/verify-email").param("token", TOKEN))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/login?login=invalid&returnTo=%2Fuser%2Fapi-keys"))
+                .andExpect(header().doesNotExist(HttpHeaders.SET_COOKIE));
+
+        verify(emailLoginCompletionService, never()).complete(any(), any());
+    }
+
+    @Test
+    void consumeRaceReturnsToLoginWithItsPersistedSafeTarget() throws Exception {
+        EmailLoginLink link = validLink("/user/api-keys");
+        when(emailLoginLinkService.getOne(any(QueryWrapper.class))).thenReturn(link);
+        when(emailLoginLinkService.update(isNull(), any(UpdateWrapper.class))).thenReturn(false);
+
+        mockMvc.perform(get("/user/verify-email").param("token", TOKEN))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/login?login=invalid&returnTo=%2Fuser%2Fapi-keys"))
+                .andExpect(header().doesNotExist(HttpHeaders.SET_COOKIE));
+
+        verify(emailLoginCompletionService, never()).complete(any(), any());
+    }
+
+    @Test
+    void nonexistentEmailLoginKeepsTheFixedInvalidLinkFallback() throws Exception {
+        mockMvc.perform(get("/user/verify-email").param("token", TOKEN))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/user/watchlist?login=invalid"));
+    }
+
+    @Test
+    void blankEmailLoginTokenKeepsTheFixedInvalidLinkFallback() throws Exception {
+        mockMvc.perform(get("/user/verify-email").param("token", " "))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/user/watchlist?login=invalid"));
+    }
+
+    @Test
     void nearMatchBindingRedirectDoesNotUseAResidualPendingBinding() throws Exception {
         EmailLoginLink link = validLink("/user/watchlist?login=google_bind_required&unexpected=true");
         User user = activeUser("email-user");
@@ -296,7 +354,7 @@ class UserControllerGoogleBindingTest {
 
         mockMvc.perform(get("/user/verify-email").param("token", TOKEN).session(session))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/user/watchlist?login=success"))
+                .andExpect(redirectedUrl("/user/watchlist?login=google_bind_required&unexpected=true"))
                 .andExpect(header().string(HttpHeaders.SET_COOKIE, authCookie.toString()));
 
         verify(emailLoginCompletionService).complete(EMAIL, null);
