@@ -1,320 +1,371 @@
-# Domain Investor SEO and Retention Design
+# 域名投资者 SEO 与用户留存优化设计
 
-## Objective
+## 一、目标
 
-Turn Whose.Domains from a broad collection of domain tools and generic information pages into a focused domain-investment decision product. The primary user is a domain investor evaluating whether a domain is worth buying and monitoring promising candidates over time.
+将 Whose.Domains 从较为宽泛的域名工具集合和通用知识站，调整为聚焦域名投资决策的产品。核心用户是需要判断域名是否值得购买，并持续跟踪候选域名的投资者。
 
-The product promise is:
+产品价值主张为：
 
-> Evaluate whether a domain is worth buying, understand the evidence and risks, and monitor promising domains for meaningful changes.
+> 帮助域名投资者判断一个域名是否值得购买，理解判断依据与风险，并持续监控有潜力的候选域名。
 
-The work covers three connected outcomes:
+本项目需要实现三个相互关联的目标：
 
-1. Restore technically consistent discovery and indexing.
-2. Give indexable pages unique decision-making value.
-3. Convert one-time lookups into saved candidates, alerts, and repeat visits.
+1. 恢复稳定、一致的抓取与收录基础。
+2. 让准备收录的页面具备独立的投资决策价值。
+3. 将一次性查询转化为候选域名、变化提醒和持续回访。
 
-## Scope and Delivery Order
+## 二、范围与交付顺序
 
-Delivery is divided into four independently verifiable batches:
+项目分为四个可以独立验证的批次：
 
-1. Technical indexing foundations.
-2. Domain investment assessment report.
-3. Investment candidate list and monitoring loop.
-4. Content consolidation and investor-focused positioning.
+1. 技术收录基础。
+2. 域名投资评估报告。
+3. 投资候选清单与监控闭环。
+4. 内容整合与投资者定位。
 
-The batches ship in this order. Technical correctness is established before Search Console results are used to evaluate content changes.
+必须按以上顺序实施。先保证技术基础正确，再利用 Search Console 数据判断内容优化效果，避免把抓取、规范化问题误判成内容质量问题。
 
-## 1. Technical Indexing Foundations
+## 三、技术收录基础
 
-### Sitemap
+### 3.1 Sitemap
 
-`/sitemap_all.xml` remains the sole sitemap. Its name does not change.
+继续使用 `/sitemap_all.xml` 作为唯一 sitemap，不修改文件名。
 
-The sitemap generator uses one canonical route registry instead of maintaining route strings that can drift from controller mappings. The generated sitemap includes only URLs that are:
+Sitemap 生成器改为使用统一的规范路由清单，避免在多个位置手工维护 URL，导致控制器路由与 sitemap 路径不一致。Sitemap 只允许包含满足以下条件的 URL：
 
-- publicly accessible;
-- expected to return HTTP 200;
-- allowed to be indexed;
-- canonical to themselves;
-- intentionally supported as standalone search landing pages.
+- 可以公开访问；
+- 预期返回 HTTP 200；
+- 明确允许索引；
+- canonical 指向自身；
+- 被产品明确定位为独立的搜索落地页。
 
-The generator must not publish temporary query results, failed lookups, empty domain reports, private user pages, or URLs whose only difference is a spelling or separator variant.
+以下页面不得进入 sitemap：
 
-Automated tests reject known route drift, including underscore variants of routes whose public form uses hyphens. A deployment-level sitemap check verifies every listed URL after release.
+- 临时查询结果；
+- 查询失败或字段大量为空的报告；
+- 用户私有页面；
+- 仅拼写、分隔符或尾斜杠不同的重复 URL；
+- 没有独立内容价值的批量生成页面。
 
-### Robots discovery
+自动化测试需要拦截路由漂移，包括公共路由使用连字符，但 sitemap 错误使用下划线的情况。部署后还需要执行线上检查，验证 sitemap 中的每一个 URL。
 
-The production `robots.txt` declares:
+### 3.2 Robots 声明
+
+生产环境的 `robots.txt` 必须包含：
 
 ```text
 Sitemap: https://whose.domains/sitemap_all.xml
 ```
 
-The deployed response, rather than only the repository file, is tested.
+测试对象必须是生产环境最终返回的内容，不能只检查仓库内的静态文件。
 
-### URL normalization
+### 3.3 URL 规范化
 
-The canonical host and URL format are:
+站点唯一规范地址格式为：
 
-- HTTPS;
-- `whose.domains` without `www`;
-- `/` for the home page;
-- no trailing slash for other HTML pages.
+- 使用 HTTPS；
+- 使用不带 `www` 的 `whose.domains`；
+- 首页使用 `/`；
+- 其他 HTML 页面不使用尾斜杠。
 
-HTTP, `www`, and non-canonical trailing-slash variants permanently redirect to this format. Sitemap entries, canonical elements, Open Graph URLs, alternate links, navigation links, and generated share links use the same normalized URL.
+HTTP、`www` 和非规范尾斜杠 URL 必须永久重定向到统一格式。Sitemap、canonical、Open Graph URL、alternate 链接、站内导航和分享链接必须使用相同格式。
 
-Canonical URLs are produced by a shared URL normalizer. They are not constructed directly from the raw request URI.
+Canonical URL 由共享的 URL 规范化组件生成，不能直接拼接未经处理的原始请求 URI。
 
-### Index eligibility
+### 3.4 索引资格判断
 
-Static tools and editorial pages have explicit index eligibility. Dynamic domain reports are eligible only when they contain enough stable, independent information to satisfy a visitor without requiring another search.
+静态工具页和内容页需要具有明确的索引资格。动态域名报告只有在包含足够稳定且独立的信息、能够直接帮助访问者完成投资判断时，才允许索引。
 
-A domain report is `index,follow` when:
+域名报告满足以下条件时使用 `index,follow`：
 
-- domain syntax is valid;
-- the lookup resolves to a real domain record or another supported registration state;
-- sufficient core data is available to create an investment summary;
-- the page is not an error, placeholder, or duplicate variant.
+- 域名格式有效；
+- 查询结果代表真实域名记录或系统明确支持的注册状态；
+- 核心数据足以生成有意义的投资摘要；
+- 页面不是错误页、占位页或重复 URL。
 
-A report is `noindex,follow` when a lookup fails, critical data is unavailable, the domain input is invalid, or the report would primarily contain empty fields. Arbitrary user queries are not added to the sitemap merely because a URL was generated.
+出现以下情况时使用 `noindex,follow`：
 
-### Empty states
+- 查询失败；
+- 关键数据缺失；
+- 输入无效；
+- 页面主体只能展示大量空字段；
+- 无法形成可信的投资结论。
 
-Tool landing pages do not render a large result panel filled with hyphens before a query. Before use, a page contains a concise explanation, supported inputs, methodology, and one clearly labelled real or deterministic example. Result markup appears after a successful query.
+用户查询生成了 URL，并不意味着该 URL 应自动进入 sitemap。
 
-## 2. Domain Investment Assessment Report
+### 3.5 工具空状态
 
-### Report structure
+工具页在查询前不得渲染大量值为 `-` 的结果字段。查询前只展示：
 
-The domain detail experience becomes a unified investment assessment report with five sections.
+- 工具用途；
+- 支持的输入；
+- 数据和计算方法；
+- 一份明确标记的真实或可重复示例。
 
-#### Investment conclusion
+只有查询成功后才展示正式结果区域。
 
-- overall investment score;
-- valuation range;
-- recommendation: watch, caution, or skip;
-- confidence level;
-- three to five decisive reasons.
+## 四、域名投资评估报告
 
-The recommendation is deterministic and traceable to the displayed evidence. It is not presented as financial certainty.
+### 4.1 报告结构
 
-#### Core metrics
+域名详情页升级为统一的“域名投资评估报告”，包含以下五个部分。
 
-- name length and character composition;
-- TLD;
-- registration age and expiry date;
-- recent WHOIS and DNS changes;
-- SSL, email, and baseline security state;
-- hyphen, numeral, and potential trademark-risk signals.
+#### 投资结论
 
-#### Valuation evidence
+- 综合投资评分；
+- 估值区间；
+- 建议：关注、谨慎或跳过；
+- 结论置信度；
+- 三至五条决定性理由。
 
-- valuation formula and contributing coefficients;
-- distinction between algorithmic valuation and comparable sales;
-- source and timestamp for supporting data;
-- explicit limitations and missing inputs.
+投资建议必须由页面展示的证据按确定规则生成，不得表现为确定的财务承诺。
 
-The system never fabricates comparable sales. When verified comparable data is unavailable, the report says so and lowers confidence.
+#### 核心指标
 
-#### Risks and opportunities
+- 域名长度和字符组成；
+- TLD；
+- 注册年龄和到期时间；
+- 最近的 WHOIS 与 DNS 变化；
+- SSL、邮件和基础安全状态；
+- 连字符、数字和潜在商标风险信号。
 
-- expiry, redemption, and deletion state;
-- registrar locks and transfer restrictions;
-- material DNS, website, and ownership-history changes;
-- brandability, length, keyword category, and likely use cases;
-- prioritized next actions.
+#### 估值依据
 
-#### Investor actions
+- 估值公式和各项系数；
+- 明确区分算法估值与真实成交参考；
+- 数据来源和查询时间；
+- 缺失输入和计算局限。
 
-- add to investment candidates;
-- set a target acquisition price;
-- add notes and tags;
-- compare with another domain;
-- export or share the report;
-- enable expiry, WHOIS, DNS, and valuation-change monitoring.
+系统不得伪造可比成交记录。没有经过验证的成交数据时，页面需要明确说明，并相应降低置信度。
 
-### Unified assessment model
+#### 风险与机会
 
-Controllers and templates consume a single domain-investment assessment object rather than independently interpreting raw WHOIS, RDAP, DNS, history, and valuation results.
+- 到期、赎回和删除状态；
+- 注册商锁定与转移限制；
+- 重要的 DNS、网站和所有权历史变化；
+- 品牌化能力、长度、关键词类别和可能用途；
+- 按优先级排列的下一步行动。
 
-The data flow is:
+#### 投资操作
 
-```text
-Domain input
-  -> normalization and validation
-  -> WHOIS/RDAP, DNS, history, and valuation aggregation
-  -> investment assessment model
-  -> server-rendered indexable summary
-  -> optional authenticated save and monitoring rules
-```
+- 加入投资候选清单；
+- 设置目标收购价；
+- 添加备注和标签；
+- 与其他域名对比；
+- 导出或分享报告；
+- 开启到期、WHOIS、DNS 和估值变化监控。
 
-The assessment model owns the conclusion, decisive reasons, confidence, source timestamps, missing-data state, and index eligibility. Data-source clients remain responsible only for retrieving and normalizing their source data.
+### 4.2 统一评估模型
 
-### Partial failures
+控制器和模板统一使用一个“域名投资评估对象”，不再分别解释原始 WHOIS、RDAP、DNS、历史和估值结果。
 
-One unavailable source does not discard a useful report. Available sections render with their timestamps, while unavailable sections show a clear status and the last successful timestamp if one exists. Confidence decreases according to missing evidence.
-
-If the remaining information cannot support a meaningful investment conclusion, the response remains usable for the visitor but is marked `noindex,follow`.
-
-## 3. Investment Candidates and Retention
-
-The existing Watchlist evolves into an investment candidate list. Existing saved domains remain compatible.
-
-Each candidate supports:
-
-- target acquisition price;
-- private notes;
-- user-defined tags;
-- expiry countdown;
-- current investment score and valuation range;
-- last checked time;
-- monitoring preferences.
-
-The monitoring loop is:
+数据流为：
 
 ```text
-First assessment
-  -> save candidate
-  -> record target price, intended use, notes, and tags
-  -> scheduled checks
-  -> material-change detection
-  -> deduplicated email alert
-  -> before/after comparison and refreshed assessment
+域名输入
+  → 规范化与校验
+  → 聚合 WHOIS/RDAP、DNS、历史和估值数据
+  → 生成投资评估对象
+  → 服务端渲染可索引摘要
+  → 登录后保存候选域名和监控规则
 ```
 
-Material changes include expiry-state transitions, WHOIS ownership or registrar changes, nameserver changes, meaningful valuation changes, and monitoring failures that persist long enough to affect the user's decision.
+投资评估对象负责输出：
 
-Alerts are deduplicated by candidate, change type, and observed state. Email delivery failure is retryable and does not block later monitoring jobs. Users can access and modify only their own candidates and alert settings.
+- 投资结论；
+- 决定性理由；
+- 置信度；
+- 数据来源与时间；
+- 缺失数据状态；
+- 页面索引资格。
 
-The primary action on an assessment report is “Add to candidates.” Related tools are presented as contextual next steps rather than a generic tool directory.
+各数据源客户端只负责获取和标准化数据，不直接决定最终投资结论。
 
-## 4. Content and Positioning
+### 4.3 部分数据源失败
 
-### Investor content clusters
+某一个数据源不可用时，不应丢弃整份仍然有价值的报告。可用部分继续展示并注明数据时间，不可用部分明确显示状态；如果存在历史成功结果，则展示最后成功时间。缺少证据会相应降低置信度。
 
-Editorial content supports the investor's decision journey:
+如果剩余数据不足以支持有意义的投资结论，页面仍可以服务当前用户，但必须输出 `noindex,follow`。
 
-- finding and filtering expiring domains;
-- judging whether a valuation is credible;
-- understanding the effects of age, length, TLD, and keywords;
-- reading WHOIS states and the deletion lifecycle;
-- performing acquisition due diligence;
-- reviewing reproducible domain-assessment case studies.
+## 五、投资候选清单与用户留存
 
-Every retained core guide includes, where applicable:
+现有 Watchlist 升级为“投资候选清单”，并兼容用户已经保存的域名。
 
-- a named author or reviewer;
-- original publication and substantive update dates;
-- primary sources;
-- a reproducible example or first-hand analysis;
-- limitations and common misinterpretations;
-- a contextual path into the corresponding assessment tool.
+每个候选域名支持：
 
-### Existing content classification
+- 目标收购价；
+- 私有备注；
+- 自定义标签；
+- 到期倒计时；
+- 当前投资评分与估值区间；
+- 最后检查时间；
+- 监控偏好。
 
-Each existing information page is assigned one action:
+用户留存闭环为：
 
-- **Keep and improve:** directly supports an investor decision and can provide distinct value.
-- **Merge and redirect:** overlaps substantially with a stronger guide; the old URL permanently redirects to the consolidated page.
-- **Exclude from indexing:** is useful for navigation or support but lacks standalone search value.
-- **Remove:** is obsolete, incorrect, or serves no user task; linked references are updated first.
+```text
+首次评估
+  → 保存为投资候选域名
+  → 记录目标价格、用途、备注和标签
+  → 后台定期检查
+  → 识别重要变化
+  → 发送去重后的邮件提醒
+  → 用户查看变化前后对比和最新评估
+```
 
-Pages are not expanded merely to reach a word count. Dates change only after substantive edits. Keyword-swapped or mass-produced pages are not added.
+需要监控的重要变化包括：
 
-### Homepage and navigation
+- 到期状态变化；
+- WHOIS 所有权或注册商变化；
+- Nameserver 变化；
+- 达到阈值的估值变化；
+- 持续发生并影响用户判断的监控失败。
 
-The homepage leads with domain-investment assessment rather than an undifferentiated tool collection. It explains the evidence used, shows an example outcome, and directs visitors to assess a domain.
+提醒按候选域名、变化类型和观察状态去重。邮件发送失败可以重试，但不能阻塞后续监控任务。用户只能访问和修改自己的候选域名与提醒设置。
 
-The first release changes positioning, information hierarchy, copy, and primary actions without a large visual redesign. Navigation gives prominence to Assessment, Expiring Domains, Candidates, Comparisons, and Investor Guides. Utility tools remain accessible but do not define the product.
+投资评估报告的主行动按钮是“加入候选清单”。其他工具作为当前评估的上下文操作展示，不再只提供通用工具目录。
 
-## Error Handling and Trust
+## 六、内容与产品定位
 
-User-visible conclusions distinguish among:
+### 6.1 域名投资内容集群
 
-- confirmed source data;
-- calculated estimates;
-- inferred signals;
-- unavailable data.
+内容需要围绕投资者的决策过程组织：
 
-Every external-data section displays freshness and source information. Stale cached data is labelled rather than presented as real time. Invalid input produces a clear validation response and does not create an indexable result URL.
+- 如何发现和筛选过期域名；
+- 如何判断估值是否可信；
+- 域名年龄、长度、TLD 和关键词如何影响价值；
+- 如何理解 WHOIS 状态和域名删除周期；
+- 如何进行收购前尽调；
+- 可重复验证的域名评估案例。
 
-Assessment and monitoring failures are observable through structured logs containing the normalized domain, source, failure category, and request or job identifier without storing sensitive user data in logs.
+保留的核心指南应根据主题补充：
 
-## Testing Strategy
+- 明确的作者或审核者；
+- 原始发布日期与实质更新日期；
+- 一手资料来源；
+- 可复现示例或第一手分析；
+- 局限和常见误读；
+- 进入相关评估工具的上下文入口。
 
-### Technical indexing tests
+### 6.2 现有内容分类
 
-- sitemap format and canonical route membership;
-- absence of known non-canonical route variants;
-- sitemap URLs resolve successfully in deployment checks;
-- robots contains the production sitemap directive;
-- canonical, Open Graph, alternate, and sitemap URLs agree;
-- host, scheme, and trailing-slash redirects are permanent and converge in one hop where infrastructure permits;
-- thin and failed reports emit `noindex,follow`.
+每个现有知识页面必须归入一种处理方式：
 
-### Assessment tests
+- **保留并增强**：直接支持投资决策，且可以提供独立价值。
+- **合并并重定向**：与更强的指南明显重叠，旧 URL 301 到合并后的页面。
+- **排除索引**：对导航或支持仍有作用，但不具备独立搜索价值。
+- **删除**：内容过时、错误或不再服务用户任务；删除前先更新相关站内链接。
 
-- unit tests for score, valuation inputs, recommendation, confidence, decisive reasons, and index eligibility;
-- boundary tests for missing and contradictory source data;
-- integration tests for partial source failures;
-- template tests proving that the key assessment summary is server-rendered;
-- regression fixtures representing aged premium names, new brandable names, hyphenated names, unsupported TLDs, expired states, and incomplete records.
+不得仅为增加字数而扩写内容。只有正文发生实质变化时才能修改更新时间。批量替换关键词或自动生成的页面不得进入 sitemap。
 
-### Candidate and monitoring tests
+### 6.3 首页与导航
 
-- candidate creation, update, removal, notes, tags, target price, and authorization;
-- material-change detection and before/after snapshots;
-- alert deduplication and retry behavior;
-- isolation between users;
-- compatibility with existing Watchlist records.
+首页以域名投资评估为核心，而不是展示没有主次的工具集合。首页需要解释评估依据、展示一份示例结论，并引导用户评估域名。
 
-### Content migration tests
+第一轮只调整产品定位、信息层级、文案和主要操作，不做大规模视觉重设计。导航重点展示：
 
-- redirect map coverage;
-- absence of redirect chains and loops;
-- internal-link and canonical validation;
-- structured-data validation for retained templates.
+- 域名评估；
+- 过期域名；
+- 投资候选清单；
+- 域名对比；
+- 投资者指南。
 
-## Success Metrics
+其他实用工具继续保留，但不再承担产品定位。
 
-Search and technical metrics are evaluated over 8–12 weeks after the relevant batch ships:
+## 七、错误处理与可信度
 
-- 100% of submitted sitemap URLs return the intended canonical HTTP 200 page;
-- Google-selected canonicals match declared canonicals for sampled core pages;
-- index coverage increases for core assessment, tool, and investor-guide pages;
-- impressions and qualified clicks per indexed core page increase;
-- crawl errors and duplicate canonical variants decline.
+用户可见的结论必须明确区分：
 
-Product metrics include:
+- 数据源直接确认的数据；
+- 算法计算结果；
+- 推断信号；
+- 暂时无法获取的数据。
 
-- successful assessment completion rate;
-- assessment-to-candidate conversion rate;
-- use of comparison, export, and share actions;
-- 7-day and 30-day return rates;
-- alert-driven return visits;
-- candidate monitoring retention.
+每个外部数据部分显示数据来源和新鲜度。过期缓存必须明确标记，不能宣称为实时数据。无效输入返回清晰的校验信息，并且不生成可索引结果页。
 
-Index count alone is not a success criterion. A smaller set of useful, discoverable pages is preferred over a large set of thin indexed URLs.
+评估和监控失败使用结构化日志记录：
 
-## Rollout and Search Console Use
+- 规范化域名；
+- 失败数据源；
+- 失败类别；
+- 请求或任务标识。
 
-The rollout is gradual. Existing pages are not removed in one bulk change.
+日志不得记录不必要的用户敏感信息。
 
-1. Deploy and verify technical indexing foundations.
-2. Submit the corrected sitemap and inspect representative URLs in Search Console.
-3. Release the assessment report for a controlled set of report states.
-4. Release candidate metadata and monitoring improvements.
-5. Consolidate editorial content in measured batches with redirect maps.
+## 八、测试策略
 
-Search Console is used to compare exclusion reasons, canonical selection, crawl outcomes, and page-type performance before and after each batch. Repeated manual submission of every URL is avoided.
+### 8.1 技术收录测试
 
-## Out of Scope for the First Implementation Cycle
+- Sitemap 格式及规范路由成员测试；
+- 禁止已知的非规范路由变体；
+- 部署检查验证 sitemap URL 返回预期的 HTTP 200；
+- 验证生产环境 robots 包含 sitemap 声明；
+- 验证 canonical、Open Graph、alternate 和 sitemap URL 一致；
+- 验证主机、协议和尾斜杠变体永久重定向，并在基础设施允许时一次跳转完成；
+- 验证薄弱报告和失败报告输出 `noindex,follow`。
 
-- purchasing or bidding on domains;
-- registrar marketplace integration;
-- claiming exact market prices without reliable comparable-sales data;
-- a full visual redesign;
-- mass generation of domain or keyword landing pages;
-- support for multiple primary audiences beyond domain investors;
-- replacing all existing tools unrelated to the investment journey.
+### 8.2 投资评估测试
+
+- 评分、估值输入、建议、置信度、决定性理由和索引资格的单元测试；
+- 数据缺失和数据矛盾的边界测试；
+- 部分数据源失败的集成测试；
+- 关键投资摘要由服务端输出的模板测试；
+- 覆盖老域名、新品牌域名、连字符域名、不支持的 TLD、过期状态和不完整记录的回归样本。
+
+### 8.3 候选清单与监控测试
+
+- 添加、更新、删除、备注、标签、目标价格和权限测试；
+- 重要变化识别和前后快照测试；
+- 提醒去重与重试测试；
+- 用户数据隔离测试；
+- 现有 Watchlist 数据兼容测试。
+
+### 8.4 内容迁移测试
+
+- 旧 URL 重定向映射覆盖；
+- 不允许重定向链和循环；
+- 站内链接和 canonical 验证；
+- 保留模板的结构化数据验证。
+
+## 九、成功指标
+
+搜索和技术指标在相应批次上线后的 8 至 12 周内评估：
+
+- sitemap 中 100% 的 URL 返回预期的规范 HTTP 200 页面；
+- 抽样核心页面中，Google 选择的 canonical 与站点声明一致；
+- 核心评估页、工具页和投资指南的有效收录率提高；
+- 每个已收录核心页面的展示和有效点击增加；
+- 抓取错误和重复 canonical 变体减少。
+
+产品指标包括：
+
+- 域名评估成功完成率；
+- 评估后加入候选清单的转化率；
+- 对比、导出和分享功能使用率；
+- 7 日和 30 日回访率；
+- 提醒带来的回访次数；
+- 候选域名持续监控率。
+
+收录数量本身不是成功标准。宁可保留更少但有用、可发现的页面，也不追求大量薄弱 URL 被短期收录。
+
+## 十、上线与 Search Console 使用
+
+采用渐进式上线，不一次性删除大量现有页面：
+
+1. 部署并验证技术收录基础。
+2. 提交修正后的 sitemap，并在 Search Console 检查代表性 URL。
+3. 对受控的报告状态上线投资评估报告。
+4. 上线候选域名元数据和监控增强。
+5. 按批次整合内容并配置重定向映射。
+
+每个批次上线前后，使用 Search Console 对比排除原因、canonical 选择、抓取结果和不同页面类型的表现。避免反复手动提交所有 URL。
+
+## 十一、第一轮实施不包含的内容
+
+- 代替用户购买或竞拍域名；
+- 接入注册商交易市场；
+- 在缺少可靠成交数据时声称精确市场价格；
+- 全站视觉重设计；
+- 批量生成域名页或关键词落地页；
+- 同时服务域名投资者之外的多个主要用户群；
+- 替换所有与投资流程关联较弱的现有工具。
