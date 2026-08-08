@@ -44,6 +44,15 @@ class ProductionSecurityConfigurationTest {
         assertEquals("${WESITE_AUTH_COOKIE_SECURE:true}", properties.getProperty("wesite.auth-cookie-secure"));
     }
 
+    @Test
+    void canonicalRedirectIsDisabledByDefaultAndEnabledInProductionExample() throws IOException {
+        Properties defaults = properties("src", "main", "resources", "application.properties");
+        Properties production = properties("src", "main", "resources", "application-prod.properties.example");
+
+        assertEquals("false", defaults.getProperty("wesite.seo.canonical-redirect-enabled"));
+        assertEquals("true", production.getProperty("wesite.seo.canonical-redirect-enabled"));
+    }
+
     private void assertSessionCookiePolicy(Properties properties) {
         assertEquals("JSESSIONID", properties.getProperty("server.servlet.session.cookie.name"));
         assertEquals("true", properties.getProperty("server.servlet.session.cookie.secure"));

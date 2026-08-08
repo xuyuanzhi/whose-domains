@@ -77,6 +77,7 @@ blog.internal.secret = ${BLOG_INTERNAL_SECRET:change-me-to-a-long-random-string}
 
 # Public origin used in passwordless email links. Do not include a trailing slash.
 wesite.public-base-url=${WESITE_PUBLIC_BASE_URL:https://whose.domains}
+wesite.seo.canonical-redirect-enabled=true
 wesite.auth-cookie-secure=${WESITE_AUTH_COOKIE_SECURE:true}
 wesite.google-login.enabled=${WESITE_GOOGLE_LOGIN_ENABLED:false}
 wesite.google-login.client-id=${GOOGLE_CLIENT_ID:}
