@@ -79,37 +79,52 @@ function response(data) {
     return Promise.resolve({ json: () => Promise.resolve(data) });
 }
 
-function createHarness(emailLoginResponse) {
+function createHarness({ pathname = '/domain/example.com', search = '', emailLoginResponse = () => response({ code: 0 }) } = {}) {
     const document = new FakeDocument();
     const monitorButton = document.register('monitorDomainBtn', { 'data-domain': 'example.com' });
     const modal = document.register('monitorModal');
+    const googleLink = document.register('monitorGoogleLogin');
+    const googleMessage = document.register('monitorGoogleMessage');
     const email = document.register('monitorEmail');
     const sendLinkButton = document.register('sendMonitorLink');
     const emailMessage = document.register('monitorEmailMessage');
     document.register('monitorDomainName');
     document.register('closeMonitorModal');
-    const localStorage = new Map();
+    const fetchCalls = [];
     const context = vm.createContext({
         document,
-        fetch(url) {
+        fetch(url, options) {
+            fetchCalls.push({ url, options });
             if (url.startsWith('/api/domain-watch/check/')) return response({ code: 0, data: false });
             if (url === '/user/email-login') return emailLoginResponse();
             if (url === '/user/session') return response({ code: 1 });
             throw new Error(`Unexpected request: ${url}`);
         },
-        localStorage: {
-            setItem(key, value) { localStorage.set(key, value); }
-        },
+        location: { pathname, search },
         window: {
             setInterval() { return 1; },
             clearInterval() {}
         },
         JSON,
+        URLSearchParams,
         encodeURIComponent
     });
 
-    vm.runInContext(monitorScript, context, { filename: templatePath });
-    return { monitorButton, modal, email, sendLinkButton, emailMessage };
+    return {
+        monitorButton,
+        modal,
+        googleLink,
+        googleMessage,
+        email,
+        sendLinkButton,
+        emailMessage,
+        fetchCalls,
+        run() {
+            vm.runInContext(monitorScript, context, { filename: templatePath });
+            return this;
+        },
+        flushPromises
+    };
 }
 
 async function flushPromises() {
@@ -117,7 +132,7 @@ async function flushPromises() {
 }
 
 test('monitor email validation writes to the dedicated email status without an old shared message node', () => {
-    const harness = createHarness(() => response({ code: 0 }));
+    const harness = createHarness().run();
 
     assert.doesNotThrow(() => harness.sendLinkButton.dispatch('click'));
     assert.equal(harness.emailMessage.textContent, 'Enter your email address.');
@@ -126,7 +141,7 @@ test('monitor email validation writes to the dedicated email status without an o
 });
 
 test('monitor email success enters cooldown and announces its result without throwing', async () => {
-    const harness = createHarness(() => response({ code: 0, msg: 'Check your inbox.' }));
+    const harness = createHarness({ emailLoginResponse: () => response({ code: 0, msg: 'Check your inbox.' }) }).run();
     harness.email.value = 'owner@example.com';
 
     assert.doesNotThrow(() => harness.sendLinkButton.dispatch('click'));
@@ -141,7 +156,7 @@ test('monitor email success enters cooldown and announces its result without thr
 });
 
 test('monitor email failures announce an error and restore the send button without throwing', async () => {
-    const harness = createHarness(() => response({ code: 1, msg: 'Delivery failed.' }));
+    const harness = createHarness({ emailLoginResponse: () => response({ code: 1, msg: 'Delivery failed.' }) }).run();
     harness.email.value = 'owner@example.com';
 
     assert.doesNotThrow(() => harness.sendLinkButton.dispatch('click'));
@@ -155,7 +170,7 @@ test('monitor email failures announce an error and restore the send button witho
 });
 
 test('monitor email network failures announce an error and restore the send button without throwing', async () => {
-    const harness = createHarness(() => Promise.reject(new Error('network unavailable')));
+    const harness = createHarness({ emailLoginResponse: () => Promise.reject(new Error('network unavailable')) }).run();
     harness.email.value = 'owner@example.com';
 
     assert.doesNotThrow(() => harness.sendLinkButton.dispatch('click'));
@@ -166,4 +181,28 @@ test('monitor email network failures announce an error and restore the send butt
     assert.equal(harness.emailMessage.style.display, 'block');
     assert.equal(harness.sendLinkButton.disabled, false);
     assert.equal(harness.sendLinkButton.textContent, 'Email me a sign-in link');
+});
+
+test('Google monitor login carries the current domain continuation target', () => {
+    const harness = createHarness({ pathname: '/domain/example.com', search: '?source=lookup' }).run();
+
+    assert.equal(
+        harness.googleLink.href,
+        '/login/google?returnTo=' + encodeURIComponent('/domain/example.com?source=lookup&monitor=pending')
+    );
+});
+
+test('email monitor login sends the same continuation target and uses only its own message region', async () => {
+    const harness = createHarness({ pathname: '/domain/example.com', search: '' }).run();
+    harness.email.value = 'person@example.com';
+    harness.sendLinkButton.dispatch('click');
+    await harness.flushPromises();
+
+    const request = harness.fetchCalls.find((call) => call.url === '/user/email-login');
+    assert.deepEqual(JSON.parse(request.options.body), {
+        email: 'person@example.com',
+        returnTo: '/domain/example.com?monitor=pending'
+    });
+    assert.equal(harness.emailMessage.textContent, 'Check your inbox.');
+    assert.equal(harness.googleMessage.textContent, '');
 });

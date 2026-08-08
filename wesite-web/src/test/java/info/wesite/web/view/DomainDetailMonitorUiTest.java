@@ -58,6 +58,16 @@ class DomainDetailMonitorUiTest {
         assertTrue(stylesheet.contains(".monitor-email-section .monitor-email-submit:focus-visible"));
     }
 
+    @Test
+    void monitorLoginUsesValidatedReturnTargetsWithoutLocalStorage() throws IOException {
+        String template = template();
+
+        assertTrue(template.contains("/login/google?returnTo="));
+        assertTrue(template.contains("JSON.stringify({email: value, returnTo: monitorReturnTo()})"));
+        assertFalse(template.contains("pendingDomainWatch"));
+        assertFalse(template.contains("localStorage"));
+    }
+
     private String template() throws IOException {
         try (InputStream input = getClass().getResourceAsStream("/views/domain_detail.html")) {
             assertNotNull(input);

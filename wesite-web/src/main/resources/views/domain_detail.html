@@ -251,12 +251,28 @@
 	    // fixed overlay in its stacking context below the sticky header.
 	    document.body.appendChild(modal);
 	    var domain = button.getAttribute('data-domain');
+	    var googleLink = document.getElementById('monitorGoogleLogin');
+	    var googleMessage = document.getElementById('monitorGoogleMessage');
 	    var emailMessage = document.getElementById('monitorEmailMessage');
 	    var email = document.getElementById('monitorEmail');
 	    var sendLinkButton = document.getElementById('sendMonitorLink');
 	    document.getElementById('monitorDomainName').textContent = domain;
 
-	    function showMessage(text, color) { emailMessage.textContent = text; emailMessage.style.color = color; emailMessage.style.display = 'block'; }
+	    function monitorReturnTo() {
+	        var params = new URLSearchParams(location.search);
+	        params.delete('login');
+	        params.set('monitor', 'pending');
+	        return location.pathname + '?' + params.toString();
+	    }
+	    function setMonitorMessage(target, text, color) {
+	        if (!target) return;
+	        target.textContent = text;
+	        target.style.color = color;
+	        target.style.display = text ? 'block' : 'none';
+	    }
+	    if (googleLink) {
+	        googleLink.href = '/login/google?returnTo=' + encodeURIComponent(monitorReturnTo());
+	    }
 	    function setMonitoringState() {
 	        button.innerHTML = '<i class="fas fa-check"></i> Monitoring';
 	        button.disabled = true;
@@ -296,7 +312,7 @@
 	        .then(function(r){return r.json();}).then(function(d){
 	            if(d.code===0){setMonitoringState();}
 	            else if(d.code===-401 || d.code===401){modal.style.display='flex';}
-	            else{showMessage(d.msg||'Could not add this domain to your watchlist.','#ff5252');}
+	            else{setMonitorMessage(emailMessage,d.msg||'Could not add this domain to your watchlist.','#ff5252');}
 	        }).catch(function(){modal.style.display='flex';});
 	    }
 	    fetch('/api/domain-watch/check/' + encodeURIComponent(domain), {credentials:'include'})
@@ -312,15 +328,14 @@
 	    modal.addEventListener('click', function(e){if(e.target===modal) modal.style.display='none';});
 	    sendLinkButton.addEventListener('click', function(){
 	        var value=email.value.trim();
-	        if(!value){showMessage('Enter your email address.','#ff5252');return;}
-	        localStorage.setItem('pendingDomainWatch', domain);
+	        if(!value){setMonitorMessage(emailMessage,'Enter your email address.','#ff5252');return;}
 	        setSendLinkLoading(true);
-	        fetch('/user/email-login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:value})})
+	        fetch('/user/email-login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email: value, returnTo: monitorReturnTo()})})
 	        .then(function(r){return r.json();}).then(function(d){
-	            showMessage(d.msg||'Check your inbox.',d.code===0?'#4caf50':'#ff5252');
+	            setMonitorMessage(emailMessage,d.msg||'Check your inbox.',d.code===0?'#4caf50':'#ff5252');
 	            if(d.code===0){startSignInLinkCooldown();}else{setSendLinkLoading(false);}
 	        }).catch(function(){
-	            showMessage('Network error.','#ff5252');
+	            setMonitorMessage(emailMessage,'Network error.','#ff5252');
 	            setSendLinkLoading(false);
 	        });
 	    });
