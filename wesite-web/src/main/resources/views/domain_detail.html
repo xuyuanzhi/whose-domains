@@ -72,8 +72,8 @@
 	                    </div>
 	                    <div class="auth-login-divider monitor-login-divider" th:if="${_googleLoginEnabled}"><span>or</span></div>
 	                    <div class="auth-method monitor-email-section">
-	                        <input id="monitorEmail" type="email" autocomplete="email" placeholder="you@example.com">
-	                        <button type="button" id="sendMonitorLink">Email me a sign-in link</button>
+	                        <input id="monitorEmail" class="monitor-email-input" type="email" autocomplete="email" placeholder="you@example.com">
+	                        <button type="button" id="sendMonitorLink" class="monitor-email-submit">Email me a sign-in link</button>
 	                        <div id="monitorEmailMessage" role="status" aria-live="polite" aria-atomic="true" class="auth-method-message"></div>
 	                    </div>
 	                </div>
@@ -251,12 +251,12 @@
 	    // fixed overlay in its stacking context below the sticky header.
 	    document.body.appendChild(modal);
 	    var domain = button.getAttribute('data-domain');
-	    var message = document.getElementById('monitorMessage');
+	    var emailMessage = document.getElementById('monitorEmailMessage');
 	    var email = document.getElementById('monitorEmail');
 	    var sendLinkButton = document.getElementById('sendMonitorLink');
 	    document.getElementById('monitorDomainName').textContent = domain;
 
-	    function showMessage(text, color) { message.textContent = text; message.style.color = color; message.style.display = 'block'; }
+	    function showMessage(text, color) { emailMessage.textContent = text; emailMessage.style.color = color; emailMessage.style.display = 'block'; }
 	    function setMonitoringState() {
 	        button.innerHTML = '<i class="fas fa-check"></i> Monitoring';
 	        button.disabled = true;

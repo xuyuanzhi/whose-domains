@@ -27,17 +27,46 @@ class DomainDetailMonitorUiTest {
     void monitorDialogSeparatesGoogleAndEmailLoginMethods() throws IOException {
         String template = template();
 
-        assertTrue(template.contains("id=\"monitorGoogleLogin\""));
+        int googleSection = template.indexOf("id=\"monitorGoogleSection\" class=\"auth-method monitor-google-section\" th:if=\"${_googleLoginEnabled}\"");
+        int googleLogin = template.indexOf("id=\"monitorGoogleLogin\"", googleSection);
+        int googleMessage = template.indexOf("id=\"monitorGoogleMessage\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\"", googleLogin);
+        int divider = template.indexOf("class=\"auth-login-divider monitor-login-divider\" th:if=\"${_googleLoginEnabled}\"", googleMessage);
+        int emailSection = template.indexOf("class=\"auth-method monitor-email-section\"", divider);
+        int emailInput = template.indexOf("id=\"monitorEmail\"", emailSection);
+        int emailMessage = template.indexOf("id=\"monitorEmailMessage\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\"", emailInput);
+
+        assertTrue(googleSection >= 0);
+        assertTrue(googleLogin > googleSection);
         assertTrue(template.contains("class=\"auth-google-icon\""));
-        assertTrue(template.contains("id=\"monitorGoogleMessage\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\""));
-        assertTrue(template.contains("th:if=\"${_googleLoginEnabled}\""));
-        assertTrue(template.contains("class=\"auth-login-divider monitor-login-divider\""));
-        assertTrue(template.contains("id=\"monitorEmailMessage\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\""));
+        assertTrue(googleMessage > googleLogin);
+        assertTrue(divider > googleMessage);
+        assertTrue(emailSection > divider);
+        assertTrue(emailMessage > emailInput);
         assertFalse(template.contains("id=\"monitorMessage\""));
+    }
+
+    @Test
+    void monitorEmailControlsUseDedicatedModalStyles() throws IOException {
+        String template = template();
+        String stylesheet = stylesheet();
+
+        assertTrue(template.contains("id=\"monitorEmail\" class=\"monitor-email-input\""));
+        assertTrue(template.contains("id=\"sendMonitorLink\" class=\"monitor-email-submit\""));
+        assertTrue(stylesheet.contains(".monitor-email-section .monitor-email-input {"));
+        assertTrue(stylesheet.contains(".monitor-email-section .monitor-email-submit {"));
+        assertTrue(stylesheet.contains(".monitor-email-section .monitor-email-input:focus"));
+        assertTrue(stylesheet.contains(".monitor-email-section .monitor-email-submit:focus-visible"));
     }
 
     private String template() throws IOException {
         try (InputStream input = getClass().getResourceAsStream("/views/domain_detail.html")) {
+            assertNotNull(input);
+            return new String(input.readAllBytes(), StandardCharsets.UTF_8);
+        }
+    }
+
+    private String stylesheet() throws IOException {
+        try (InputStream input = getClass().getResourceAsStream("/static/style/common.css")) {
             assertNotNull(input);
             return new String(input.readAllBytes(), StandardCharsets.UTF_8);
         }

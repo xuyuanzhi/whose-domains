@@ -150,6 +150,38 @@
     font-size: 13px;
     line-height: 1.45;
 }
+.monitor-email-section .monitor-email-input {
+    box-sizing: border-box;
+    width: 100%;
+    margin-bottom: 14px;
+    padding: 10px 14px;
+    border: 1px solid rgba(100,255,218,.2);
+    border-radius: var(--radius-sm);
+    outline: none;
+    background: rgba(255,255,255,.05);
+    color: #e2e8f0;
+    font-size: 14px;
+}
+.monitor-email-section .monitor-email-input:focus {
+    border-color: #64ffda;
+    box-shadow: 0 0 0 3px rgba(100,255,218,.16);
+}
+.monitor-email-section .monitor-email-submit {
+    width: 100%;
+    padding: 12px;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: #64ffda;
+    color: #080c18;
+    cursor: pointer;
+    font-size: 15px;
+    font-weight: 700;
+}
+.monitor-email-section .monitor-email-submit:disabled { cursor: wait; }
+.monitor-email-section .monitor-email-submit:focus-visible {
+    outline: 3px solid rgba(0,229,255,.42);
+    outline-offset: 3px;
+}
 .auth-google-button:focus-visible,
 .auth-modal-close:focus-visible,
 .auth-modal input:focus-visible,
