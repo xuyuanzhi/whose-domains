@@ -17,11 +17,13 @@ class CanonicalRedirectFilterTest {
         MockHttpServletRequest request = request("GET", "/tools/whois-lookup/", "https", "www.whose.domains");
         request.setQueryString("d=example.com");
         MockHttpServletResponse response = new MockHttpServletResponse();
+        MockFilterChain chain = new MockFilterChain();
 
-        filter.doFilter(request, response, new MockFilterChain());
+        filter.doFilter(request, response, chain);
 
         assertEquals(301, response.getStatus());
         assertEquals("https://whose.domains/tools/whois-lookup?d=example.com", response.getHeader("Location"));
+        assertNull(chain.getRequest());
     }
 
     @Test
@@ -47,6 +49,20 @@ class CanonicalRedirectFilterTest {
     }
 
     @Test
+    void redirectsRequestsOnNonDefaultHttpsPorts() throws Exception {
+        MockHttpServletRequest request = request("GET", "/info/what-is-whois", "https", "whose.domains");
+        request.setServerPort(8443);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        MockFilterChain chain = new MockFilterChain();
+
+        filter.doFilter(request, response, chain);
+
+        assertEquals(301, response.getStatus());
+        assertEquals("https://whose.domains/info/what-is-whois", response.getHeader("Location"));
+        assertNull(chain.getRequest());
+    }
+
+    @Test
     void passesThroughCanonicalHtmlRequests() throws Exception {
         MockHttpServletRequest request = request("GET", "/info/what-is-whois", "https", "whose.domains");
 
@@ -69,6 +85,14 @@ class CanonicalRedirectFilterTest {
         assertPassedThrough(request("GET", "/robots.txt", "http", "www.whose.domains"));
         assertPassedThrough(request("GET", "/favicon.ico", "http", "www.whose.domains"));
         assertPassedThrough(request("GET", "/site.webmanifest", "http", "www.whose.domains"));
+    }
+
+    @Test
+    void doesNotRedirectExcludedFilesWithTrailingSlashesOrUppercaseExtensions() throws Exception {
+        assertPassedThrough(request("GET", "/sitemap.XML/", "http", "www.whose.domains"));
+        assertPassedThrough(request("GET", "/robots.TXT/", "http", "www.whose.domains"));
+        assertPassedThrough(request("GET", "/favicon.ICO/", "http", "www.whose.domains"));
+        assertPassedThrough(request("GET", "/site.WEBMANIFEST/", "http", "www.whose.domains"));
     }
 
     @Test
@@ -99,6 +123,7 @@ class CanonicalRedirectFilterTest {
         MockHttpServletRequest request = new MockHttpServletRequest(method, path);
         request.setScheme(scheme);
         request.setServerName(host);
+        request.setServerPort("https".equalsIgnoreCase(scheme) ? 443 : 80);
         return request;
     }
 }

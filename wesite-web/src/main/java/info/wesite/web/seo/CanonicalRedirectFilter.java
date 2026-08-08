@@ -1,6 +1,7 @@
 package info.wesite.web.seo;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Set;
 
 import jakarta.servlet.FilterChain;
@@ -35,7 +36,7 @@ public class CanonicalRedirectFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
         return (!"GET".equalsIgnoreCase(method) && !"HEAD".equalsIgnoreCase(method))
                 || EXCLUDED_PREFIXES.stream().anyMatch(path::startsWith)
-                || EXCLUDED_SUFFIXES.stream().anyMatch(path::endsWith);
+                || isExcludedFile(path);
     }
 
     @Override
@@ -45,6 +46,7 @@ public class CanonicalRedirectFilter extends OncePerRequestFilter {
         String canonicalPath = canonicalUrlService.normalizePath(path);
         boolean canonicalRequest = "https".equalsIgnoreCase(request.getScheme())
                 && "whose.domains".equals(request.getServerName())
+                && request.getServerPort() == 443
                 && path.equals(canonicalPath);
 
         if (canonicalRequest) {
@@ -59,5 +61,11 @@ public class CanonicalRedirectFilter extends OncePerRequestFilter {
         }
         response.setStatus(HttpServletResponse.SC_MOVED_PERMANENTLY);
         response.setHeader("Location", target);
+    }
+
+    private boolean isExcludedFile(String path) {
+        String normalizedPath = path.toLowerCase(Locale.ROOT);
+        return EXCLUDED_SUFFIXES.stream().anyMatch(suffix -> normalizedPath.endsWith(suffix)
+                || normalizedPath.endsWith(suffix + "/"));
     }
 }
