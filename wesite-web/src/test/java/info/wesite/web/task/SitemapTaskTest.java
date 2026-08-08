@@ -1,5 +1,6 @@
 package info.wesite.web.task;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -8,6 +9,8 @@ import static org.mockito.Mockito.when;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+
+import javax.xml.parsers.DocumentBuilderFactory;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -37,7 +40,13 @@ class SitemapTaskTest {
 
         task.createFile();
 
-        String xml = Files.readString(output.resolve("sitemap_all.xml"));
+        Path sitemap = output.resolve("sitemap_all.xml");
+        String xml = Files.readString(sitemap);
+        var locations = DocumentBuilderFactory.newInstance()
+                .newDocumentBuilder()
+                .parse(sitemap.toFile())
+                .getElementsByTagName("loc");
+        assertEquals("https://whose.domains/", locations.item(0).getTextContent());
         assertTrue(xml.contains("https://whose.domains/tools/domain-analyzer"));
         assertTrue(xml.contains("https://whose.domains/tools/dns-analyzer"));
         assertTrue(xml.contains("https://whose.domains/tools/ssl-checker"));

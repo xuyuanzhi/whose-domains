@@ -4,12 +4,39 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$BaseUrl = $BaseUrl.TrimEnd('/')
 $failures = [System.Collections.Generic.List[string]]::new()
 
 function Add-SeoFailure([System.Collections.Generic.List[string]]$failureList, [string]$message) {
     [void]$failureList.Add($message)
 }
+
+function Get-ProductionBaseUrl([string]$value) {
+    $candidate = if ($null -eq $value) { '' } else { $value.Trim() }
+    try {
+        $uri = [uri]$candidate
+    } catch {
+        $uri = $null
+    }
+
+    $isProductionOrigin = $null -ne $uri -and
+        $uri.IsAbsoluteUri -and
+        $uri.Scheme -ceq 'https' -and
+        $uri.DnsSafeHost -ceq 'whose.domains' -and
+        $uri.Port -eq 443 -and
+        [string]::IsNullOrEmpty($uri.UserInfo)
+    $isOriginOnly = $isProductionOrigin -and
+        $uri.AbsolutePath -ceq '/' -and
+        [string]::IsNullOrEmpty($uri.Query) -and
+        [string]::IsNullOrEmpty($uri.Fragment)
+
+    if (-not $isOriginOnly) {
+        throw 'SEO deployment contract is production-only and requires https://whose.domains as BaseUrl.'
+    }
+
+    return 'https://whose.domains'
+}
+
+$BaseUrl = Get-ProductionBaseUrl $BaseUrl
 
 function Get-CanonicalLinkInfo([string]$html) {
     $canonicalHrefs = [System.Collections.Generic.List[string]]::new()
@@ -42,6 +69,68 @@ function Get-CanonicalLinkInfo([string]$html) {
     return [pscustomobject]@{
         RelationCount = $canonicalRelationCount
         Hrefs = @($canonicalHrefs)
+    }
+}
+
+function Test-IndexableHtml(
+        [string]$mediaType,
+        [string]$html,
+        [string]$location,
+        [System.Collections.Generic.List[string]]$failureList) {
+    if ($mediaType -ine 'text/html') {
+        Add-SeoFailure $failureList "Sitemap URL must return Content-Type text/html: $location returned $mediaType"
+        return
+    }
+
+    $canonicalInfo = Get-CanonicalLinkInfo $html
+    if ($canonicalInfo.RelationCount -ne 1 -or $canonicalInfo.Hrefs.Count -ne 1) {
+        Add-SeoFailure $failureList "Expected one canonical link with href: $location found $($canonicalInfo.RelationCount) canonical rel values and $($canonicalInfo.Hrefs.Count) href values"
+    } elseif ($canonicalInfo.Hrefs[0] -ne $location) {
+        Add-SeoFailure $failureList "Canonical mismatch: $location -> $($canonicalInfo.Hrefs[0])"
+    }
+
+    $metaMatches = [regex]::Matches($html, '<meta\b[^>]*>', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+    foreach ($metaMatch in $metaMatches) {
+        $metaTag = $metaMatch.Value
+        $nameMatch = [regex]::Match(
+            $metaTag,
+            '(?:^|\s)name\s*=\s*["'']([^"'']*)["'']',
+            [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+        if (-not $nameMatch.Success -or $nameMatch.Groups[1].Value.Trim() -ine 'robots') {
+            continue
+        }
+
+        $contentMatch = [regex]::Match(
+            $metaTag,
+            '(?:^|\s)content\s*=\s*["'']([^"'']*)["'']',
+            [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+        if ($contentMatch.Success -and [regex]::IsMatch(
+                $contentMatch.Groups[1].Value,
+                '(?:^|[\s,;])noindex(?:[\s,;]|$)',
+                [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)) {
+            Add-SeoFailure $failureList "Sitemap URL must not declare robots noindex: $location"
+            break
+        }
+    }
+}
+
+function Assert-IndexableHtmlSelfTestCase(
+        [string]$name,
+        [string]$mediaType,
+        [string]$html,
+        [string]$location,
+        [int]$expectedFailureCount,
+        [string]$expectedMessageFragment,
+        [System.Collections.Generic.List[string]]$selfTestFailures) {
+    $caseFailures = [System.Collections.Generic.List[string]]::new()
+    Test-IndexableHtml $mediaType $html $location $caseFailures
+
+    if ($caseFailures.Count -ne $expectedFailureCount) {
+        Add-SeoFailure $selfTestFailures "$name indexable HTML case produced $($caseFailures.Count) failures; expected $expectedFailureCount"
+        return
+    }
+    if ($expectedFailureCount -gt 0 -and -not $caseFailures[0].Contains($expectedMessageFragment)) {
+        Add-SeoFailure $selfTestFailures "$name indexable HTML case returned the wrong failure: $($caseFailures[0])"
     }
 }
 
@@ -82,6 +171,15 @@ function Get-RedirectLocation($response, [string]$requestUrl) {
 
 function Invoke-SeoSelfTest {
     $selfTestFailures = [System.Collections.Generic.List[string]]::new()
+
+    $indexableLocation = 'https://whose.domains/tools/whois-lookup'
+    $validHtml = '<html><head><link rel="canonical" href="https://whose.domains/tools/whois-lookup"><meta name="robots" content="index, follow"></head></html>'
+    Assert-IndexableHtmlSelfTestCase 'valid' 'text/html' $validHtml $indexableLocation 0 '' $selfTestFailures
+    Assert-IndexableHtmlSelfTestCase 'media mismatch' 'application/json' $validHtml $indexableLocation 1 'Content-Type text/html' $selfTestFailures
+    Assert-IndexableHtmlSelfTestCase 'missing canonical' 'text/html' '<html><head></head></html>' $indexableLocation 1 'Expected one canonical link' $selfTestFailures
+    Assert-IndexableHtmlSelfTestCase 'duplicate canonical' 'text/html' '<link rel="canonical" href="https://whose.domains/tools/whois-lookup"><link rel="canonical" href="https://whose.domains/tools/whois-lookup">' $indexableLocation 1 'Expected one canonical link' $selfTestFailures
+    Assert-IndexableHtmlSelfTestCase 'mismatched canonical' 'text/html' '<link rel="canonical" href="https://whose.domains/tools/other">' $indexableLocation 1 'Canonical mismatch' $selfTestFailures
+    Assert-IndexableHtmlSelfTestCase 'noindex robots' 'text/html' '<link rel="canonical" href="https://whose.domains/tools/whois-lookup"><meta content="follow, NOINDEX" name="robots">' $indexableLocation 1 'robots noindex' $selfTestFailures
 
     $hrefFirst = Get-CanonicalLinkInfo '<link href="https://whose.domains/tools/whois-lookup" rel="canonical">'
     if ($hrefFirst.RelationCount -ne 1 -or $hrefFirst.Hrefs.Count -ne 1 -or $hrefFirst.Hrefs[0] -ne 'https://whose.domains/tools/whois-lookup') {
@@ -125,6 +223,7 @@ function Invoke-SeoSelfTest {
         return $false
     }
 
+    Write-Host 'Indexable HTML self-test cases passed: 6.'
     Write-Host 'SEO offline self-test passed.'
     return $true
 }
@@ -182,14 +281,9 @@ try {
 
             $contentType = $response.Content.Headers.ContentType
             $mediaType = if ($null -eq $contentType) { $null } else { $contentType.MediaType }
-            if ($mediaType -eq 'text/html') {
-                $html = Read-SeoBody $response $location
-                $canonicalInfo = Get-CanonicalLinkInfo $html
-                if ($canonicalInfo.RelationCount -ne 1 -or $canonicalInfo.Hrefs.Count -ne 1) {
-                    Add-SeoFailure $failures "Expected one canonical link with href: $location found $($canonicalInfo.RelationCount) canonical rel values and $($canonicalInfo.Hrefs.Count) href values"
-                } elseif ($canonicalInfo.Hrefs[0] -ne $location) {
-                    Add-SeoFailure $failures "Canonical mismatch: $location -> $($canonicalInfo.Hrefs[0])"
-                }
+            $html = Read-SeoBody $response $location
+            if ($null -ne $html) {
+                Test-IndexableHtml $mediaType $html $location $failures
             }
         } finally {
             if ($null -ne $response) { $response.Dispose() }

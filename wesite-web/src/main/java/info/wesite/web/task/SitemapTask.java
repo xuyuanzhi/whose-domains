@@ -152,7 +152,7 @@ public class SitemapTask {
 		WebSitemapGenerator gen = WebSitemapGenerator.builder(PREFIX, folder)
 				.fileNamePrefix("sitemap_all").build();
 		
-		gen.addUrl(new WebSitemapUrl.Options(PREFIX)
+		gen.addUrl(new WebSitemapUrl.Options(PREFIX + "/")
 				.changeFreq(com.redfin.sitemapgenerator.ChangeFreq.WEEKLY)
 				.priority(1.0)
 				.build());

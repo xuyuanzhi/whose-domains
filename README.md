@@ -125,7 +125,7 @@ Alternatively point Spring at any path with `--spring.config.additional-location
 
 ### Post-deployment SEO contract
 
-Run `pwsh -File scripts/check-seo.ps1 -BaseUrl https://whose.domains` after each production deployment.
+Run `pwsh -File scripts/check-seo.ps1 -BaseUrl https://whose.domains` after each production deployment. This is a production-only contract: `-BaseUrl` must normalize to the exact origin `https://whose.domains` (an optional trailing slash is accepted), and other hosts, schemes, non-default ports, paths, queries, or fragments are rejected before any HTTP request.
 
 ## Contributing
 
