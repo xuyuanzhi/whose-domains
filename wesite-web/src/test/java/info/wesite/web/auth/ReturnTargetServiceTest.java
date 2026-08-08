@@ -73,4 +73,26 @@ class ReturnTargetServiceTest {
                 url);
         assertFalse(url.contains("&returnTo=https://evil.example"));
     }
+
+    @Test
+    void recognizesOnlyValidatedDomainMonitorContinuations() {
+        assertTrue(service.isDomainMonitorContinuation("/domain/example.com?monitor=pending"));
+        assertFalse(service.isDomainMonitorContinuation("/user/watchlist?monitor=pending"));
+        assertFalse(service.isDomainMonitorContinuation("https://evil.example/domain/example.com?monitor=pending"));
+    }
+
+    @Test
+    void appendsEncodedLoginResultToMonitorContinuation() {
+        assertEquals(
+                "/domain/example.com?source=lookup&monitor=pending&login=google_error",
+                service.monitorLoginResultUrl(
+                        "/domain/example.com?source=lookup&monitor=pending", "google_error"));
+    }
+
+    @Test
+    void monitorLoginResultCodeCannotInjectAnotherQueryParameter() {
+        String target = "/domain/example.com?source=lookup&monitor=pending";
+
+        assertEquals(target, service.monitorLoginResultUrl(target, "google_error&source=attacker"));
+    }
 }

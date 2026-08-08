@@ -17,7 +17,7 @@ class LoginControllerTest {
     void loginPageExposesValidatedTarget() {
         ExtendedModelMap model = new ExtendedModelMap();
 
-        assertEquals("login", controller.login("/user/api-keys", model));
+        assertEquals("login", controller.login("/user/api-keys", null, model));
         assertEquals("/user/api-keys", model.get("returnTo"));
     }
 
@@ -25,7 +25,7 @@ class LoginControllerTest {
     void missingReturnTargetFallsBackToWatchlist() {
         ExtendedModelMap model = new ExtendedModelMap();
 
-        assertEquals("login", controller.login(null, model));
+        assertEquals("login", controller.login(null, null, model));
         assertEquals(ReturnTargetService.DEFAULT_TARGET, model.get("returnTo"));
     }
 
@@ -33,7 +33,7 @@ class LoginControllerTest {
     void externalReturnTargetFallsBackToWatchlist() {
         ExtendedModelMap model = new ExtendedModelMap();
 
-        assertEquals("login", controller.login("https://evil.example", model));
+        assertEquals("login", controller.login("https://evil.example", null, model));
         assertEquals(ReturnTargetService.DEFAULT_TARGET, model.get("returnTo"));
     }
 
@@ -41,7 +41,7 @@ class LoginControllerTest {
     void authenticationEndpointReturnTargetFallsBackToWatchlist() {
         ExtendedModelMap model = new ExtendedModelMap();
 
-        assertEquals("login", controller.login("/user/verify-email?token=attacker-token", model));
+        assertEquals("login", controller.login("/user/verify-email?token=attacker-token", null, model));
         assertEquals(ReturnTargetService.DEFAULT_TARGET, model.get("returnTo"));
     }
 
@@ -49,7 +49,7 @@ class LoginControllerTest {
     void overlongReturnTargetFallsBackToWatchlist() {
         ExtendedModelMap model = new ExtendedModelMap();
 
-        assertEquals("login", controller.login("/" + "a".repeat(500), model));
+        assertEquals("login", controller.login("/" + "a".repeat(500), null, model));
         assertEquals(ReturnTargetService.DEFAULT_TARGET, model.get("returnTo"));
     }
 
@@ -57,7 +57,8 @@ class LoginControllerTest {
     void signedInVisitorSkipsGateway() {
         UserHolder.set(new User());
         try {
-            assertEquals("redirect:/user/api-keys", controller.login("/user/api-keys", new ExtendedModelMap()));
+            assertEquals("redirect:/user/api-keys",
+                    controller.login("/user/api-keys", "google_error", new ExtendedModelMap()));
         } finally {
             UserHolder.remove();
         }
@@ -68,10 +69,31 @@ class LoginControllerTest {
         UserHolder.set(new User());
         try {
             assertEquals("redirect:" + ReturnTargetService.DEFAULT_TARGET,
-                    controller.login("/user/verify-email?token=attacker-token", new ExtendedModelMap()));
+                    controller.login("/user/verify-email?token=attacker-token", null, new ExtendedModelMap()));
         } finally {
             UserHolder.remove();
         }
+    }
+
+    @Test
+    void loginFailureForMonitorContinuationReturnsToDomainDialog() {
+        ExtendedModelMap model = new ExtendedModelMap();
+
+        String view = controller.login(
+                "/domain/example.com?monitor=pending", "google_error", model);
+
+        assertEquals(
+                "redirect:/domain/example.com?monitor=pending&login=google_error",
+                view);
+    }
+
+    @Test
+    void ordinaryLoginFailureStillRendersLoginGateway() {
+        ExtendedModelMap model = new ExtendedModelMap();
+
+        String view = controller.login("/user/api-keys", "google_error", model);
+
+        assertEquals("login", view);
     }
 
 }

@@ -3,8 +3,10 @@ package info.wesite.web.auth;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -16,6 +18,7 @@ public class ReturnTargetService {
     public static final String DEFAULT_TARGET = "/user/watchlist?login=success";
     public static final int MAX_TARGET_LENGTH = 500;
 
+    private static final Pattern LOGIN_RESULT = Pattern.compile("[a-z_]{1,40}");
     private static final Set<String> AUTHENTICATION_PATHS = Set.of(
             "/login",
             "/oauth2",
@@ -72,6 +75,27 @@ public class ReturnTargetService {
     public String loginFailureUrl(String code, String target) {
         return UriComponentsBuilder.fromPath("/login").queryParam("login", encodeQueryValue(code))
                 .queryParam("returnTo", encodeQueryValue(resolve(target)))
+                .build(true).toUriString();
+    }
+
+    public boolean isDomainMonitorContinuation(String target) {
+        return validated(target).map(candidate -> {
+            URI uri = URI.create(candidate);
+            if (!uri.getPath().startsWith("/domain/")) {
+                return false;
+            }
+            return UriComponentsBuilder.fromUriString(candidate).build()
+                    .getQueryParams().getOrDefault("monitor", List.of()).contains("pending");
+        }).orElse(false);
+    }
+
+    public String monitorLoginResultUrl(String target, String code) {
+        String resolved = resolve(target);
+        if (!isDomainMonitorContinuation(resolved) || code == null || !LOGIN_RESULT.matcher(code).matches()) {
+            return resolved;
+        }
+        return UriComponentsBuilder.fromUriString(resolved)
+                .replaceQueryParam("login", code)
                 .build(true).toUriString();
     }
 

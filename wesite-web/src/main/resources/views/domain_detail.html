@@ -256,6 +256,16 @@
 	    var emailMessage = document.getElementById('monitorEmailMessage');
 	    var email = document.getElementById('monitorEmail');
 	    var sendLinkButton = document.getElementById('sendMonitorLink');
+	    var monitorLoginMessages = {
+	        invalid: {target: 'email', text: 'This sign-in link is invalid or has expired.'},
+	        google_error: {target: 'google', text: 'Google sign-in could not be completed. Please try again.'},
+	        google_invalid: {target: 'google', text: 'Google did not provide the account details required to sign in.'},
+	        google_unverified: {target: 'google', text: 'Your Google email address must be verified before signing in.'},
+	        google_conflict: {target: 'google', text: 'This account is already connected to another Google identity.'},
+	        google_inactive: {target: 'google', text: 'This account is not active.'},
+	        google_email_unavailable: {target: 'google', text: 'We could not send the email needed to confirm this account.'},
+	        google_expired: {target: 'google', text: 'This Google sign-in attempt has expired. Please try again.'}
+	    };
 	    document.getElementById('monitorDomainName').textContent = domain;
 
 	    function monitorReturnTo() {
@@ -269,6 +279,29 @@
 	        target.textContent = text;
 	        target.style.color = color;
 	        target.style.display = text ? 'block' : 'none';
+	    }
+	    function openMonitorModal(target, text) {
+	        setMonitorMessage(googleMessage, '', '#ff5252');
+	        setMonitorMessage(emailMessage, '', '#ff5252');
+	        setMonitorMessage(target, text, '#ff5252');
+	        modal.style.display = 'flex';
+	    }
+	    function clearMonitorContinuation() {
+	        var params = new URLSearchParams(location.search);
+	        params.delete('monitor');
+	        params.delete('login');
+	        var query = params.toString();
+	        history.replaceState(null, '', location.pathname + (query ? '?' + query : '') + location.hash);
+	    }
+	    function showMonitorLoginResult() {
+	        var code = new URLSearchParams(location.search).get('login');
+	        var result = monitorLoginMessages[code];
+	        if (!result) return false;
+	        openMonitorModal(
+	            result.target === 'google' && googleMessage ? googleMessage : emailMessage,
+	            result.text);
+	        clearMonitorContinuation();
+	        return true;
 	    }
 	    if (googleLink) {
 	        googleLink.href = '/login/google?returnTo=' + encodeURIComponent(monitorReturnTo());
@@ -315,10 +348,12 @@
 	            else{setMonitorMessage(emailMessage,d.msg||'Could not add this domain to your watchlist.','#ff5252');}
 	        }).catch(function(){modal.style.display='flex';});
 	    }
-	    fetch('/api/domain-watch/check/' + encodeURIComponent(domain), {credentials:'include'})
-	    .then(function(r){return r.json();}).then(function(d){
-	        if(d.code===0 && d.data===true){setMonitoringState();}
-	    }).catch(function(){});
+	    if (!showMonitorLoginResult()) {
+	        fetch('/api/domain-watch/check/' + encodeURIComponent(domain), {credentials:'include'})
+	        .then(function(r){return r.json();}).then(function(d){
+	            if(d.code===0 && d.data===true){setMonitoringState();}
+	        }).catch(function(){});
+	    }
 	    button.addEventListener('click', function(){
 	        fetch('/user/session',{credentials:'include'}).then(function(r){return r.json();}).then(function(d){
 	            if(d.code===0){addWatch();}else{modal.style.display='flex';}

@@ -79,7 +79,12 @@ function response(data) {
     return Promise.resolve({ json: () => Promise.resolve(data) });
 }
 
-function createHarness({ pathname = '/domain/example.com', search = '', emailLoginResponse = () => response({ code: 0 }) } = {}) {
+function createHarness({
+    pathname = '/domain/example.com',
+    search = '',
+    hash = '',
+    emailLoginResponse = () => response({ code: 0 })
+} = {}) {
     const document = new FakeDocument();
     const monitorButton = document.register('monitorDomainBtn', { 'data-domain': 'example.com' });
     const modal = document.register('monitorModal');
@@ -91,6 +96,7 @@ function createHarness({ pathname = '/domain/example.com', search = '', emailLog
     document.register('monitorDomainName');
     document.register('closeMonitorModal');
     const fetchCalls = [];
+    const historyCalls = [];
     const context = vm.createContext({
         document,
         fetch(url, options) {
@@ -100,7 +106,12 @@ function createHarness({ pathname = '/domain/example.com', search = '', emailLog
             if (url === '/user/session') return response({ code: 1 });
             throw new Error(`Unexpected request: ${url}`);
         },
-        location: { pathname, search },
+        location: { pathname, search, hash },
+        history: {
+            replaceState(state, title, url) {
+                historyCalls.push({ state, title, url });
+            }
+        },
         window: {
             setInterval() { return 1; },
             clearInterval() {}
@@ -119,6 +130,7 @@ function createHarness({ pathname = '/domain/example.com', search = '', emailLog
         sendLinkButton,
         emailMessage,
         fetchCalls,
+        historyCalls,
         run() {
             vm.runInContext(monitorScript, context, { filename: templatePath });
             return this;
@@ -214,5 +226,40 @@ test('Google and email monitor logins share a sanitized continuation target', as
     assert.doesNotMatch(harness.googleLink.href, /login=google_error/);
     assert.doesNotMatch(JSON.parse(request.options.body).returnTo, /login=google_error/);
     assert.equal(harness.emailMessage.textContent, 'Check your inbox.');
+    assert.equal(harness.googleMessage.textContent, 'Google sign-in could not be completed. Please try again.');
+});
+
+test('Google callback errors reopen the monitor dialog in the Google status region', async () => {
+    const harness = createHarness({
+        search: '?source=lookup&monitor=pending&login=google_error',
+        hash: '#whois'
+    }).run();
+    await harness.flushPromises();
+
+    assert.equal(harness.modal.style.display, 'flex');
+    assert.equal(harness.googleMessage.textContent, 'Google sign-in could not be completed. Please try again.');
+    assert.equal(harness.emailMessage.textContent, '');
+    assert.equal(harness.fetchCalls.some((call) => [
+        '/api/domain-watch/check/example.com',
+        '/user/session',
+        '/api/domain-watch/watch'
+    ].includes(call.url)), false);
+    assert.deepEqual(harness.historyCalls, [{
+        state: null,
+        title: '',
+        url: '/domain/example.com?source=lookup#whois'
+    }]);
+});
+
+test('email link errors reopen the monitor dialog in the email status region', async () => {
+    const harness = createHarness({ search: '?monitor=pending&login=invalid' }).run();
+    await harness.flushPromises();
+
+    assert.equal(harness.emailMessage.textContent, 'This sign-in link is invalid or has expired.');
     assert.equal(harness.googleMessage.textContent, '');
+    assert.deepEqual(harness.historyCalls, [{
+        state: null,
+        title: '',
+        url: '/domain/example.com'
+    }]);
 });
