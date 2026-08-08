@@ -56,6 +56,10 @@ class FakeElement {
     setAttribute(name, value) {
         this.attributes.set(name, value);
     }
+
+    focus() {
+        this.focused = true;
+    }
 }
 
 class FakeDocument {
@@ -75,14 +79,21 @@ class FakeDocument {
     }
 }
 
-function response(data) {
-    return Promise.resolve({ json: () => Promise.resolve(data) });
+function response(statusOrData, responseData) {
+    const status = typeof statusOrData === 'number' ? statusOrData : 200;
+    const data = typeof statusOrData === 'number' ? responseData : statusOrData;
+    return Promise.resolve({
+        ok: status >= 200 && status < 300,
+        status,
+        json: () => Promise.resolve(data)
+    });
 }
 
 function createHarness({
     pathname = '/domain/example.com',
     search = '',
     hash = '',
+    responses = {},
     emailLoginResponse = () => response({ code: 0 })
 } = {}) {
     const document = new FakeDocument();
@@ -101,6 +112,12 @@ function createHarness({
         document,
         fetch(url, options) {
             fetchCalls.push({ url, options });
+            if (Object.prototype.hasOwnProperty.call(responses, url)) {
+                const configuredResponse = responses[url];
+                return typeof configuredResponse === 'function'
+                    ? configuredResponse(url, options)
+                    : configuredResponse;
+            }
             if (url.startsWith('/api/domain-watch/check/')) return response({ code: 0, data: false });
             if (url === '/user/email-login') return emailLoginResponse();
             if (url === '/user/session') return response({ code: 1 });
@@ -129,8 +146,12 @@ function createHarness({
         email,
         sendLinkButton,
         emailMessage,
+        button: monitorButton,
         fetchCalls,
         historyCalls,
+        get historyUrls() {
+            return historyCalls.map((call) => call.url);
+        },
         run() {
             vm.runInContext(monitorScript, context, { filename: templatePath });
             return this;
@@ -140,7 +161,7 @@ function createHarness({
 }
 
 async function flushPromises() {
-    for (let index = 0; index < 6; index++) await Promise.resolve();
+    for (let index = 0; index < 12; index++) await Promise.resolve();
 }
 
 test('monitor email validation writes to the dedicated email status without an old shared message node', () => {
@@ -279,4 +300,150 @@ test('unknown login results continue normal initialization without changing the 
         '/api/domain-watch/check/example.com'
     ]);
     assert.equal(harness.fetchCalls[0].options.credentials, 'include');
+});
+
+test('pending continuation adds the current page domain once and clears only the monitor parameter', async () => {
+    const harness = createHarness({
+        pathname: '/domain/example.com',
+        search: '?source=email&domain=attacker.example&monitor=pending',
+        hash: '#whois',
+        responses: {
+            '/user/session': response(200, {code: 0}),
+            '/api/domain-watch/check/example.com': response(200, {code: 0, data: false}),
+            '/api/domain-watch/watch': response(200, {code: 0})
+        }
+    }).run();
+    await harness.flushPromises();
+
+    assert.deepEqual(harness.fetchCalls.map((call) => call.url), [
+        '/user/session',
+        '/api/domain-watch/check/example.com',
+        '/api/domain-watch/watch'
+    ]);
+    const watchCalls = harness.fetchCalls.filter((call) => call.url === '/api/domain-watch/watch');
+    assert.equal(watchCalls.length, 1);
+    assert.deepEqual(JSON.parse(watchCalls[0].options.body), {domainName: 'example.com', notifyType: 3});
+    assert.equal(harness.button.textContent.includes('Monitoring'), true);
+    assert.equal(harness.historyUrls.at(-1), '/domain/example.com?source=email&domain=attacker.example#whois');
+});
+
+test('pending continuation reopens the monitor dialog when the session is still signed out', async () => {
+    const harness = createHarness({
+        search: '?monitor=pending',
+        responses: {'/user/session': response(401, {code: 401})}
+    }).run();
+    await harness.flushPromises();
+
+    assert.equal(harness.modal.style.display, 'flex');
+    assert.equal(harness.googleLink.focused, true);
+    assert.equal(harness.fetchCalls.some((call) => call.url === '/api/domain-watch/watch'), false);
+});
+
+test('pending continuation skips add when the domain is already watched', async () => {
+    const harness = createHarness({
+        search: '?monitor=pending',
+        responses: {
+            '/user/session': response(200, {code: 0}),
+            '/api/domain-watch/check/example.com': response(200, {code: 0, data: true})
+        }
+    }).run();
+    await harness.flushPromises();
+
+    assert.equal(harness.button.textContent.includes('Monitoring'), true);
+    assert.deepEqual(harness.fetchCalls.map((call) => call.url), [
+        '/user/session',
+        '/api/domain-watch/check/example.com'
+    ]);
+    assert.equal(harness.fetchCalls.some((call) => call.url === '/api/domain-watch/watch'), false);
+});
+
+test('ordinary add failure opens the dialog and reports in the email status region', async () => {
+    const harness = createHarness({
+        search: '?monitor=pending',
+        responses: {
+            '/user/session': response(200, {code: 0}),
+            '/api/domain-watch/check/example.com': response(200, {code: 0, data: false}),
+            '/api/domain-watch/watch': response(400, {code: 500, msg: 'Watch limit reached.'})
+        }
+    }).run();
+    await harness.flushPromises();
+
+    assert.equal(harness.modal.style.display, 'flex');
+    assert.equal(harness.emailMessage.textContent, 'Watch limit reached.');
+    assert.equal(harness.button.textContent.includes('Monitoring'), false);
+});
+
+test('session continuation requires both HTTP and business success', async () => {
+    const cases = [
+        {name: 'HTTP failure', session: response(503, {code: 0})},
+        {name: 'business failure', session: response(200, {code: 1})}
+    ];
+
+    for (const scenario of cases) {
+        const harness = createHarness({
+            search: '?monitor=pending',
+            responses: {'/user/session': scenario.session}
+        }).run();
+        await harness.flushPromises();
+
+        assert.equal(harness.modal.style.display, 'flex', scenario.name);
+        assert.deepEqual(harness.fetchCalls.map((call) => call.url), ['/user/session'], scenario.name);
+    }
+});
+
+test('monitoring check requires both HTTP and business success', async () => {
+    const cases = [
+        {name: 'HTTP failure', check: response(503, {code: 0, data: true})},
+        {name: 'business failure', check: response(200, {code: 1, data: true})}
+    ];
+
+    for (const scenario of cases) {
+        const harness = createHarness({
+            responses: {'/api/domain-watch/check/example.com': scenario.check}
+        }).run();
+        await harness.flushPromises();
+
+        assert.equal(harness.button.textContent.includes('Monitoring'), false, scenario.name);
+    }
+});
+
+test('add authentication failures reopen the dialog without an ordinary failure message', async () => {
+    const cases = [
+        {name: 'HTTP 401', watch: response(401, {code: 500})},
+        {name: 'HTTP 403', watch: response(403, {code: 0})},
+        {name: 'business 401', watch: response(200, {code: 401})},
+        {name: 'business -401', watch: response(200, {code: -401})}
+    ];
+
+    for (const scenario of cases) {
+        const harness = createHarness({
+            search: '?monitor=pending',
+            responses: {
+                '/user/session': response(200, {code: 0}),
+                '/api/domain-watch/check/example.com': response(200, {code: 0, data: false}),
+                '/api/domain-watch/watch': scenario.watch
+            }
+        }).run();
+        await harness.flushPromises();
+
+        assert.equal(harness.modal.style.display, 'flex', scenario.name);
+        assert.equal(harness.emailMessage.textContent, '', scenario.name);
+        assert.equal(harness.button.textContent.includes('Monitoring'), false, scenario.name);
+    }
+});
+
+test('an HTTP add failure cannot report success from a business success payload', async () => {
+    const harness = createHarness({
+        search: '?monitor=pending',
+        responses: {
+            '/user/session': response(200, {code: 0}),
+            '/api/domain-watch/check/example.com': response(200, {code: 0, data: false}),
+            '/api/domain-watch/watch': response(409, {code: 0, msg: 'Domain could not be watched.'})
+        }
+    }).run();
+    await harness.flushPromises();
+
+    assert.equal(harness.button.textContent.includes('Monitoring'), false);
+    assert.equal(harness.modal.style.display, 'flex');
+    assert.equal(harness.emailMessage.textContent, 'Domain could not be watched.');
 });

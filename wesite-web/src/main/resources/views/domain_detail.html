@@ -281,12 +281,18 @@
 	        target.style.display = text ? 'block' : 'none';
 	    }
 	    function openMonitorModal(target, text) {
-	        setMonitorMessage(googleMessage, '', '#ff5252');
-	        setMonitorMessage(emailMessage, '', '#ff5252');
-	        setMonitorMessage(target, text, '#ff5252');
 	        modal.style.display = 'flex';
+	        if (text) setMonitorMessage(target || emailMessage, text, '#ff5252');
+	        var initialFocus = googleLink || email;
+	        if (initialFocus) initialFocus.focus();
 	    }
 	    function clearMonitorContinuation() {
+	        var params = new URLSearchParams(location.search);
+	        params.delete('monitor');
+	        var query = params.toString();
+	        history.replaceState(null, '', location.pathname + (query ? '?' + query : '') + location.hash);
+	    }
+	    function clearMonitorLoginResult() {
 	        var params = new URLSearchParams(location.search);
 	        params.delete('monitor');
 	        params.delete('login');
@@ -300,7 +306,7 @@
 	        openMonitorModal(
 	            result.target === 'google' && googleMessage ? googleMessage : emailMessage,
 	            result.text);
-	        clearMonitorContinuation();
+	        clearMonitorLoginResult();
 	        return true;
 	    }
 	    if (googleLink) {
@@ -340,24 +346,76 @@
 	            renderCooldown();
 	        }, 1000);
 	    }
+	    function parseJsonResponse(response) {
+	        return response.json().then(function (data) {
+	            return {ok: response.ok, status: response.status, data: data};
+	        });
+	    }
+	    function checkMonitoringState() {
+	        return fetch('/api/domain-watch/check/' + encodeURIComponent(domain), {credentials:'include'})
+	            .then(parseJsonResponse)
+	            .then(function (result) {
+	                var isWatching = !!(result.ok && result.data && result.data.code === 0 && result.data.data === true);
+	                if (isWatching) setMonitoringState();
+	                return isWatching;
+	            });
+	    }
 	    function addWatch() {
-	        fetch('/api/domain-watch/watch', {method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body:JSON.stringify({domainName:domain, notifyType:3})})
-	        .then(function(r){return r.json();}).then(function(d){
-	            if(d.code===0){setMonitoringState();}
-	            else if(d.code===-401 || d.code===401){modal.style.display='flex';}
-	            else{setMonitorMessage(emailMessage,d.msg||'Could not add this domain to your watchlist.','#ff5252');}
-	        }).catch(function(){modal.style.display='flex';});
+	        return fetch('/api/domain-watch/watch', {method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body:JSON.stringify({domainName:domain, notifyType:3})})
+	            .then(parseJsonResponse)
+	            .then(function (result) {
+	                var data = result.data || {};
+	                if (result.ok && data.code === 0) {
+	                    setMonitoringState();
+	                    return 'added';
+	                }
+	                if (result.status === 401 || result.status === 403 || data.code === 401 || data.code === -401) {
+	                    openMonitorModal();
+	                    return 'auth-required';
+	                }
+	                openMonitorModal(emailMessage, data.msg || 'Could not add this domain to your watchlist.');
+	                return 'failed';
+	            })
+	            .catch(function () {
+	                openMonitorModal(emailMessage, 'Could not add this domain to your watchlist.');
+	                return 'failed';
+	            });
+	    }
+	    var monitorContinuationStarted = false;
+	    function continuePendingMonitor() {
+	        var params = new URLSearchParams(location.search);
+	        if (params.get('monitor') !== 'pending' || monitorContinuationStarted) return Promise.resolve();
+	        monitorContinuationStarted = true;
+	        clearMonitorContinuation();
+	        return fetch('/user/session', {credentials: 'include'})
+	            .then(parseJsonResponse)
+	            .then(function (session) {
+	                if (!session.ok || !session.data || session.data.code !== 0) {
+	                    openMonitorModal();
+	                    return null;
+	                }
+	                return checkMonitoringState().then(function (alreadyWatching) {
+	                    return alreadyWatching ? null : addWatch();
+	                });
+	            })
+	            .catch(function () {
+	                openMonitorModal(emailMessage, 'Could not start monitoring. Please try again.');
+	            });
 	    }
 	    if (!showMonitorLoginResult()) {
-	        fetch('/api/domain-watch/check/' + encodeURIComponent(domain), {credentials:'include'})
-	        .then(function(r){return r.json();}).then(function(d){
-	            if(d.code===0 && d.data===true){setMonitoringState();}
-	        }).catch(function(){});
+	        var initializationParams = new URLSearchParams(location.search);
+	        if (!initializationParams.has('login') && initializationParams.get('monitor') === 'pending') {
+	            continuePendingMonitor();
+	        } else {
+	            checkMonitoringState().catch(function () {});
+	        }
 	    }
 	    button.addEventListener('click', function(){
-	        fetch('/user/session',{credentials:'include'}).then(function(r){return r.json();}).then(function(d){
-	            if(d.code===0){addWatch();}else{modal.style.display='flex';}
-	        }).catch(function(){modal.style.display='flex';});
+	        fetch('/user/session',{credentials:'include'}).then(parseJsonResponse).then(function(session){
+	            if(session.ok && session.data && session.data.code===0){return addWatch();}
+	            openMonitorModal();
+	            return null;
+	        }).catch(function(){openMonitorModal();});
 	    });
 	    document.getElementById('closeMonitorModal').addEventListener('click', function(){modal.style.display='none';});
 	    modal.addEventListener('click', function(e){if(e.target===modal) modal.style.display='none';});
