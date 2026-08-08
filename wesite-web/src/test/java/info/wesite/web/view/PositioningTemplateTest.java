@@ -38,6 +38,18 @@ class PositioningTemplateTest {
         assertTrue(template.contains("th:href=\"${canonicalUrl}\""));
     }
 
+    @Test
+    void pageBreadcrumbsUseCanonicalUrlServiceWithoutDuplicateSchemas() throws IOException {
+        String detail = readTemplate("/views/blog/detail.html");
+        String tldDirectory = readTemplate("/views/domain_tlds.html");
+
+        assertFalse(detail.contains("\"item\": \"https://whose.domains/\""));
+        assertFalse(detail.contains("\"item\": \"https://whose.domains/blog\""));
+        assertTrue(detail.contains("@canonicalUrlService.canonicalUrl('/blog')"));
+        assertTrue(detail.contains("${canonicalUrl}"));
+        assertFalse(tldDirectory.contains("\"@type\": \"BreadcrumbList\""));
+    }
+
     private String readTemplate(String path) throws IOException {
         try (InputStream input = getClass().getResourceAsStream(path)) {
             return new String(input.readAllBytes(), StandardCharsets.UTF_8);
