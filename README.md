@@ -123,6 +123,10 @@ java -jar wesite-web/target/wesite-web-1.0.0.jar --spring.profiles.active=prod
 
 Alternatively point Spring at any path with `--spring.config.additional-location=file:/etc/whosedomains/`. Never place real secrets in a tracked file — keep them in environment variables or the external, gitignored `application-prod.properties`.
 
+### Post-deployment SEO contract
+
+Run `pwsh -File scripts/check-seo.ps1 -BaseUrl https://whose.domains` after each production deployment.
+
 ## Contributing
 
 Issues and PRs are welcome. Before submitting:
