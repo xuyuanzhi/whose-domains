@@ -7,26 +7,26 @@
     <meta name="Description" th:content="${_page_metaDescription}">
     <meta th:if="${_page_keywords != null}" name="keywords" th:content="${_page_keywords}">
     <meta http-equiv="x-ua-compatible" content="IE=edge" />
-    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+    <meta name="robots" th:content="${_page_robots}">
     
     <!-- AI / GEO Meta Tags -->
     <meta name="ai-purpose" th:content="${_page_metaDescription}">
     <meta name="citation_title" th:content="${_page_title}">
-    <meta name="citation_public_url" th:content="'https://whose.domains' + ${requestURI}">
+    <meta name="citation_public_url" th:content="${canonicalUrl}">
     <meta name="citation_author" content="Whose.Domains">
     <meta name="subject" th:content="${_page_subject != null ? _page_subject : 'Domain Tools & WHOIS Lookup'}">
     
     <!-- Canonical URL -->
-    <link rel="canonical" th:href="'https://whose.domains' + ${requestURI}">
-    <link rel="alternate" hreflang="en" th:href="'https://whose.domains' + ${requestURI}">
-    <link rel="alternate" hreflang="x-default" th:href="'https://whose.domains' + ${requestURI}">
+    <link rel="canonical" th:href="${canonicalUrl}">
+    <link rel="alternate" hreflang="en" th:href="${canonicalUrl}">
+    <link rel="alternate" hreflang="x-default" th:href="${canonicalUrl}">
     
     <!-- Open Graph Tags -->
     <meta property="og:type" th:content="${_og_type != null? _og_type : 'website'}">
     <meta property="og:site_name" content="Whose.Domains">
     <meta property="og:title" th:content="${_page_title}">
     <meta property="og:description" th:content="${_page_metaDescription}">
-    <meta property="og:url" th:content="'https://whose.domains' + ${requestURI}">
+    <meta property="og:url" th:content="${canonicalUrl}">
     <meta property="og:image" th:content="${_og_image_url != null ? _og_image_url : 'https://whose.domains/og-image.png'}">
     <meta property="og:locale" content="en_US">
     

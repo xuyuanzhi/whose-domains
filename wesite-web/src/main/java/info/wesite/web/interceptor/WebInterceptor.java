@@ -22,6 +22,7 @@ import info.wesite.core.utils.IpUtils;
 import info.wesite.core.utils.TokenUtils;
 import info.wesite.core.view.ResponseJson;
 import info.wesite.web.config.GoogleLoginProperties;
+import info.wesite.web.seo.CanonicalUrlService;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -36,11 +37,19 @@ public class WebInterceptor implements HandlerInterceptor {
   	
     private final Environment environment;
     private final GoogleLoginProperties googleLoginProperties;
+    private final CanonicalUrlService canonicalUrlService;
 
-    @Autowired
-    public WebInterceptor(Environment environment, GoogleLoginProperties googleLoginProperties) {
+    @Autowired(required = false)
+    public WebInterceptor(Environment environment, GoogleLoginProperties googleLoginProperties,
+            CanonicalUrlService canonicalUrlService) {
         this.environment = environment;
         this.googleLoginProperties = googleLoginProperties;
+        this.canonicalUrlService = canonicalUrlService;
+    }
+
+    @Autowired(required = false)
+    public WebInterceptor(Environment environment, GoogleLoginProperties googleLoginProperties) {
+        this(environment, googleLoginProperties, new CanonicalUrlService());
     }
 
     @Override
@@ -49,7 +58,12 @@ public class WebInterceptor implements HandlerInterceptor {
     	// 以项目启动的日期作为css/js文件的版本号，解决部署后的缓存问题
 		request.setAttribute("version", VERSION);
 		
-		request.setAttribute("requestURI", request.getRequestURI());
+		String canonicalPath = canonicalUrlService.normalizePath(request.getRequestURI());
+		request.setAttribute("requestURI", canonicalPath);
+		request.setAttribute("canonicalPath", canonicalPath);
+		request.setAttribute("canonicalUrl", canonicalUrlService.canonicalUrl(canonicalPath));
+		request.setAttribute("_page_robots",
+				"index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1");
 		request.setAttribute("_googleLoginEnabled", googleLoginProperties.enabled());
 		
 		// 是否为生产环境（用于控制Google Analytics/Ads等第三方脚本的加载）
@@ -145,7 +159,7 @@ public class WebInterceptor implements HandlerInterceptor {
      * Generate BreadcrumbList JSON-LD schema based on the request URI.
      */
     private void generateBreadcrumbs(HttpServletRequest request) {
-        String uri = request.getRequestURI();
+        String uri = canonicalUrlService.normalizePath(request.getRequestURI());
         if ("/".equals(uri)) return;
 
         // Breadcrumb name mappings
@@ -201,7 +215,7 @@ public class WebInterceptor implements HandlerInterceptor {
         home.put("@type", "ListItem");
         home.put("position", position++);
         home.put("name", "Home");
-        home.put("item", "https://whose.domains/");
+        home.put("item", canonicalUrlService.canonicalUrl("/"));
         itemList.add(home);
         
         // Build breadcrumb path
@@ -210,14 +224,14 @@ public class WebInterceptor implements HandlerInterceptor {
             toolsItem.put("@type", "ListItem");
             toolsItem.put("position", position++);
             toolsItem.put("name", "Tools");
-            toolsItem.put("item", "https://whose.domains/tools/whois-lookup");
+            toolsItem.put("item", canonicalUrlService.canonicalUrl("/tools/whois-lookup"));
             itemList.add(toolsItem);
         } else if (uri.startsWith("/info/")) {
             JSONObject helpItem = new JSONObject();
             helpItem.put("@type", "ListItem");
             helpItem.put("position", position++);
             helpItem.put("name", "Help Center");
-            helpItem.put("item", "https://whose.domains/help-center");
+            helpItem.put("item", canonicalUrlService.canonicalUrl("/help-center"));
             itemList.add(helpItem);
         }
         
@@ -227,7 +241,7 @@ public class WebInterceptor implements HandlerInterceptor {
             pageItem.put("@type", "ListItem");
             pageItem.put("position", position++);
             pageItem.put("name", pageName);
-            pageItem.put("item", "https://whose.domains" + uri);
+            pageItem.put("item", canonicalUrlService.canonicalUrl(uri));
             itemList.add(pageItem);
         } else if (uri.startsWith("/domain/")) {
             String domain = uri.substring("/domain/".length());
@@ -235,7 +249,7 @@ public class WebInterceptor implements HandlerInterceptor {
             pageItem.put("@type", "ListItem");
             pageItem.put("position", position++);
             pageItem.put("name", domain + " WHOIS");
-            pageItem.put("item", "https://whose.domains" + uri);
+            pageItem.put("item", canonicalUrlService.canonicalUrl(uri));
             itemList.add(pageItem);
         }
         
