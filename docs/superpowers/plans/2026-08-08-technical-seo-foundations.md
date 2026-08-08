@@ -42,7 +42,7 @@
 
 ---
 
-### 任务 1：修复 Sitemap 路由与 Robots 声明
+### Task 1：修复 Sitemap 路由与 Robots 声明
 
 **文件：**
 
@@ -171,7 +171,7 @@ git commit -m "fix: publish canonical sitemap routes"
 
 ---
 
-### 任务 2：集中生成规范 URL 与页面元数据
+### Task 2：集中生成规范 URL 与页面元数据
 
 **文件：**
 
@@ -293,7 +293,7 @@ git commit -m "fix: centralize canonical page URLs"
 
 ---
 
-### 任务 3：生产环境永久重定向到唯一 URL
+### Task 3：生产环境永久重定向到唯一 URL
 
 **文件：**
 
@@ -400,7 +400,7 @@ git commit -m "fix: redirect production pages to canonical URLs"
 
 ---
 
-### 任务 4：为动态域名报告增加索引质量门槛
+### Task 4：为动态域名报告增加索引质量门槛
 
 **文件：**
 
@@ -518,7 +518,7 @@ git commit -m "feat: noindex thin domain reports"
 
 ---
 
-### 任务 5：增加部署后 SEO 契约检查
+### Task 5：增加部署后 SEO 契约检查
 
 **文件：**
 
@@ -711,7 +711,7 @@ git commit -m "test: add production SEO contract checks"
 
 ---
 
-### 任务 6：全量回归与上线前证据
+### Task 6：全量回归与上线前证据
 
 **文件：**
 
