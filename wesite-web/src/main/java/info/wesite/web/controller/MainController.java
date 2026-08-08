@@ -50,6 +50,7 @@ import info.wesite.core.utils.RdapUtils;
 import info.wesite.core.view.ContactForm;
 import info.wesite.core.view.ResponseJson;
 import info.wesite.web.config.ResourceNotFoundException;
+import info.wesite.web.seo.DomainReportIndexPolicy;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
@@ -72,6 +73,8 @@ public class MainController {
 	private TldContentService tldContentService;
 	@Autowired
 	private DomainDnsService domainDnsService;
+	@Autowired
+	private DomainReportIndexPolicy domainReportIndexPolicy;
 //	@Autowired
 //	private IpAddressService ipAddressService;
 	@Autowired
@@ -242,6 +245,7 @@ public class MainController {
 				if (dnsList != null && !dnsList.isEmpty()) {
 					mv.addObject("dnsList", dnsList);
 				}
+				mv.addObject("_page_robots", domainReportIndexPolicy.robotsDirective(domain, dnsList));
 
 				logger.info("域名【{}】DNS查询完成", domainName);
 
@@ -325,9 +329,9 @@ public class MainController {
 				if (dnsList != null && !dnsList.isEmpty()) {
 					mv.addObject("dnsList", dnsList);
 				}
-
 				logger.info("域名【{}】DNS查询完成", domainName);
 
+				mv.addObject("_page_robots", "noindex, follow");
 				mv.setViewName("domain_sub_detail");
 				return mv;
 			} else {
