@@ -20,6 +20,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Date;
+import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -412,6 +413,60 @@ class UserControllerGoogleBindingTest {
                 "/user/watchlist?login=google_expired");
     }
 
+    @Test
+    void bindingFailuresPreserveAValidatedDomainMonitorContinuationForEveryErrorCode() throws Exception {
+        List<Object[]> cases = List.of(
+                new Object[] { GoogleLoginException.Code.INVALID_IDENTITY, "google_invalid" },
+                new Object[] { GoogleLoginException.Code.UNVERIFIED_EMAIL, "google_unverified" },
+                new Object[] { GoogleLoginException.Code.ACCOUNT_CONFLICT, "google_conflict" },
+                new Object[] { GoogleLoginException.Code.INACTIVE_USER, "google_inactive" },
+                new Object[] { GoogleLoginException.Code.EMAIL_CONFIRMATION_UNAVAILABLE, "google_email_unavailable" },
+                new Object[] { GoogleLoginException.Code.EXPIRED_FLOW, "google_expired" });
+
+        for (Object[] scenario : cases) {
+            GoogleLoginException.Code code = (GoogleLoginException.Code) scenario[0];
+            String loginResult = (String) scenario[1];
+            UserController isolatedController = controllerWithFreshMocks();
+            EmailLoginLinkService links = (EmailLoginLinkService) ReflectionTestUtils.getField(
+                    isolatedController, "emailLoginLinkService");
+            EmailLoginCompletionService completion = (EmailLoginCompletionService) ReflectionTestUtils.getField(
+                    isolatedController, "emailLoginCompletionService");
+            EmailLoginLink link = validLink("/user/watchlist?login=google_bind_required");
+            PendingGoogleBinding pending = livePending("email-user", "/domain/example.com?source=email&monitor=pending");
+            MockHttpSession session = sessionWith(pending);
+            when(links.getOne(any(QueryWrapper.class))).thenReturn(link);
+            when(links.update(isNull(), any(UpdateWrapper.class))).thenReturn(true);
+            when(completion.complete(EMAIL, pending)).thenThrow(new GoogleLoginException(code));
+
+            MockMvcBuilders.standaloneSetup(isolatedController).build()
+                    .perform(get("/user/verify-email").param("token", TOKEN).session(session))
+                    .andExpect(status().is3xxRedirection())
+                    .andExpect(redirectedUrl(
+                            "/domain/example.com?source=email&monitor=pending&login=" + loginResult))
+                    .andExpect(header().doesNotExist(HttpHeaders.SET_COOKIE));
+        }
+    }
+
+    @Test
+    void bindingFailureRejectsExternalAndOrdinaryPendingReturnTargets() throws Exception {
+        assertBindingFailureWithReturnTarget("https://attacker.example/steal",
+                "/user/watchlist?login=google_conflict");
+        assertBindingFailureWithReturnTarget("/user/api-keys",
+                "/user/watchlist?login=google_conflict");
+    }
+
+    @Test
+    void bindingFailureWithoutASessionKeepsTheFixedWatchlistRedirect() throws Exception {
+        EmailLoginLink link = validLink("/user/watchlist?login=google_bind_required");
+        stubValidLink(link);
+        when(emailLoginCompletionService.complete(EMAIL, null))
+                .thenThrow(new GoogleLoginException(GoogleLoginException.Code.ACCOUNT_CONFLICT));
+
+        mockMvc.perform(get("/user/verify-email").param("token", TOKEN))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/user/watchlist?login=google_conflict"));
+    }
+
     private void assertBindingFailure(GoogleLoginException.Code code, String redirect) throws Exception {
         EmailLoginLink link = validLink("/user/watchlist?login=google_bind_required");
         User user = activeUser("email-user");
@@ -455,6 +510,33 @@ class UserControllerGoogleBindingTest {
     private PendingGoogleBinding livePending(String userId) {
         return new PendingGoogleBinding(userId, "google-subject", EMAIL,
                 Instant.now().plus(15, ChronoUnit.MINUTES));
+    }
+
+    private PendingGoogleBinding livePending(String userId, String returnTo) {
+        return new PendingGoogleBinding(userId, "google-subject", EMAIL,
+                Instant.now().plus(15, ChronoUnit.MINUTES), returnTo);
+    }
+
+    private void assertBindingFailureWithReturnTarget(String returnTo, String expectedRedirect) throws Exception {
+        EmailLoginLink link = validLink("/user/watchlist?login=google_bind_required");
+        PendingGoogleBinding pending = livePending("email-user", returnTo);
+        MockHttpSession session = sessionWith(pending);
+        stubValidLink(link);
+        when(emailLoginCompletionService.complete(EMAIL, pending))
+                .thenThrow(new GoogleLoginException(GoogleLoginException.Code.ACCOUNT_CONFLICT));
+
+        mockMvc.perform(get("/user/verify-email").param("token", TOKEN).session(session))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl(expectedRedirect));
+    }
+
+    private UserController controllerWithFreshMocks() {
+        UserController fresh = new UserController();
+        ReflectionTestUtils.setField(fresh, "emailLoginLinkService", mock(EmailLoginLinkService.class));
+        ReflectionTestUtils.setField(fresh, "authCookieService", mock(AuthCookieService.class));
+        ReflectionTestUtils.setField(fresh, "emailLoginCompletionService", mock(EmailLoginCompletionService.class));
+        ReflectionTestUtils.setField(fresh, "returnTargets", new ReturnTargetService());
+        return fresh;
     }
 
     private MockHttpSession sessionWith(PendingGoogleBinding pending) {

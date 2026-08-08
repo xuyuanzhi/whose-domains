@@ -107,8 +107,8 @@ public class UserController {
     }
 
     @ExceptionHandler(GoogleLoginException.class)
-    public String googleBindingFailure(GoogleLoginException exception) {
-        return "redirect:/user/watchlist?login=" + switch (exception.code()) {
+    public String googleBindingFailure(GoogleLoginException exception, HttpServletRequest request) {
+        String loginResult = switch (exception.code()) {
         case INVALID_IDENTITY -> "google_invalid";
         case UNVERIFIED_EMAIL -> "google_unverified";
         case ACCOUNT_CONFLICT -> "google_conflict";
@@ -116,6 +116,14 @@ public class UserController {
         case EMAIL_CONFIRMATION_UNAVAILABLE -> "google_email_unavailable";
         case EXPIRED_FLOW -> "google_expired";
         };
+        HttpSession session = request.getSession(false);
+        PendingGoogleBinding pending = session == null
+                ? null
+                : pendingBinding(session.getAttribute(PendingGoogleBinding.SESSION_KEY));
+        if (pending != null && returnTargets.isDomainMonitorContinuation(pending.returnTo())) {
+            return "redirect:" + returnTargets.monitorLoginResultUrl(pending.returnTo(), loginResult);
+        }
+        return "redirect:/user/watchlist?login=" + loginResult;
     }
 
     private PendingGoogleBinding pendingBinding(Object value) {

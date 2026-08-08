@@ -65,6 +65,7 @@ class FakeElement {
 class FakeDocument {
     constructor() {
         this.elements = new Map();
+        this.listeners = new Map();
         this.body = { appendChild() {} };
     }
 
@@ -76,6 +77,15 @@ class FakeDocument {
 
     getElementById(id) {
         return this.elements.get(id) || null;
+    }
+
+    addEventListener(type, listener) {
+        if (!this.listeners.has(type)) this.listeners.set(type, []);
+        this.listeners.get(type).push(listener);
+    }
+
+    dispatch(type, event = {}) {
+        for (const listener of this.listeners.get(type) || []) listener(event);
     }
 }
 
@@ -97,23 +107,34 @@ function responseWithJsonFailure(status, message = 'invalid JSON') {
     });
 }
 
+function deferred() {
+    let resolve;
+    let reject;
+    const promise = new Promise((resolvePromise, rejectPromise) => {
+        resolve = resolvePromise;
+        reject = rejectPromise;
+    });
+    return { promise, resolve, reject };
+}
+
 function createHarness({
     pathname = '/domain/example.com',
     search = '',
     hash = '',
     responses = {},
+    googleEnabled = true,
     emailLoginResponse = () => response({ code: 0 })
 } = {}) {
     const document = new FakeDocument();
     const monitorButton = document.register('monitorDomainBtn', { 'data-domain': 'example.com' });
     const modal = document.register('monitorModal');
-    const googleLink = document.register('monitorGoogleLogin');
-    const googleMessage = document.register('monitorGoogleMessage');
+    const googleLink = googleEnabled ? document.register('monitorGoogleLogin') : null;
+    const googleMessage = googleEnabled ? document.register('monitorGoogleMessage') : null;
     const email = document.register('monitorEmail');
     const sendLinkButton = document.register('sendMonitorLink');
     const emailMessage = document.register('monitorEmailMessage');
     document.register('monitorDomainName');
-    document.register('closeMonitorModal');
+    const closeButton = document.register('closeMonitorModal');
     const fetchCalls = [];
     const historyCalls = [];
     const context = vm.createContext({
@@ -154,6 +175,8 @@ function createHarness({
         email,
         sendLinkButton,
         emailMessage,
+        closeButton,
+        document,
         button: monitorButton,
         fetchCalls,
         historyCalls,
@@ -169,7 +192,7 @@ function createHarness({
 }
 
 async function flushPromises() {
-    for (let index = 0; index < 12; index++) await Promise.resolve();
+    await new Promise((resolve) => setImmediate(resolve));
 }
 
 test('monitor email validation writes to the dedicated email status without an old shared message node', () => {
@@ -286,6 +309,11 @@ test('email link errors reopen the monitor dialog in the email status region', a
 
     assert.equal(harness.emailMessage.textContent, 'This sign-in link is invalid or has expired.');
     assert.equal(harness.googleMessage.textContent, '');
+    assert.equal(harness.fetchCalls.some((call) => [
+        '/api/domain-watch/check/example.com',
+        '/user/session',
+        '/api/domain-watch/watch'
+    ].includes(call.url)), false);
     assert.deepEqual(harness.historyCalls, [{
         state: null,
         title: '',
@@ -624,4 +652,176 @@ test('pending continuation clears its URL marker before requesting the session',
 
     assert.equal(historyCountWhenSessionRequested, 1);
     assert.deepEqual(harness.historyUrls, ['/domain/example.com?source=email#whois']);
+});
+
+test('an idempotent already-watched response enters Monitoring without opening a failure dialog', async () => {
+    const harness = createHarness({
+        search: '?monitor=pending',
+        responses: {
+            '/user/session': response(200, {code: 0}),
+            '/api/domain-watch/check/example.com': response(200, {code: 0, data: false}),
+            '/api/domain-watch/watch': response(200, {
+                code: 0,
+                msg: 'Domain is already being monitored.',
+                data: {id: 'watch-1', domainName: 'example.com', status: 1}
+            })
+        }
+    }).run();
+    await harness.flushPromises();
+
+    assert.equal(harness.button.textContent.includes('Monitoring'), true);
+    assert.equal(harness.modal.style.display, undefined);
+    assert.equal(harness.emailMessage.textContent, '');
+});
+
+test('pending continuation and repeated clicks share one in-flight session check and watch chain', async () => {
+    const sessionGate = deferred();
+    const harness = createHarness({
+        search: '?monitor=pending',
+        responses: {
+            '/user/session': () => sessionGate.promise,
+            '/api/domain-watch/check/example.com': response(200, {code: 0, data: false}),
+            '/api/domain-watch/watch': response(200, {code: 0})
+        }
+    }).run();
+
+    assert.equal(harness.button.disabled, true);
+    assert.equal(harness.button.getAttribute('aria-busy'), 'true');
+    harness.button.dispatch('click');
+    harness.button.dispatch('click');
+    assert.deepEqual(harness.fetchCalls.map((call) => call.url), ['/user/session']);
+
+    sessionGate.resolve(await response(200, {code: 0}));
+    await harness.flushPromises();
+
+    assert.deepEqual(harness.fetchCalls.map((call) => call.url), [
+        '/user/session',
+        '/api/domain-watch/check/example.com',
+        '/api/domain-watch/watch'
+    ]);
+    assert.equal(harness.button.textContent.includes('Monitoring'), true);
+    assert.equal(harness.button.disabled, true);
+    assert.equal(harness.button.getAttribute('aria-busy'), 'false');
+});
+
+test('a failed shared monitor flow releases busy state and a later click retries', async () => {
+    let checkAttempts = 0;
+    const harness = createHarness({
+        search: '?monitor=pending',
+        responses: {
+            '/user/session': response(200, {code: 0}),
+            '/api/domain-watch/check/example.com': () => {
+                checkAttempts++;
+                return checkAttempts === 1
+                    ? response(503, {code: 500, msg: 'Monitoring is temporarily unavailable.'})
+                    : response(200, {code: 0, data: false});
+            },
+            '/api/domain-watch/watch': response(200, {code: 0})
+        }
+    }).run();
+    await harness.flushPromises();
+
+    assert.equal(harness.emailMessage.textContent, 'Monitoring is temporarily unavailable.');
+    assert.equal(harness.fetchCalls.some((call) => call.url === '/api/domain-watch/watch'), false);
+    assert.equal(harness.button.disabled, false);
+    assert.equal(harness.button.getAttribute('aria-busy'), 'false');
+
+    harness.button.dispatch('click');
+    await harness.flushPromises();
+
+    assert.equal(checkAttempts, 2);
+    assert.equal(harness.fetchCalls.filter((call) => call.url === '/api/domain-watch/watch').length, 1);
+    assert.equal(harness.button.textContent.includes('Monitoring'), true);
+});
+
+test('ordinary monitoring check failures are visible and never fall through to POST watch', async () => {
+    const cases = [
+        {name: 'HTTP failure', check: response(503, {code: 500, msg: 'Check service unavailable.'}), message: 'Check service unavailable.'},
+        {name: 'business failure', check: response(200, {code: 500, msg: 'Check rejected.'}), message: 'Check rejected.'},
+        {name: 'JSON failure', check: responseWithJsonFailure(200), message: 'Could not check whether this domain is already monitored.'},
+        {name: 'network failure', check: () => Promise.reject(new Error('network unavailable')), message: 'Could not check whether this domain is already monitored.'}
+    ];
+
+    for (const scenario of cases) {
+        const harness = createHarness({
+            search: '?monitor=pending',
+            responses: {
+                '/user/session': response(200, {code: 0}),
+                '/api/domain-watch/check/example.com': scenario.check,
+                '/api/domain-watch/watch': response(200, {code: 0})
+            }
+        }).run();
+        await harness.flushPromises();
+
+        assert.equal(harness.modal.style.display, 'flex', scenario.name);
+        assert.equal(harness.emailMessage.textContent, scenario.message, scenario.name);
+        assert.equal(harness.fetchCalls.some((call) => call.url === '/api/domain-watch/watch'), false, scenario.name);
+        assert.equal(harness.button.disabled, false, scenario.name);
+    }
+});
+
+test('monitoring check authentication failures use the sign-in path and never POST watch', async () => {
+    const cases = [
+        {name: 'HTTP 401', check: response(401, {code: 500})},
+        {name: 'HTTP 403', check: response(403, {code: 0})},
+        {name: 'business 401', check: response(200, {code: 401})},
+        {name: 'business -401', check: response(200, {code: -401})}
+    ];
+
+    for (const scenario of cases) {
+        const harness = createHarness({
+            search: '?monitor=pending',
+            responses: {
+                '/user/session': response(200, {code: 0}),
+                '/api/domain-watch/check/example.com': scenario.check,
+                '/api/domain-watch/watch': response(200, {code: 0})
+            }
+        }).run();
+        await harness.flushPromises();
+
+        assert.equal(harness.modal.style.display, 'flex', scenario.name);
+        assert.equal(harness.emailMessage.textContent, '', scenario.name);
+        assert.equal(harness.fetchCalls.some((call) => call.url === '/api/domain-watch/watch'), false, scenario.name);
+        assert.equal(harness.button.disabled, false, scenario.name);
+    }
+});
+
+test('monitor dialog falls back to email focus when Google is disabled', async () => {
+    const harness = createHarness({
+        googleEnabled: false,
+        responses: {
+            '/api/domain-watch/check/example.com': response(200, {code: 0, data: false}),
+            '/user/session': response(401, {code: 401})
+        }
+    }).run();
+    await harness.flushPromises();
+
+    harness.button.dispatch('click');
+    await harness.flushPromises();
+
+    assert.equal(harness.modal.style.display, 'flex');
+    assert.equal(harness.email.focused, true);
+});
+
+test('close button and Escape close the monitor dialog and restore focus to its trigger', async () => {
+    const harness = createHarness({
+        responses: {
+            '/api/domain-watch/check/example.com': response(200, {code: 0, data: false}),
+            '/user/session': response(401, {code: 401})
+        }
+    }).run();
+    await harness.flushPromises();
+
+    harness.button.dispatch('click');
+    await harness.flushPromises();
+    harness.closeButton.dispatch('click');
+    assert.equal(harness.modal.style.display, 'none');
+    assert.equal(harness.button.focused, true);
+
+    harness.button.focused = false;
+    harness.button.dispatch('click');
+    await harness.flushPromises();
+    harness.document.dispatch('keydown', {key: 'Escape'});
+    assert.equal(harness.modal.style.display, 'none');
+    assert.equal(harness.button.focused, true);
 });

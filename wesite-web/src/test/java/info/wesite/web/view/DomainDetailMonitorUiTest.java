@@ -68,6 +68,20 @@ class DomainDetailMonitorUiTest {
         assertFalse(template.contains("localStorage"));
     }
 
+    @Test
+    void monitorDialogHasPersistentAccessibleNamesAndDescription() throws IOException {
+        String template = template();
+
+        assertTrue(template.contains("role=\"dialog\" aria-modal=\"true\""));
+        assertTrue(template.contains("aria-labelledby=\"monitorModalTitle\""));
+        assertTrue(template.contains("aria-describedby=\"monitorModalDescription\""));
+        assertTrue(template.contains("id=\"monitorModalTitle\""));
+        assertTrue(template.contains("id=\"monitorModalDescription\""));
+        assertTrue(template.contains("id=\"monitorEmail\" class=\"monitor-email-input\" type=\"email\" autocomplete=\"email\" aria-label=\"Email address\""));
+        assertTrue(template.contains("Sign in to start expiry alerts for"));
+        assertFalse(template.contains("We'll email a secure sign-in link"));
+    }
+
     private String template() throws IOException {
         try (InputStream input = getClass().getResourceAsStream("/views/domain_detail.html")) {
             assertNotNull(input);

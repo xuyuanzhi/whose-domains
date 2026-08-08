@@ -7,6 +7,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -83,7 +84,7 @@ public class DomainWatchController {
                         .eq(DomainWatch::getDomainName, domainName));
         if (existing != null) {
             if (existing.getStatus() == DomainWatch.STATUS_ACTIVE) {
-                return ResponseJson.failure("You are already watching this domain.");
+                return ResponseJson.success("Domain is already being monitored.", existing);
             } else {
                 // 重新激活
                 existing.setStatus(DomainWatch.STATUS_ACTIVE);
@@ -128,11 +129,21 @@ public class DomainWatchController {
 
         watch.setLastCheckTime(new Date());
 
-        if (domainWatchService.save(watch)) {
-            return ResponseJson.success("Domain watch added successfully.", watch);
-        } else {
-            return ResponseJson.failure("Failed to add domain watch.");
+        try {
+            if (domainWatchService.save(watch)) {
+                return ResponseJson.success("Domain watch added successfully.", watch);
+            }
+        } catch (DuplicateKeyException exception) {
+            DomainWatch concurrentWinner = domainWatchService.getOne(
+                    Wrappers.<DomainWatch>lambdaQuery()
+                            .eq(DomainWatch::getUserId, userId)
+                            .eq(DomainWatch::getDomainName, domainName));
+            if (concurrentWinner != null && concurrentWinner.getStatus() == DomainWatch.STATUS_ACTIVE) {
+                return ResponseJson.success("Domain is already being monitored.", concurrentWinner);
+            }
+            throw exception;
         }
+        return ResponseJson.failure("Failed to add domain watch.");
     }
 
     @Operation(summary = "取消域名监控")

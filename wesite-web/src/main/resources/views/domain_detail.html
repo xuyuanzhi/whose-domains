@@ -54,10 +54,10 @@
 	            </div>
 
 	            <div id="monitorModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:99999;align-items:center;justify-content:center;">
-	                <div style="width:min(420px,calc(100% - 40px));padding:28px;border-radius:14px;background:#0d1117;border:1px solid rgba(100,255,218,.25);position:relative;">
+	                <div role="dialog" aria-modal="true" aria-labelledby="monitorModalTitle" aria-describedby="monitorModalDescription" style="width:min(420px,calc(100% - 40px));padding:28px;border-radius:14px;background:#0d1117;border:1px solid rgba(100,255,218,.25);position:relative;">
 	                    <button type="button" id="closeMonitorModal" aria-label="Close" style="position:absolute;right:14px;top:10px;border:0;background:transparent;color:#aaa;font-size:24px;cursor:pointer;">&times;</button>
-	                    <h3 style="margin:0 0 8px;color:#e2e8f0;">Monitor this domain</h3>
-	                    <p style="margin:0 0 16px;color:#9ca3af;font-size:14px;">We'll email a secure sign-in link, then start expiry alerts for <strong id="monitorDomainName"></strong>.</p>
+	                    <h3 id="monitorModalTitle" style="margin:0 0 8px;color:#e2e8f0;">Monitor this domain</h3>
+	                    <p id="monitorModalDescription" style="margin:0 0 16px;color:#9ca3af;font-size:14px;">Sign in to start expiry alerts for <strong id="monitorDomainName"></strong>.</p>
 	                    <div id="monitorGoogleSection" class="auth-method monitor-google-section" th:if="${_googleLoginEnabled}">
 	                        <a id="monitorGoogleLogin" class="auth-google-button" href="/login/google">
 	                            <svg class="auth-google-icon" aria-hidden="true" viewBox="0 0 18 18" focusable="false">
@@ -72,7 +72,7 @@
 	                    </div>
 	                    <div class="auth-login-divider monitor-login-divider" th:if="${_googleLoginEnabled}"><span>or</span></div>
 	                    <div class="auth-method monitor-email-section">
-	                        <input id="monitorEmail" class="monitor-email-input" type="email" autocomplete="email" placeholder="you@example.com">
+	                        <input id="monitorEmail" class="monitor-email-input" type="email" autocomplete="email" aria-label="Email address" placeholder="you@example.com">
 	                        <button type="button" id="sendMonitorLink" class="monitor-email-submit">Email me a sign-in link</button>
 	                        <div id="monitorEmailMessage" role="status" aria-live="polite" aria-atomic="true" class="auth-method-message"></div>
 	                    </div>
@@ -256,6 +256,9 @@
 	    var emailMessage = document.getElementById('monitorEmailMessage');
 	    var email = document.getElementById('monitorEmail');
 	    var sendLinkButton = document.getElementById('sendMonitorLink');
+	    var closeButton = document.getElementById('closeMonitorModal');
+	    var monitoringState = false;
+	    var watchInFlight = null;
 	    var monitorLoginMessages = {
 	        invalid: {target: 'email', text: 'This sign-in link is invalid or has expired.'},
 	        google_error: {target: 'google', text: 'Google sign-in could not be completed. Please try again.'},
@@ -286,6 +289,10 @@
 	        var initialFocus = googleLink || email;
 	        if (initialFocus) initialFocus.focus();
 	    }
+	    function closeMonitorModal() {
+	        modal.style.display = 'none';
+	        button.focus();
+	    }
 	    function clearMonitorContinuation() {
 	        var params = new URLSearchParams(location.search);
 	        params.delete('monitor');
@@ -313,11 +320,20 @@
 	        googleLink.href = '/login/google?returnTo=' + encodeURIComponent(monitorReturnTo());
 	    }
 	    function setMonitoringState() {
+	        monitoringState = true;
 	        button.innerHTML = '<i class="fas fa-check"></i> Monitoring';
 	        button.disabled = true;
 	        button.style.backgroundColor = '#8bc34a';
 	        button.style.cursor = 'default';
 	        button.setAttribute('aria-label', 'This domain is already in your watchlist');
+	    }
+	    function setWatchBusy(busy) {
+	        button.setAttribute('aria-busy', busy ? 'true' : 'false');
+	        if (busy) {
+	            button.disabled = true;
+	        } else if (!monitoringState) {
+	            button.disabled = false;
+	        }
 	    }
 	    function setSendLinkLoading(loading) {
 	        sendLinkButton.disabled = loading;
@@ -351,13 +367,38 @@
 	            return {ok: response.ok, status: response.status, data: data};
 	        });
 	    }
-	    function checkMonitoringState() {
+	    function isAuthenticationFailure(result) {
+	        var data = result.data || {};
+	        return result.status === 401 || result.status === 403 || data.code === 401 || data.code === -401;
+	    }
+	    function checkMonitoringState(showFailure) {
 	        return fetch('/api/domain-watch/check/' + encodeURIComponent(domain), {credentials:'include'})
 	            .then(parseJsonResponse)
 	            .then(function (result) {
-	                var isWatching = !!(result.ok && result.data && result.data.code === 0 && result.data.data === true);
-	                if (isWatching) setMonitoringState();
-	                return isWatching;
+	                var data = result.data || {};
+	                if (result.ok && data.code === 0 && data.data === true) {
+	                    setMonitoringState();
+	                    return 'watched';
+	                }
+	                if (result.ok && data.code === 0 && data.data === false) {
+	                    return 'not-watched';
+	                }
+	                if (showFailure) {
+	                    if (isAuthenticationFailure(result)) {
+	                        openMonitorModal();
+	                    } else {
+	                        openMonitorModal(emailMessage,
+	                            data.msg || 'Could not check whether this domain is already monitored.');
+	                    }
+	                }
+	                return 'failed';
+	            })
+	            .catch(function () {
+	                if (showFailure) {
+	                    openMonitorModal(emailMessage,
+	                        'Could not check whether this domain is already monitored.');
+	                }
+	                return 'failed';
 	            });
 	    }
 	    function addWatch() {
@@ -369,7 +410,7 @@
 	                    setMonitoringState();
 	                    return 'added';
 	                }
-	                if (result.status === 401 || result.status === 403 || data.code === 401 || data.code === -401) {
+	                if (isAuthenticationFailure(result)) {
 	                    openMonitorModal();
 	                    return 'auth-required';
 	                }
@@ -382,43 +423,57 @@
 	            });
 	    }
 	    var monitorContinuationStarted = false;
-	    function continuePendingMonitor() {
-	        var params = new URLSearchParams(location.search);
-	        if (params.get('monitor') !== 'pending' || monitorContinuationStarted) return Promise.resolve();
-	        monitorContinuationStarted = true;
-	        clearMonitorContinuation();
-	        return fetch('/user/session', {credentials: 'include'})
+	    function startWatchFlow(checkExisting, continuationFailureMessage) {
+	        if (watchInFlight) return watchInFlight;
+	        setWatchBusy(true);
+	        watchInFlight = fetch('/user/session', {credentials: 'include'})
 	            .then(parseJsonResponse)
 	            .then(function (session) {
 	                if (!session.ok || !session.data || session.data.code !== 0) {
 	                    openMonitorModal();
 	                    return null;
 	                }
-	                return checkMonitoringState().then(function (alreadyWatching) {
-	                    return alreadyWatching ? null : addWatch();
+	                if (!checkExisting) return addWatch();
+	                return checkMonitoringState(true).then(function (state) {
+	                    return state === 'not-watched' ? addWatch() : null;
 	                });
 	            })
 	            .catch(function () {
-	                openMonitorModal(emailMessage, 'Could not start monitoring. Please try again.');
+	                if (continuationFailureMessage) {
+	                    openMonitorModal(emailMessage, continuationFailureMessage);
+	                } else {
+	                    openMonitorModal();
+	                }
+	            })
+	            .finally(function () {
+	                watchInFlight = null;
+	                setWatchBusy(false);
 	            });
+	        return watchInFlight;
+	    }
+	    function continuePendingMonitor() {
+	        var params = new URLSearchParams(location.search);
+	        if (params.get('monitor') !== 'pending' || monitorContinuationStarted) return Promise.resolve();
+	        monitorContinuationStarted = true;
+	        clearMonitorContinuation();
+	        return startWatchFlow(true, 'Could not start monitoring. Please try again.');
 	    }
 	    if (!showMonitorLoginResult()) {
 	        var initializationParams = new URLSearchParams(location.search);
 	        if (!initializationParams.has('login') && initializationParams.get('monitor') === 'pending') {
 	            continuePendingMonitor();
 	        } else {
-	            checkMonitoringState().catch(function () {});
+	            checkMonitoringState(false);
 	        }
 	    }
 	    button.addEventListener('click', function(){
-	        fetch('/user/session',{credentials:'include'}).then(parseJsonResponse).then(function(session){
-	            if(session.ok && session.data && session.data.code===0){return addWatch();}
-	            openMonitorModal();
-	            return null;
-	        }).catch(function(){openMonitorModal();});
+	        startWatchFlow(monitorContinuationStarted, null);
 	    });
-	    document.getElementById('closeMonitorModal').addEventListener('click', function(){modal.style.display='none';});
-	    modal.addEventListener('click', function(e){if(e.target===modal) modal.style.display='none';});
+	    closeButton.addEventListener('click', closeMonitorModal);
+	    modal.addEventListener('click', function(e){if(e.target===modal) closeMonitorModal();});
+	    document.addEventListener('keydown', function(e){
+	        if(e.key==='Escape' && modal.style.display==='flex') closeMonitorModal();
+	    });
 	    sendLinkButton.addEventListener('click', function(){
 	        var value=email.value.trim();
 	        if(!value){setMonitorMessage(emailMessage,'Enter your email address.','#ff5252');return;}
