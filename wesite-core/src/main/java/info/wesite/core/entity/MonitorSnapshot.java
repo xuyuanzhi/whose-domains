@@ -17,4 +17,8 @@ public class MonitorSnapshot extends BaseEntity {
     private Date checkedAt;
 
     private String stateJson;
+
+    private Integer schemaVersion;
+
+    private String observedSources;
 }

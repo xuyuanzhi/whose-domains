@@ -162,6 +162,34 @@ class MonitorChangeDetectorTest {
         assertEquals("true", event.newValue());
     }
 
+    @Test
+    void changesAreComparedOnlyForSourcesObservedOnBothSnapshots() {
+        MonitorState previous = state()
+            .sslExpiry(today().plusDays(8))
+            .dns(Map.of())
+            .website(true, 0)
+            .build();
+        MonitorState current = state()
+            .sslExpiry(today().plusDays(7))
+            .dns(Map.of("A", Set.of("203.0.113.8")))
+            .website(false, 2)
+            .build();
+
+        List<MonitorEventDraft> events = detector.detect(
+            previous,
+            current,
+            CLOCK.instant().minusSeconds(86_400),
+            CLOCK.instant(),
+            Set.of(MonitorCollectorResult.Source.DOMAIN),
+            Set.of(
+                MonitorCollectorResult.Source.DOMAIN,
+                MonitorCollectorResult.Source.DNS,
+                MonitorCollectorResult.Source.SSL,
+                MonitorCollectorResult.Source.WEBSITE));
+
+        assertTrue(events.isEmpty());
+    }
+
     private static MonitorEventDraft onlyEventOfType(List<MonitorEventDraft> events, MonitorEventType type) {
         List<MonitorEventDraft> matching = events.stream().filter(event -> event.type() == type).toList();
         assertEquals(1, matching.size());

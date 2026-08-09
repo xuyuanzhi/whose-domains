@@ -5,13 +5,13 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
-import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
@@ -36,20 +36,19 @@ public class DomainMonitorCollector {
     private static final int CONNECT_TIMEOUT_MS = 5_000;
     private static final int READ_TIMEOUT_MS = 8_000;
     private static final int MAX_RESPONSE_CHARS = 1_048_576;
-    private static final int MAX_REDIRECTS = 3;
+    private static final Duration COLLECT_TIMEOUT = Duration.ofSeconds(10);
 
-    private final TextLookup rdapLookup;
-    private final TextLookup whoisLookup;
+    private final TimedTextLookup rdapLookup;
+    private final TimedTextLookup whoisLookup;
     private final DomainParser rdapParser;
     private final DomainParser whoisParser;
 
     @Autowired
     public DomainMonitorCollector(WhoisUtils whoisUtils) {
-        this(
-            DomainMonitorCollector::readRdap,
-            DomainMonitorCollector::readWhois,
-            RdapUtils::fillRdapInfoFromText,
-            whoisUtils::fillWhoisInfoFromText0);
+        this.rdapLookup = DomainMonitorCollector::readRdap;
+        this.whoisLookup = DomainMonitorCollector::readWhois;
+        this.rdapParser = RdapUtils::fillRdapInfoFromText;
+        this.whoisParser = whoisUtils::fillWhoisInfoFromText0;
     }
 
     DomainMonitorCollector(
@@ -57,13 +56,20 @@ public class DomainMonitorCollector {
         TextLookup whoisLookup,
         DomainParser rdapParser,
         DomainParser whoisParser) {
-        this.rdapLookup = java.util.Objects.requireNonNull(rdapLookup, "rdapLookup");
-        this.whoisLookup = java.util.Objects.requireNonNull(whoisLookup, "whoisLookup");
+        java.util.Objects.requireNonNull(rdapLookup, "rdapLookup");
+        java.util.Objects.requireNonNull(whoisLookup, "whoisLookup");
+        this.rdapLookup = (domain, server, deadline) -> rdapLookup.lookup(domain, server);
+        this.whoisLookup = (domain, server, deadline) -> whoisLookup.lookup(domain, server);
         this.rdapParser = java.util.Objects.requireNonNull(rdapParser, "rdapParser");
         this.whoisParser = java.util.Objects.requireNonNull(whoisParser, "whoisParser");
     }
 
     public MonitorCollectorResult collect(Domain domain) {
+        return collect(domain, MonitorDeadline.after(COLLECT_TIMEOUT));
+    }
+
+    public MonitorCollectorResult collect(Domain domain, MonitorDeadline deadline) {
+        java.util.Objects.requireNonNull(deadline, "deadline");
         if (domain == null || StringUtils.isBlank(domain.getName())) {
             return failure(MonitorCollectorResult.FailureKind.NO_SOURCE, "Domain lookup seed is missing");
         }
@@ -71,7 +77,7 @@ public class DomainMonitorCollector {
         Attempt lastFailure = null;
         String rdapServer = firstNonBlank(domain.getRdapServer(), domain.getParentRdapServer());
         if (rdapServer != null) {
-            Attempt attempt = attempt(domain, rdapServer, rdapLookup, rdapParser, true);
+            Attempt attempt = attempt(domain, rdapServer, rdapLookup, rdapParser, true, deadline);
             if (attempt.result() != null) {
                 return attempt.result();
             }
@@ -80,7 +86,7 @@ public class DomainMonitorCollector {
 
         String whoisServer = domain.getFinalWhoisServer();
         if (whoisServer != null) {
-            Attempt attempt = attempt(domain, whoisServer, whoisLookup, whoisParser, false);
+            Attempt attempt = attempt(domain, whoisServer, whoisLookup, whoisParser, false, deadline);
             if (attempt.result() != null) {
                 return attempt.result();
             }
@@ -97,11 +103,14 @@ public class DomainMonitorCollector {
     private Attempt attempt(
         Domain seed,
         String server,
-        TextLookup lookup,
+        TimedTextLookup lookup,
         DomainParser parser,
-        boolean rdap) {
+        boolean rdap,
+        MonitorDeadline deadline) {
         try {
-            String text = lookup.lookup(seed.getName(), server);
+            deadline.throwIfExpired();
+            String text = lookup.lookup(seed.getName(), server, deadline);
+            deadline.throwIfExpired();
             if (StringUtils.isBlank(text)) {
                 return new Attempt(null, MonitorCollectorResult.FailureKind.LOOKUP_ERROR,
                     (rdap ? "RDAP" : "WHOIS") + " returned no response");
@@ -123,16 +132,16 @@ public class DomainMonitorCollector {
                 return new Attempt(null, MonitorCollectorResult.FailureKind.PARSE_ERROR,
                     (rdap ? "RDAP" : "WHOIS") + " response could not be parsed");
             }
-            if (StringUtils.isBlank(candidate.getDomainStatus())
-                && StringUtils.isBlank(candidate.getRegistExpiryDateText())) {
+            MonitorState normalized = state(candidate);
+            if (normalized.domainStatuses().isEmpty() && normalized.domainExpiry() == null) {
                 return new Attempt(null, MonitorCollectorResult.FailureKind.PARSE_ERROR,
                     (rdap ? "RDAP" : "WHOIS") + " response contained no comparable state");
             }
 
-            copyMonitoredFields(candidate, seed);
+            copyMonitoredFields(candidate, seed, normalized);
             return new Attempt(MonitorCollectorResult.success(
                 MonitorCollectorResult.Source.DOMAIN,
-                state(candidate)), null, null);
+                normalized), null, null);
         } catch (MonitorTargetPolicy.BlockedTargetException blocked) {
             return new Attempt(null, MonitorCollectorResult.FailureKind.BLOCKED_TARGET, message(blocked));
         } catch (SocketTimeoutException timeout) {
@@ -144,62 +153,37 @@ public class DomainMonitorCollector {
         }
     }
 
-    private static String readRdap(String domain, String server) throws Exception {
+    private static String readRdap(
+        String domain,
+        String server,
+        MonitorDeadline deadline) throws Exception {
         String separator = server.endsWith("/") ? "" : "/";
         URI uri = URI.create(server + separator + "domain/" + domain);
-        return readRdap(uri, MAX_REDIRECTS);
+        BoundHttpClient.Response response = new BoundHttpClient().execute(uri, "GET", deadline);
+        return response.status() >= 200 && response.status() < 300
+            ? new String(response.body(), StandardCharsets.UTF_8)
+            : null;
     }
 
-    private static String readRdap(URI uri, int redirectsRemaining) throws Exception {
-        String scheme = uri.getScheme();
-        if (!("https".equalsIgnoreCase(scheme) || "http".equalsIgnoreCase(scheme))
-            || uri.getHost() == null) {
-            throw new MonitorTargetPolicy.BlockedTargetException("RDAP target must be HTTP(S)");
-        }
-        MonitorTargetPolicy.resolvePublic(uri.getHost());
-
-        HttpURLConnection connection = (HttpURLConnection) uri.toURL().openConnection();
-        try {
-            connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
-            connection.setReadTimeout(READ_TIMEOUT_MS);
-            connection.setInstanceFollowRedirects(false);
-            connection.setRequestMethod("GET");
-            connection.setRequestProperty("Accept", "application/rdap+json, application/json");
-            connection.setRequestProperty("User-Agent", "WhoseDomains-Monitor/1.0");
-            int status = connection.getResponseCode();
-            if (status >= 300 && status < 400 && redirectsRemaining > 0) {
-                String location = connection.getHeaderField("Location");
-                if (StringUtils.isBlank(location)) {
-                    return null;
-                }
-                return readRdap(uri.resolve(location), redirectsRemaining - 1);
-            }
-            if (status < 200 || status >= 300) {
-                return null;
-            }
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(
-                connection.getInputStream(), StandardCharsets.UTF_8))) {
-                return readBounded(reader);
-            }
-        } finally {
-            connection.disconnect();
-        }
-    }
-
-    private static String readWhois(String domain, String server) throws Exception {
+    private static String readWhois(
+        String domain,
+        String server,
+        MonitorDeadline deadline) throws Exception {
         MonitorTargetPolicy.ResolvedTarget target = MonitorTargetPolicy.resolvePublic(server);
         IOException lastFailure = null;
         for (java.net.InetAddress address : target.addresses()) {
+            deadline.throwIfExpired();
             try (Socket socket = new Socket()) {
-                socket.connect(new InetSocketAddress(address, 43), CONNECT_TIMEOUT_MS);
-                socket.setSoTimeout(READ_TIMEOUT_MS);
+                socket.connect(new InetSocketAddress(address, 43),
+                    deadline.timeoutMillis(CONNECT_TIMEOUT_MS));
+                socket.setSoTimeout(deadline.timeoutMillis(READ_TIMEOUT_MS));
                 try (Writer writer = new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8);
                     BufferedReader reader = new BufferedReader(new InputStreamReader(
                         socket.getInputStream(), StandardCharsets.UTF_8))) {
                     writer.write(domain);
                     writer.write("\r\n");
                     writer.flush();
-                    return readBounded(reader);
+                    return readBounded(reader, socket, deadline);
                 }
             } catch (IOException failure) {
                 lastFailure = failure;
@@ -208,11 +192,20 @@ public class DomainMonitorCollector {
         throw lastFailure == null ? new UnknownHostException(target.host()) : lastFailure;
     }
 
-    private static String readBounded(BufferedReader reader) throws IOException {
+    private static String readBounded(
+        BufferedReader reader,
+        Socket socket,
+        MonitorDeadline deadline) throws IOException {
         StringBuilder value = new StringBuilder();
         char[] buffer = new char[4_096];
         int count;
-        while ((count = reader.read(buffer)) >= 0) {
+        while (true) {
+            socket.setSoTimeout(deadline.timeoutMillis(READ_TIMEOUT_MS));
+            count = reader.read(buffer);
+            deadline.throwIfExpired();
+            if (count < 0) {
+                break;
+            }
             if (value.length() + count > MAX_RESPONSE_CHARS) {
                 throw new IOException("Monitoring response exceeded size limit");
             }
@@ -231,10 +224,17 @@ public class DomainMonitorCollector {
         return candidate;
     }
 
-    private static void copyMonitoredFields(Domain source, Domain target) {
+    private static void copyMonitoredFields(
+        Domain source,
+        Domain target,
+        MonitorState normalized) {
         target.setRegistrar(source.getRegistrar());
-        target.setDomainStatus(source.getDomainStatus());
-        target.setRegistExpiryDateText(source.getRegistExpiryDateText());
+        if (!normalized.domainStatuses().isEmpty()) {
+            target.setDomainStatus(source.getDomainStatus());
+        }
+        if (normalized.domainExpiry() != null) {
+            target.setRegistExpiryDateText(source.getRegistExpiryDateText());
+        }
         if (StringUtils.isNotBlank(source.getRdapServer())) {
             target.setRdapServer(source.getRdapServer());
         }
@@ -299,6 +299,11 @@ public class DomainMonitorCollector {
     @FunctionalInterface
     interface TextLookup {
         String lookup(String domain, String server) throws Exception;
+    }
+
+    @FunctionalInterface
+    private interface TimedTextLookup {
+        String lookup(String domain, String server, MonitorDeadline deadline) throws Exception;
     }
 
     @FunctionalInterface

@@ -7,11 +7,13 @@ import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
+import java.time.Duration;
 import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.Set;
 
 import javax.net.ssl.SSLParameters;
+import javax.net.ssl.SNIHostName;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 
@@ -24,20 +26,29 @@ public class SslMonitorCollector {
 
     private static final int CONNECT_TIMEOUT_MS = 5_000;
     private static final int READ_TIMEOUT_MS = 5_000;
+    private static final Duration COLLECT_TIMEOUT = Duration.ofSeconds(8);
 
-    private final CertificateProbe probe;
+    private final TimedCertificateProbe probe;
 
     public SslMonitorCollector() {
-        this(SslMonitorCollector::probeCertificate);
+        this.probe = SslMonitorCollector::probeCertificate;
     }
 
     SslMonitorCollector(CertificateProbe probe) {
-        this.probe = java.util.Objects.requireNonNull(probe, "probe");
+        java.util.Objects.requireNonNull(probe, "probe");
+        this.probe = (domain, deadline) -> probe.probe(domain);
     }
 
     public MonitorCollectorResult collect(String domain) {
+        return collect(domain, MonitorDeadline.after(COLLECT_TIMEOUT));
+    }
+
+    public MonitorCollectorResult collect(String domain, MonitorDeadline deadline) {
+        java.util.Objects.requireNonNull(deadline, "deadline");
         try {
-            X509Certificate certificate = probe.probe(domain);
+            deadline.throwIfExpired();
+            X509Certificate certificate = probe.probe(domain, deadline);
+            deadline.throwIfExpired();
             if (certificate == null || certificate.getNotAfter() == null) {
                 return failure(MonitorCollectorResult.FailureKind.PARSE_ERROR,
                     "TLS peer did not provide a usable X.509 certificate");
@@ -63,21 +74,29 @@ public class SslMonitorCollector {
         }
     }
 
-    private static X509Certificate probeCertificate(String domain) throws Exception {
+    private static X509Certificate probeCertificate(
+        String domain,
+        MonitorDeadline deadline) throws Exception {
         MonitorTargetPolicy.ResolvedTarget target = MonitorTargetPolicy.resolvePublic(domain);
         IOException lastFailure = null;
         for (java.net.InetAddress address : target.addresses()) {
+            deadline.throwIfExpired();
             try (Socket plain = new Socket()) {
-                plain.connect(new InetSocketAddress(address, 443), CONNECT_TIMEOUT_MS);
-                plain.setSoTimeout(READ_TIMEOUT_MS);
+                plain.connect(new InetSocketAddress(address, 443),
+                    deadline.timeoutMillis(CONNECT_TIMEOUT_MS));
+                plain.setSoTimeout(deadline.timeoutMillis(READ_TIMEOUT_MS));
                 SSLSocketFactory factory = (SSLSocketFactory) SSLSocketFactory.getDefault();
                 try (SSLSocket tls = (SSLSocket) factory.createSocket(
                     plain, target.host(), 443, true)) {
-                    tls.setSoTimeout(READ_TIMEOUT_MS);
+                    tls.setSoTimeout(deadline.timeoutMillis(READ_TIMEOUT_MS));
                     SSLParameters parameters = tls.getSSLParameters();
                     parameters.setEndpointIdentificationAlgorithm("HTTPS");
+                    if (domain.chars().anyMatch(Character::isLetter)) {
+                        parameters.setServerNames(java.util.List.of(new SNIHostName(domain)));
+                    }
                     tls.setSSLParameters(parameters);
                     tls.startHandshake();
+                    deadline.throwIfExpired();
                     Certificate[] certificates = tls.getSession().getPeerCertificates();
                     if (certificates.length == 0 || !(certificates[0] instanceof X509Certificate leaf)) {
                         throw new IOException("TLS peer did not provide an X.509 certificate");
@@ -104,5 +123,10 @@ public class SslMonitorCollector {
     @FunctionalInterface
     interface CertificateProbe {
         X509Certificate probe(String domain) throws Exception;
+    }
+
+    @FunctionalInterface
+    private interface TimedCertificateProbe {
+        X509Certificate probe(String domain, MonitorDeadline deadline) throws Exception;
     }
 }

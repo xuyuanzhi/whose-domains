@@ -1,5 +1,6 @@
 package info.wesite.web.task;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -7,6 +8,10 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -35,7 +40,9 @@ import info.wesite.core.service.MonitorSnapshotService;
 import info.wesite.web.monitor.DnsMonitorCollector;
 import info.wesite.web.monitor.DomainMonitorCollector;
 import info.wesite.web.monitor.MonitorCollectorResult;
+import info.wesite.web.monitor.MonitorDeadline;
 import info.wesite.web.monitor.MonitorEventPublisher;
+import info.wesite.web.monitor.MonitorSnapshotObservation;
 import info.wesite.web.monitor.MonitorState;
 import info.wesite.web.monitor.SslMonitorCollector;
 import info.wesite.web.monitor.WebsiteMonitorCollector;
@@ -50,6 +57,8 @@ import info.wesite.web.monitor.WebsiteMonitorCollector;
 public class DomainWatchTask {
 
     private static final Logger log = LoggerFactory.getLogger(DomainWatchTask.class);
+    private static final Duration WATCH_TIMEOUT = Duration.ofSeconds(25);
+    private static final Duration COLLECTOR_TIMEOUT = Duration.ofSeconds(8);
 
     private final DomainWatchService domainWatchService;
     private final DomainService domainService;
@@ -83,27 +92,31 @@ public class DomainWatchTask {
     @Scheduled(cron = "0 0 3 * * ?")
     public void checkDomainExpiry() {
         log.info("Domain monitoring refresh started");
-        int pageNumber = 1;
         int pageSize = 100;
         int updated = 0;
+        String lastId = null;
+        Map<String, ProbeBundle> probeCache = new HashMap<>();
         while (true) {
             java.util.List<DomainWatch> watches = domainWatchService.page(
-                new Page<>(pageNumber, pageSize),
+                new Page<>(1, pageSize),
                 Wrappers.<DomainWatch>lambdaQuery()
                     .eq(DomainWatch::getStatus, DomainWatch.STATUS_ACTIVE)
+                    .gt(StringUtils.isNotBlank(lastId), DomainWatch::getId, lastId)
                     .orderByAsc(DomainWatch::getId)).getRecords();
             if (watches == null || watches.isEmpty()) {
                 break;
             }
+            lastId = watches.get(watches.size() - 1).getId();
 
             for (DomainWatch watch : watches) {
                 try {
-                    RefreshResult result = refreshWatchInfo(watch);
+                    RefreshResult result = refreshWatchInfo(watch, probeCache);
                     if (!result.checked()) {
                         continue;
                     }
 
-                    eventPublisher.publish(watch, result.state(), result.succeeded());
+                    eventPublisher.publish(
+                        watch, result.state(), result.succeeded(), result.observedSources());
                     Date checkedAt = new Date();
                     watch.setLastCheckTime(checkedAt);
                     watch.setUpdateTime(checkedAt);
@@ -122,26 +135,30 @@ public class DomainWatchTask {
             if (watches.size() < pageSize) {
                 break;
             }
-            pageNumber++;
         }
         log.info("Domain monitoring refresh completed; updated={}", updated);
     }
 
-    private RefreshResult refreshWatchInfo(DomainWatch watch) {
+    private RefreshResult refreshWatchInfo(
+        DomainWatch watch,
+        Map<String, ProbeBundle> probeCache) {
         if (watch.getLastCheckTime() != null
             && watch.getLastCheckTime().after(DateUtils.addHours(new Date(), -24))
             && hasSuccessfulSnapshot(watch.getId())) {
             return RefreshResult.skipped();
         }
 
-        MonitorState previous = latestSuccessfulState(watch.getId());
-        Domain domain = findDomain(watch);
-        MonitorCollectorResult domainResult = domainCollector.collect(domain);
-        MonitorCollectorResult dnsResult = dnsCollector.collect(watch.getDomainName());
-        MonitorCollectorResult sslResult = sslCollector.collect(watch.getDomainName());
+        PriorSnapshot prior = latestSuccessfulSnapshot(watch.getId());
+        MonitorState previous = prior == null ? null : prior.state();
+        String cacheKey = canonicalDomain(watch.getDomainName());
+        ProbeBundle probes = probeCache.computeIfAbsent(cacheKey, ignored -> collectProbes(watch));
+        Domain domain = probes.domain();
+        MonitorCollectorResult domainResult = probes.domainResult();
+        MonitorCollectorResult dnsResult = probes.dnsResult();
+        MonitorCollectorResult sslResult = probes.sslResult();
         int previousWebsiteFailures = previous == null ? 0 : previous.websiteFailureCount();
-        MonitorCollectorResult websiteResult = websiteCollector.collect(
-            watch.getDomainName(), previousWebsiteFailures);
+        MonitorCollectorResult websiteResult = rebaseWebsite(
+            probes.websiteResult(), previousWebsiteFailures);
 
         java.util.List<MonitorCollectorResult> results = java.util.List.of(
             domainResult, dnsResult, sslResult, websiteResult);
@@ -160,7 +177,51 @@ public class DomainWatchTask {
         boolean anySucceeded = results.stream().anyMatch(MonitorCollectorResult::successful);
         boolean succeeded = previous == null ? allSucceeded : anySucceeded;
         boolean changed = domainResult.successful() && applyDomainResult(watch, domain, merged);
-        return new RefreshResult(true, succeeded, changed, merged);
+        Set<MonitorCollectorResult.Source> observedSources = observedSources(prior, results);
+        return new RefreshResult(true, succeeded, changed, merged, observedSources);
+    }
+
+    private ProbeBundle collectProbes(DomainWatch watch) {
+        MonitorDeadline watchDeadline = MonitorDeadline.after(WATCH_TIMEOUT);
+        Domain domain = findDomain(watch);
+        MonitorCollectorResult domainResult = collectSafely(
+            MonitorCollectorResult.Source.DOMAIN,
+            () -> domainCollector.collect(domain, watchDeadline.bounded(COLLECTOR_TIMEOUT)));
+        MonitorCollectorResult dnsResult = collectSafely(
+            MonitorCollectorResult.Source.DNS,
+            () -> dnsCollector.collect(
+                watch.getDomainName(), watchDeadline.bounded(COLLECTOR_TIMEOUT)));
+        MonitorCollectorResult sslResult = collectSafely(
+            MonitorCollectorResult.Source.SSL,
+            () -> sslCollector.collect(
+                watch.getDomainName(), watchDeadline.bounded(COLLECTOR_TIMEOUT)));
+        MonitorCollectorResult websiteResult = collectSafely(
+            MonitorCollectorResult.Source.WEBSITE,
+            () -> websiteCollector.collect(
+                watch.getDomainName(), 0, watchDeadline.bounded(COLLECTOR_TIMEOUT)));
+        return new ProbeBundle(
+            domain, domainResult, dnsResult, sslResult, websiteResult);
+    }
+
+    private static MonitorCollectorResult collectSafely(
+        MonitorCollectorResult.Source source,
+        CollectorCall call) {
+        try {
+            MonitorCollectorResult result = call.collect();
+            return result == null
+                ? MonitorCollectorResult.failure(
+                    source, MonitorCollectorResult.FailureKind.LOOKUP_ERROR,
+                    "Monitor collector returned no result")
+                : result;
+        } catch (java.net.SocketTimeoutException timeout) {
+            return MonitorCollectorResult.failure(
+                source, MonitorCollectorResult.FailureKind.TIMEOUT,
+                StringUtils.defaultIfBlank(timeout.getMessage(), "Monitoring deadline exceeded"));
+        } catch (Exception failure) {
+            return MonitorCollectorResult.failure(
+                source, MonitorCollectorResult.FailureKind.LOOKUP_ERROR,
+                StringUtils.defaultIfBlank(failure.getMessage(), failure.getClass().getSimpleName()));
+        }
     }
 
     private Domain findDomain(DomainWatch watch) {
@@ -186,7 +247,7 @@ public class DomainWatchTask {
                 .eq(MonitorSnapshot::getStatus, BaseEntity.STATUS_ACTIVE)) > 0;
     }
 
-    private MonitorState latestSuccessfulState(String watchId) {
+    private PriorSnapshot latestSuccessfulSnapshot(String watchId) {
         MonitorSnapshot snapshot = monitorSnapshotService.getOne(
             Wrappers.<MonitorSnapshot>lambdaQuery()
                 .eq(MonitorSnapshot::getWatchId, watchId)
@@ -196,7 +257,9 @@ public class DomainWatchTask {
         if (snapshot == null || StringUtils.isBlank(snapshot.getStateJson())) {
             return null;
         }
-        return JSON.parseObject(snapshot.getStateJson(), MonitorState.class);
+        return new PriorSnapshot(
+            JSON.parseObject(snapshot.getStateJson(), MonitorState.class),
+            MonitorSnapshotObservation.sources(snapshot));
     }
 
     private static MonitorState merge(
@@ -205,18 +268,67 @@ public class DomainWatchTask {
         MonitorCollectorResult dns,
         MonitorCollectorResult ssl,
         MonitorCollectorResult website) {
-        MonitorState domainState = domain.successful() ? domain.state() : base;
         MonitorState dnsState = dns.successful() ? dns.state() : base;
         MonitorState sslState = ssl.successful() ? ssl.state() : base;
         MonitorState websiteState = website.successful() ? website.state() : base;
+        Set<String> domainStatuses = base.domainStatuses();
+        LocalDate domainExpiry = base.domainExpiry();
+        if (domain.successful()) {
+            if (!domain.state().domainStatuses().isEmpty()) {
+                domainStatuses = domain.state().domainStatuses();
+            }
+            if (domain.state().domainExpiry() != null) {
+                domainExpiry = domain.state().domainExpiry();
+            }
+        }
         return new MonitorState(
             base.domain(),
-            domainState.domainStatuses(),
-            domainState.domainExpiry(),
+            domainStatuses,
+            domainExpiry,
             sslState.sslExpiry(),
             dnsState.dnsRecords(),
             websiteState.websiteAvailable(),
             websiteState.websiteFailureCount());
+    }
+
+    private static MonitorCollectorResult rebaseWebsite(
+        MonitorCollectorResult raw,
+        int previousFailureCount) {
+        if (!raw.successful()) {
+            return raw;
+        }
+        boolean available = raw.state().websiteAvailable();
+        int normalized = Math.max(0, previousFailureCount);
+        int count = available
+            ? 0
+            : normalized == Integer.MAX_VALUE ? normalized : normalized + 1;
+        return MonitorCollectorResult.success(
+            MonitorCollectorResult.Source.WEBSITE,
+            new MonitorState(
+                raw.state().domain(), Set.of(), null, null, Map.of(), available, count));
+    }
+
+    private static Set<MonitorCollectorResult.Source> observedSources(
+        PriorSnapshot prior,
+        List<MonitorCollectorResult> results) {
+        EnumSet<MonitorCollectorResult.Source> observed = EnumSet.noneOf(
+            MonitorCollectorResult.Source.class);
+        if (prior != null) {
+            observed.addAll(prior.observedSources());
+        }
+        results.stream()
+            .filter(MonitorCollectorResult::successful)
+            .map(MonitorCollectorResult::source)
+            .forEach(observed::add);
+        return Set.copyOf(observed);
+    }
+
+    private static String canonicalDomain(String value) {
+        String result = StringUtils.defaultString(value).trim().toLowerCase(Locale.ROOT);
+        while (result.endsWith(".")) {
+            result = result.substring(0, result.length() - 1);
+        }
+        return result;
     }
 
     private static MonitorState fallbackState(DomainWatch watch, Domain domain) {
@@ -292,9 +404,32 @@ public class DomainWatchTask {
             .collect(Collectors.toUnmodifiableSet());
     }
 
-    private record RefreshResult(boolean checked, boolean succeeded, boolean changed, MonitorState state) {
+    @FunctionalInterface
+    private interface CollectorCall {
+        MonitorCollectorResult collect() throws Exception;
+    }
+
+    private record PriorSnapshot(
+        MonitorState state,
+        Set<MonitorCollectorResult.Source> observedSources) {
+    }
+
+    private record ProbeBundle(
+        Domain domain,
+        MonitorCollectorResult domainResult,
+        MonitorCollectorResult dnsResult,
+        MonitorCollectorResult sslResult,
+        MonitorCollectorResult websiteResult) {
+    }
+
+    private record RefreshResult(
+        boolean checked,
+        boolean succeeded,
+        boolean changed,
+        MonitorState state,
+        Set<MonitorCollectorResult.Source> observedSources) {
         private static RefreshResult skipped() {
-            return new RefreshResult(false, false, false, null);
+            return new RefreshResult(false, false, false, null, Set.of());
         }
     }
 }

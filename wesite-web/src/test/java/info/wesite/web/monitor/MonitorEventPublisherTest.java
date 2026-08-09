@@ -378,6 +378,46 @@ class MonitorEventPublisherTest {
         assertEquals("MEDIUM", exitEvent.getRisk());
     }
 
+    @Test
+    void legacySnapshotDoesNotBaselinePreviouslyUnobservedSources() {
+        detector = new MonitorChangeDetector(CLOCK);
+        publisher = new MonitorEventPublisher(
+            snapshotService,
+            eventService,
+            notificationService,
+            eventMapper,
+            notificationMapper,
+            dispatcher,
+            detector,
+            CLOCK);
+        MonitorState legacy = new MonitorState(
+            "example.com", Set.of("ok"), LocalDate.of(2027, 1, 1), null,
+            Map.of(), true, 0);
+        MonitorState upgraded = new MonitorState(
+            "example.com", Set.of("ok"), LocalDate.of(2027, 1, 1), LocalDate.of(2026, 8, 16),
+            Map.of("A", Set.of("203.0.113.8")), false, 2);
+        MonitorSnapshot legacySnapshot = snapshot("legacy", legacy);
+        legacySnapshot.setSchemaVersion(null);
+        legacySnapshot.setObservedSources(null);
+        when(snapshotService.getOne(any())).thenReturn(legacySnapshot);
+
+        List<MonitorEvent> events = publisher.publish(
+            watch(),
+            upgraded,
+            true,
+            Set.of(
+                MonitorCollectorResult.Source.DOMAIN,
+                MonitorCollectorResult.Source.DNS,
+                MonitorCollectorResult.Source.SSL,
+                MonitorCollectorResult.Source.WEBSITE));
+
+        assertTrue(events.isEmpty());
+        ArgumentCaptor<MonitorSnapshot> saved = ArgumentCaptor.forClass(MonitorSnapshot.class);
+        verify(snapshotService).save(saved.capture());
+        assertEquals(2, saved.getValue().getSchemaVersion());
+        assertEquals("DNS,DOMAIN,SSL,WEBSITE", saved.getValue().getObservedSources());
+    }
+
     private static DomainWatch watch() {
         DomainWatch watch = new DomainWatch();
         watch.setId("watch-1");

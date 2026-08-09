@@ -2,6 +2,7 @@ package info.wesite.web.monitor;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -123,12 +124,39 @@ public class MonitorEventPublisher {
 
     @Transactional
     public List<MonitorEvent> publish(DomainWatch watch, MonitorState current, boolean checkSucceeded) {
+        return publishInternal(
+            watch,
+            current,
+            checkSucceeded,
+            MonitorSnapshotObservation.allSources(),
+            false);
+    }
+
+    @Transactional
+    public List<MonitorEvent> publish(
+        DomainWatch watch,
+        MonitorState current,
+        boolean checkSucceeded,
+        java.util.Set<MonitorCollectorResult.Source> observedSources) {
+        return publishInternal(watch, current, checkSucceeded, observedSources, true);
+    }
+
+    private List<MonitorEvent> publishInternal(
+        DomainWatch watch,
+        MonitorState current,
+        boolean checkSucceeded,
+        java.util.Set<MonitorCollectorResult.Source> observedSources,
+        boolean sourceScopedDetection) {
         Objects.requireNonNull(watch, "watch");
+        java.util.Set<MonitorCollectorResult.Source> currentObserved = observedSources == null
+            ? java.util.Set.of()
+            : java.util.Set.copyOf(observedSources);
         Date checkedAt = Date.from(clock.instant());
 
         if (!checkSucceeded) {
             requireSaved(
-                snapshotService.save(snapshot(watch.getId(), current, checkedAt, BaseEntity.STATUS_INACTIVE)),
+                snapshotService.save(snapshot(
+                    watch.getId(), current, checkedAt, BaseEntity.STATUS_INACTIVE, currentObserved)),
                 "failed-check diagnostic snapshot");
             return List.of();
         }
@@ -139,16 +167,25 @@ public class MonitorEventPublisher {
             ? null
             : JSON.parseObject(previousSnapshot.getStateJson(), MonitorState.class);
         MonitorSnapshot currentSnapshot = snapshot(
-            watch.getId(), current, checkedAt, BaseEntity.STATUS_ACTIVE);
+            watch.getId(), current, checkedAt, BaseEntity.STATUS_ACTIVE, currentObserved);
 
         List<MonitorEvent> published = new ArrayList<>();
-        for (MonitorEventDraft draft : detector.detect(
-            previous,
-            current,
-            previousSnapshot == null || previousSnapshot.getCheckedAt() == null
-                ? null
-                : previousSnapshot.getCheckedAt().toInstant(),
-            checkedAt.toInstant())) {
+        java.util.List<MonitorEventDraft> drafts;
+        Instant previousCheckedAt = previousSnapshot == null || previousSnapshot.getCheckedAt() == null
+            ? null
+            : previousSnapshot.getCheckedAt().toInstant();
+        if (sourceScopedDetection) {
+            drafts = detector.detect(
+                previous,
+                current,
+                previousCheckedAt,
+                checkedAt.toInstant(),
+                MonitorSnapshotObservation.sources(previousSnapshot),
+                currentObserved);
+        } else {
+            drafts = detector.detect(previous, current, previousCheckedAt, checkedAt.toInstant());
+        }
+        for (MonitorEventDraft draft : drafts) {
             MonitorEvent event = publishEvent(watch, currentSnapshot, draft, checkedAt);
             publishNotification(watch, event, draft, checkedAt);
             published.add(event);
@@ -238,13 +275,16 @@ public class MonitorEventPublisher {
         String watchId,
         MonitorState state,
         Date checkedAt,
-        int status) {
+        int status,
+        java.util.Set<MonitorCollectorResult.Source> observedSources) {
         MonitorSnapshot snapshot = new MonitorSnapshot();
         initialize(snapshot, checkedAt);
         snapshot.setStatus(status);
         snapshot.setWatchId(watchId);
         snapshot.setCheckedAt(checkedAt);
         snapshot.setStateJson(JSON.toJSONString(state));
+        snapshot.setSchemaVersion(MonitorSnapshotObservation.CURRENT_SCHEMA_VERSION);
+        snapshot.setObservedSources(MonitorSnapshotObservation.serialize(observedSources));
         return snapshot;
     }
 

@@ -279,6 +279,8 @@ class MonitorEventPublisherMySqlConcurrencyTest {
                   WATCH_ID varchar(32) NOT NULL,
                   CHECKED_AT datetime NOT NULL,
                   STATE_JSON mediumtext NOT NULL,
+                  SCHEMA_VERSION smallint NULL,
+                  OBSERVED_SOURCES varchar(128) NULL,
                   KEY IDX_MONITOR_SNAPSHOT_WATCH_CHECKED (WATCH_ID, CHECKED_AT)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin
                 """);

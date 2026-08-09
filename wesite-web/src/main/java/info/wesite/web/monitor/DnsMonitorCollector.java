@@ -25,17 +25,23 @@ public class DnsMonitorCollector {
     private static final int[] RECORD_TYPES = {Type.NS, Type.A, Type.AAAA, Type.MX};
     private static final Duration LOOKUP_TIMEOUT = Duration.ofSeconds(5);
 
-    private final DnsQuery query;
+    private final TimedDnsQuery query;
 
     public DnsMonitorCollector() {
-        this(DnsMonitorCollector::queryDns);
+        this.query = DnsMonitorCollector::queryDns;
     }
 
     DnsMonitorCollector(DnsQuery query) {
-        this.query = java.util.Objects.requireNonNull(query, "query");
+        java.util.Objects.requireNonNull(query, "query");
+        this.query = (domain, type, deadline) -> query.lookup(domain, type);
     }
 
     public MonitorCollectorResult collect(String rawDomain) {
+        return collect(rawDomain, MonitorDeadline.after(LOOKUP_TIMEOUT));
+    }
+
+    public MonitorCollectorResult collect(String rawDomain, MonitorDeadline deadline) {
+        java.util.Objects.requireNonNull(deadline, "deadline");
         String domain = canonicalDomain(rawDomain);
         if (domain.isEmpty()) {
             return failure(MonitorCollectorResult.FailureKind.NOT_FOUND, "Domain is missing");
@@ -44,7 +50,9 @@ public class DnsMonitorCollector {
         Map<String, Set<String>> records = new LinkedHashMap<>();
         try {
             for (int type : RECORD_TYPES) {
-                Answer answer = query.lookup(domain, type);
+                deadline.throwIfExpired();
+                Answer answer = query.lookup(domain, type, deadline);
+                deadline.throwIfExpired();
                 if (answer == null) {
                     return failure(MonitorCollectorResult.FailureKind.LOOKUP_ERROR,
                         "DNS returned no answer metadata");
@@ -83,9 +91,12 @@ public class DnsMonitorCollector {
             new MonitorState(domain, Set.of(), null, null, records, false, 0));
     }
 
-    private static Answer queryDns(String domain, int type) throws Exception {
+    private static Answer queryDns(
+        String domain,
+        int type,
+        MonitorDeadline deadline) throws Exception {
         SimpleResolver resolver = new SimpleResolver();
-        resolver.setTimeout(LOOKUP_TIMEOUT);
+        resolver.setTimeout(Duration.ofMillis(deadline.timeoutMillis((int) LOOKUP_TIMEOUT.toMillis())));
         Lookup lookup = new Lookup(domain, type);
         lookup.setResolver(resolver);
         org.xbill.DNS.Record[] response = lookup.run();
@@ -148,6 +159,11 @@ public class DnsMonitorCollector {
     @FunctionalInterface
     interface DnsQuery {
         Answer lookup(String domain, int type) throws Exception;
+    }
+
+    @FunctionalInterface
+    private interface TimedDnsQuery {
+        Answer lookup(String domain, int type, MonitorDeadline deadline) throws Exception;
     }
 
     public record Answer(int result, List<org.xbill.DNS.Record> records, String error) {

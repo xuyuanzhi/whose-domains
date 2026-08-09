@@ -45,6 +45,7 @@ import info.wesite.web.monitor.MonitorCollectorResult;
 import info.wesite.web.monitor.MonitorEventDraft;
 import info.wesite.web.monitor.MonitorEventPublisher;
 import info.wesite.web.monitor.MonitorEventType;
+import info.wesite.web.monitor.MonitorDeadline;
 import info.wesite.web.monitor.MonitorState;
 import info.wesite.web.monitor.SslMonitorCollector;
 import info.wesite.web.monitor.WebsiteMonitorCollector;
@@ -68,11 +69,12 @@ class DomainWatchTaskEventMigrationTest {
         task(watchService, domainService, snapshotService, publisher).checkDomainExpiry();
 
         ArgumentCaptor<MonitorState> state = ArgumentCaptor.forClass(MonitorState.class);
-        verify(publisher).publish(eq(watch), state.capture(), eq(true));
+        verify(publisher).publish(eq(watch), state.capture(), eq(true), any(Set.class));
         assertEquals("example.com", state.getValue().domain());
         assertEquals(LocalDate.of(2026, 9, 8), state.getValue().domainExpiry());
         InOrder persistenceOrder = inOrder(publisher, watchService);
-        persistenceOrder.verify(publisher).publish(eq(watch), any(MonitorState.class), eq(true));
+        persistenceOrder.verify(publisher).publish(
+            eq(watch), any(MonitorState.class), eq(true), any(Set.class));
         persistenceOrder.verify(watchService).updateById(watch);
     }
 
@@ -88,7 +90,8 @@ class DomainWatchTaskEventMigrationTest {
         page.setRecords(List.of(watch));
         when(watchService.page(any(IPage.class), any(Wrapper.class))).thenReturn(page);
         when(domainService.getById("domain-1")).thenReturn(domain());
-        when(publisher.publish(eq(watch), any(MonitorState.class), eq(true)))
+        when(publisher.publish(
+            eq(watch), any(MonitorState.class), eq(true), any(Set.class)))
             .thenThrow(new IllegalStateException("publisher unavailable"));
 
         task(watchService, domainService, snapshotService, publisher).checkDomainExpiry();
@@ -117,7 +120,7 @@ class DomainWatchTaskEventMigrationTest {
         task(watchService, domainService, snapshotService, publisher).checkDomainExpiry();
 
         ArgumentCaptor<MonitorState> state = ArgumentCaptor.forClass(MonitorState.class);
-        verify(publisher).publish(eq(watch), state.capture(), eq(true));
+        verify(publisher).publish(eq(watch), state.capture(), eq(true), any(Set.class));
         List<MonitorEventDraft> events = new MonitorChangeDetector(clock).detect(
             null, state.getValue(), null, clock.instant());
         assertTrue(events.stream().anyMatch(event ->
@@ -174,7 +177,8 @@ class DomainWatchTaskEventMigrationTest {
         DnsMonitorCollector dnsCollector = mock(DnsMonitorCollector.class);
         SslMonitorCollector sslCollector = mock(SslMonitorCollector.class);
         WebsiteMonitorCollector websiteCollector = mock(WebsiteMonitorCollector.class);
-        when(domainCollector.collect(any(Domain.class))).thenAnswer(invocation -> {
+        when(domainCollector.collect(
+            any(Domain.class), any(MonitorDeadline.class))).thenAnswer(invocation -> {
             Domain value = invocation.getArgument(0);
             LocalDate expiry = LocalDate.parse(value.getRegistExpiryDateText().substring(0, 10));
             return MonitorCollectorResult.success(
@@ -182,17 +186,20 @@ class DomainWatchTaskEventMigrationTest {
                 new MonitorState(value.getName(), Set.of(value.getDomainStatus()), expiry,
                     null, Map.of(), false, 0));
         });
-        when(dnsCollector.collect(anyString())).thenAnswer(invocation ->
+        when(dnsCollector.collect(
+            anyString(), any(MonitorDeadline.class))).thenAnswer(invocation ->
             MonitorCollectorResult.success(
                 MonitorCollectorResult.Source.DNS,
                 new MonitorState(invocation.getArgument(0), Set.of(), null, null,
                     Map.of(), false, 0)));
-        when(sslCollector.collect(anyString())).thenAnswer(invocation ->
+        when(sslCollector.collect(
+            anyString(), any(MonitorDeadline.class))).thenAnswer(invocation ->
             MonitorCollectorResult.success(
                 MonitorCollectorResult.Source.SSL,
                 new MonitorState(invocation.getArgument(0), Set.of(), null, null,
                     Map.of(), false, 0)));
-        when(websiteCollector.collect(anyString(), anyInt())).thenAnswer(invocation ->
+        when(websiteCollector.collect(
+            anyString(), anyInt(), any(MonitorDeadline.class))).thenAnswer(invocation ->
             MonitorCollectorResult.success(
                 MonitorCollectorResult.Source.WEBSITE,
                 new MonitorState(invocation.getArgument(0), Set.of(), null, null,

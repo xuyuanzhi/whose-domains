@@ -1,11 +1,11 @@
 package info.wesite.web.monitor;
 
 import java.io.IOException;
-import java.net.HttpURLConnection;
 import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.net.UnknownHostException;
 import java.net.http.HttpTimeoutException;
+import java.time.Duration;
 import java.util.Map;
 import java.util.Set;
 
@@ -16,23 +16,32 @@ import org.springframework.stereotype.Component;
 @Component
 public class WebsiteMonitorCollector {
 
-    private static final int CONNECT_TIMEOUT_MS = 5_000;
-    private static final int READ_TIMEOUT_MS = 5_000;
-    private static final int MAX_REDIRECTS = 3;
+    private static final Duration COLLECT_TIMEOUT = Duration.ofSeconds(8);
 
-    private final HttpProbe probe;
+    private final TimedHttpProbe probe;
 
     public WebsiteMonitorCollector() {
-        this(WebsiteMonitorCollector::probeWebsite);
+        this.probe = WebsiteMonitorCollector::probeWebsite;
     }
 
     WebsiteMonitorCollector(HttpProbe probe) {
-        this.probe = java.util.Objects.requireNonNull(probe, "probe");
+        java.util.Objects.requireNonNull(probe, "probe");
+        this.probe = (domain, deadline) -> probe.status(domain);
     }
 
     public MonitorCollectorResult collect(String domain, int previousFailureCount) {
+        return collect(domain, previousFailureCount, MonitorDeadline.after(COLLECT_TIMEOUT));
+    }
+
+    public MonitorCollectorResult collect(
+        String domain,
+        int previousFailureCount,
+        MonitorDeadline deadline) {
+        java.util.Objects.requireNonNull(deadline, "deadline");
         try {
-            int status = probe.status(domain);
+            deadline.throwIfExpired();
+            int status = probe.status(domain, deadline);
+            deadline.throwIfExpired();
             if (status < 100 || status > 599) {
                 return failure(MonitorCollectorResult.FailureKind.PARSE_ERROR,
                     "HTTP probe returned an invalid status");
@@ -53,46 +62,20 @@ public class WebsiteMonitorCollector {
         }
     }
 
-    private static int probeWebsite(String domain) throws Exception {
+    private static int probeWebsite(String domain, MonitorDeadline deadline) throws Exception {
         IOException httpsFailure;
         try {
-            return probe(URI.create("https://" + domain), MAX_REDIRECTS);
+            return new BoundHttpClient().execute(
+                URI.create("https://" + domain), "HEAD", deadline).status();
         } catch (IOException failure) {
             httpsFailure = failure;
         }
         try {
-            return probe(URI.create("http://" + domain), MAX_REDIRECTS);
+            return new BoundHttpClient().execute(
+                URI.create("http://" + domain), "HEAD", deadline).status();
         } catch (IOException httpFailure) {
             httpFailure.addSuppressed(httpsFailure);
             throw httpFailure;
-        }
-    }
-
-    private static int probe(URI uri, int redirectsRemaining) throws Exception {
-        String scheme = uri.getScheme();
-        if (!("https".equalsIgnoreCase(scheme) || "http".equalsIgnoreCase(scheme))
-            || uri.getHost() == null) {
-            throw new MonitorTargetPolicy.BlockedTargetException("Website target must be HTTP(S)");
-        }
-        MonitorTargetPolicy.resolvePublic(uri.getHost());
-
-        HttpURLConnection connection = (HttpURLConnection) uri.toURL().openConnection();
-        try {
-            connection.setRequestMethod("HEAD");
-            connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
-            connection.setReadTimeout(READ_TIMEOUT_MS);
-            connection.setInstanceFollowRedirects(false);
-            connection.setRequestProperty("User-Agent", "WhoseDomains-Monitor/1.0");
-            int status = connection.getResponseCode();
-            if (status >= 300 && status < 400 && redirectsRemaining > 0) {
-                String location = connection.getHeaderField("Location");
-                if (StringUtils.isNotBlank(location)) {
-                    return probe(uri.resolve(location), redirectsRemaining - 1);
-                }
-            }
-            return status;
-        } finally {
-            connection.disconnect();
         }
     }
 
@@ -114,5 +97,10 @@ public class WebsiteMonitorCollector {
     @FunctionalInterface
     interface HttpProbe {
         int status(String domain) throws Exception;
+    }
+
+    @FunctionalInterface
+    private interface TimedHttpProbe {
+        int status(String domain, MonitorDeadline deadline) throws Exception;
     }
 }

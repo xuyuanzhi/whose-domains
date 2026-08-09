@@ -3,20 +3,27 @@ package info.wesite.web.monitor;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.SocketTimeoutException;
+import java.net.URI;
 import java.net.http.HttpTimeoutException;
 import java.security.cert.X509Certificate;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.junit.jupiter.api.Test;
 import org.xbill.DNS.AAAARecord;
@@ -89,6 +96,29 @@ class MonitorCollectorTest {
 
         assertFalse(result.successful());
         assertEquals(MonitorCollectorResult.FailureKind.PARSE_ERROR, result.failureKind());
+    }
+
+    @Test
+    void invalidExpiryDoesNotReplaceThePreviouslyNormalizedDomainExpiry() {
+        Domain domain = domain();
+        domain.setRegistExpiryDateText("2027-01-03");
+        domain.setParentRdapServer("https://rdap.example/");
+        DomainMonitorCollector collector = new DomainMonitorCollector(
+            (name, server) -> "response",
+            (name, server) -> null,
+            (target, text) -> {
+                target.setDomainStatus("ok");
+                target.setRegistExpiryDateText("N/A");
+                return true;
+            },
+            (target, text) -> false);
+
+        MonitorCollectorResult result = collector.collect(domain);
+
+        assertTrue(result.successful());
+        assertEquals(Set.of("ok"), result.state().domainStatuses());
+        assertNull(result.state().domainExpiry());
+        assertEquals("2027-01-03", domain.getRegistExpiryDateText());
     }
 
     @Test
@@ -199,6 +229,134 @@ class MonitorCollectorTest {
         assertFalse(MonitorTargetPolicy.isPublic(InetAddress.getByName("100.64.0.1")));
         assertFalse(MonitorTargetPolicy.isPublic(InetAddress.getByName("fc00::1")));
         assertTrue(MonitorTargetPolicy.isPublic(InetAddress.getByName("8.8.8.8")));
+    }
+
+    @Test
+    void boundHttpRedirectRevalidatesDnsAndNeverConnectsToAReboundPrivateAddress() throws Exception {
+        AtomicInteger resolutions = new AtomicInteger();
+        List<InetAddress> connected = new ArrayList<>();
+        BoundHttpClient client = new BoundHttpClient(
+            host -> resolutions.incrementAndGet() == 1
+                ? new InetAddress[] {InetAddress.getByName("8.8.8.8")}
+                : new InetAddress[] {InetAddress.getByName("127.0.0.1")},
+            (uri, method, address, deadline) -> {
+                connected.add(address);
+                return new BoundHttpClient.Response(
+                    302, Map.of("location", "/next"), new byte[0]);
+            });
+
+        assertThrows(
+            MonitorTargetPolicy.BlockedTargetException.class,
+            () -> client.execute(
+                URI.create("https://example.com/start"),
+                "GET",
+                MonitorDeadline.after(Duration.ofSeconds(1))));
+
+        assertEquals(2, resolutions.get());
+        assertEquals(List.of(InetAddress.getByName("8.8.8.8")), connected);
+    }
+
+    @Test
+    void boundHttpMultiAddressAttemptsShareOneOverallDeadline() throws Exception {
+        AtomicLong now = new AtomicLong();
+        AtomicInteger attempts = new AtomicInteger();
+        MonitorDeadline deadline = MonitorDeadline.forTest(
+            Duration.ofMillis(100), now::get);
+        BoundHttpClient client = new BoundHttpClient(
+            host -> new InetAddress[] {
+                InetAddress.getByName("8.8.8.8"),
+                InetAddress.getByName("1.1.1.1")},
+            (uri, method, address, ignored) -> {
+                attempts.incrementAndGet();
+                now.addAndGet(Duration.ofMillis(101).toNanos());
+                throw new IOException("first address failed");
+            });
+
+        assertThrows(SocketTimeoutException.class, () -> client.execute(
+            URI.create("https://example.com/"), "HEAD", deadline));
+        assertEquals(1, attempts.get());
+    }
+
+    @Test
+    void boundHttpRedirectsShareOneOverallDeadline() throws Exception {
+        AtomicLong now = new AtomicLong();
+        AtomicInteger attempts = new AtomicInteger();
+        MonitorDeadline deadline = MonitorDeadline.forTest(
+            Duration.ofMillis(100), now::get);
+        BoundHttpClient client = new BoundHttpClient(
+            host -> {
+                if (attempts.get() > 0) {
+                    now.addAndGet(Duration.ofMillis(50).toNanos());
+                }
+                return new InetAddress[] {InetAddress.getByName("8.8.8.8")};
+            },
+            (uri, method, address, ignored) -> {
+                attempts.incrementAndGet();
+                now.addAndGet(Duration.ofMillis(60).toNanos());
+                return new BoundHttpClient.Response(
+                    302, Map.of("location", "/next"), new byte[0]);
+            });
+
+        assertThrows(SocketTimeoutException.class, () -> client.execute(
+            URI.create("https://example.com/start"), "GET", deadline));
+        assertEquals(1, attempts.get());
+    }
+
+    @Test
+    void everyCollectorRejectsAResultThatArrivesAfterItsOverallDeadline() throws Exception {
+        AtomicLong domainNow = new AtomicLong();
+        AtomicInteger whoisCalls = new AtomicInteger();
+        Domain domain = domain();
+        domain.setParentRdapServer("https://rdap.example/");
+        domain.setParentWhoisServer("whois.example");
+        DomainMonitorCollector domainCollector = new DomainMonitorCollector(
+            (name, server) -> {
+                domainNow.addAndGet(Duration.ofMillis(101).toNanos());
+                return "{}";
+            },
+            (name, server) -> {
+                whoisCalls.incrementAndGet();
+                return "record";
+            },
+            (target, text) -> true,
+            (target, text) -> true);
+        MonitorCollectorResult domainResult = domainCollector.collect(
+            domain, MonitorDeadline.forTest(Duration.ofMillis(100), domainNow::get));
+        assertEquals(MonitorCollectorResult.FailureKind.TIMEOUT, domainResult.failureKind());
+        assertEquals(0, whoisCalls.get());
+
+        AtomicLong dnsNow = new AtomicLong();
+        AtomicInteger dnsCalls = new AtomicInteger();
+        DnsMonitorCollector dnsCollector = new DnsMonitorCollector((name, type) -> {
+            dnsCalls.incrementAndGet();
+            dnsNow.addAndGet(Duration.ofMillis(101).toNanos());
+            return new DnsMonitorCollector.Answer(Lookup.TYPE_NOT_FOUND, List.of(), null);
+        });
+        MonitorCollectorResult dnsResult = dnsCollector.collect(
+            "example.com", MonitorDeadline.forTest(Duration.ofMillis(100), dnsNow::get));
+        assertEquals(MonitorCollectorResult.FailureKind.TIMEOUT, dnsResult.failureKind());
+        assertEquals(1, dnsCalls.get());
+
+        X509Certificate certificate = mock(X509Certificate.class);
+        when(certificate.getNotAfter()).thenReturn(Date.from(Instant.parse("2027-02-04T00:00:00Z")));
+        AtomicLong sslNow = new AtomicLong();
+        SslMonitorCollector sslCollector = new SslMonitorCollector(name -> {
+            sslNow.addAndGet(Duration.ofMillis(101).toNanos());
+            return certificate;
+        });
+        MonitorCollectorResult sslResult = sslCollector.collect(
+            "example.com", MonitorDeadline.forTest(Duration.ofMillis(100), sslNow::get));
+        assertEquals(MonitorCollectorResult.FailureKind.TIMEOUT, sslResult.failureKind());
+
+        AtomicLong websiteNow = new AtomicLong();
+        WebsiteMonitorCollector websiteCollector = new WebsiteMonitorCollector(name -> {
+            websiteNow.addAndGet(Duration.ofMillis(101).toNanos());
+            return 200;
+        });
+        MonitorCollectorResult websiteResult = websiteCollector.collect(
+            "example.com", 0,
+            MonitorDeadline.forTest(Duration.ofMillis(100), websiteNow::get));
+        assertEquals(MonitorCollectorResult.FailureKind.TIMEOUT, websiteResult.failureKind());
     }
 
     private static DnsMonitorCollector.Answer answer(org.xbill.DNS.Record record) {

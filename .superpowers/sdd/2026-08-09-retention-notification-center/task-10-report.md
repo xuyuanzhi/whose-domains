@@ -36,3 +36,29 @@ Before Task 10 changes, the first full-suite run had one existing timing-depende
 ## Commit
 
 - Planned implementation commit: `feat: monitor domain dns ssl and availability`
+
+## Fix round 1
+
+### Snapshot provenance and merge compatibility
+
+- Added snapshot schema version 2 and a sorted `OBSERVED_SOURCES` provenance field, including both the initial DDL and an incremental migration for existing installations.
+- Legacy snapshots with a null/old schema version are treated as DOMAIN-only observations. DNS, SSL, and WEBSITE values are compared only after both snapshots explicitly observe that source, so the first real post-upgrade probe cannot emit placeholder-to-real changes.
+- Failed sources retain a previously observed value without promoting a first-run placeholder to observed. Invalid or non-comparable expiry data cannot replace the last valid expiry.
+
+### Bound outbound HTTP and deadlines
+
+- Replaced RDAP and website `HttpURLConnection` probes with an address-bound HTTP/1.1 adapter. Every redirect target is freshly resolved and policy-validated, and the socket connects only to the approved address while retaining the original Host header, HTTPS SNI, and certificate hostname verification.
+- Added monotonic shared deadlines. Address retries, redirects, RDAP-to-WHOIS fallback, DNS record types, TLS address attempts, HTTPS-to-HTTP fallback, and the complete per-watch collector sequence cannot reset their parent deadline.
+- Added deterministic resolver/transport tests proving DNS rebinding cannot connect to a second private answer and multi-address/redirect attempts share one total budget.
+
+### Stable scheduling and reuse
+
+- Replaced offset pagination with an `ID > lastId` keyset scan, so status changes in processed pages cannot skip later watches.
+- Added per-run canonical-domain probe reuse. Network results are reused for same-domain watches while website failure counts are rebased from each watch's own history and the publisher is still invoked independently once per due watch.
+
+### TDD and verification evidence
+
+- RED: source-scoped comparison, legacy upgrade, invalid expiry, rebinding, shared deadline, keyset pagination, and per-watch failure-count tests failed against the pre-fix implementation.
+- GREEN focused verification: `mvn -pl wesite-web -am "-Dtest=MonitorCollectorTest,DomainWatchTaskTest,MonitorChangeDetectorTest,MonitorEventPublisherTest" "-Dsurefire.failIfNoSpecifiedTests=false" test` passed 45 tests.
+- Migration test verification: `DomainWatchTaskEventMigrationTest` passed 5 tests after moving its mocks to the new deadline/provenance interfaces.
+- Fresh full regression: `mvn test` passed 10 core tests and 373 web tests; the admin module also built successfully. MySQL/Testcontainers concurrency fixtures passed. All Google-login tests passed and no Google-login implementation was changed.

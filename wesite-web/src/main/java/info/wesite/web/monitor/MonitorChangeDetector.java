@@ -32,22 +32,67 @@ public final class MonitorChangeDetector {
         MonitorState current,
         Instant previousCheckedAt,
         Instant currentCheckedAt) {
+        return detect(
+            previous,
+            current,
+            previousCheckedAt,
+            currentCheckedAt,
+            MonitorSnapshotObservation.allSources(),
+            MonitorSnapshotObservation.allSources());
+    }
+
+    public java.util.List<MonitorEventDraft> detect(
+        MonitorState previous,
+        MonitorState current,
+        Instant previousCheckedAt,
+        Instant currentCheckedAt,
+        Set<MonitorCollectorResult.Source> previousObservedSources,
+        Set<MonitorCollectorResult.Source> currentObservedSources) {
         Objects.requireNonNull(current, "current");
         Objects.requireNonNull(currentCheckedAt, "currentCheckedAt");
+        Set<MonitorCollectorResult.Source> previousObserved = previousObservedSources == null
+            ? Set.of()
+            : previousObservedSources;
+        Set<MonitorCollectorResult.Source> currentObserved = currentObservedSources == null
+            ? Set.of()
+            : currentObservedSources;
         if (previous == null) {
             java.util.List<MonitorEventDraft> initialEvents = new ArrayList<>();
-            detectExpiry(initialEvents, null, current, null, currentCheckedAt, true);
-            detectExpiry(initialEvents, null, current, null, currentCheckedAt, false);
+            if (currentObserved.contains(MonitorCollectorResult.Source.DOMAIN)) {
+                detectExpiry(initialEvents, null, current, null, currentCheckedAt, true);
+            }
+            if (currentObserved.contains(MonitorCollectorResult.Source.SSL)) {
+                detectExpiry(initialEvents, null, current, null, currentCheckedAt, false);
+            }
             return java.util.List.copyOf(initialEvents);
         }
 
         java.util.List<MonitorEventDraft> events = new ArrayList<>();
-        detectExpiry(events, previous, current, previousCheckedAt, currentCheckedAt, true);
-        detectExpiry(events, previous, current, previousCheckedAt, currentCheckedAt, false);
-        detectStatus(events, previous, current);
-        detectDns(events, previous, current);
-        detectWebsiteAvailability(events, previous, current);
+        if (observedOnBoth(
+            MonitorCollectorResult.Source.DOMAIN, previousObserved, currentObserved)) {
+            detectExpiry(events, previous, current, previousCheckedAt, currentCheckedAt, true);
+            detectStatus(events, previous, current);
+        }
+        if (observedOnBoth(
+            MonitorCollectorResult.Source.SSL, previousObserved, currentObserved)) {
+            detectExpiry(events, previous, current, previousCheckedAt, currentCheckedAt, false);
+        }
+        if (observedOnBoth(
+            MonitorCollectorResult.Source.DNS, previousObserved, currentObserved)) {
+            detectDns(events, previous, current);
+        }
+        if (observedOnBoth(
+            MonitorCollectorResult.Source.WEBSITE, previousObserved, currentObserved)) {
+            detectWebsiteAvailability(events, previous, current);
+        }
         return java.util.List.copyOf(events);
+    }
+
+    private static boolean observedOnBoth(
+        MonitorCollectorResult.Source source,
+        Set<MonitorCollectorResult.Source> previous,
+        Set<MonitorCollectorResult.Source> current) {
+        return previous.contains(source) && current.contains(source);
     }
 
     private void detectExpiry(

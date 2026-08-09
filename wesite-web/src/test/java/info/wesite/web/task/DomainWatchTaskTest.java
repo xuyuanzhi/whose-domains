@@ -33,6 +33,7 @@ import info.wesite.web.monitor.DnsMonitorCollector;
 import info.wesite.web.monitor.DomainMonitorCollector;
 import info.wesite.web.monitor.MonitorCollectorResult;
 import info.wesite.web.monitor.MonitorEventPublisher;
+import info.wesite.web.monitor.MonitorDeadline;
 import info.wesite.web.monitor.MonitorState;
 import info.wesite.web.monitor.SslMonitorCollector;
 import info.wesite.web.monitor.WebsiteMonitorCollector;
@@ -52,31 +53,38 @@ class DomainWatchTaskTest {
             false,
             1);
         when(fixture.snapshotService.getOne(any(Wrapper.class))).thenReturn(snapshot(previous));
-        when(fixture.domainCollector.collect(fixture.domain)).thenReturn(success(
+        when(fixture.domainCollector.collect(eq(fixture.domain), any(MonitorDeadline.class))).thenReturn(success(
             MonitorCollectorResult.Source.DOMAIN,
             new MonitorState("example.com", Set.of("ok"), LocalDate.of(2027, 1, 3),
                 null, Map.of(), false, 0)));
-        when(fixture.dnsCollector.collect("example.com")).thenReturn(MonitorCollectorResult.failure(
+        when(fixture.dnsCollector.collect(eq("example.com"), any(MonitorDeadline.class))).thenReturn(MonitorCollectorResult.failure(
             MonitorCollectorResult.Source.DNS,
             MonitorCollectorResult.FailureKind.NOT_FOUND,
             "NXDOMAIN"));
-        when(fixture.sslCollector.collect("example.com")).thenReturn(success(
+        when(fixture.sslCollector.collect(eq("example.com"), any(MonitorDeadline.class))).thenReturn(success(
             MonitorCollectorResult.Source.SSL,
             new MonitorState("example.com", Set.of(), null, LocalDate.of(2027, 2, 4),
                 Map.of(), false, 0)));
-        when(fixture.websiteCollector.collect("example.com", 1)).thenReturn(success(
+        when(fixture.websiteCollector.collect(eq("example.com"), eq(0), any(MonitorDeadline.class))).thenReturn(success(
             MonitorCollectorResult.Source.WEBSITE,
-            new MonitorState("example.com", Set.of(), null, null, Map.of(), false, 2)));
+            new MonitorState("example.com", Set.of(), null, null, Map.of(), false, 1)));
 
         fixture.task.checkDomainExpiry();
 
         ArgumentCaptor<MonitorState> state = ArgumentCaptor.forClass(MonitorState.class);
-        verify(fixture.publisher, times(1)).publish(eq(fixture.watch), state.capture(), eq(true));
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Set<MonitorCollectorResult.Source>> observed = ArgumentCaptor.forClass(Set.class);
+        verify(fixture.publisher, times(1)).publish(
+            eq(fixture.watch), state.capture(), eq(true), observed.capture());
         assertEquals(Set.of("ok"), state.getValue().domainStatuses());
         assertEquals(Map.of("A", Set.of("203.0.113.1")), state.getValue().dnsRecords());
         assertEquals(LocalDate.of(2027, 2, 4), state.getValue().sslExpiry());
         assertFalse(state.getValue().websiteAvailable());
         assertEquals(2, state.getValue().websiteFailureCount());
+        assertEquals(Set.of(
+            MonitorCollectorResult.Source.DOMAIN,
+            MonitorCollectorResult.Source.SSL,
+            MonitorCollectorResult.Source.WEBSITE), observed.getValue());
         verify(fixture.watchService).updateById(fixture.watch);
     }
 
@@ -85,19 +93,19 @@ class DomainWatchTaskTest {
     void firstPartialCheckCreatesOneFailedDiagnosticInsteadOfAnUnknownBaseline() {
         Fixture fixture = fixture();
         when(fixture.snapshotService.getOne(any(Wrapper.class))).thenReturn(null);
-        when(fixture.domainCollector.collect(fixture.domain)).thenReturn(success(
+        when(fixture.domainCollector.collect(eq(fixture.domain), any(MonitorDeadline.class))).thenReturn(success(
             MonitorCollectorResult.Source.DOMAIN,
             new MonitorState("example.com", Set.of("ok"), LocalDate.of(2027, 1, 3),
                 null, Map.of(), false, 0)));
-        when(fixture.dnsCollector.collect("example.com")).thenReturn(success(
+        when(fixture.dnsCollector.collect(eq("example.com"), any(MonitorDeadline.class))).thenReturn(success(
             MonitorCollectorResult.Source.DNS,
             new MonitorState("example.com", Set.of(), null, null,
                 Map.of("A", Set.of("203.0.113.8")), false, 0)));
-        when(fixture.sslCollector.collect("example.com")).thenReturn(success(
+        when(fixture.sslCollector.collect(eq("example.com"), any(MonitorDeadline.class))).thenReturn(success(
             MonitorCollectorResult.Source.SSL,
             new MonitorState("example.com", Set.of(), null, LocalDate.of(2027, 2, 4),
                 Map.of(), false, 0)));
-        when(fixture.websiteCollector.collect("example.com", 0)).thenReturn(MonitorCollectorResult.failure(
+        when(fixture.websiteCollector.collect(eq("example.com"), eq(0), any(MonitorDeadline.class))).thenReturn(MonitorCollectorResult.failure(
             MonitorCollectorResult.Source.WEBSITE,
             MonitorCollectorResult.FailureKind.TIMEOUT,
             "request timed out"));
@@ -105,10 +113,83 @@ class DomainWatchTaskTest {
         fixture.task.checkDomainExpiry();
 
         ArgumentCaptor<MonitorState> state = ArgumentCaptor.forClass(MonitorState.class);
-        verify(fixture.publisher, times(1)).publish(eq(fixture.watch), state.capture(), eq(false));
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Set<MonitorCollectorResult.Source>> observed = ArgumentCaptor.forClass(Set.class);
+        verify(fixture.publisher, times(1)).publish(
+            eq(fixture.watch), state.capture(), eq(false), observed.capture());
         assertEquals(Set.of("ok"), state.getValue().domainStatuses());
         assertEquals(Map.of("A", Set.of("203.0.113.8")), state.getValue().dnsRecords());
         assertTrue(state.getValue().websiteAvailable());
+        assertEquals(Set.of(
+            MonitorCollectorResult.Source.DOMAIN,
+            MonitorCollectorResult.Source.DNS,
+            MonitorCollectorResult.Source.SSL), observed.getValue());
+    }
+
+    @Test
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    void keysetPaginationDoesNotSkipLaterWatchesWhenFirstPageBecomesInactive() {
+        Fixture fixture = fixture();
+        List<DomainWatch> watches = java.util.stream.IntStream.rangeClosed(1, 101)
+            .mapToObj(index -> watch("watch-" + index, "user-" + index))
+            .toList();
+        java.util.concurrent.atomic.AtomicInteger pages = new java.util.concurrent.atomic.AtomicInteger();
+        when(fixture.watchService.updateById(any(DomainWatch.class))).thenAnswer(invocation -> {
+            DomainWatch processed = invocation.getArgument(0);
+            processed.setStatus(DomainWatch.STATUS_INACTIVE);
+            return true;
+        });
+        when(fixture.watchService.page(any(IPage.class), any(Wrapper.class))).thenAnswer(invocation -> {
+            Page<DomainWatch> requested = invocation.getArgument(0);
+            Page<DomainWatch> result = new Page<>(requested.getCurrent(), requested.getSize());
+            if (pages.getAndIncrement() == 0) {
+                result.setRecords(watches.subList(0, 100));
+            } else if (requested.getCurrent() == 1) {
+                assertTrue(watches.subList(0, 100).stream()
+                    .noneMatch(value -> value.getStatus() == DomainWatch.STATUS_ACTIVE));
+                result.setRecords(watches.subList(100, 101));
+            } else {
+                result.setRecords(List.of());
+            }
+            return result;
+        });
+        when(fixture.snapshotService.getOne(any(Wrapper.class))).thenReturn(null);
+        stubSuccessfulProbe(fixture);
+
+        fixture.task.checkDomainExpiry();
+
+        verify(fixture.publisher, times(101)).publish(
+            any(DomainWatch.class), any(MonitorState.class), eq(true), any(Set.class));
+        verify(fixture.domainCollector, times(1)).collect(eq(fixture.domain), any(MonitorDeadline.class));
+        verify(fixture.dnsCollector, times(1)).collect(eq("example.com"), any(MonitorDeadline.class));
+        verify(fixture.sslCollector, times(1)).collect(eq("example.com"), any(MonitorDeadline.class));
+        verify(fixture.websiteCollector, times(1)).collect(
+            eq("example.com"), eq(0), any(MonitorDeadline.class));
+    }
+
+    @Test
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    void sharedWebsiteProbeStillRebasesFailureCountAndPublishesPerWatch() {
+        Fixture fixture = fixture();
+        DomainWatch second = watch("watch-2", "user-2");
+        Page<DomainWatch> page = new Page<>(1, 100);
+        page.setRecords(List.of(fixture.watch, second));
+        when(fixture.watchService.page(any(IPage.class), any(Wrapper.class))).thenReturn(page);
+        when(fixture.snapshotService.getOne(any(Wrapper.class))).thenReturn(
+            snapshot(previousWithWebsiteFailures(1)),
+            snapshot(previousWithWebsiteFailures(5)));
+        stubSuccessfulProbe(fixture);
+
+        fixture.task.checkDomainExpiry();
+
+        ArgumentCaptor<MonitorState> states = ArgumentCaptor.forClass(MonitorState.class);
+        verify(fixture.publisher, times(2)).publish(
+            any(DomainWatch.class), states.capture(), eq(true), any(Set.class));
+        assertEquals(List.of(2, 6), states.getAllValues().stream()
+            .map(MonitorState::websiteFailureCount)
+            .toList());
+        verify(fixture.websiteCollector, times(1)).collect(
+            eq("example.com"), eq(0), any(MonitorDeadline.class));
     }
 
     private static MonitorCollectorResult success(
@@ -123,6 +204,40 @@ class DomainWatchTaskTest {
         return snapshot;
     }
 
+    private static MonitorState previousWithWebsiteFailures(int count) {
+        return new MonitorState(
+            "example.com", Set.of("ok"), LocalDate.of(2027, 1, 3),
+            LocalDate.of(2027, 2, 4), Map.of("A", Set.of("203.0.113.8")), false, count);
+    }
+
+    private static DomainWatch watch(String id, String userId) {
+        DomainWatch watch = new DomainWatch();
+        watch.setId(id);
+        watch.setUserId(userId);
+        watch.setDomainId("domain-1");
+        watch.setDomainName("example.com");
+        watch.setStatus(DomainWatch.STATUS_ACTIVE);
+        return watch;
+    }
+
+    private static void stubSuccessfulProbe(Fixture fixture) {
+        when(fixture.domainCollector.collect(eq(fixture.domain), any(MonitorDeadline.class))).thenReturn(success(
+            MonitorCollectorResult.Source.DOMAIN,
+            new MonitorState("example.com", Set.of("ok"), LocalDate.of(2027, 1, 3),
+                null, Map.of(), false, 0)));
+        when(fixture.dnsCollector.collect(eq("example.com"), any(MonitorDeadline.class))).thenReturn(success(
+            MonitorCollectorResult.Source.DNS,
+            new MonitorState("example.com", Set.of(), null, null,
+                Map.of("A", Set.of("203.0.113.8")), false, 0)));
+        when(fixture.sslCollector.collect(eq("example.com"), any(MonitorDeadline.class))).thenReturn(success(
+            MonitorCollectorResult.Source.SSL,
+            new MonitorState("example.com", Set.of(), null, LocalDate.of(2027, 2, 4),
+                Map.of(), false, 0)));
+        when(fixture.websiteCollector.collect(eq("example.com"), eq(0), any(MonitorDeadline.class))).thenReturn(success(
+            MonitorCollectorResult.Source.WEBSITE,
+            new MonitorState("example.com", Set.of(), null, null, Map.of(), false, 1)));
+    }
+
     @SuppressWarnings({"rawtypes", "unchecked"})
     private static Fixture fixture() {
         DomainWatchService watchService = mock(DomainWatchService.class);
@@ -134,12 +249,7 @@ class DomainWatchTaskTest {
         SslMonitorCollector sslCollector = mock(SslMonitorCollector.class);
         WebsiteMonitorCollector websiteCollector = mock(WebsiteMonitorCollector.class);
 
-        DomainWatch watch = new DomainWatch();
-        watch.setId("watch-1");
-        watch.setUserId("user-1");
-        watch.setDomainId("domain-1");
-        watch.setDomainName("example.com");
-        watch.setStatus(DomainWatch.STATUS_ACTIVE);
+        DomainWatch watch = watch("watch-1", "user-1");
         Page<DomainWatch> page = new Page<>(1, 100);
         page.setRecords(List.of(watch));
         when(watchService.page(any(IPage.class), any(Wrapper.class))).thenReturn(page);

@@ -48,4 +48,14 @@ class NotificationModelContractTest {
         assertEquals(2, batch.getAttemptCount());
         assertEquals(0, DomainWatchNotifyLog.SEND_STATUS_PENDING);
     }
+
+    @Test
+    void monitorSnapshotsExposeObservationSchemaMetadata() {
+        MonitorSnapshot snapshot = new MonitorSnapshot();
+        snapshot.setSchemaVersion(2);
+        snapshot.setObservedSources("DNS,DOMAIN");
+
+        assertEquals(2, snapshot.getSchemaVersion());
+        assertEquals("DNS,DOMAIN", snapshot.getObservedSources());
+    }
 }
