@@ -29,3 +29,9 @@ Completed.
 - Canonical risk is read from the persisted event field through the existing canonical-risk parser; it is never inferred from event wording or current domain state.
 - Successful-check timestamps come only from active monitoring snapshots; failed diagnostic snapshots are excluded.
 - Notification counts are constrained by the current user, unread state, known event IDs, and watches already selected for that current user.
+
+## Review fix round 1
+
+- Replaced controller-side history loading with `DomainWatchSummaryMapper`: exactly three fixed aggregate queries return one latest-event row, one latest-successful-check row, and one unread-count row per requested watch. The controller no longer loads all monitoring history or expands every event ID into a notification query.
+- Latest event selection is deterministic in MySQL 8: `OCCURRED_AT DESC`, then persisted canonical-risk severity `CRITICAL > HIGH > MEDIUM > LOW > UNKNOWN`, then `ID DESC`. Successful snapshot ties use `CHECKED_AT DESC, ID DESC`.
+- Added Mapper SQL-contract coverage plus a MySQL 8 integration test proving that simultaneous LOW and CRITICAL events select the CRITICAL row.

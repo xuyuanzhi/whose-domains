@@ -2,10 +2,8 @@ package info.wesite.web.controller.api;
 
 import java.util.Date;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -28,17 +26,15 @@ import info.wesite.core.config.AccessControl.Level;
 import info.wesite.core.config.UserHolder;
 import info.wesite.core.entity.Domain;
 import info.wesite.core.entity.DomainWatch;
-import info.wesite.core.entity.MonitorEvent;
-import info.wesite.core.entity.MonitorSnapshot;
-import info.wesite.core.entity.UserNotification;
+import info.wesite.core.mapper.DomainWatchSummaryMapper;
+import info.wesite.core.mapper.model.DomainWatchLatestCheckRow;
+import info.wesite.core.mapper.model.DomainWatchLatestEventRow;
+import info.wesite.core.mapper.model.DomainWatchUnreadCountRow;
 import info.wesite.core.service.DomainService;
 import info.wesite.core.service.DomainWatchService;
-import info.wesite.core.service.MonitorEventService;
-import info.wesite.core.service.MonitorSnapshotService;
-import info.wesite.core.service.UserNotificationService;
 import info.wesite.core.utils.RandomUtils;
 import info.wesite.core.view.ResponseJson;
-import info.wesite.web.monitor.NotificationEventMetadataMapper;
+import info.wesite.web.monitor.MonitorRisk;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
@@ -60,13 +56,7 @@ public class DomainWatchController {
     private DomainService domainService;
 
     @Autowired
-    private MonitorEventService monitorEventService;
-
-    @Autowired
-    private MonitorSnapshotService monitorSnapshotService;
-
-    @Autowired
-    private UserNotificationService notificationService;
+    private DomainWatchSummaryMapper domainWatchSummaryMapper;
 
     @Operation(summary = "获取用户的域名监控列表")
     @GetMapping("/list")
@@ -81,17 +71,10 @@ public class DomainWatchController {
         if (watches.isEmpty()) {
             return ResponseJson.success(List.of());
         }
-        Set<String> watchIds = new HashSet<>();
-        for (DomainWatch watch : watches) {
-            watchIds.add(watch.getId());
-        }
-        List<MonitorEvent> events = monitorEventService.list(
-                Wrappers.<MonitorEvent>lambdaQuery()
-                        .in(MonitorEvent::getWatchId, watchIds)
-                        .orderByDesc(MonitorEvent::getOccurredAt));
-        Map<String, MonitorEvent> latestEvents = latestEvents(events, watchIds);
+        List<String> watchIds = watches.stream().map(DomainWatch::getId).toList();
+        Map<String, DomainWatchLatestEventRow> latestEvents = latestEvents(watchIds);
         Map<String, Date> latestSuccessfulChecks = latestSuccessfulChecks(watchIds);
-        Map<String, Long> unreadCounts = unreadCounts(userId, events, watchIds);
+        Map<String, Long> unreadCounts = unreadCounts(userId, watchIds);
         List<DomainWatchSummary> summaries = watches.stream()
                 .map(watch -> summary(watch, latestEvents.get(watch.getId()),
                         unreadCounts.getOrDefault(watch.getId(), 0L),
@@ -101,70 +84,31 @@ public class DomainWatchController {
         return ResponseJson.success(summaries);
     }
 
-    private Map<String, MonitorEvent> latestEvents(List<MonitorEvent> events, Set<String> watchIds) {
-        Map<String, MonitorEvent> latest = new HashMap<>();
-        for (MonitorEvent event : events) {
-            if (!watchIds.contains(event.getWatchId())) {
-                continue;
-            }
-            MonitorEvent existing = latest.get(event.getWatchId());
-            if (existing == null || isAfter(event.getOccurredAt(), existing.getOccurredAt())) {
-                latest.put(event.getWatchId(), event);
-            }
+    private Map<String, DomainWatchLatestEventRow> latestEvents(List<String> watchIds) {
+        Map<String, DomainWatchLatestEventRow> latest = new HashMap<>();
+        for (DomainWatchLatestEventRow event : domainWatchSummaryMapper.selectLatestEvents(watchIds)) {
+            latest.put(event.getWatchId(), event);
         }
         return latest;
     }
 
-    private Map<String, Date> latestSuccessfulChecks(Set<String> watchIds) {
-        List<MonitorSnapshot> snapshots = monitorSnapshotService.list(
-                Wrappers.<MonitorSnapshot>lambdaQuery()
-                        .in(MonitorSnapshot::getWatchId, watchIds)
-                        .eq(MonitorSnapshot::getStatus, info.wesite.core.entity.BaseEntity.STATUS_ACTIVE)
-                        .orderByDesc(MonitorSnapshot::getCheckedAt));
+    private Map<String, Date> latestSuccessfulChecks(List<String> watchIds) {
         Map<String, Date> latest = new HashMap<>();
-        for (MonitorSnapshot snapshot : snapshots) {
-            if (!watchIds.contains(snapshot.getWatchId())
-                    || snapshot.getStatus() == null
-                    || snapshot.getStatus() != info.wesite.core.entity.BaseEntity.STATUS_ACTIVE) {
-                continue;
-            }
-            Date existing = latest.get(snapshot.getWatchId());
-            if (existing == null || isAfter(snapshot.getCheckedAt(), existing)) {
-                latest.put(snapshot.getWatchId(), snapshot.getCheckedAt());
-            }
+        for (DomainWatchLatestCheckRow check : domainWatchSummaryMapper.selectLatestSuccessfulChecks(watchIds)) {
+            latest.put(check.getWatchId(), check.getLastSuccessfulCheck());
         }
         return latest;
     }
 
-    private Map<String, Long> unreadCounts(String userId, List<MonitorEvent> events, Set<String> watchIds) {
-        Map<String, MonitorEvent> eventsById = new HashMap<>();
-        for (MonitorEvent event : events) {
-            if (watchIds.contains(event.getWatchId()) && event.getId() != null) {
-                eventsById.put(event.getId(), event);
-            }
-        }
-        if (eventsById.isEmpty()) {
-            return Map.of();
-        }
-        List<UserNotification> notifications = notificationService.list(
-                Wrappers.<UserNotification>lambdaQuery()
-                        .eq(UserNotification::getUserId, userId)
-                        .isNull(UserNotification::getReadAt)
-                        .in(UserNotification::getEventId, eventsById.keySet()));
+    private Map<String, Long> unreadCounts(String userId, List<String> watchIds) {
         Map<String, Long> counts = new HashMap<>();
-        for (UserNotification notification : notifications) {
-            if (!userId.equals(notification.getUserId()) || notification.getReadAt() != null) {
-                continue;
-            }
-            MonitorEvent event = eventsById.get(notification.getEventId());
-            if (event != null) {
-                counts.merge(event.getWatchId(), 1L, Long::sum);
-            }
+        for (DomainWatchUnreadCountRow count : domainWatchSummaryMapper.selectUnreadCounts(userId, watchIds)) {
+            counts.put(count.getWatchId(), count.getUnreadCount());
         }
         return counts;
     }
 
-    private static DomainWatchSummary summary(DomainWatch watch, MonitorEvent latestEvent,
+    private static DomainWatchSummary summary(DomainWatch watch, DomainWatchLatestEventRow latestEvent,
             long unreadCount, Date lastSuccessfulCheck) {
         if (latestEvent == null) {
             return new DomainWatchSummary(watch, "UNKNOWN", unreadCount, lastSuccessfulCheck,
@@ -174,22 +118,21 @@ public class DomainWatchController {
                 lastSuccessfulCheck, eventSummary(latestEvent));
     }
 
-    private static String persistedRisk(MonitorEvent event) {
-        var risk = NotificationEventMetadataMapper.canonicalRisk(event);
-        return risk == null ? "UNKNOWN" : risk.name();
+    private static String persistedRisk(DomainWatchLatestEventRow event) {
+        try {
+            return MonitorRisk.valueOf(event.getLatestRisk()).name();
+        } catch (IllegalArgumentException | NullPointerException ignored) {
+            return "UNKNOWN";
+        }
     }
 
-    private static String eventSummary(MonitorEvent event) {
-        if (StringUtils.isBlank(event.getEventType())) {
+    private static String eventSummary(DomainWatchLatestEventRow event) {
+        if (StringUtils.isBlank(event.getLatestEventType())) {
             return "Monitoring event";
         }
-        return StringUtils.isBlank(event.getNewValue())
-                ? event.getEventType()
-                : event.getEventType() + ": " + event.getNewValue();
-    }
-
-    private static boolean isAfter(Date candidate, Date existing) {
-        return candidate != null && (existing == null || candidate.after(existing));
+        return StringUtils.isBlank(event.getLatestEventValue())
+                ? event.getLatestEventType()
+                : event.getLatestEventType() + ": " + event.getLatestEventValue();
     }
 
     @Operation(summary = "添加域名监控")

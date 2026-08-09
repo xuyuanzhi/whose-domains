@@ -22,24 +22,20 @@ import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import info.wesite.core.config.UserHolder;
 import info.wesite.core.entity.BaseEntity;
 import info.wesite.core.entity.DomainWatch;
-import info.wesite.core.entity.MonitorEvent;
-import info.wesite.core.entity.MonitorSnapshot;
 import info.wesite.core.entity.User;
-import info.wesite.core.entity.UserNotification;
+import info.wesite.core.mapper.DomainWatchSummaryMapper;
+import info.wesite.core.mapper.model.DomainWatchLatestCheckRow;
+import info.wesite.core.mapper.model.DomainWatchLatestEventRow;
+import info.wesite.core.mapper.model.DomainWatchUnreadCountRow;
 import info.wesite.core.service.DomainService;
 import info.wesite.core.service.DomainWatchService;
-import info.wesite.core.service.MonitorEventService;
-import info.wesite.core.service.MonitorSnapshotService;
-import info.wesite.core.service.UserNotificationService;
 import info.wesite.core.view.ResponseJson;
 
 @SuppressWarnings({ "rawtypes", "unchecked" })
 class DomainWatchSummaryTest {
 
     private DomainWatchService watches;
-    private MonitorEventService events;
-    private MonitorSnapshotService snapshots;
-    private UserNotificationService notifications;
+    private DomainWatchSummaryMapper summaries;
     private DomainWatchController controller;
 
     @BeforeEach
@@ -49,25 +45,12 @@ class DomainWatchSummaryTest {
         com.baomidou.mybatisplus.core.metadata.TableInfoHelper.initTableInfo(
                 new org.apache.ibatis.builder.MapperBuilderAssistant(configuration, "DomainWatchSummaryTest"),
                 DomainWatch.class);
-        com.baomidou.mybatisplus.core.metadata.TableInfoHelper.initTableInfo(
-                new org.apache.ibatis.builder.MapperBuilderAssistant(configuration, "DomainWatchSummaryTest"),
-                MonitorEvent.class);
-        com.baomidou.mybatisplus.core.metadata.TableInfoHelper.initTableInfo(
-                new org.apache.ibatis.builder.MapperBuilderAssistant(configuration, "DomainWatchSummaryTest"),
-                MonitorSnapshot.class);
-        com.baomidou.mybatisplus.core.metadata.TableInfoHelper.initTableInfo(
-                new org.apache.ibatis.builder.MapperBuilderAssistant(configuration, "DomainWatchSummaryTest"),
-                UserNotification.class);
         watches = mock(DomainWatchService.class);
-        events = mock(MonitorEventService.class);
-        snapshots = mock(MonitorSnapshotService.class);
-        notifications = mock(UserNotificationService.class);
+        summaries = mock(DomainWatchSummaryMapper.class);
         controller = new DomainWatchController();
         ReflectionTestUtils.setField(controller, "domainWatchService", watches);
         ReflectionTestUtils.setField(controller, "domainService", mock(DomainService.class));
-        ReflectionTestUtils.setField(controller, "monitorEventService", events);
-        ReflectionTestUtils.setField(controller, "monitorSnapshotService", snapshots);
-        ReflectionTestUtils.setField(controller, "notificationService", notifications);
+        ReflectionTestUtils.setField(controller, "domainWatchSummaryMapper", summaries);
 
         User user = new User();
         user.setId("user-1");
@@ -83,9 +66,9 @@ class DomainWatchSummaryTest {
     void listUsesQuietDefaultsWhenAWatchHasNoMonitoringHistory() {
         DomainWatch watch = watch("watch-1", "example.com");
         when(watches.list(any(Wrapper.class))).thenReturn(List.of(watch));
-        when(events.list(any(Wrapper.class))).thenReturn(List.of());
-        when(snapshots.list(any(Wrapper.class))).thenReturn(List.of());
-        when(notifications.list(any(Wrapper.class))).thenReturn(List.of());
+        when(summaries.selectLatestEvents(any())).thenReturn(List.of());
+        when(summaries.selectLatestSuccessfulChecks(any())).thenReturn(List.of());
+        when(summaries.selectUnreadCounts(any(), any())).thenReturn(List.of());
 
         ResponseJson<DomainWatchSummary> response = controller.listWatches();
 
@@ -99,24 +82,18 @@ class DomainWatchSummaryTest {
     }
 
     @Test
-    void listSelectsTheNewestPersistedEventRiskAndGroupsOnlyCurrentUsersUnreadEvents() {
+    void listUsesPerWatchAggregateRowsAndDoesNotLoadHistoryOrExpandEventIds() {
         DomainWatch firstWatch = watch("watch-1", "first.example");
         DomainWatch secondWatch = watch("watch-2", "second.example");
         when(watches.list(any(Wrapper.class))).thenReturn(List.of(firstWatch, secondWatch));
 
-        MonitorEvent older = event("event-old", "watch-1", "CRITICAL", "DNS_CHANGED", "ns-old", 1_000L);
-        MonitorEvent newest = event("event-new", "watch-1", "LOW", "WEBSITE_DOWN", "offline", 2_000L);
-        MonitorEvent second = event("event-second", "watch-2", "HIGH", "SSL_EXPIRING", "soon", 1_500L);
-        when(events.list(any(Wrapper.class))).thenReturn(List.of(older, newest, second));
-
-        MonitorSnapshot previous = snapshot("watch-1", BaseEntity.STATUS_ACTIVE, 3_000L);
-        MonitorSnapshot latest = snapshot("watch-1", BaseEntity.STATUS_ACTIVE, 4_000L);
-        when(snapshots.list(any(Wrapper.class))).thenReturn(List.of(previous, latest));
-
-        UserNotification unreadCurrent = notification("notice-current", "user-1", "event-new", null);
-        UserNotification readCurrent = notification("notice-read", "user-1", "event-old", new Date(5_000L));
-        UserNotification unreadOtherUser = notification("notice-other", "user-2", "event-second", null);
-        when(notifications.list(any(Wrapper.class))).thenReturn(List.of(unreadCurrent, readCurrent, unreadOtherUser));
+        when(summaries.selectLatestEvents(any())).thenReturn(List.of(
+                latestEvent("watch-1", "LOW", "WEBSITE_DOWN", "offline"),
+                latestEvent("watch-2", "HIGH", "SSL_EXPIRING", "soon")));
+        when(summaries.selectLatestSuccessfulChecks(any())).thenReturn(List.of(
+                latestCheck("watch-1", 4_000L)));
+        when(summaries.selectUnreadCounts(any(), any())).thenReturn(List.of(
+                unreadCount("watch-1", 1L)));
 
         ResponseJson<DomainWatchSummary> response = controller.listWatches();
 
@@ -128,21 +105,9 @@ class DomainWatchSummaryTest {
         assertEquals(new Date(4_000L), first.getLastSuccessfulCheck());
         assertEquals(0L, secondSummary.getUnreadCount(), "Another user's unread notification must not leak into this watch.");
 
-        verify(events, times(1)).list(any(Wrapper.class));
-        verify(snapshots, times(1)).list(any(Wrapper.class));
-        verify(notifications, times(1)).list(any(Wrapper.class));
-
-        org.mockito.ArgumentCaptor<Wrapper<MonitorEvent>> eventQuery = org.mockito.ArgumentCaptor.forClass((Class) Wrapper.class);
-        org.mockito.ArgumentCaptor<Wrapper<MonitorSnapshot>> snapshotQuery = org.mockito.ArgumentCaptor.forClass((Class) Wrapper.class);
-        org.mockito.ArgumentCaptor<Wrapper<UserNotification>> notificationQuery = org.mockito.ArgumentCaptor.forClass((Class) Wrapper.class);
-        verify(events).list(eventQuery.capture());
-        verify(snapshots).list(snapshotQuery.capture());
-        verify(notifications).list(notificationQuery.capture());
-        assertTrue(eventQuery.getValue().getSqlSegment().contains("watch_id"));
-        assertTrue(snapshotQuery.getValue().getSqlSegment().contains("watch_id")
-                && snapshotQuery.getValue().getSqlSegment().contains("status"));
-        assertTrue(notificationQuery.getValue().getSqlSegment().contains("user_id")
-                && notificationQuery.getValue().getSqlSegment().contains("read_at IS NULL"));
+        verify(summaries, times(1)).selectLatestEvents(List.of("watch-1", "watch-2"));
+        verify(summaries, times(1)).selectLatestSuccessfulChecks(List.of("watch-1", "watch-2"));
+        verify(summaries, times(1)).selectUnreadCounts("user-1", List.of("watch-1", "watch-2"));
     }
 
     private static DomainWatch watch(String id, String domain) {
@@ -153,32 +118,16 @@ class DomainWatchSummaryTest {
         return watch;
     }
 
-    private static MonitorEvent event(String id, String watchId, String risk, String type, String value, long occurredAt) {
-        MonitorEvent event = new MonitorEvent();
-        event.setId(id);
-        event.setWatchId(watchId);
-        event.setRisk(risk);
-        event.setEventType(type);
-        event.setNewValue(value);
-        event.setOccurredAt(new Date(occurredAt));
-        return event;
+    private static DomainWatchLatestEventRow latestEvent(String watchId, String risk, String type, String value) {
+        return new DomainWatchLatestEventRow(watchId, risk, type, value);
     }
 
-    private static MonitorSnapshot snapshot(String watchId, int status, long checkedAt) {
-        MonitorSnapshot snapshot = new MonitorSnapshot();
-        snapshot.setWatchId(watchId);
-        snapshot.setStatus(status);
-        snapshot.setCheckedAt(new Date(checkedAt));
-        return snapshot;
+    private static DomainWatchLatestCheckRow latestCheck(String watchId, long checkedAt) {
+        return new DomainWatchLatestCheckRow(watchId, new Date(checkedAt));
     }
 
-    private static UserNotification notification(String id, String userId, String eventId, Date readAt) {
-        UserNotification notification = new UserNotification();
-        notification.setId(id);
-        notification.setUserId(userId);
-        notification.setEventId(eventId);
-        notification.setReadAt(readAt);
-        return notification;
+    private static DomainWatchUnreadCountRow unreadCount(String watchId, long count) {
+        return new DomainWatchUnreadCountRow(watchId, count);
     }
 
     private static List<DomainWatchSummary> summaries(ResponseJson<DomainWatchSummary> response) {
