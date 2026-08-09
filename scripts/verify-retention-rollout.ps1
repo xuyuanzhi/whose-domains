@@ -13,6 +13,10 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $RepositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$FixtureReportingTimeZone = '+08:00'
+$MySqlSessionInit = "SET time_zone = '$FixtureReportingTimeZone'"
+$MySqlSessionInitBase64 = [Convert]::ToBase64String(
+    [Text.Encoding]::UTF8.GetBytes("$MySqlSessionInit;`n"))
 
 function Assert-RolloutContract([bool]$Condition, [string]$Message) {
     if (-not $Condition) {
@@ -113,6 +117,10 @@ function Test-StaticRolloutContract {
     Assert-Contains $completeIncrement 'ADD COLUMN `NOTIFY_EMAIL`' 'complete increment must add the missing e73ff4d watch email field'
     Assert-Contains $completeIncrement 'MODIFY COLUMN `NOTIFY_EMAIL`' 'complete increment must preserve operational legacy watch recipients'
     Assert-Contains $completeIncrement '(`USER_ID`, `EMAIL_MODE`, `RECIPIENT_EMAIL`, `WINDOW_KEY`)' 'complete increment batch identity must include the frozen recipient'
+    $completeIncrementHeader = (($completeIncrement -split '\r?\n') | Select-Object -First 8) -join "`n"
+    foreach ($absentTable in @('WEB_RETENTION_FACT_COLLECTION', 'WEB_RETENTION_FACT_HEALTH')) {
+        Assert-Contains $completeIncrementHeader $absentTable "complete increment precondition must name absent $absentTable"
+    }
 
     Assert-Contains $retentionReport 'FROM WEB_AUTHENTICATED_ACTIVITY_DAILY' 'retention report must use daily authenticated activity facts'
     Assert-Contains $retentionReport 'FROM WEB_RETENTION_FACT_COLLECTION' 'retention report must use the durable collection boundary'
@@ -123,6 +131,11 @@ function Test-StaticRolloutContract {
     Assert-Contains $retentionReport "@report_status = 'READY'" 'retention report must gate cohorts on maturity'
     Assert-Contains $retentionReport 'DATE(U.CREATE_TIME) >= @fact_collection_start' 'legacy accounts must not become fake first-seen cohorts'
     Assert-Contains $retentionReport 'cohort_users >= @minimum_cohort_size' 'daily cohorts below k must be suppressed'
+    Assert-Contains $retentionReport 'SET @reporting_time_zone = COALESCE(' 'retention report must consume a caller-initialized SQL session zone'
+    Assert-Contains $retentionReport "NULLIF(@@session.time_zone, 'SYSTEM')" 'retention report must reject an implicit SYSTEM session zone'
+    Assert-RolloutContract (
+        -not $retentionReport.Contains("COALESCE(@reporting_time_zone, '+08:00')")
+    ) 'retention report must not define a second reporting-zone default'
 
     Assert-RolloutContract (
         [regex]::Matches($snapshotIncrement, '(?im)^ALTER TABLE `WEB_MONITOR_SNAPSHOT`').Count -eq 1 -and
@@ -145,15 +158,28 @@ function Test-StaticRolloutContract {
     $legacyUpgradeStart = $readme.IndexOf('**Legacy e73ff4d upgrade')
     Assert-RolloutContract ($legacyUpgradeStart -ge 0) 'README Legacy e73ff4d upgrade section is missing'
     $legacyUpgrade = $readme.Substring($legacyUpgradeStart)
+    $legacyUpgradePreconditionEnd = $legacyUpgrade.IndexOf('Back up the tables')
+    Assert-RolloutContract ($legacyUpgradePreconditionEnd -gt 0) 'README legacy precondition paragraph is malformed'
+    $legacyUpgradePrecondition = $legacyUpgrade.Substring(0, $legacyUpgradePreconditionEnd)
+    foreach ($absentTable in @('WEB_RETENTION_FACT_COLLECTION', 'WEB_RETENTION_FACT_HEALTH')) {
+        Assert-Contains $legacyUpgradePrecondition $absentTable "README legacy precondition must name absent $absentTable"
+    }
     Assert-Contains $legacyUpgrade 'alter_retention_notification_center_from_e73ff4d.sql' 'README must prescribe the complete e73ff4d increment'
     Assert-Contains $readme 'If exactly one is present, stop' 'README missing partial legacy stop guard'
     Assert-Contains $readme 'If only some retention tables exist, stop' 'README missing partial baseline stop guard'
     Assert-Contains $readme '-Fixture LegacyUpgrade' 'README must document the real legacy-upgrade verifier'
     Assert-Contains $readme 'at least 120 days' 'README must document the minimum fact retention window'
     Assert-Contains $readme 'INSUFFICIENT_HISTORY' 'README must document the explicit immature report state'
+    Assert-Contains $readme '| `WESITE_RETENTION_REPORTING_ZONE` |' 'README must name the single formal reporting ZoneId configuration'
+    Assert-Contains $readme "SET @reporting_time_zone='+08:00';" 'README must show the caller-variable reporting command'
+    Assert-Contains $readme '--init-command="SET time_zone=''+08:00''"' 'README must show the MySQL session-init reporting command'
+    Assert-RolloutContract (-not $readme.Contains('JVM default')) 'README must not describe the JVM default zone as the reporting contract'
+    Assert-RolloutContract (-not $readme.Contains('edit the first `SET time_zone')) 'README must not instruct operators to edit a nonexistent SET statement'
 
     $immediateLine = 'wesite.notification-delivery.immediate-enabled=${WESITE_NOTIFICATION_DELIVERY_IMMEDIATE_ENABLED:false}'
     $digestLine = 'wesite.notification-delivery.digest-enabled=${WESITE_NOTIFICATION_DELIVERY_DIGEST_ENABLED:false}'
+    $reportingZoneLine = 'wesite.retention.reporting-zone=${WESITE_RETENTION_REPORTING_ZONE:Asia/Shanghai}'
+    Assert-Contains $application $reportingZoneLine 'application must map the formal reporting ZoneId environment variable'
     foreach ($properties in @($application, $productionExample)) {
         Assert-Contains $properties $immediateLine 'immediate delivery must have an environment-backed false default'
         Assert-Contains $properties $digestLine 'digest delivery must have an environment-backed false default'
@@ -245,7 +271,8 @@ function Wait-MySqlFixture(
     $authenticated = $false
     while ([DateTime]::UtcNow -lt $deadline) {
         $authResult = Invoke-DockerRaw @(
-            'exec', $ContainerName, 'mysql', '--user=root', "--password=$Password", '--execute=SELECT 1')
+            'exec', $ContainerName, 'mysql', '--user=root', "--password=$Password",
+            "--init-command=$MySqlSessionInit", '--execute=SELECT 1')
         if ($authResult.ExitCode -eq 0) {
             $authenticated = $true
             break
@@ -264,7 +291,7 @@ function Invoke-FixtureSqlFile(
         $ContainerName,
         'sh',
         '-c',
-        "mysql --user=root --password=$Password wesitedb < /sql/$RelativePath")
+        "{ echo $MySqlSessionInitBase64 | base64 -d; cat /sql/$RelativePath; } | mysql --user=root --password=$Password wesitedb")
 }
 
 function Invoke-FixtureSqlFileOutput(
@@ -276,7 +303,7 @@ function Invoke-FixtureSqlFileOutput(
         $ContainerName,
         'sh',
         '-c',
-        "mysql --user=root --password=$Password --batch wesitedb < /sql/$RelativePath")
+        "{ echo $MySqlSessionInitBase64 | base64 -d; cat /sql/$RelativePath; } | mysql --user=root --password=$Password --batch wesitedb")
 }
 
 function Invoke-ReconciliationScript(
@@ -286,7 +313,7 @@ function Invoke-ReconciliationScript(
     $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($InitSql))
     return Invoke-DockerCommand -ReturnOutput -Arguments @(
         'exec', $ContainerName, 'sh', '-c',
-        "{ echo $encoded | base64 -d; echo ';'; cat /sql/scripts/verify-retention-fact-day.sql; } | mysql --user=root --password=$Password --batch wesitedb")
+        "{ echo $MySqlSessionInitBase64 | base64 -d; echo $encoded | base64 -d; echo ';'; cat /sql/scripts/verify-retention-fact-day.sql; } | mysql --user=root --password=$Password --batch wesitedb")
 }
 
 function Invoke-FixtureQuery(
@@ -299,6 +326,7 @@ function Invoke-FixtureQuery(
         'mysql',
         '--user=root',
         "--password=$Password",
+        "--init-command=$MySqlSessionInit",
         '--batch',
         '--skip-column-names',
         'wesitedb',
@@ -417,6 +445,8 @@ function Assert-RetentionReportData(
         [string]$ContainerName,
         [string]$Password,
         [string]$Label) {
+    $sessionZone = Invoke-FixtureQuery $ContainerName $Password 'SELECT @@session.time_zone;'
+    Assert-RolloutContract ([regex]::IsMatch($sessionZone, '(?m)^\+08:00\r?$')) "$Label fixture query did not initialize the reporting time zone before SQL"
     [void](Invoke-FixtureQuery $ContainerName $Password @'
 CREATE TABLE IF NOT EXISTS SYS_USER (
   ID varchar(32) NOT NULL PRIMARY KEY,
@@ -493,36 +523,97 @@ INSERT INTO WEB_AUTHENTICATED_ACTIVITY_DAILY (USER_ID, ACTIVITY_DATE) VALUES
 
     [void](Invoke-FixtureQuery $ContainerName $Password @'
 INSERT INTO WEB_RETENTION_FACT_HEALTH
-  (FACT_NAME, FACT_DATE, SUCCESSFUL_WRITE_COUNT, FAILURE_COUNT, EXPECTED_FACT_ROWS, LAST_SUCCESS_AT, VERIFICATION_STATUS, VERIFIED_AT)
+  (FACT_NAME, FACT_DATE, SUCCESSFUL_WRITE_COUNT, FAILURE_COUNT,
+   EXPECTED_FACT_ROWS, LAST_SUCCESS_AT, VERIFICATION_STATUS, VERIFIED_AT,
+   EXTERNAL_EXPECTED_ROWS, RECONCILIATION_SOURCE, RECONCILIATION_ID)
 WITH RECURSIVE days AS (
   SELECT DATE_SUB(CURDATE(), INTERVAL 120 DAY) AS fact_date
   UNION ALL SELECT DATE_ADD(fact_date, INTERVAL 1 DAY) FROM days
   WHERE fact_date < DATE_SUB(CURDATE(), INTERVAL 1 DAY)
 )
 SELECT 'AUTHENTICATED_ACTIVITY_DAILY', fact_date, 1, 0,
-  (SELECT COUNT(*) FROM WEB_AUTHENTICATED_ACTIVITY_DAILY A WHERE A.ACTIVITY_DATE = fact_date), NOW(), 'VERIFIED', NOW()
+  (SELECT COUNT(DISTINCT USER_ID) FROM WEB_AUTHENTICATED_ACTIVITY_DAILY A
+   WHERE A.ACTIVITY_DATE = fact_date),
+  NOW(), 'VERIFIED', NOW(),
+  (SELECT COUNT(DISTINCT USER_ID) FROM WEB_AUTHENTICATED_ACTIVITY_DAILY A
+   WHERE A.ACTIVITY_DATE = fact_date),
+  'fixture-auth-gateway', CONCAT('fixture-', DATE_FORMAT(fact_date, '%Y%m%d'))
 FROM days;
 '@)
 
-    [void](Invoke-FixtureQuery $ContainerName $Password "UPDATE WEB_RETENTION_FACT_HEALTH SET VERIFICATION_STATUS='OPEN',VERIFIED_AT=NULL WHERE FACT_NAME='AUTHENTICATED_ACTIVITY_DAILY' AND FACT_DATE=DATE_SUB(CURDATE(),INTERVAL 100 DAY);")
+    [void](Invoke-FixtureQuery $ContainerName $Password @'
+INSERT INTO WEB_RETENTION_FACT_HEALTH
+  (FACT_NAME, FACT_DATE, SUCCESSFUL_WRITE_COUNT, FAILURE_COUNT,
+   EXPECTED_FACT_ROWS, LAST_SUCCESS_AT, VERIFICATION_STATUS)
+SELECT 'AUTHENTICATED_ACTIVITY_DAILY', CURDATE(), 1, 0,
+  COUNT(DISTINCT USER_ID), NOW(), 'OPEN'
+FROM WEB_AUTHENTICATED_ACTIVITY_DAILY WHERE ACTIVITY_DATE=CURDATE()
+ON DUPLICATE KEY UPDATE VERIFICATION_STATUS='OPEN', VERIFIED_AT=NULL,
+  EXTERNAL_EXPECTED_ROWS=NULL, RECONCILIATION_SOURCE=NULL, RECONCILIATION_ID=NULL;
+'@)
+    $todayInit = "SET @reporting_time_zone='$FixtureReportingTimeZone',@verified_fact_date=CURDATE(),@external_expected_rows=0,@reconciliation_source='auth-gateway',@reconciliation_id='today-$Label'"
+    try { [void](Invoke-ReconciliationScript $ContainerName $Password $todayInit); throw 'current reporting date was accepted' }
+    catch { Assert-RolloutContract (-not $_.Exception.Message.Contains('was accepted')) "$Label current reporting date was accepted" }
+    $todayOpen = Get-FixtureCount $ContainerName $Password "SELECT COUNT(*) FROM WEB_RETENTION_FACT_HEALTH WHERE FACT_DATE=CURDATE() AND VERIFICATION_STATUS='OPEN' AND VERIFIED_AT IS NULL AND EXTERNAL_EXPECTED_ROWS IS NULL AND RECONCILIATION_SOURCE IS NULL AND RECONCILIATION_ID IS NULL;"
+    Assert-RolloutContract ($todayOpen -eq 1) "$Label rejected current date did not remain OPEN without audit"
+    [void](Invoke-FixtureQuery $ContainerName $Password "DELETE FROM WEB_RETENTION_FACT_HEALTH WHERE FACT_NAME='AUTHENTICATED_ACTIVITY_DAILY' AND FACT_DATE=CURDATE();")
+
+    [void](Invoke-FixtureQuery $ContainerName $Password "UPDATE WEB_RETENTION_FACT_HEALTH SET VERIFICATION_STATUS='OPEN',VERIFIED_AT=NULL,EXTERNAL_EXPECTED_ROWS=NULL,RECONCILIATION_SOURCE=NULL,RECONCILIATION_ID=NULL WHERE FACT_NAME='AUTHENTICATED_ACTIVITY_DAILY' AND FACT_DATE=DATE_SUB(CURDATE(),INTERVAL 100 DAY);")
     try { [void](Invoke-ReconciliationScript $ContainerName $Password ''); throw 'missing reconciliation input was accepted' }
     catch { Assert-RolloutContract (-not $_.Exception.Message.Contains('was accepted')) "$Label missing reconciliation input was accepted" }
-    $mismatchInit = "SET @reporting_time_zone='+08:00',@verified_fact_date=DATE_SUB(CURDATE(),INTERVAL 100 DAY),@external_expected_rows=1,@reconciliation_source='auth-gateway',@reconciliation_id='mismatch-$Label'"
+    $mismatchInit = "SET @reporting_time_zone='$FixtureReportingTimeZone',@verified_fact_date=DATE_SUB(CURDATE(),INTERVAL 100 DAY),@external_expected_rows=1,@reconciliation_source='auth-gateway',@reconciliation_id='mismatch-$Label'"
     try { [void](Invoke-ReconciliationScript $ContainerName $Password $mismatchInit); throw 'mismatched reconciliation was accepted' }
     catch { Assert-RolloutContract (-not $_.Exception.Message.Contains('was accepted')) "$Label mismatched reconciliation was accepted" }
-    $matchInit = "SET @reporting_time_zone='+08:00',@verified_fact_date=DATE_SUB(CURDATE(),INTERVAL 100 DAY),@external_expected_rows=0,@reconciliation_source='auth-gateway',@reconciliation_id='gateway-$Label-100'"
+    $matchInit = "SET @reporting_time_zone='$FixtureReportingTimeZone',@verified_fact_date=DATE_SUB(CURDATE(),INTERVAL 100 DAY),@external_expected_rows=0,@reconciliation_source='auth-gateway',@reconciliation_id='gateway-$Label-100'"
     [void](Invoke-ReconciliationScript $ContainerName $Password $matchInit)
     $reconciled = Get-FixtureCount $ContainerName $Password "SELECT COUNT(*) FROM WEB_RETENTION_FACT_HEALTH WHERE FACT_DATE=DATE_SUB(CURDATE(),INTERVAL 100 DAY) AND VERIFICATION_STATUS='VERIFIED' AND EXTERNAL_EXPECTED_ROWS=0 AND RECONCILIATION_SOURCE='auth-gateway' AND RECONCILIATION_ID='gateway-$Label-100';"
     Assert-RolloutContract ($reconciled -eq 1) "$Label matching reconciliation did not persist audit fields"
 
+    $auditCorruptions = @(
+        @{ Name = 'missing VERIFIED_AT'; Corrupt = 'VERIFIED_AT=NULL'; Restore = 'VERIFIED_AT=NOW()' },
+        @{ Name = 'missing external count'; Corrupt = 'EXTERNAL_EXPECTED_ROWS=NULL'; Restore = 'EXTERNAL_EXPECTED_ROWS=EXPECTED_FACT_ROWS' },
+        @{ Name = 'blank reconciliation source'; Corrupt = "RECONCILIATION_SOURCE='   '"; Restore = "RECONCILIATION_SOURCE='auth-gateway'" },
+        @{ Name = 'missing reconciliation id'; Corrupt = 'RECONCILIATION_ID=NULL'; Restore = "RECONCILIATION_ID='gateway-$Label-100'" }
+    )
+    foreach ($corruption in $auditCorruptions) {
+        [void](Invoke-FixtureQuery $ContainerName $Password "UPDATE WEB_RETENTION_FACT_HEALTH SET $($corruption.Corrupt) WHERE FACT_NAME='AUTHENTICATED_ACTIVITY_DAILY' AND FACT_DATE=DATE_SUB(CURDATE(),INTERVAL 100 DAY);")
+        $missingAudit = Invoke-FixtureSqlFileOutput $ContainerName $Password 'scripts/retention-report.sql'
+        Assert-RolloutContract $missingAudit.Contains('INSUFFICIENT_HISTORY') "$Label report accepted $($corruption.Name)"
+        [void](Invoke-FixtureQuery $ContainerName $Password "UPDATE WEB_RETENTION_FACT_HEALTH SET $($corruption.Restore) WHERE FACT_NAME='AUTHENTICATED_ACTIVITY_DAILY' AND FACT_DATE=DATE_SUB(CURDATE(),INTERVAL 100 DAY);")
+    }
+
+    [void](Invoke-FixtureQuery $ContainerName $Password "UPDATE WEB_RETENTION_FACT_HEALTH SET EXTERNAL_EXPECTED_ROWS=EXPECTED_FACT_ROWS+1 WHERE FACT_NAME='AUTHENTICATED_ACTIVITY_DAILY' AND FACT_DATE=DATE_SUB(CURDATE(),INTERVAL 100 DAY);")
+    $externalMismatch = Invoke-FixtureSqlFileOutput $ContainerName $Password 'scripts/retention-report.sql'
+    Assert-RolloutContract $externalMismatch.Contains('INSUFFICIENT_HISTORY') "$Label report accepted EXPECTED_FACT_ROWS != EXTERNAL_EXPECTED_ROWS"
+    [void](Invoke-FixtureQuery $ContainerName $Password "UPDATE WEB_RETENTION_FACT_HEALTH SET EXTERNAL_EXPECTED_ROWS=EXPECTED_FACT_ROWS WHERE FACT_NAME='AUTHENTICATED_ACTIVITY_DAILY' AND FACT_DATE=DATE_SUB(CURDATE(),INTERVAL 100 DAY);")
+
+    [void](Invoke-FixtureQuery $ContainerName $Password "INSERT INTO WEB_AUTHENTICATED_ACTIVITY_DAILY (USER_ID,ACTIVITY_DATE) VALUES ('ret-rogue',DATE_SUB(CURDATE(),INTERVAL 54 DAY));")
+    $extraFact = Invoke-FixtureSqlFileOutput $ContainerName $Password 'scripts/retention-report.sql'
+    Assert-RolloutContract $extraFact.Contains('INSUFFICIENT_HISTORY') "$Label report accepted actual distinct facts greater than both expected counts"
+    [void](Invoke-FixtureQuery $ContainerName $Password "DELETE FROM WEB_AUTHENTICATED_ACTIVITY_DAILY WHERE USER_ID='ret-rogue' AND ACTIVITY_DATE=DATE_SUB(CURDATE(),INTERVAL 54 DAY);")
+
     [void](Invoke-FixtureQuery $ContainerName $Password "DELETE FROM WEB_RETENTION_FACT_HEALTH WHERE FACT_NAME='AUTHENTICATED_ACTIVITY_DAILY' AND FACT_DATE=DATE_SUB(CURDATE(), INTERVAL 100 DAY);")
+    $auditedDays = Get-FixtureCount $ContainerName $Password @'
+SELECT COUNT(*) FROM WEB_RETENTION_FACT_HEALTH
+WHERE FACT_NAME='AUTHENTICATED_ACTIVITY_DAILY'
+  AND FACT_DATE>=DATE_SUB(CURDATE(),INTERVAL 120 DAY) AND FACT_DATE<CURDATE()
+  AND VERIFICATION_STATUS='VERIFIED' AND VERIFIED_AT IS NOT NULL
+  AND EXTERNAL_EXPECTED_ROWS=EXPECTED_FACT_ROWS
+  AND NULLIF(TRIM(RECONCILIATION_SOURCE),'') IS NOT NULL
+  AND NULLIF(TRIM(RECONCILIATION_ID),'') IS NOT NULL;
+'@
+    Assert-RolloutContract ($auditedDays -eq 119) "$Label expected exactly 119 fully audited days after one-row removal, found $auditedDays"
     $gap = Invoke-FixtureSqlFileOutput $ContainerName $Password 'scripts/retention-report.sql'
     Assert-RolloutContract $gap.Contains('INSUFFICIENT_HISTORY') "$Label report accepted an interrupted health interval"
     [void](Invoke-FixtureQuery $ContainerName $Password @'
 INSERT INTO WEB_RETENTION_FACT_HEALTH
-  (FACT_NAME, FACT_DATE, SUCCESSFUL_WRITE_COUNT, FAILURE_COUNT, EXPECTED_FACT_ROWS, LAST_SUCCESS_AT, VERIFICATION_STATUS, VERIFIED_AT)
+  (FACT_NAME, FACT_DATE, SUCCESSFUL_WRITE_COUNT, FAILURE_COUNT,
+   EXPECTED_FACT_ROWS, LAST_SUCCESS_AT, VERIFICATION_STATUS, VERIFIED_AT,
+   EXTERNAL_EXPECTED_ROWS, RECONCILIATION_SOURCE, RECONCILIATION_ID)
 SELECT 'AUTHENTICATED_ACTIVITY_DAILY', DATE_SUB(CURDATE(), INTERVAL 100 DAY), 1, 0,
-  COUNT(*), NOW(), 'VERIFIED', NOW() FROM WEB_AUTHENTICATED_ACTIVITY_DAILY
+  COUNT(DISTINCT USER_ID), NOW(), 'VERIFIED', NOW(), COUNT(DISTINCT USER_ID),
+  'fixture-auth-gateway', CONCAT('fixture-', DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL 100 DAY), '%Y%m%d'))
+FROM WEB_AUTHENTICATED_ACTIVITY_DAILY
 WHERE ACTIVITY_DATE=DATE_SUB(CURDATE(), INTERVAL 100 DAY);
 DELETE FROM WEB_AUTHENTICATED_ACTIVITY_DAILY
 WHERE USER_ID='ret-mon-1' AND ACTIVITY_DATE=DATE_SUB(CURDATE(), INTERVAL 55 DAY);
@@ -530,6 +621,41 @@ WHERE USER_ID='ret-mon-1' AND ACTIVITY_DATE=DATE_SUB(CURDATE(), INTERVAL 55 DAY)
     $cleaned = Invoke-FixtureSqlFileOutput $ContainerName $Password 'scripts/retention-report.sql'
     Assert-RolloutContract $cleaned.Contains('INSUFFICIENT_HISTORY') "$Label report accepted prematurely cleaned facts"
     [void](Invoke-FixtureQuery $ContainerName $Password "INSERT INTO WEB_AUTHENTICATED_ACTIVITY_DAILY (USER_ID,ACTIVITY_DATE) VALUES ('ret-mon-1',DATE_SUB(CURDATE(), INTERVAL 55 DAY));")
+
+    [void](Invoke-FixtureQuery $ContainerName $Password "UPDATE WEB_RETENTION_FACT_HEALTH SET VERIFICATION_STATUS='OPEN',VERIFIED_AT=NULL,EXTERNAL_EXPECTED_ROWS=NULL,RECONCILIATION_SOURCE=NULL,RECONCILIATION_ID=NULL WHERE FACT_NAME='AUTHENTICATED_ACTIVITY_DAILY' AND FACT_DATE=DATE_SUB(CURDATE(),INTERVAL 56 DAY);")
+    $beforeLateFactInit = "SET @reporting_time_zone='$FixtureReportingTimeZone',@verified_fact_date=DATE_SUB(CURDATE(),INTERVAL 56 DAY),@external_expected_rows=0,@reconciliation_source='auth-gateway',@reconciliation_id='late-before-$Label'"
+    [void](Invoke-ReconciliationScript $ContainerName $Password $beforeLateFactInit)
+    [void](Invoke-FixtureQuery $ContainerName $Password @'
+START TRANSACTION;
+INSERT IGNORE INTO WEB_AUTHENTICATED_ACTIVITY_DAILY (USER_ID,ACTIVITY_DATE)
+VALUES ('ret-late-fact',DATE_SUB(CURDATE(),INTERVAL 56 DAY));
+SET @inserted_fact=ROW_COUNT();
+INSERT INTO WEB_RETENTION_FACT_HEALTH
+  (FACT_NAME,FACT_DATE,SUCCESSFUL_WRITE_COUNT,EXPECTED_FACT_ROWS,LAST_SUCCESS_AT)
+VALUES ('AUTHENTICATED_ACTIVITY_DAILY',DATE_SUB(CURDATE(),INTERVAL 56 DAY),1,@inserted_fact,NOW())
+ON DUPLICATE KEY UPDATE SUCCESSFUL_WRITE_COUNT=SUCCESSFUL_WRITE_COUNT+1,
+  EXPECTED_FACT_ROWS=EXPECTED_FACT_ROWS+VALUES(EXPECTED_FACT_ROWS),
+  VERIFIED_AT=IF(VALUES(EXPECTED_FACT_ROWS)>0,NULL,VERIFIED_AT),
+  EXTERNAL_EXPECTED_ROWS=IF(VALUES(EXPECTED_FACT_ROWS)>0,NULL,EXTERNAL_EXPECTED_ROWS),
+  RECONCILIATION_SOURCE=IF(VALUES(EXPECTED_FACT_ROWS)>0,NULL,RECONCILIATION_SOURCE),
+  RECONCILIATION_ID=IF(VALUES(EXPECTED_FACT_ROWS)>0,NULL,RECONCILIATION_ID),
+  VERIFICATION_STATUS=IF(VALUES(EXPECTED_FACT_ROWS)>0,'OPEN',VERIFICATION_STATUS),
+  LAST_SUCCESS_AT=NOW();
+COMMIT;
+'@)
+    $lateFactOpened = Get-FixtureCount $ContainerName $Password @'
+SELECT COUNT(*) FROM WEB_RETENTION_FACT_HEALTH
+WHERE FACT_NAME='AUTHENTICATED_ACTIVITY_DAILY'
+  AND FACT_DATE=DATE_SUB(CURDATE(),INTERVAL 56 DAY)
+  AND EXPECTED_FACT_ROWS=1 AND VERIFICATION_STATUS='OPEN'
+  AND VERIFIED_AT IS NULL AND EXTERNAL_EXPECTED_ROWS IS NULL
+  AND RECONCILIATION_SOURCE IS NULL AND RECONCILIATION_ID IS NULL;
+'@
+    Assert-RolloutContract ($lateFactOpened -eq 1) "$Label late fact did not atomically reopen and clear the verified audit"
+    $lateFactReport = Invoke-FixtureSqlFileOutput $ContainerName $Password 'scripts/retention-report.sql'
+    Assert-RolloutContract $lateFactReport.Contains('INSUFFICIENT_HISTORY') "$Label report accepted a reopened day after a late fact"
+    $afterLateFactInit = "SET @reporting_time_zone='$FixtureReportingTimeZone',@verified_fact_date=DATE_SUB(CURDATE(),INTERVAL 56 DAY),@external_expected_rows=1,@reconciliation_source='auth-gateway',@reconciliation_id='late-after-$Label'"
+    [void](Invoke-ReconciliationScript $ContainerName $Password $afterLateFactInit)
 
     $mature = Invoke-FixtureSqlFileOutput $ContainerName $Password 'scripts/retention-report.sql'
     Assert-RolloutContract $mature.Contains('READY') "$Label mature report did not become ready"
@@ -539,7 +665,7 @@ WHERE USER_ID='ret-mon-1' AND ACTIVITY_DATE=DATE_SUB(CURDATE(), INTERVAL 55 DAY)
     Assert-RolloutContract (
         [regex]::Matches($mature, '(?m)^non_monitored\t').Count -eq 0
     ) "$Label emitted a k=4 control cohort or treated pre-collection accounts as first seen: $mature"
-    Write-Host "RETENTION_REPORT_DATA|PASS|PATH=$Label|IMMATURE=EMPTY|GAP=INSUFFICIENT|CLEANUP=INSUFFICIENT|MATURE=5|SUPPRESSED=4"
+    Write-Host "RETENTION_REPORT_DATA|PASS|PATH=$Label|IMMATURE=EMPTY|CLOSED_DATE=REJECTED|AUDIT=REQUIRED|AUDITED_DAYS=119|GAP=INSUFFICIENT|CLEANUP=INSUFFICIENT|LATE_FACT=OPEN|MATURE=5|SUPPRESSED=4"
 }
 
 function Assert-LegacyUpgradeData(

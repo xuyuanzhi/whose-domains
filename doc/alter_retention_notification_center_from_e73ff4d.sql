@@ -1,7 +1,9 @@
 -- Complete one-way upgrade from the notification schema shipped at git e73ff4d.
 -- Preconditions (verify before running): WEB_MONITOR_SNAPSHOT, WEB_MONITOR_EVENT,
--- WEB_USER_NOTIFICATION and WEB_NOTIFICATION_PREFERENCE exist; the delivery-batch
--- and authenticated-activity tables do not; the columns added below do not exist.
+-- WEB_USER_NOTIFICATION and WEB_NOTIFICATION_PREFERENCE exist;
+-- WEB_NOTIFICATION_DELIVERY_BATCH, WEB_AUTHENTICATED_ACTIVITY_DAILY,
+-- WEB_RETENTION_FACT_COLLECTION and WEB_RETENTION_FACT_HEALTH do not exist;
+-- the columns added below do not exist.
 -- Stop monitoring/delivery workers and take a backup. This script is intentionally
 -- not idempotent so that a partial or repeated production application fails visibly.
 

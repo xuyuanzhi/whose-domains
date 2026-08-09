@@ -15,6 +15,9 @@ BEGIN
      OR NULLIF(TRIM(@reconciliation_id), '') IS NULL THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'missing explicit retention reconciliation input';
   END IF;
+  IF @verified_fact_date >= CURDATE() THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'retention reconciliation requires a closed reporting date';
+  END IF;
   SELECT COUNT(DISTINCT USER_ID) INTO actual_rows
   FROM WEB_AUTHENTICATED_ACTIVITY_DAILY WHERE ACTIVITY_DATE = @verified_fact_date;
   IF actual_rows <> @external_expected_rows THEN

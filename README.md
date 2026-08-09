@@ -84,6 +84,7 @@ You can also override settings via environment variables without touching the co
 | `DEEPSEEK_API_KEY` | DeepSeek API key (required for AI features) |
 | `WESITE_NOTIFICATION_DELIVERY_IMMEDIATE_ENABLED` | Allows the immediate-mail job when `wesite.mail.enabled=true`; defaults to `false` |
 | `WESITE_NOTIFICATION_DELIVERY_DIGEST_ENABLED` | Allows the daily/weekly digest jobs when `wesite.mail.enabled=true`; defaults to `false` |
+| `WESITE_RETENTION_REPORTING_ZONE` | The single formal retention reporting calendar, as an IANA `ZoneId`; defaults to `Asia/Shanghai` |
 
 ### 3. Build and run
 
@@ -181,7 +182,7 @@ Do **not** run `doc/alter_domain_watch_snapshot.sql` on Path A: its unguarded `C
 
 The Path B order is therefore: legacy watch/snapshot script only when both tables are absent → current retention baseline once. Never re-run a `CREATE TABLE` or `ADD COLUMN` migration against a schema that already contains its objects. Record the applied script name, deploy version, operator, and UTC time in the production change record.
 
-**Legacy e73ff4d upgrade — old notification baseline already present.** If preflight shows the four e73ff4d notification tables (`WEB_MONITOR_SNAPSHOT`, `WEB_MONITOR_EVENT`, `WEB_USER_NOTIFICATION`, and `WEB_NOTIFICATION_PREFERENCE`) but no delivery-batch/activity/fact-collection table or new claim/recipient columns, do not run the current baseline or the two historical two-column increments. The checked-in e73ff4d schema has no `WEB_DOMAIN_WATCH.NOTIFY_EMAIL`; the same increment also accepts operational installations that independently added that one legacy field. Back up the tables, stop workers, and apply the single complete increment:
+**Legacy e73ff4d upgrade — old notification baseline already present.** If preflight shows the four e73ff4d notification tables (`WEB_MONITOR_SNAPSHOT`, `WEB_MONITOR_EVENT`, `WEB_USER_NOTIFICATION`, and `WEB_NOTIFICATION_PREFERENCE`) but `WEB_NOTIFICATION_DELIVERY_BATCH`, `WEB_AUTHENTICATED_ACTIVITY_DAILY`, `WEB_RETENTION_FACT_COLLECTION`, and `WEB_RETENTION_FACT_HEALTH` are all absent, and the new claim/recipient columns are also absent, do not run the current baseline or the two historical two-column increments. The checked-in e73ff4d schema has no `WEB_DOMAIN_WATCH.NOTIFY_EMAIL`; the same increment also accepts operational installations that independently added that one legacy field. Back up the tables, stop workers, and apply the single complete increment:
 
 ```bash
 mysql -u root -p wesitedb < doc/alter_retention_notification_center_from_e73ff4d.sql
@@ -237,13 +238,38 @@ Before each phase, verify the application health check, migration record, profil
 
 Use GA4 only with the privacy-safe custom events `watch_created`, `watchlist_return_visit`, `notification_opened`, `notification_action_clicked`, `notification_preferences_saved`, and `domain_detail_cta_clicked`. The client sends only allowlisted `type`, `category`, `risk`, and UI `source` values. It never sends a domain, email, user ID, event ID, notification text, or any free-form UI value; missing `gtag` is a no-op. `notification_opened` means the in-app center loaded successfully; email-open tracking is not implemented and must not be inferred from it.
 
-The account-level source of record is the local MySQL aggregate report, not GA4. Run it with a database account allowed to create temporary tables; it selects only daily/overall aggregates and never emits a user ID:
+The account-level source of record is the local MySQL aggregate report, not GA4. Run it with a database account allowed to create temporary tables; it selects only daily/overall aggregates and never emits a user ID.
 
-Before running it, edit the first `SET time_zone = '+08:00'` line to the production JVM's fixed default offset, and require the MySQL reporting session to use that same offset. This is deliberate: the authenticated daily fact uses `LocalDate.now()` with the JVM default zone. Do not switch this report to UTC unless the production JVM and database are both configured for UTC. The production deployment checklist therefore requires a single documented JVM/database/reporting offset (and a planned offset update for DST regions).
+`WESITE_RETENTION_REPORTING_ZONE` is the only formal reporting-calendar configuration. The application parses it as an IANA `ZoneId` and derives each activity `LocalDate` in that zone. Every SQL caller must derive the matching MySQL session offset from that same ZoneId: `Asia/Shanghai` maps to `+08:00`. For a DST ZoneId, calculate the offset effective for the invocation and record that mapping in the change/run log; the SQL offset is derived session state, not a second configuration. Never use the host, JVM, container, or database default as a substitute.
+
+Initialize the report in one session by either setting `@reporting_time_zone` before the script or using the MySQL connection init command:
 
 ```bash
-mysql -u retention_reporter -p wesitedb < scripts/retention-report.sql
+# Caller variable; the prefixed SET and report execute in the same session.
+{ printf "%s\n" "SET @reporting_time_zone='+08:00';"; cat scripts/retention-report.sql; } \
+  | mysql -u retention_reporter -p wesitedb
+
+# Equivalent connection initialization; the report consumes @@session.time_zone.
+mysql -u retention_reporter -p \
+  --init-command="SET time_zone='+08:00'" \
+  wesitedb < scripts/retention-report.sql
 ```
+
+Reconciliation uses the same derived offset. The init command runs before the here-document, so `CURDATE()` and any date expression in the reconciliation inputs are evaluated only after the reporting session zone is active:
+
+```bash
+mysql -u retention_operator -p \
+  --init-command="SET time_zone='+08:00'" wesitedb <<'SQL'
+SET @reporting_time_zone='+08:00';
+SET @verified_fact_date=DATE_SUB(CURDATE(), INTERVAL 1 DAY);
+SET @external_expected_rows=1234;
+SET @reconciliation_source='auth-gateway';
+SET @reconciliation_id='auth-gateway-2026-08-08-v1';
+SOURCE scripts/verify-retention-fact-day.sql;
+SQL
+```
+
+The operator rejects `@verified_fact_date >= CURDATE()` in that reporting session, so only a fully closed date can be verified. A verified row is reportable only while its actual distinct fact count equals both `EXPECTED_FACT_ROWS` and `EXTERNAL_EXPECTED_ROWS`, its status is `VERIFIED`, and `VERIFIED_AT`, `RECONCILIATION_SOURCE`, and `RECONCILIATION_ID` remain non-empty. A later newly inserted fact atomically reopens that day and clears its audit fields; the report then returns `INSUFFICIENT_HISTORY` until independent reconciliation runs again.
 
 The script uses these persisted fields, deduplicated by `(USER_ID, activity_date)` in a temporary table:
 

@@ -3,9 +3,13 @@
 -- never SELECTs a user ID. A complete 90-day window of closed 30-day cohorts
 -- requires at least 120 days of continuously retained activity facts.
 --
--- IMPORTANT: +08:00 is the configured reporting zone used by the writer too.
+-- IMPORTANT: the caller must initialize the SQL session time zone from the
+-- offset of WESITE_RETENTION_REPORTING_ZONE before this script runs.
 
-SET @reporting_time_zone = COALESCE(@reporting_time_zone, '+08:00');
+SET @reporting_time_zone = COALESCE(
+  @reporting_time_zone,
+  NULLIF(@@session.time_zone, 'SYSTEM')
+);
 SET time_zone = @reporting_time_zone;
 SET @minimum_cohort_size = 5;
 SET @minimum_report_days = 120;
@@ -25,16 +29,38 @@ SET @configured_retention_days = (
 SET @required_fact_days = GREATEST(COALESCE(@configured_retention_days, 0), @minimum_report_days);
 SET @health_start = DATE_SUB(CURDATE(), INTERVAL @required_fact_days DAY);
 SET @healthy_days = (
-  SELECT COUNT(*) FROM WEB_RETENTION_FACT_HEALTH
-  WHERE FACT_NAME = @fact_name AND FACT_DATE >= @health_start AND FACT_DATE < CURDATE()
-    AND VERIFICATION_STATUS = 'VERIFIED' AND FAILURE_COUNT = 0 AND SUCCESSFUL_WRITE_COUNT > 0
+  SELECT COUNT(*) FROM WEB_RETENTION_FACT_HEALTH H
+  WHERE H.FACT_NAME = @fact_name AND H.FACT_DATE >= @health_start AND H.FACT_DATE < CURDATE()
+    AND H.VERIFICATION_STATUS = 'VERIFIED'
+    AND H.VERIFIED_AT IS NOT NULL
+    AND H.EXTERNAL_EXPECTED_ROWS IS NOT NULL
+    AND NULLIF(TRIM(H.RECONCILIATION_SOURCE), '') IS NOT NULL
+    AND NULLIF(TRIM(H.RECONCILIATION_ID), '') IS NOT NULL
+    AND H.FAILURE_COUNT = 0
+    AND H.SUCCESSFUL_WRITE_COUNT > 0
+    AND H.EXPECTED_FACT_ROWS = H.EXTERNAL_EXPECTED_ROWS
+    AND H.EXPECTED_FACT_ROWS = (
+      SELECT COUNT(DISTINCT A.USER_ID)
+      FROM WEB_AUTHENTICATED_ACTIVITY_DAILY A
+      WHERE A.ACTIVITY_DATE = H.FACT_DATE
+    )
 );
 SET @incomplete_days = (
   SELECT COUNT(*) FROM WEB_RETENTION_FACT_HEALTH H
   WHERE H.FACT_NAME = @fact_name AND H.FACT_DATE >= @health_start AND H.FACT_DATE < CURDATE()
-    AND (H.FAILURE_COUNT > 0 OR
-      (SELECT COUNT(*) FROM WEB_AUTHENTICATED_ACTIVITY_DAILY A WHERE A.ACTIVITY_DATE = H.FACT_DATE)
-        < H.EXPECTED_FACT_ROWS)
+    AND (H.VERIFICATION_STATUS <> 'VERIFIED'
+      OR H.VERIFIED_AT IS NULL
+      OR H.EXTERNAL_EXPECTED_ROWS IS NULL
+      OR NULLIF(TRIM(H.RECONCILIATION_SOURCE), '') IS NULL
+      OR NULLIF(TRIM(H.RECONCILIATION_ID), '') IS NULL
+      OR H.FAILURE_COUNT > 0
+      OR H.SUCCESSFUL_WRITE_COUNT = 0
+      OR H.EXPECTED_FACT_ROWS <> H.EXTERNAL_EXPECTED_ROWS
+      OR H.EXPECTED_FACT_ROWS <> (
+        SELECT COUNT(DISTINCT A.USER_ID)
+        FROM WEB_AUTHENTICATED_ACTIVITY_DAILY A
+        WHERE A.ACTIVITY_DATE = H.FACT_DATE
+      ))
 );
 SET @observed_fact_days = CASE
   WHEN @fact_collection_start IS NULL THEN 0
