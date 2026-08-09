@@ -20,9 +20,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.io.IOException;
 import java.util.List;
+import java.util.stream.Collectors;
 
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.classic.spi.ThrowableProxyUtil;
+import ch.qos.logback.core.read.ListAppender;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -151,6 +157,38 @@ class PortCheckerControllerTest {
 
         verify(queryHistoryRecorder, never()).recordAsync(
                 nullable(String.class), nullable(String.class), nullable(String.class), nullable(String.class));
+    }
+
+    @Test
+    void failureLogsNeverIncludeUntrustedHostText() throws Exception {
+        String rawHost = "user:secret@example.com\r\nFORGED log line";
+        when(probes.checkPorts(rawHost, List.of(443))).thenThrow(new IOException("transport failed for " + rawHost));
+        ch.qos.logback.classic.Logger controllerLogger =
+                (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(PortCheckerController.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        controllerLogger.addAppender(appender);
+        try {
+            PortCheckerController.PortCheckRequest request = new PortCheckerController.PortCheckRequest();
+            request.setHost(rawHost);
+            request.setPorts(List.of(443));
+            MockHttpServletRequest httpRequest = new MockHttpServletRequest();
+            httpRequest.setRemoteAddr("198.18.20.10");
+
+            newController().checkPorts(request, httpRequest);
+        } finally {
+            controllerLogger.detachAppender(appender);
+            appender.stop();
+        }
+
+        String logs = appender.list.stream()
+                .map(event -> event.getFormattedMessage() + "\n"
+                        + (event.getThrowableProxy() == null ? "" : ThrowableProxyUtil.asString(event.getThrowableProxy())))
+                .collect(Collectors.joining("\n"));
+        org.junit.jupiter.api.Assertions.assertFalse(logs.contains(rawHost));
+        org.junit.jupiter.api.Assertions.assertFalse(logs.contains("user:secret"));
+        org.junit.jupiter.api.Assertions.assertFalse(logs.contains("FORGED log line"));
+        verify(probes).checkPorts(rawHost, List.of(443));
     }
 
     @Test

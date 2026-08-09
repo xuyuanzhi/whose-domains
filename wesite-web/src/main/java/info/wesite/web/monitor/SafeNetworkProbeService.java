@@ -6,6 +6,7 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -107,12 +108,20 @@ public final class SafeNetworkProbeService {
     }
 
     private HttpProbe probeHttp(String host, MonitorDeadline deadline) throws IOException {
-        HttpProbe https = executeHttp(URI.create("https://" + host), deadline);
+        HttpProbe https = executeHttp(probeUri("https", host), deadline);
         if (https.reachable()) {
             return https;
         }
         deadline.throwIfExpired();
-        return executeHttp(URI.create("http://" + host), deadline);
+        return executeHttp(probeUri("http", host), deadline);
+    }
+
+    private static URI probeUri(String scheme, String host) throws IOException {
+        try {
+            return new URI(scheme, null, host, -1, null, null, null);
+        } catch (URISyntaxException invalidHost) {
+            throw new IOException("Invalid probe target", invalidHost);
+        }
     }
 
     private HttpProbe executeHttp(URI uri, MonitorDeadline deadline) throws IOException {

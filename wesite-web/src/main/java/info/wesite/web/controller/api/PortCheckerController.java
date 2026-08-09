@@ -91,10 +91,12 @@ public class PortCheckerController {
                     openCount + "/" + results.size() + " ports open");
             return ResponseJson.success(data);
         } catch (IllegalArgumentException invalidRequest) {
-            log.warn("Rejected port probe request for {}", request.getHost(), invalidRequest);
+            log.warn("Rejected port probe request for [untrusted-target], failureType={}",
+                    invalidRequest.getClass().getSimpleName());
             return ResponseJson.failure("Invalid port request.");
         } catch (IOException probeFailure) {
-            log.warn("Port probe failed for {}", request.getHost(), probeFailure);
+            log.warn("Port probe failed for [untrusted-target], failureType={}",
+                    probeFailure.getClass().getSimpleName());
             return ResponseJson.failure("Unable to check ports for this host.");
         }
     }

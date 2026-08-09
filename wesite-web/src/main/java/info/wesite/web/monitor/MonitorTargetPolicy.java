@@ -2,6 +2,7 @@ package info.wesite.web.monitor;
 
 import java.io.IOException;
 import java.net.IDN;
+import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Arrays;
@@ -188,6 +189,24 @@ final class MonitorTargetPolicy {
         }
         if (value.isEmpty() || value.indexOf('/') >= 0 || value.indexOf('@') >= 0) {
             throw new UnknownHostException("invalid host");
+        }
+        if (value.startsWith("[") || value.endsWith("]")) {
+            if (!value.startsWith("[") || !value.endsWith("]") || value.length() < 3) {
+                throw new UnknownHostException("invalid host");
+            }
+            value = value.substring(1, value.length() - 1);
+        }
+        if (value.indexOf(':') >= 0) {
+            try {
+                if (!(InetAddress.getByName(value) instanceof Inet6Address)) {
+                    throw new UnknownHostException("invalid host");
+                }
+                return value.toLowerCase(java.util.Locale.ROOT);
+            } catch (IllegalArgumentException invalid) {
+                UnknownHostException failure = new UnknownHostException("invalid host");
+                failure.initCause(invalid);
+                throw failure;
+            }
         }
         try {
             return IDN.toASCII(value, IDN.USE_STD3_ASCII_RULES).toLowerCase(java.util.Locale.ROOT);

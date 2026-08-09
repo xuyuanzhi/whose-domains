@@ -64,10 +64,12 @@ public class PingTestController {
                             : "Offline");
             return ResponseJson.success(result);
         } catch (IllegalArgumentException invalidHost) {
-            log.warn("Rejected ping probe target: {}", request.getHost(), invalidHost);
+            log.warn("Rejected ping probe target [untrusted-target], failureType={}",
+                    invalidHost.getClass().getSimpleName());
             return ResponseJson.failure("Invalid host.");
         } catch (IOException probeFailure) {
-            log.warn("Ping probe failed for target: {}", request.getHost(), probeFailure);
+            log.warn("Ping probe failed for target [untrusted-target], failureType={}",
+                    probeFailure.getClass().getSimpleName());
             return ResponseJson.failure("Unable to probe this host.");
         }
     }
@@ -80,11 +82,16 @@ public class PingTestController {
         result.put("icmpResponseMs", probe.icmpResponseMs());
         result.put("httpReachable", probe.httpReachable());
         result.put("httpStatus", probe.httpStatus());
-        result.put("httpResponseMs", probe.httpResponseMs());
+        result.put("httpResponseMs", positiveLatency(probe.httpResponseMs()));
         result.put("online", probe.online());
-        result.put("avgResponseMs", probe.avgResponseMs());
-        result.put("speed", probe.speed());
+        Long average = positiveLatency(probe.avgResponseMs());
+        result.put("avgResponseMs", average);
+        result.put("speed", average == null ? "N/A" : probe.speed());
         return result;
+    }
+
+    private static Long positiveLatency(Long responseMs) {
+        return responseMs != null && responseMs > 0 ? responseMs : null;
     }
 
     public static class PingRequest {

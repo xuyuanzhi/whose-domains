@@ -108,12 +108,13 @@ final class BoundHttpClient {
             deadline.throwIfExpired();
             if (tls) {
                 SSLSocketFactory factory = (SSLSocketFactory) SSLSocketFactory.getDefault();
-                SSLSocket ssl = (SSLSocket) factory.createSocket(plain, uri.getHost(), port, true);
+                SSLSocket ssl = (SSLSocket) factory.createSocket(plain, tlsPeerHost(uri), port, true);
                 active = ssl;
                 SSLParameters parameters = ssl.getSSLParameters();
                 parameters.setEndpointIdentificationAlgorithm("HTTPS");
-                if (containsLetter(uri.getHost())) {
-                    parameters.setServerNames(List.of(new SNIHostName(uri.getHost())));
+                String sniHost = sniHost(uri);
+                if (sniHost != null) {
+                    parameters.setServerNames(List.of(new SNIHostName(sniHost)));
                 }
                 ssl.setSSLParameters(parameters);
                 ssl.setSoTimeout(deadline.timeoutMillis(STEP_TIMEOUT_MS));
@@ -143,12 +144,8 @@ final class BoundHttpClient {
         if (StringUtils.isNotBlank(uri.getRawQuery())) {
             path += "?" + uri.getRawQuery();
         }
-        int defaultPort = "https".equalsIgnoreCase(uri.getScheme()) ? 443 : 80;
-        String host = uri.getPort() < 0 || uri.getPort() == defaultPort
-            ? uri.getHost()
-            : uri.getHost() + ":" + uri.getPort();
         String request = method + " " + path + " HTTP/1.1\r\n"
-            + "Host: " + host + "\r\n"
+            + "Host: " + httpHostAuthority(uri) + "\r\n"
             + "User-Agent: WhoseDomains-Monitor/1.0\r\n"
             + "Accept: application/rdap+json, application/json, */*\r\n"
             + "Accept-Encoding: identity\r\n"
@@ -328,6 +325,29 @@ final class BoundHttpClient {
             || uri.getHost() == null) {
             throw new MonitorTargetPolicy.BlockedTargetException("Target must be HTTP(S)");
         }
+    }
+
+    static String tlsPeerHost(URI uri) {
+        String host = uri.getHost();
+        if (host != null && host.startsWith("[") && host.endsWith("]")) {
+            return host.substring(1, host.length() - 1);
+        }
+        return host;
+    }
+
+    static String sniHost(URI uri) {
+        String uriHost = uri.getHost();
+        String peerHost = tlsPeerHost(uri);
+        return uriHost != null && !uriHost.startsWith("[") && containsLetter(peerHost)
+            ? peerHost
+            : null;
+    }
+
+    static String httpHostAuthority(URI uri) {
+        int defaultPort = "https".equalsIgnoreCase(uri.getScheme()) ? 443 : 80;
+        return uri.getPort() < 0 || uri.getPort() == defaultPort
+            ? uri.getHost()
+            : uri.getHost() + ":" + uri.getPort();
     }
 
     private static boolean containsLetter(String value) {

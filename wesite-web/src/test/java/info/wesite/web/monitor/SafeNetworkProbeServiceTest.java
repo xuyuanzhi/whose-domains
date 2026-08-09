@@ -31,6 +31,10 @@ import org.springframework.core.task.TaskRejectedException;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 
+import info.wesite.web.controller.api.PingTestController;
+import info.wesite.web.controller.api.PortCheckerController;
+import info.wesite.web.controller.api.QueryHistoryRecorder;
+
 class SafeNetworkProbeServiceTest {
 
     private final List<ThreadPoolTaskExecutor> executors = new ArrayList<>();
@@ -100,6 +104,97 @@ class SafeNetworkProbeServiceTest {
 
         assertEquals(approved, connected.get());
         assertTrue(result.ports().get(0).open());
+    }
+
+    @Test
+    void pingAndPortAcceptBareAndBracketedPublicIpv6WithBracketedHttpAuthorities() throws Exception {
+        String literal = "2606:4700:4700::1111";
+        List<String> resolvedHosts = new ArrayList<>();
+        List<URI> requestedUris = new ArrayList<>();
+        List<InetAddress> portConnections = new ArrayList<>();
+        MonitorTargetPolicy.HostResolver literalResolver = (host, deadline) -> {
+            resolvedHosts.add(host);
+            return InetAddress.getAllByName(host);
+        };
+        BoundHttpClient client = new BoundHttpClient(literalResolver, (uri, method, address, deadline) -> {
+            requestedUris.add(uri);
+            if ("https".equals(uri.getScheme())) {
+                throw new IOException("TLS unavailable");
+            }
+            return new BoundHttpClient.Response(204, java.util.Map.of(), new byte[0]);
+        });
+        SafeNetworkProbeService service = serviceWith(
+            literalResolver, executor(1), client,
+            (address, timeoutMillis) -> false,
+            (address, port, timeoutMillis) -> {
+                portConnections.add(address);
+                return true;
+            },
+            MonitorDeadline::after);
+
+        for (String rawHost : List.of(literal, "[" + literal + "]")) {
+            SafeNetworkProbeService.PingProbeResult result = service.ping(rawHost);
+            SafeNetworkProbeService.PortProbeResult ports = service.checkPorts(rawHost, List.of(443));
+
+            assertEquals(literal, result.host());
+            assertTrue(result.httpReachable());
+            assertEquals(literal, ports.host());
+            assertTrue(ports.ports().get(0).open());
+        }
+
+        assertEquals(List.of(literal, literal, literal, literal, literal, literal, literal, literal), resolvedHosts);
+        assertEquals(List.of(
+            "https://[" + literal + "]", "http://[" + literal + "]",
+            "https://[" + literal + "]", "http://[" + literal + "]"),
+            requestedUris.stream().map(URI::toString).toList());
+        assertEquals(2, portConnections.size());
+        assertTrue(portConnections.stream().allMatch(MonitorTargetPolicy::isPublic));
+    }
+
+    @Test
+    void rejectsPrivateAndTransitionIpv6LiteralsAfterNormalizationAndResolution() throws Exception {
+        for (String rawHost : List.of(
+            "[fd00::1]",
+            "fe80::1",
+            "[2002:0a00:0001::1]",
+            "[64:ff9b::0a00:0001]")) {
+            AtomicInteger resolutions = new AtomicInteger();
+            AtomicInteger connections = new AtomicInteger();
+            SafeNetworkProbeService service = serviceWith(
+                (host, deadline) -> {
+                    resolutions.incrementAndGet();
+                    return InetAddress.getAllByName(host);
+                },
+                (address, port, timeoutMillis) -> {
+                    connections.incrementAndGet();
+                    return true;
+                });
+
+            assertThrows(MonitorTargetPolicy.BlockedTargetException.class,
+                () -> service.checkPorts(rawHost, List.of(443)), rawHost);
+            assertEquals(1, resolutions.get(), rawHost + " must reach the real address policy");
+            assertEquals(0, connections.get(), rawHost + " must never reach the connector");
+        }
+    }
+
+    @Test
+    void rejectsIpv4MappedIpv6BeforeTheJdkCanCollapseItToPublicIpv4() throws Exception {
+        AtomicInteger resolutions = new AtomicInteger();
+        AtomicInteger connections = new AtomicInteger();
+        SafeNetworkProbeService service = serviceWith(
+            (host, deadline) -> {
+                resolutions.incrementAndGet();
+                return InetAddress.getAllByName(host);
+            },
+            (address, port, timeoutMillis) -> {
+                connections.incrementAndGet();
+                return true;
+            });
+
+        assertThrows(IOException.class,
+            () -> service.checkPorts("::ffff:8.8.8.8", List.of(443)));
+        assertEquals(0, resolutions.get(), "mapped literals must be rejected before the JDK erases their form");
+        assertEquals(0, connections.get());
     }
 
     @Test
@@ -399,13 +494,22 @@ class SafeNetworkProbeServiceTest {
     }
 
     @Test
-    void boundHttpClientIsConstructedBySpringWithTheProductionResolver() {
+    void completeNetworkProbeApplicationContextStartsWithoutAmbiguousExecutors() {
         try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
             context.register(MonitorResolverConfiguration.class, NetworkToolProbeConfiguration.class,
-                MonitorAddressResolver.class, BoundHttpClient.class);
+                MonitorAddressResolver.class, BoundHttpClient.class, SafeNetworkProbeService.class,
+                PingTestController.class, PortCheckerController.class);
+            context.getBeanFactory().registerSingleton(
+                "queryHistoryRecorder", org.mockito.Mockito.mock(QueryHistoryRecorder.class));
             context.refresh();
 
+            assertNotNull(context.getBean(SafeNetworkProbeService.class));
             assertNotNull(context.getBean(BoundHttpClient.class));
+            assertNotNull(context.getBean(PingTestController.class));
+            assertNotNull(context.getBean(PortCheckerController.class));
+            ThreadPoolTaskExecutor portExecutor = context.getBean(
+                NetworkToolProbeConfiguration.PORT_EXECUTOR_BEAN, ThreadPoolTaskExecutor.class);
+            assertEquals("network-tool-probe-", portExecutor.getThreadNamePrefix());
         }
     }
 

@@ -2,6 +2,8 @@ package info.wesite.web.monitor;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -10,6 +12,7 @@ import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.Socket;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 
@@ -40,6 +43,24 @@ class BoundHttpClientParsingTest {
         IOException failure = assertThrows(IOException.class, () -> parse(response.toString()));
 
         assertTrue(failure.getMessage().contains("header"));
+    }
+
+    @Test
+    void ipv6UsesUnbracketedTlsPeerWithoutSniAndBracketedHttpAuthority() throws Exception {
+        URI uri = new URI("https", null, "2a00:1450:4009:80b::200e", 8443, null, null, null);
+
+        assertEquals("2a00:1450:4009:80b::200e", BoundHttpClient.tlsPeerHost(uri));
+        assertNull(BoundHttpClient.sniHost(uri));
+        assertEquals("[2a00:1450:4009:80b::200e]:8443", BoundHttpClient.httpHostAuthority(uri));
+    }
+
+    @Test
+    void dnsNameRemainsTheTlsPeerSniAndHttpAuthority() {
+        URI uri = URI.create("https://example.com:8443");
+
+        assertEquals("example.com", BoundHttpClient.tlsPeerHost(uri));
+        assertEquals("example.com", BoundHttpClient.sniHost(uri));
+        assertEquals("example.com:8443", BoundHttpClient.httpHostAuthority(uri));
     }
 
     private static BoundHttpClient.Response parse(String rawResponse) throws Throwable {

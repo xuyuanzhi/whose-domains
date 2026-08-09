@@ -2,6 +2,7 @@ package info.wesite.web.controller.api;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -17,8 +18,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.io.IOException;
+import java.util.stream.Collectors;
+
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.classic.spi.ThrowableProxyUtil;
+import ch.qos.logback.core.read.ListAppender;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -64,17 +72,20 @@ class PingTestControllerTest {
     }
 
     @Test
-    void recordsZeroMillisecondSuccessfulProbeAsNotAvailableHistory() throws Exception {
+    void preservesNullAndNotAvailableResponseSemanticsForZeroMillisecondSuccess() throws Exception {
         when(probes.ping("fast.example")).thenReturn(new PingProbeResult(
-                "fast.example", "93.184.216.34", true, 0,
-                false, null, null, true, 0L, "Excellent"));
+                "fast.example", "93.184.216.34", false, 5,
+                true, 200, 0L, true, 0L, "Excellent"));
 
         mockMvc.perform(pingRequest("fast.example", "198.18.10.6"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.avgResponseMs").value(0));
+                .andExpect(jsonPath("$.data.httpResponseMs").value(nullValue()))
+                .andExpect(jsonPath("$.data.avgResponseMs").value(nullValue()))
+                .andExpect(jsonPath("$.data.speed").value("N/A"));
 
         verify(queryHistoryRecorder).recordAsync(
                 isNull(), eq(UserQueryHistory.TYPE_PING), eq("fast.example"), eq("Online — N/A"));
+        verify(probes).ping("fast.example");
     }
 
     @Test
@@ -88,6 +99,7 @@ class PingTestControllerTest {
 
         verify(queryHistoryRecorder, never()).recordAsync(
                 nullable(String.class), nullable(String.class), nullable(String.class), nullable(String.class));
+        verify(probes).ping("blocked.example");
     }
 
     @Test
@@ -101,6 +113,38 @@ class PingTestControllerTest {
 
         verify(queryHistoryRecorder, never()).recordAsync(
                 nullable(String.class), nullable(String.class), nullable(String.class), nullable(String.class));
+        verify(probes).ping("invalid.example");
+    }
+
+    @Test
+    void failureLogsNeverIncludeUntrustedHostText() throws Exception {
+        String rawHost = "user:secret@example.com\r\nFORGED log line";
+        when(probes.ping(rawHost)).thenThrow(new IOException("transport failed for " + rawHost));
+        ch.qos.logback.classic.Logger controllerLogger =
+                (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(PingTestController.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        controllerLogger.addAppender(appender);
+        try {
+            PingTestController.PingRequest request = new PingTestController.PingRequest();
+            request.setHost(rawHost);
+            MockHttpServletRequest httpRequest = new MockHttpServletRequest();
+            httpRequest.setRemoteAddr("198.18.10.7");
+
+            newController().ping(request, httpRequest);
+        } finally {
+            controllerLogger.detachAppender(appender);
+            appender.stop();
+        }
+
+        String logs = appender.list.stream()
+                .map(event -> event.getFormattedMessage() + "\n"
+                        + (event.getThrowableProxy() == null ? "" : ThrowableProxyUtil.asString(event.getThrowableProxy())))
+                .collect(Collectors.joining("\n"));
+        org.junit.jupiter.api.Assertions.assertFalse(logs.contains(rawHost));
+        org.junit.jupiter.api.Assertions.assertFalse(logs.contains("user:secret"));
+        org.junit.jupiter.api.Assertions.assertFalse(logs.contains("FORGED log line"));
+        verify(probes).ping(rawHost);
     }
 
     @Test
