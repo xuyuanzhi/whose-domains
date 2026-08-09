@@ -463,7 +463,7 @@ class MonitorEventPublisherTest {
     }
 
     @Test
-    void legacySnapshotDoesNotBaselinePreviouslyUnobservedSources() {
+    void legacySnapshotStartsOnlyTheApplicableReminderForPreviouslyUnobservedSources() {
         detector = new MonitorChangeDetector(CLOCK);
         publisher = new MonitorEventPublisher(
             snapshotService,
@@ -495,11 +495,52 @@ class MonitorEventPublisherTest {
                 MonitorCollectorResult.Source.SSL,
                 MonitorCollectorResult.Source.WEBSITE));
 
-        assertTrue(events.isEmpty());
+        assertEquals(1, events.size());
+        assertEquals("SSL_EXPIRING", events.get(0).getEventType());
+        assertEquals("HIGH", events.get(0).getRisk());
+        verify(dispatcher).dispatch(
+            eq(events.get(0)), any(UserNotification.class), any(DomainWatch.class), eq(null));
         ArgumentCaptor<MonitorSnapshot> saved = ArgumentCaptor.forClass(MonitorSnapshot.class);
         verify(snapshotService).save(saved.capture());
         assertEquals(2, saved.getValue().getSchemaVersion());
         assertEquals("DNS,DOMAIN,SSL,WEBSITE", saved.getValue().getObservedSources());
+    }
+
+    @Test
+    void partialSourceBaselinePublishesASevenDayReminderAtFiveDaysOnlyOnceOnReplay() {
+        detector = new MonitorChangeDetector(CLOCK);
+        publisher = new MonitorEventPublisher(
+            snapshotService,
+            eventService,
+            notificationService,
+            eventMapper,
+            notificationMapper,
+            dispatcher,
+            detector,
+            CLOCK);
+        MonitorState previous = expiryState(LocalDate.of(2026, 11, 1));
+        MonitorState current = expiryState(LocalDate.of(2026, 8, 14));
+        MonitorSnapshot partial = snapshot("partial-domain", previous);
+        partial.setSchemaVersion(MonitorSnapshotObservation.CURRENT_SCHEMA_VERSION);
+        partial.setObservedSources("DNS,SSL,WEBSITE");
+        AtomicReference<MonitorSnapshot> latest = new AtomicReference<>(partial);
+        when(snapshotService.getOne(any())).thenAnswer(invocation -> latest.get());
+        when(snapshotService.save(any(MonitorSnapshot.class))).thenAnswer(invocation -> {
+            latest.set(invocation.getArgument(0));
+            return true;
+        });
+
+        List<MonitorEvent> first = publisher.publish(
+            watch(), current, true, Set.of(MonitorCollectorResult.Source.DOMAIN));
+        List<MonitorEvent> replay = publisher.publish(
+            watch(), current, true, Set.of(MonitorCollectorResult.Source.DOMAIN));
+
+        assertEquals(1, first.size());
+        assertEquals("DOMAIN_EXPIRING", first.get(0).getEventType());
+        assertTrue(replay.isEmpty());
+        verify(eventService, times(1)).save(any(MonitorEvent.class));
+        verify(dispatcher, times(1)).dispatch(
+            any(MonitorEvent.class), any(UserNotification.class), any(DomainWatch.class), eq(7));
     }
 
     private static DomainWatch watch() {

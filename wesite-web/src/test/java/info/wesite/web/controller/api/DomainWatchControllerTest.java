@@ -11,12 +11,18 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.ReflectionUtils;
 
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 
@@ -29,6 +35,7 @@ import info.wesite.core.service.DomainWatchService;
 import info.wesite.core.view.ResponseJson;
 import info.wesite.web.notification.NotificationCancellationService;
 import info.wesite.web.notification.NotificationPolicyLock;
+import org.mockito.ArgumentCaptor;
 
 @SuppressWarnings({ "rawtypes", "unchecked" })
 class DomainWatchControllerTest {
@@ -48,6 +55,7 @@ class DomainWatchControllerTest {
         policyLock = mock(NotificationPolicyLock.class);
         ReflectionTestUtils.setField(controller, "cancellationService", cancellations);
         ReflectionTestUtils.setField(controller, "policyLock", policyLock);
+        ReflectionTestUtils.setField(controller, "retentionReportingClock", Clock.systemUTC());
 
         User user = new User();
         user.setId("user-1");
@@ -104,6 +112,31 @@ class DomainWatchControllerTest {
         assertEquals(ResponseJson.CODE_SUCCESS, response.getCode());
         assertSame(winner, response.getData());
         verify(watches).save(any(DomainWatch.class));
+    }
+
+    @Test
+    void newWatchPersistsTheInjectedReportingDateAcrossUtcAndNonPlusEightDayBoundaries() {
+        assertNotNull(
+            ReflectionUtils.findField(DomainWatchController.class, "retentionReportingClock"),
+            "DomainWatchController must consume the shared retention reporting clock");
+        when(watches.save(any(DomainWatch.class))).thenReturn(true);
+
+        ReflectionTestUtils.setField(controller, "retentionReportingClock", Clock.fixed(
+            Instant.parse("2026-08-08T16:30:00Z"), ZoneId.of("Asia/Shanghai")));
+        DomainWatch shanghaiRequest = new DomainWatch();
+        shanghaiRequest.setDomainName("shanghai-boundary.example");
+        assertEquals(ResponseJson.CODE_SUCCESS, controller.watchDomain(shanghaiRequest).getCode());
+
+        ReflectionTestUtils.setField(controller, "retentionReportingClock", Clock.fixed(
+            Instant.parse("2026-08-09T02:30:00Z"), ZoneId.of("America/New_York")));
+        DomainWatch newYorkRequest = new DomainWatch();
+        newYorkRequest.setDomainName("new-york-boundary.example");
+        assertEquals(ResponseJson.CODE_SUCCESS, controller.watchDomain(newYorkRequest).getCode());
+
+        ArgumentCaptor<DomainWatch> saved = ArgumentCaptor.forClass(DomainWatch.class);
+        verify(watches, times(2)).save(saved.capture());
+        assertEquals(LocalDate.of(2026, 8, 9), saved.getAllValues().get(0).getWatchCreatedOn());
+        assertEquals(LocalDate.of(2026, 8, 8), saved.getAllValues().get(1).getWatchCreatedOn());
     }
 
     @Test

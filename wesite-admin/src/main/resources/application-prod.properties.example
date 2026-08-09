@@ -19,7 +19,7 @@ server.tomcat.remoteip.internal-proxies=${WESITE_TRUSTED_PROXY_REGEX:127\\.0\\.0
 
 #database
 spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
-spring.datasource.url=${WD_DB_URL:jdbc:mysql://localhost:3306/wesitedb?allowMultiQueries=true&useUnicode=true&characterEncoding=UTF-8&useSSL=false&autoreconnect=true}
+spring.datasource.url=${WD_DB_URL:jdbc:mysql://localhost:3306/wesitedb?allowMultiQueries=true&useUnicode=true&characterEncoding=UTF-8&useSSL=false&autoReconnect=true&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true}
 spring.datasource.username=${WD_DB_USERNAME:your-db-username}
 spring.datasource.password=${WD_DB_PASSWORD:your-db-password}
 

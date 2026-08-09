@@ -25,6 +25,58 @@ PREPARE watch_notify_email_statement FROM @watch_notify_email_ddl;
 EXECUTE watch_notify_email_statement;
 DEALLOCATE PREPARE watch_notify_email_statement;
 
+-- Add an explicit reporting-calendar fact without guessing the timezone of the
+-- legacy timezone-less CREATE_TIME wall clock. Operators may prefix this script
+-- with both @legacy_watch_source_time_zone and @retention_reporting_time_zone;
+-- without two valid explicit zones, legacy rows remain NULL and are excluded.
+SET @watch_created_on_exists = (
+  SELECT COUNT(*) FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'WEB_DOMAIN_WATCH'
+    AND COLUMN_NAME = 'WATCH_CREATED_ON'
+);
+SET @watch_created_on_ddl = IF(
+  @watch_created_on_exists = 0,
+  'ALTER TABLE `WEB_DOMAIN_WATCH` ADD COLUMN `WATCH_CREATED_ON` date NULL COMMENT ''Creation date in WESITE_RETENTION_REPORTING_ZONE; NULL excludes unverified legacy rows'' AFTER `USER_ID`',
+  'ALTER TABLE `WEB_DOMAIN_WATCH` MODIFY COLUMN `WATCH_CREATED_ON` date NULL COMMENT ''Creation date in WESITE_RETENTION_REPORTING_ZONE; NULL excludes unverified legacy rows'''
+);
+PREPARE watch_created_on_statement FROM @watch_created_on_ddl;
+EXECUTE watch_created_on_statement;
+DEALLOCATE PREPARE watch_created_on_statement;
+
+SET @watch_created_on_index_exists = (
+  SELECT COUNT(*) FROM information_schema.STATISTICS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'WEB_DOMAIN_WATCH'
+    AND INDEX_NAME = 'IDX_DOMAIN_WATCH_USER_CREATED_ON'
+);
+SET @watch_created_on_index_ddl = IF(
+  @watch_created_on_index_exists = 0,
+  'ALTER TABLE `WEB_DOMAIN_WATCH` ADD KEY `IDX_DOMAIN_WATCH_USER_CREATED_ON` (`USER_ID`, `WATCH_CREATED_ON`)',
+  'SELECT 1'
+);
+PREPARE watch_created_on_index_statement FROM @watch_created_on_index_ddl;
+EXECUTE watch_created_on_index_statement;
+DEALLOCATE PREPARE watch_created_on_index_statement;
+
+SET @legacy_watch_source_time_zone = NULLIF(TRIM(@legacy_watch_source_time_zone), '');
+SET @retention_reporting_time_zone = NULLIF(TRIM(@retention_reporting_time_zone), '');
+SET @watch_created_on_zones_valid =
+  @legacy_watch_source_time_zone IS NOT NULL
+  AND @retention_reporting_time_zone IS NOT NULL
+  AND CONVERT_TZ('2000-01-01 00:00:00',
+        @legacy_watch_source_time_zone, @retention_reporting_time_zone) IS NOT NULL;
+UPDATE `WEB_DOMAIN_WATCH`
+SET `WATCH_CREATED_ON` = DATE(CONVERT_TZ(
+  `CREATE_TIME`, @legacy_watch_source_time_zone, @retention_reporting_time_zone))
+WHERE `WATCH_CREATED_ON` IS NULL
+  AND `CREATE_TIME` IS NOT NULL
+  AND @watch_created_on_zones_valid;
+SELECT CASE
+  WHEN @watch_created_on_zones_valid THEN 'EXPLICIT_LEGACY_WATCH_DATES_BACKFILLED'
+  ELSE 'LEGACY_WATCH_DATES_LEFT_NULL_AND_EXCLUDED'
+END AS `WATCH_CREATED_ON_MIGRATION_STATUS`;
+
 ALTER TABLE `WEB_DOMAIN_WATCH`
   ADD COLUMN `SCAN_CLAIM_TOKEN` varchar(64) NULL AFTER `REMARK`,
   ADD COLUMN `SCAN_CLAIM_UNTIL` datetime NULL AFTER `SCAN_CLAIM_TOKEN`,

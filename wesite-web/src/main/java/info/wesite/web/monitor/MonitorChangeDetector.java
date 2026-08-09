@@ -68,14 +68,29 @@ public final class MonitorChangeDetector {
         }
 
         java.util.List<MonitorEventDraft> events = new ArrayList<>();
-        if (observedOnBoth(
-            MonitorCollectorResult.Source.DOMAIN, previousObserved, currentObserved)) {
-            detectExpiry(events, previous, current, previousCheckedAt, currentCheckedAt, true);
-            detectStatus(events, previous, current);
+        if (currentObserved.contains(MonitorCollectorResult.Source.DOMAIN)) {
+            boolean previouslyObserved = previousObserved.contains(MonitorCollectorResult.Source.DOMAIN);
+            detectExpiry(
+                events,
+                previouslyObserved ? previous : null,
+                current,
+                previouslyObserved ? previousCheckedAt : null,
+                currentCheckedAt,
+                true);
         }
         if (observedOnBoth(
-            MonitorCollectorResult.Source.SSL, previousObserved, currentObserved)) {
-            detectExpiry(events, previous, current, previousCheckedAt, currentCheckedAt, false);
+            MonitorCollectorResult.Source.DOMAIN, previousObserved, currentObserved)) {
+            detectStatus(events, previous, current);
+        }
+        if (currentObserved.contains(MonitorCollectorResult.Source.SSL)) {
+            boolean previouslyObserved = previousObserved.contains(MonitorCollectorResult.Source.SSL);
+            detectExpiry(
+                events,
+                previouslyObserved ? previous : null,
+                current,
+                previouslyObserved ? previousCheckedAt : null,
+                currentCheckedAt,
+                false);
         }
         if (observedOnBoth(
             MonitorCollectorResult.Source.DNS, previousObserved, currentObserved)) {
@@ -117,10 +132,16 @@ public final class MonitorChangeDetector {
             : ChronoUnit.DAYS.between(
                 previousCheckedAt.atZone(clock.getZone()).toLocalDate(), previousExpiry);
 
-        for (long threshold : EXPIRY_THRESHOLDS.stream().sorted(java.util.Comparator.reverseOrder()).toList()) {
+        java.util.List<Long> applicableThresholds = previousDaysRemaining == null
+            ? EXPIRY_THRESHOLDS.stream()
+                .sorted()
+                .filter(threshold -> currentDaysRemaining <= threshold)
+                .limit(1)
+                .toList()
+            : EXPIRY_THRESHOLDS.stream().sorted(java.util.Comparator.reverseOrder()).toList();
+        for (long threshold : applicableThresholds) {
             boolean crossed = previousDaysRemaining == null
-                ? currentDaysRemaining == threshold
-                : previousDaysRemaining > threshold && currentDaysRemaining <= threshold;
+                || previousDaysRemaining > threshold && currentDaysRemaining <= threshold;
             if (!crossed) {
                 continue;
             }

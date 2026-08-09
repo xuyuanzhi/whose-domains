@@ -1,5 +1,6 @@
 package info.wesite.web.controller.api;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.Date;
 import java.util.HashMap;
@@ -10,6 +11,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -40,6 +42,7 @@ import info.wesite.web.monitor.MonitorRisk;
 import info.wesite.web.notification.NotificationEmailAddress;
 import info.wesite.web.notification.NotificationCancellationService;
 import info.wesite.web.notification.NotificationPolicyLock;
+import info.wesite.web.retention.RetentionReportingClockConfiguration;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
@@ -68,6 +71,10 @@ public class DomainWatchController {
 
     @Autowired
     private NotificationPolicyLock policyLock;
+
+    @Autowired
+    @Qualifier(RetentionReportingClockConfiguration.BEAN_NAME)
+    private Clock retentionReportingClock;
 
     @Operation(summary = "获取用户的域名监控列表")
     @GetMapping("/list")
@@ -203,15 +210,17 @@ public class DomainWatchController {
         Domain domain = domainService.getOne(
                 Wrappers.<Domain>lambdaQuery().eq(Domain::getName, domainName));
 
+        Instant createdAt = retentionReportingClock.instant();
         DomainWatch watch = new DomainWatch();
         watch.setId(RandomUtils.generateId());
         watch.setUserId(userId);
+        watch.setWatchCreatedOn(createdAt.atZone(retentionReportingClock.getZone()).toLocalDate());
         watch.setDomainName(domainName);
         watch.setNotifyType(param.getNotifyType() != null ? param.getNotifyType() : DomainWatch.NOTIFY_BOTH);
         watch.setNotifyEmail(NotificationEmailAddress.normalize(param.getNotifyEmail()).orElse(null));
         watch.setRemark(param.getRemark());
         watch.setCreateBy(userId);
-        watch.setCreateTime(new Date());
+        watch.setCreateTime(Date.from(createdAt));
 
         if (domain != null) {
             watch.setDomainId(domain.getId());
@@ -220,7 +229,7 @@ public class DomainWatchController {
             watch.setExpiryDate(domain.getExpiryDate());
         }
 
-        watch.setLastCheckTime(new Date());
+        watch.setLastCheckTime(Date.from(createdAt));
 
         try {
             if (domainWatchService.save(watch)) {

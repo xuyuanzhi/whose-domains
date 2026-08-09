@@ -50,6 +50,7 @@ function Test-StaticRolloutContract {
     $readme = Read-RepositoryText 'README.md'
     $application = Read-RepositoryText 'wesite-web/src/main/resources/application.properties'
     $productionExample = Read-RepositoryText 'wesite-web/src/main/resources/application-prod.properties.example'
+    $adminProductionExample = Read-RepositoryText 'wesite-admin/src/main/resources/application-prod.properties.example'
     $immediateJob = Read-RepositoryText 'wesite-web/src/main/java/info/wesite/web/task/ImmediateNotificationDeliveryJob.java'
     $digestJob = Read-RepositoryText 'wesite-web/src/main/java/info/wesite/web/task/DigestNotificationDeliveryJob.java'
     $deliveryTask = Read-RepositoryText 'wesite-web/src/main/java/info/wesite/web/task/NotificationDeliveryTask.java'
@@ -68,6 +69,8 @@ function Test-StaticRolloutContract {
     ) 'legacy migration must create exactly the watch/snapshot pair'
     Assert-Contains $legacy 'CREATE TABLE `WEB_DOMAIN_WATCH`' 'legacy migration missing WEB_DOMAIN_WATCH'
     Assert-Contains $legacy 'CREATE TABLE `WEB_DOMAIN_SNAPSHOT`' 'legacy migration missing WEB_DOMAIN_SNAPSHOT'
+    Assert-Contains $create '`WATCH_CREATED_ON`' 'create.sql must persist the reporting-calendar watch creation date'
+    Assert-Contains $legacy '`WATCH_CREATED_ON`' 'legacy watch baseline must persist the reporting-calendar watch creation date'
 
     foreach ($table in @(
             'WEB_MONITOR_SNAPSHOT',
@@ -83,7 +86,7 @@ function Test-StaticRolloutContract {
             'SCHEMA_VERSION', 'OBSERVED_SOURCES', 'RISK', 'SOURCE',
             'RECIPIENT_EMAIL', 'EMAIL_ATTEMPT_COUNT', 'EMAIL_CLAIM_TOKEN',
             'DELIVERY_BATCH_ID', 'CANCELLATION_REQUESTED', 'SCAN_CLAIM_TOKEN',
-            'SCAN_CLAIM_UNTIL')) {
+            'SCAN_CLAIM_UNTIL', 'WATCH_CREATED_ON')) {
         Assert-Contains $baseline "``$column``" "retention baseline missing $column"
     }
     Assert-Contains $baseline 'CREATE TABLE `WEB_AUTHENTICATED_ACTIVITY_DAILY`' 'baseline missing daily authenticated activity fact'
@@ -103,8 +106,14 @@ function Test-StaticRolloutContract {
     }
     foreach ($column in @(
             'RECIPIENT_EMAIL', 'EMAIL_ATTEMPT_COUNT', 'EMAIL_CLAIM_TOKEN',
-            'CANCELLATION_REQUESTED', 'SCAN_CLAIM_TOKEN', 'SCAN_CLAIM_UNTIL')) {
+            'CANCELLATION_REQUESTED', 'SCAN_CLAIM_TOKEN', 'SCAN_CLAIM_UNTIL',
+            'WATCH_CREATED_ON')) {
         Assert-Contains $completeIncrement "``$column``" "complete increment missing $column"
+    }
+    foreach ($migration in @($baseline, $completeIncrement)) {
+        Assert-Contains $migration '@legacy_watch_source_time_zone' 'watch-date backfill must require the explicit legacy source zone'
+        Assert-Contains $migration '@retention_reporting_time_zone' 'watch-date backfill must require the explicit reporting target zone'
+        Assert-Contains $migration 'CONVERT_TZ' 'watch-date backfill must convert between explicit zones'
     }
     Assert-Contains $completeIncrement 'W.`NOTIFY_TYPE` = 0' 'legacy queued routes must honor watch-level opt-out'
     Assert-Contains $completeIncrement 'W.`NOTIFY_EMAIL` IS NULL' 'legacy upgrade must not infer account recipients'
@@ -129,7 +138,12 @@ function Test-StaticRolloutContract {
     Assert-Contains $retentionReport 'SET @minimum_report_days = 120' 'retention report must require the full 120-day observation window'
     Assert-Contains $retentionReport 'INSUFFICIENT_HISTORY' 'retention report must expose an explicit immature-data state'
     Assert-Contains $retentionReport "@report_status = 'READY'" 'retention report must gate cohorts on maturity'
-    Assert-Contains $retentionReport 'DATE(U.CREATE_TIME) >= @fact_collection_start' 'legacy accounts must not become fake first-seen cohorts'
+    Assert-Contains $retentionReport 'MIN(WATCH_CREATED_ON)' 'monitored cohort must use the explicit watch calendar fact'
+    Assert-Contains $retentionReport 'first_observed_activity_date' 'control must be named as a first-observed activity cohort'
+    Assert-Contains $retentionReport 'observed_non_monitored' 'control cohort label must describe observation rather than account creation'
+    Assert-Contains $retentionReport '@verified_window_start' 'first-observed cohorts must be bounded to the verified collection window'
+    Assert-RolloutContract (-not $retentionReport.Contains('DATE(MIN(CREATE_TIME))')) 'retention report must not infer watch cohort dates from DATETIME'
+    Assert-RolloutContract (-not $retentionReport.Contains('JOIN SYS_USER')) 'retention report must not infer control cohorts from account CREATE_TIME'
     Assert-Contains $retentionReport 'cohort_users >= @minimum_cohort_size' 'daily cohorts below k must be suppressed'
     Assert-Contains $retentionReport 'SET @reporting_time_zone = COALESCE(' 'retention report must consume a caller-initialized SQL session zone'
     Assert-Contains $retentionReport "NULLIF(@@session.time_zone, 'SYSTEM')" 'retention report must reject an implicit SYSTEM session zone'
@@ -171,6 +185,10 @@ function Test-StaticRolloutContract {
     Assert-Contains $readme 'at least 120 days' 'README must document the minimum fact retention window'
     Assert-Contains $readme 'INSUFFICIENT_HISTORY' 'README must document the explicit immature report state'
     Assert-Contains $readme '| `WESITE_RETENTION_REPORTING_ZONE` |' 'README must name the single formal reporting ZoneId configuration'
+    Assert-Contains $readme '`WEB_DOMAIN_WATCH.WATCH_CREATED_ON`' 'README must identify the explicit monitored cohort fact'
+    Assert-Contains $readme 'observed non-monitored cohort' 'README must name the control as an observed cohort'
+    Assert-Contains $readme '@legacy_watch_source_time_zone' 'README must document explicit legacy source-zone backfill'
+    Assert-Contains $readme 'connectionTimeZone=UTC' 'README must document the JDBC instant timezone contract'
     Assert-Contains $readme "SET @reporting_time_zone='+08:00';" 'README must show the caller-variable reporting command'
     Assert-Contains $readme '--init-command="SET time_zone=''+08:00''"' 'README must show the MySQL session-init reporting command'
     Assert-RolloutContract (-not $readme.Contains('JVM default')) 'README must not describe the JVM default zone as the reporting contract'
@@ -180,6 +198,11 @@ function Test-StaticRolloutContract {
     $digestLine = 'wesite.notification-delivery.digest-enabled=${WESITE_NOTIFICATION_DELIVERY_DIGEST_ENABLED:false}'
     $reportingZoneLine = 'wesite.retention.reporting-zone=${WESITE_RETENTION_REPORTING_ZONE:Asia/Shanghai}'
     Assert-Contains $application $reportingZoneLine 'application must map the formal reporting ZoneId environment variable'
+    Assert-Contains $productionExample $reportingZoneLine 'production example must expose the formal reporting ZoneId'
+    foreach ($properties in @($productionExample, $adminProductionExample)) {
+        Assert-Contains $properties 'connectionTimeZone=UTC' 'JDBC examples must define the instant conversion zone'
+        Assert-Contains $properties 'forceConnectionTimeZoneToSession=true' 'JDBC examples must force the explicit session zone'
+    }
     foreach ($properties in @($application, $productionExample)) {
         Assert-Contains $properties $immediateLine 'immediate delivery must have an environment-backed false default'
         Assert-Contains $properties $digestLine 'digest delivery must have an environment-backed false default'
@@ -285,13 +308,16 @@ function Wait-MySqlFixture(
 function Invoke-FixtureSqlFile(
         [string]$ContainerName,
         [string]$Password,
-        [string]$RelativePath) {
+        [string]$RelativePath,
+        [string]$InitSql = '') {
+    $sessionPrefix = "$MySqlSessionInit;`n$InitSql;`n"
+    $sessionPrefixBase64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($sessionPrefix))
     Invoke-DockerCommand -Arguments @(
         'exec',
         $ContainerName,
         'sh',
         '-c',
-        "{ echo $MySqlSessionInitBase64 | base64 -d; cat /sql/$RelativePath; } | mysql --user=root --password=$Password wesitedb")
+        "{ echo $sessionPrefixBase64 | base64 -d; cat /sql/$RelativePath; } | mysql --user=root --password=$Password wesitedb")
 }
 
 function Invoke-FixtureSqlFileOutput(
@@ -375,7 +401,16 @@ SELECT COUNT(*)
 FROM information_schema.COLUMNS
 WHERE TABLE_SCHEMA = 'wesitedb'
   AND TABLE_NAME = 'WEB_DOMAIN_WATCH'
-  AND COLUMN_NAME IN ('NOTIFY_EMAIL','SCAN_CLAIM_TOKEN','SCAN_CLAIM_UNTIL')
+  AND COLUMN_NAME IN ('NOTIFY_EMAIL','SCAN_CLAIM_TOKEN','SCAN_CLAIM_UNTIL','WATCH_CREATED_ON')
+'@
+    $watchCreatedDateColumn = Get-FixtureCount $ContainerName $Password @'
+SELECT COUNT(*)
+FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA = 'wesitedb'
+  AND TABLE_NAME = 'WEB_DOMAIN_WATCH'
+  AND COLUMN_NAME = 'WATCH_CREATED_ON'
+  AND DATA_TYPE = 'date'
+  AND IS_NULLABLE = 'YES'
 '@
     $activityColumns = Get-FixtureCount $ContainerName $Password @'
 SELECT COUNT(*)
@@ -431,7 +466,8 @@ WHERE TABLE_SCHEMA = 'wesitedb'
     Assert-RolloutContract ($tables -eq 7) "$Label expected seven retention tables, found $tables"
     Assert-RolloutContract ($canonicalColumns -eq 4) "$Label expected four canonical columns, found $canonicalColumns"
     Assert-RolloutContract ($pipelineColumns -eq 22) "$Label expected 22 key pipeline columns, found $pipelineColumns"
-    Assert-RolloutContract ($watchColumns -eq 3) "$Label expected three watch compatibility/lease columns, found $watchColumns"
+    Assert-RolloutContract ($watchColumns -eq 4) "$Label expected four watch compatibility/lease/calendar columns, found $watchColumns"
+    Assert-RolloutContract ($watchCreatedDateColumn -eq 1) "$Label WATCH_CREATED_ON must be a nullable DATE for conservative legacy exclusion"
     Assert-RolloutContract ($activityColumns -eq 2) "$Label expected the daily activity fact columns, found $activityColumns"
     Assert-RolloutContract ($collectionColumns -eq 3) "$Label expected three fact collection columns, found $collectionColumns"
     Assert-RolloutContract ($collectionContract -eq 1) "$Label missing the durable 120-day fact collection row"
@@ -447,16 +483,10 @@ function Assert-RetentionReportData(
         [string]$Label) {
     $sessionZone = Invoke-FixtureQuery $ContainerName $Password 'SELECT @@session.time_zone;'
     Assert-RolloutContract ([regex]::IsMatch($sessionZone, '(?m)^\+08:00\r?$')) "$Label fixture query did not initialize the reporting time zone before SQL"
-    [void](Invoke-FixtureQuery $ContainerName $Password @'
-CREATE TABLE IF NOT EXISTS SYS_USER (
-  ID varchar(32) NOT NULL PRIMARY KEY,
-  CREATE_TIME datetime NULL
-) ENGINE=InnoDB;
-'@)
     $immature = Invoke-FixtureSqlFileOutput $ContainerName $Password 'scripts/retention-report.sql'
     Assert-RolloutContract $immature.Contains('INSUFFICIENT_HISTORY') "$Label report did not expose immature history"
     Assert-RolloutContract (
-        -not [regex]::IsMatch($immature, '(?m)^(monitored|non_monitored)\t')
+        -not [regex]::IsMatch($immature, '(?m)^(monitored|observed_non_monitored)\t')
     ) "$Label immature report emitted a cohort"
 
     $retentionFixtureSql = @'
@@ -467,30 +497,24 @@ WHERE FACT_NAME = 'AUTHENTICATED_ACTIVITY_DAILY';
 DELETE FROM WEB_AUTHENTICATED_ACTIVITY_DAILY WHERE USER_ID LIKE 'ret-%';
 DELETE FROM WEB_RETENTION_FACT_HEALTH WHERE FACT_NAME = 'AUTHENTICATED_ACTIVITY_DAILY';
 DELETE FROM WEB_DOMAIN_WATCH WHERE ID LIKE 'ret-%';
-DELETE FROM SYS_USER WHERE ID LIKE 'ret-%';
-INSERT INTO SYS_USER (ID, CREATE_TIME) VALUES
-  ('ret-new-1', DATE_SUB(CURDATE(), INTERVAL 61 DAY)),
-  ('ret-new-2', DATE_SUB(CURDATE(), INTERVAL 61 DAY)),
-  ('ret-new-3', DATE_SUB(CURDATE(), INTERVAL 61 DAY)),
-  ('ret-new-4', DATE_SUB(CURDATE(), INTERVAL 61 DAY)),
-  ('ret-old-1', DATE_SUB(CURDATE(), INTERVAL 150 DAY)),
-  ('ret-old-2', DATE_SUB(CURDATE(), INTERVAL 150 DAY)),
-  ('ret-old-3', DATE_SUB(CURDATE(), INTERVAL 150 DAY)),
-  ('ret-old-4', DATE_SUB(CURDATE(), INTERVAL 150 DAY)),
-  ('ret-old-5', DATE_SUB(CURDATE(), INTERVAL 150 DAY));
 INSERT INTO WEB_DOMAIN_WATCH
-  (ID, STATUS, DELETED, USER_ID, DOMAIN_NAME, NOTIFY_TYPE, CREATE_TIME)
+  (ID, STATUS, DELETED, USER_ID, DOMAIN_NAME, NOTIFY_TYPE, CREATE_TIME, WATCH_CREATED_ON)
 VALUES
-  ('ret-mature-1', 1, 0, 'ret-mon-1', 'mature-1.example', 0, DATE_SUB(CURDATE(), INTERVAL 60 DAY)),
-  ('ret-mature-2', 1, 0, 'ret-mon-2', 'mature-2.example', 0, DATE_SUB(CURDATE(), INTERVAL 60 DAY)),
-  ('ret-mature-3', 1, 0, 'ret-mon-3', 'mature-3.example', 0, DATE_SUB(CURDATE(), INTERVAL 60 DAY)),
-  ('ret-mature-4', 1, 0, 'ret-mon-4', 'mature-4.example', 0, DATE_SUB(CURDATE(), INTERVAL 60 DAY)),
-  ('ret-mature-5', 1, 0, 'ret-mon-5', 'mature-5.example', 0, DATE_SUB(CURDATE(), INTERVAL 60 DAY)),
-  ('ret-immature-1', 1, 0, 'ret-imm-1', 'immature-1.example', 0, DATE_SUB(CURDATE(), INTERVAL 10 DAY)),
-  ('ret-immature-2', 1, 0, 'ret-imm-2', 'immature-2.example', 0, DATE_SUB(CURDATE(), INTERVAL 10 DAY)),
-  ('ret-immature-3', 1, 0, 'ret-imm-3', 'immature-3.example', 0, DATE_SUB(CURDATE(), INTERVAL 10 DAY)),
-  ('ret-immature-4', 1, 0, 'ret-imm-4', 'immature-4.example', 0, DATE_SUB(CURDATE(), INTERVAL 10 DAY)),
-  ('ret-immature-5', 1, 0, 'ret-imm-5', 'immature-5.example', 0, DATE_SUB(CURDATE(), INTERVAL 10 DAY));
+  ('ret-mature-1', 1, 0, 'ret-mon-1', 'mature-1.example', 0, DATE_SUB(CURDATE(), INTERVAL 60 DAY), DATE_SUB(CURDATE(), INTERVAL 60 DAY)),
+  ('ret-mature-2', 1, 0, 'ret-mon-2', 'mature-2.example', 0, DATE_SUB(CURDATE(), INTERVAL 60 DAY), DATE_SUB(CURDATE(), INTERVAL 60 DAY)),
+  ('ret-mature-3', 1, 0, 'ret-mon-3', 'mature-3.example', 0, DATE_SUB(CURDATE(), INTERVAL 60 DAY), DATE_SUB(CURDATE(), INTERVAL 60 DAY)),
+  ('ret-mature-4', 1, 0, 'ret-mon-4', 'mature-4.example', 0, DATE_SUB(CURDATE(), INTERVAL 60 DAY), DATE_SUB(CURDATE(), INTERVAL 60 DAY)),
+  ('ret-mature-5', 1, 0, 'ret-mon-5', 'mature-5.example', 0, DATE_SUB(CURDATE(), INTERVAL 60 DAY), DATE_SUB(CURDATE(), INTERVAL 60 DAY)),
+  ('ret-immature-1', 1, 0, 'ret-imm-1', 'immature-1.example', 0, DATE_SUB(CURDATE(), INTERVAL 10 DAY), DATE_SUB(CURDATE(), INTERVAL 10 DAY)),
+  ('ret-immature-2', 1, 0, 'ret-imm-2', 'immature-2.example', 0, DATE_SUB(CURDATE(), INTERVAL 10 DAY), DATE_SUB(CURDATE(), INTERVAL 10 DAY)),
+  ('ret-immature-3', 1, 0, 'ret-imm-3', 'immature-3.example', 0, DATE_SUB(CURDATE(), INTERVAL 10 DAY), DATE_SUB(CURDATE(), INTERVAL 10 DAY)),
+  ('ret-immature-4', 1, 0, 'ret-imm-4', 'immature-4.example', 0, DATE_SUB(CURDATE(), INTERVAL 10 DAY), DATE_SUB(CURDATE(), INTERVAL 10 DAY)),
+  ('ret-immature-5', 1, 0, 'ret-imm-5', 'immature-5.example', 0, DATE_SUB(CURDATE(), INTERVAL 10 DAY), DATE_SUB(CURDATE(), INTERVAL 10 DAY)),
+  ('ret-legacy-null-1', 1, 0, 'ret-legacy-mon-1', 'legacy-null-1.example', 0, DATE_SUB(CURDATE(), INTERVAL 60 DAY), NULL),
+  ('ret-legacy-null-2', 1, 0, 'ret-legacy-mon-2', 'legacy-null-2.example', 0, DATE_SUB(CURDATE(), INTERVAL 60 DAY), NULL),
+  ('ret-legacy-null-3', 1, 0, 'ret-legacy-mon-3', 'legacy-null-3.example', 0, DATE_SUB(CURDATE(), INTERVAL 60 DAY), NULL),
+  ('ret-legacy-null-4', 1, 0, 'ret-legacy-mon-4', 'legacy-null-4.example', 0, DATE_SUB(CURDATE(), INTERVAL 60 DAY), NULL),
+  ('ret-legacy-null-5', 1, 0, 'ret-legacy-mon-5', 'legacy-null-5.example', 0, DATE_SUB(CURDATE(), INTERVAL 60 DAY), NULL);
 INSERT INTO WEB_AUTHENTICATED_ACTIVITY_DAILY (USER_ID, ACTIVITY_DATE) VALUES
   ('ret-return-m1-5', 'ret-mon-1', DATE_SUB(CURDATE(), INTERVAL 55 DAY)),
   ('ret-return-m1-20', 'ret-mon-1', DATE_SUB(CURDATE(), INTERVAL 40 DAY)),
@@ -515,9 +539,29 @@ INSERT INTO WEB_AUTHENTICATED_ACTIVITY_DAILY (USER_ID, ACTIVITY_DATE) VALUES
   ('ret-first-old2', 'ret-old-2', DATE_SUB(CURDATE(), INTERVAL 60 DAY)),
   ('ret-first-old3', 'ret-old-3', DATE_SUB(CURDATE(), INTERVAL 60 DAY)),
   ('ret-first-old4', 'ret-old-4', DATE_SUB(CURDATE(), INTERVAL 60 DAY)),
-  ('ret-first-old5', 'ret-old-5', DATE_SUB(CURDATE(), INTERVAL 60 DAY));
+  ('ret-first-old5', 'ret-old-5', DATE_SUB(CURDATE(), INTERVAL 60 DAY)),
+  ('ret-first-legacy-mon1', 'ret-legacy-mon-1', DATE_SUB(CURDATE(), INTERVAL 60 DAY)),
+  ('ret-first-legacy-mon2', 'ret-legacy-mon-2', DATE_SUB(CURDATE(), INTERVAL 60 DAY)),
+  ('ret-first-legacy-mon3', 'ret-legacy-mon-3', DATE_SUB(CURDATE(), INTERVAL 60 DAY)),
+  ('ret-first-legacy-mon4', 'ret-legacy-mon-4', DATE_SUB(CURDATE(), INTERVAL 60 DAY)),
+  ('ret-first-legacy-mon5', 'ret-legacy-mon-5', DATE_SUB(CURDATE(), INTERVAL 60 DAY)),
+  ('ret-prewindow1-old', 'ret-prewindow-1', DATE_SUB(CURDATE(), INTERVAL 121 DAY)),
+  ('ret-prewindow1-observed', 'ret-prewindow-1', DATE_SUB(CURDATE(), INTERVAL 60 DAY)),
+  ('ret-prewindow1-return', 'ret-prewindow-1', DATE_SUB(CURDATE(), INTERVAL 55 DAY)),
+  ('ret-prewindow2-old', 'ret-prewindow-2', DATE_SUB(CURDATE(), INTERVAL 121 DAY)),
+  ('ret-prewindow2-observed', 'ret-prewindow-2', DATE_SUB(CURDATE(), INTERVAL 60 DAY)),
+  ('ret-prewindow2-return', 'ret-prewindow-2', DATE_SUB(CURDATE(), INTERVAL 55 DAY)),
+  ('ret-prewindow3-old', 'ret-prewindow-3', DATE_SUB(CURDATE(), INTERVAL 121 DAY)),
+  ('ret-prewindow3-observed', 'ret-prewindow-3', DATE_SUB(CURDATE(), INTERVAL 60 DAY)),
+  ('ret-prewindow3-return', 'ret-prewindow-3', DATE_SUB(CURDATE(), INTERVAL 55 DAY)),
+  ('ret-prewindow4-old', 'ret-prewindow-4', DATE_SUB(CURDATE(), INTERVAL 121 DAY)),
+  ('ret-prewindow4-observed', 'ret-prewindow-4', DATE_SUB(CURDATE(), INTERVAL 60 DAY)),
+  ('ret-prewindow4-return', 'ret-prewindow-4', DATE_SUB(CURDATE(), INTERVAL 55 DAY)),
+  ('ret-prewindow5-old', 'ret-prewindow-5', DATE_SUB(CURDATE(), INTERVAL 121 DAY)),
+  ('ret-prewindow5-observed', 'ret-prewindow-5', DATE_SUB(CURDATE(), INTERVAL 60 DAY)),
+  ('ret-prewindow5-return', 'ret-prewindow-5', DATE_SUB(CURDATE(), INTERVAL 55 DAY));
 '@
-    $factIds = @('ret-return-m1-5','ret-return-m1-20','ret-return-m2-5','ret-return-m2-25','ret-return-m3-5','ret-return-m3-29','ret-return-m4-20','ret-first-new1','ret-return-new1-5','ret-return-new1-20','ret-first-new2','ret-return-new2-5','ret-return-new2-20','ret-first-new3','ret-return-new3-5','ret-return-new3-20','ret-first-new4','ret-return-new4-5','ret-return-new4-20','ret-first-old1','ret-first-old2','ret-first-old3','ret-first-old4','ret-first-old5')
+    $factIds = @('ret-return-m1-5','ret-return-m1-20','ret-return-m2-5','ret-return-m2-25','ret-return-m3-5','ret-return-m3-29','ret-return-m4-20','ret-first-new1','ret-return-new1-5','ret-return-new1-20','ret-first-new2','ret-return-new2-5','ret-return-new2-20','ret-first-new3','ret-return-new3-5','ret-return-new3-20','ret-first-new4','ret-return-new4-5','ret-return-new4-20','ret-first-old1','ret-first-old2','ret-first-old3','ret-first-old4','ret-first-old5','ret-first-legacy-mon1','ret-first-legacy-mon2','ret-first-legacy-mon3','ret-first-legacy-mon4','ret-first-legacy-mon5','ret-prewindow1-old','ret-prewindow1-observed','ret-prewindow1-return','ret-prewindow2-old','ret-prewindow2-observed','ret-prewindow2-return','ret-prewindow3-old','ret-prewindow3-observed','ret-prewindow3-return','ret-prewindow4-old','ret-prewindow4-observed','ret-prewindow4-return','ret-prewindow5-old','ret-prewindow5-observed','ret-prewindow5-return')
     foreach ($factId in $factIds) { $retentionFixtureSql = $retentionFixtureSql.Replace("('$factId', ", '(') }
     [void](Invoke-FixtureQuery $ContainerName $Password $retentionFixtureSql)
 
@@ -663,9 +707,12 @@ WHERE FACT_NAME='AUTHENTICATED_ACTIVITY_DAILY'
         [regex]::Matches($mature, '(?m)^monitored\t\d{4}-\d{2}-\d{2}\t5\t3\t60\.00\t4\t80\.00\r?$').Count -eq 1
     ) "$Label mature five-user cohort or return counts were incorrect: $mature"
     Assert-RolloutContract (
-        [regex]::Matches($mature, '(?m)^non_monitored\t').Count -eq 0
-    ) "$Label emitted a k=4 control cohort or treated pre-collection accounts as first seen: $mature"
-    Write-Host "RETENTION_REPORT_DATA|PASS|PATH=$Label|IMMATURE=EMPTY|CLOSED_DATE=REJECTED|AUDIT=REQUIRED|AUDITED_DAYS=119|GAP=INSUFFICIENT|CLEANUP=INSUFFICIENT|LATE_FACT=OPEN|MATURE=5|SUPPRESSED=4"
+        [regex]::Matches($mature, '(?m)^monitored\t\d{4}-\d{2}-\d{2}\t').Count -eq 1
+    ) "$Label included legacy NULL WATCH_CREATED_ON rows in the monitored cohort: $mature"
+    Assert-RolloutContract (
+        [regex]::Matches($mature, '(?m)^observed_non_monitored\t\d{4}-\d{2}-\d{2}\t14\t9\t64\.29\t9\t64\.29\r?$').Count -eq 1
+    ) "$Label first-observed control or verified-window boundary was incorrect: $mature"
+    Write-Host "RETENTION_REPORT_DATA|PASS|PATH=$Label|IMMATURE=EMPTY|CLOSED_DATE=REJECTED|AUDIT=REQUIRED|AUDITED_DAYS=119|GAP=INSUFFICIENT|CLEANUP=INSUFFICIENT|LATE_FACT=OPEN|MATURE=5|LEGACY_NULL=EXCLUDED|OBSERVED_CONTROL=14"
 }
 
 function Assert-LegacyUpgradeData(
@@ -687,7 +734,23 @@ WHERE ID IN ('n-none','n-seven','n-thirty','n-no-email')
     $expectedCancelled = if ($HasLegacyWatchEmail) { 3 } else { 4 }
     Assert-RolloutContract ($allowed -eq $expectedAllowed) "Legacy upgrade expected $expectedAllowed compatible frozen recipients, found $allowed"
     Assert-RolloutContract ($cancelled -eq $expectedCancelled) "Legacy upgrade expected $expectedCancelled incompatible routes cancelled, found $cancelled"
-    Write-Host "RETENTION_LEGACY_DATA|PASS|WATCH_EMAIL=$HasLegacyWatchEmail|ALLOWED=$allowed|CANCELLED=$cancelled"
+    if ($HasLegacyWatchEmail) {
+        $backfilled = Get-FixtureCount $ContainerName $Password @'
+SELECT COUNT(*) FROM WEB_DOMAIN_WATCH
+WHERE (ID='w-seven' AND WATCH_CREATED_ON='2026-08-02')
+   OR (ID IN ('w-none','w-no-email') AND WATCH_CREATED_ON='2026-08-01')
+'@
+        Assert-RolloutContract ($backfilled -eq 3) 'explicit UTC -> Shanghai legacy watch-date backfill was incorrect'
+        $watchDateState = 'BACKFILLED=3'
+    } else {
+        $excluded = Get-FixtureCount $ContainerName $Password @'
+SELECT COUNT(*) FROM WEB_DOMAIN_WATCH
+WHERE ID IN ('w-none','w-seven','w-no-email') AND WATCH_CREATED_ON IS NULL
+'@
+        Assert-RolloutContract ($excluded -eq 3) 'legacy watch dates without an explicit source zone must remain NULL'
+        $watchDateState = 'NULL_EXCLUDED=3'
+    }
+    Write-Host "RETENTION_LEGACY_DATA|PASS|WATCH_EMAIL=$HasLegacyWatchEmail|ALLOWED=$allowed|CANCELLED=$cancelled|$watchDateState"
 }
 
 function Assert-PathBWatchCompatibilityData([string]$ContainerName, [string]$Password) {
@@ -699,9 +762,14 @@ WHERE ID = 'pathb-valid' AND NOTIFY_TYPE = 1 AND NOTIFY_EMAIL = 'pathb@example.c
 SELECT COUNT(*) FROM WEB_DOMAIN_WATCH
 WHERE ID = 'pathb-invalid' AND NOTIFY_TYPE = 0 AND NOTIFY_EMAIL IS NULL
 '@
+    $unbackfilled = Get-FixtureCount $ContainerName $Password @'
+SELECT COUNT(*) FROM WEB_DOMAIN_WATCH
+WHERE ID IN ('pathb-valid','pathb-invalid') AND WATCH_CREATED_ON IS NULL
+'@
     Assert-RolloutContract ($preserved -eq 1) 'PathB did not preserve and normalize its valid legacy watch recipient'
     Assert-RolloutContract ($rejected -eq 1) 'PathB did not fail closed for malformed legacy watch settings'
-    Write-Host "RETENTION_PATHB_WATCH_DATA|PASS|PRESERVED=$preserved|REJECTED=$rejected"
+    Assert-RolloutContract ($unbackfilled -eq 2) 'PathB guessed legacy watch dates without an explicit source zone'
+    Write-Host "RETENTION_PATHB_WATCH_DATA|PASS|PRESERVED=$preserved|REJECTED=$rejected|NULL_EXCLUDED=$unbackfilled"
 }
 
 function Invoke-MySqlFixture([ValidateSet('PathA', 'PathB', 'LegacyUpgrade', 'LegacyWatchEmail')][string]$Path) {
@@ -737,7 +805,10 @@ function Invoke-MySqlFixture([ValidateSet('PathA', 'PathB', 'LegacyUpgrade', 'Le
                 'doc/fixtures/e73ff4d_notification_baseline.sql'
             }
             Invoke-FixtureSqlFile $containerName $password $legacyFixturePath
-            Invoke-FixtureSqlFile $containerName $password 'doc/alter_retention_notification_center_from_e73ff4d.sql'
+            $legacyDateInit = if ($Path -eq 'LegacyWatchEmail') {
+                "SET @legacy_watch_source_time_zone='+00:00'; SET @retention_reporting_time_zone='+08:00'"
+            } else { '' }
+            Invoke-FixtureSqlFile $containerName $password 'doc/alter_retention_notification_center_from_e73ff4d.sql' $legacyDateInit
             Assert-RetentionSchema $containerName $password $Path
             Assert-LegacyUpgradeData $containerName $password ($Path -eq 'LegacyWatchEmail')
             Assert-RetentionReportData $containerName $password $Path

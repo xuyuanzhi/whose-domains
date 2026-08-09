@@ -63,7 +63,7 @@ CREATE TABLE `WEB_DOMAIN_WATCH_NOTIFY_LOG` (
 INSERT INTO `WEB_DOMAIN_WATCH`
   (`ID`,`STATUS`,`DELETED`,`USER_ID`,`DOMAIN_NAME`,`NOTIFY_TYPE`,`CREATE_TIME`) VALUES
   ('w-none',1,0,'u-none','none.example',0,'2026-08-01 00:00:00'),
-  ('w-seven',1,0,'u-seven','seven.example',1,'2026-08-01 00:00:00'),
+  ('w-seven',1,0,'u-seven','seven.example',1,'2026-08-01 16:30:00'),
   ('w-no-email',1,0,'u-no-email','no-email.example',3,'2026-08-01 00:00:00');
 
 INSERT INTO `WEB_MONITOR_EVENT`

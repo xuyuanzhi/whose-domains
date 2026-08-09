@@ -141,6 +141,60 @@ CREATE TABLE `WEB_RETENTION_FACT_HEALTH` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin
   COMMENT='Non-user-level daily completeness watermark for retention facts';
 
+-- WATCH_CREATED_ON is the only cohort calendar fact. Updated clean/Path-B
+-- baselines already contain it; older operational tables do not. Legacy
+-- CREATE_TIME is a timezone-less wall clock, so it is converted only when the
+-- operator explicitly supplied both its source zone and the formal reporting
+-- target zone in this same session. Otherwise NULL deliberately excludes the
+-- legacy watch from retention cohorts.
+SET @watch_created_on_exists = (
+  SELECT COUNT(*) FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'WEB_DOMAIN_WATCH'
+    AND COLUMN_NAME = 'WATCH_CREATED_ON'
+);
+SET @watch_created_on_ddl = IF(
+  @watch_created_on_exists = 0,
+  'ALTER TABLE `WEB_DOMAIN_WATCH` ADD COLUMN `WATCH_CREATED_ON` date NULL COMMENT ''Creation date in WESITE_RETENTION_REPORTING_ZONE; NULL excludes unverified legacy rows'' AFTER `USER_ID`',
+  'ALTER TABLE `WEB_DOMAIN_WATCH` MODIFY COLUMN `WATCH_CREATED_ON` date NULL COMMENT ''Creation date in WESITE_RETENTION_REPORTING_ZONE; NULL excludes unverified legacy rows'''
+);
+PREPARE watch_created_on_statement FROM @watch_created_on_ddl;
+EXECUTE watch_created_on_statement;
+DEALLOCATE PREPARE watch_created_on_statement;
+
+SET @watch_created_on_index_exists = (
+  SELECT COUNT(*) FROM information_schema.STATISTICS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'WEB_DOMAIN_WATCH'
+    AND INDEX_NAME = 'IDX_DOMAIN_WATCH_USER_CREATED_ON'
+);
+SET @watch_created_on_index_ddl = IF(
+  @watch_created_on_index_exists = 0,
+  'ALTER TABLE `WEB_DOMAIN_WATCH` ADD KEY `IDX_DOMAIN_WATCH_USER_CREATED_ON` (`USER_ID`, `WATCH_CREATED_ON`)',
+  'SELECT 1'
+);
+PREPARE watch_created_on_index_statement FROM @watch_created_on_index_ddl;
+EXECUTE watch_created_on_index_statement;
+DEALLOCATE PREPARE watch_created_on_index_statement;
+
+SET @legacy_watch_source_time_zone = NULLIF(TRIM(@legacy_watch_source_time_zone), '');
+SET @retention_reporting_time_zone = NULLIF(TRIM(@retention_reporting_time_zone), '');
+SET @watch_created_on_zones_valid =
+  @legacy_watch_source_time_zone IS NOT NULL
+  AND @retention_reporting_time_zone IS NOT NULL
+  AND CONVERT_TZ('2000-01-01 00:00:00',
+        @legacy_watch_source_time_zone, @retention_reporting_time_zone) IS NOT NULL;
+UPDATE `WEB_DOMAIN_WATCH`
+SET `WATCH_CREATED_ON` = DATE(CONVERT_TZ(
+  `CREATE_TIME`, @legacy_watch_source_time_zone, @retention_reporting_time_zone))
+WHERE `WATCH_CREATED_ON` IS NULL
+  AND `CREATE_TIME` IS NOT NULL
+  AND @watch_created_on_zones_valid;
+SELECT CASE
+  WHEN @watch_created_on_zones_valid THEN 'EXPLICIT_LEGACY_WATCH_DATES_BACKFILLED'
+  ELSE 'LEGACY_WATCH_DATES_LEFT_NULL_AND_EXCLUDED'
+END AS `WATCH_CREATED_ON_MIGRATION_STATUS`;
+
 -- Clean installs lack NOTIFY_EMAIL, while a few older operational databases
 -- added the legacy field independently. Preserve both preflight-approved shapes.
 SET @watch_notify_email_exists = (

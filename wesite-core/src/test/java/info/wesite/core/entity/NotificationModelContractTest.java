@@ -3,6 +3,9 @@ package info.wesite.core.entity;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.beans.Introspector;
+import java.time.LocalDate;
+import java.util.Arrays;
 import java.util.Date;
 
 import org.junit.jupiter.api.Test;
@@ -57,5 +60,19 @@ class NotificationModelContractTest {
 
         assertEquals(2, snapshot.getSchemaVersion());
         assertEquals("DNS,DOMAIN", snapshot.getObservedSources());
+    }
+
+    @Test
+    void domainWatchExposesAnExplicitReportingCalendarCreationDate() throws Exception {
+        var property = Arrays.stream(Introspector.getBeanInfo(DomainWatch.class).getPropertyDescriptors())
+            .filter(candidate -> "watchCreatedOn".equals(candidate.getName()))
+            .findFirst();
+
+        assertTrue(property.isPresent(), "DomainWatch must expose WATCH_CREATED_ON as watchCreatedOn");
+        assertEquals(LocalDate.class, property.orElseThrow().getPropertyType());
+        DomainWatch watch = new DomainWatch();
+        LocalDate createdOn = LocalDate.of(2026, 8, 9);
+        property.orElseThrow().getWriteMethod().invoke(watch, createdOn);
+        assertEquals(createdOn, property.orElseThrow().getReadMethod().invoke(watch));
     }
 }

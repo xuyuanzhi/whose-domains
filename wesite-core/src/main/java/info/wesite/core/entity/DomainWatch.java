@@ -1,5 +1,6 @@
 package info.wesite.core.entity;
 
+import java.time.LocalDate;
 import java.util.Date;
 
 import com.baomidou.mybatisplus.annotation.TableName;
@@ -22,6 +23,9 @@ public class DomainWatch extends BaseEntity {
      * 用户ID
      */
     private String userId;
+
+    /** Reporting-calendar date on which this watch was first created. */
+    private LocalDate watchCreatedOn;
 
     /**
      * 域名名称（如 example.com）

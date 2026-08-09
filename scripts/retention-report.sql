@@ -28,6 +28,7 @@ SET @configured_retention_days = (
 );
 SET @required_fact_days = GREATEST(COALESCE(@configured_retention_days, 0), @minimum_report_days);
 SET @health_start = DATE_SUB(CURDATE(), INTERVAL @required_fact_days DAY);
+SET @verified_window_start = GREATEST(@fact_collection_start, @health_start);
 SET @healthy_days = (
   SELECT COUNT(*) FROM WEB_RETENTION_FACT_HEALTH H
   WHERE H.FACT_NAME = @fact_name AND H.FACT_DATE >= @health_start AND H.FACT_DATE < CURDATE()
@@ -83,43 +84,51 @@ SELECT
   @fact_collection_start AS collection_started_on,
   @observed_fact_days AS observed_fact_days,
   @required_fact_days AS required_fact_days,
+  @verified_window_start AS verified_window_start,
   @cohort_start AS requested_cohort_start,
   @cohort_end_exclusive AS requested_cohort_end_exclusive;
 
 DROP TEMPORARY TABLE IF EXISTS retention_activity_days;
 CREATE TEMPORARY TABLE retention_activity_days AS
-SELECT USER_ID, ACTIVITY_DATE AS activity_date
-FROM WEB_AUTHENTICATED_ACTIVITY_DAILY
-WHERE USER_ID IS NOT NULL
-  AND ACTIVITY_DATE IS NOT NULL
+SELECT A.USER_ID, A.ACTIVITY_DATE AS activity_date
+FROM WEB_AUTHENTICATED_ACTIVITY_DAILY A
+JOIN WEB_RETENTION_FACT_HEALTH H
+  ON H.FACT_NAME = @fact_name
+ AND H.FACT_DATE = A.ACTIVITY_DATE
+ AND H.VERIFICATION_STATUS = 'VERIFIED'
+ AND H.VERIFIED_AT IS NOT NULL
+ AND H.EXTERNAL_EXPECTED_ROWS IS NOT NULL
+ AND NULLIF(TRIM(H.RECONCILIATION_SOURCE), '') IS NOT NULL
+ AND NULLIF(TRIM(H.RECONCILIATION_ID), '') IS NOT NULL
+ AND H.FAILURE_COUNT = 0
+ AND H.EXPECTED_FACT_ROWS = H.EXTERNAL_EXPECTED_ROWS
+WHERE A.USER_ID IS NOT NULL
+  AND A.ACTIVITY_DATE IS NOT NULL
   AND @report_status = 'READY'
-  AND ACTIVITY_DATE >= @fact_collection_start
-  AND ACTIVITY_DATE <= CURDATE();
+  AND A.ACTIVITY_DATE >= @verified_window_start
+  AND A.ACTIVITY_DATE < CURDATE();
 ALTER TABLE retention_activity_days ADD PRIMARY KEY (USER_ID, activity_date);
 
 DROP TEMPORARY TABLE IF EXISTS retention_first_watch;
 CREATE TEMPORARY TABLE retention_first_watch AS
-SELECT USER_ID, DATE(MIN(CREATE_TIME)) AS first_watch_date
+SELECT USER_ID,
+  MIN(WATCH_CREATED_ON) AS first_watch_date,
+  MAX(WATCH_CREATED_ON IS NULL) AS has_unreliable_watch_date
 FROM WEB_DOMAIN_WATCH
-WHERE USER_ID IS NOT NULL AND CREATE_TIME IS NOT NULL
+WHERE USER_ID IS NOT NULL
 GROUP BY USER_ID;
 ALTER TABLE retention_first_watch ADD PRIMARY KEY (USER_ID);
 
-DROP TEMPORARY TABLE IF EXISTS retention_first_activity;
-CREATE TEMPORARY TABLE retention_first_activity AS
-SELECT A.USER_ID, MIN(A.activity_date) AS first_activity_date
+DROP TEMPORARY TABLE IF EXISTS retention_first_observed_activity;
+CREATE TEMPORARY TABLE retention_first_observed_activity AS
+SELECT A.USER_ID, MIN(A.activity_date) AS first_observed_activity_date
 FROM retention_activity_days A
-JOIN SYS_USER U ON U.ID = A.USER_ID
-  -- Accounts created before collection began have an unknown true first-seen
-  -- date. Excluding them prevents rollout day from becoming a fake cohort date.
-  AND U.CREATE_TIME IS NOT NULL
-  AND DATE(U.CREATE_TIME) >= @fact_collection_start
 GROUP BY A.USER_ID;
-ALTER TABLE retention_first_activity ADD PRIMARY KEY (USER_ID);
+ALTER TABLE retention_first_observed_activity ADD PRIMARY KEY (USER_ID);
 
 DROP TEMPORARY TABLE IF EXISTS retention_cohorts;
 CREATE TEMPORARY TABLE retention_cohorts (
-  cohort_type varchar(16) NOT NULL,
+  cohort_type varchar(32) NOT NULL,
   USER_ID varchar(32) NOT NULL,
   cohort_date date NOT NULL,
   PRIMARY KEY (cohort_type, USER_ID),
@@ -129,19 +138,24 @@ INSERT INTO retention_cohorts (cohort_type, USER_ID, cohort_date)
 SELECT 'monitored' AS cohort_type, USER_ID, first_watch_date AS cohort_date
 FROM retention_first_watch
 WHERE @report_status = 'READY'
-  AND first_watch_date >= @fact_collection_start
+  AND has_unreliable_watch_date = 0
+  AND first_watch_date >= @verified_window_start
   AND first_watch_date >= @cohort_start
   AND first_watch_date < @cohort_end_exclusive;
 INSERT INTO retention_cohorts (cohort_type, USER_ID, cohort_date)
-SELECT 'non_monitored' AS cohort_type, A.USER_ID, A.first_activity_date AS cohort_date
-FROM retention_first_activity A
+SELECT 'observed_non_monitored' AS cohort_type,
+  A.USER_ID, A.first_observed_activity_date AS cohort_date
+FROM retention_first_observed_activity A
 LEFT JOIN retention_first_watch W ON W.USER_ID = A.USER_ID
 WHERE @report_status = 'READY'
-  AND A.first_activity_date >= @fact_collection_start
-  AND A.first_activity_date >= @cohort_start
-  AND A.first_activity_date < @cohort_end_exclusive
-  -- A control user must remain without a watch through the entire 30-day window.
-  AND (W.first_watch_date IS NULL OR W.first_watch_date > DATE_ADD(A.first_activity_date, INTERVAL 30 DAY));
+  AND COALESCE(W.has_unreliable_watch_date, 0) = 0
+  AND A.first_observed_activity_date >= @verified_window_start
+  AND A.first_observed_activity_date >= @cohort_start
+  AND A.first_observed_activity_date < @cohort_end_exclusive
+  -- This is an observed cohort, not an account-creation cohort. A control user
+  -- must remain without a reliable watch fact through the entire 30-day window.
+  AND (W.first_watch_date IS NULL
+    OR W.first_watch_date > DATE_ADD(A.first_observed_activity_date, INTERVAL 30 DAY));
 
 -- Collapse activity to exactly one row per cohort/user before counting the
 -- privacy denominator. Multiple active days must never turn one person into
@@ -208,6 +222,6 @@ ORDER BY cohort_type;
 DROP TEMPORARY TABLE retention_results;
 DROP TEMPORARY TABLE retention_user_results;
 DROP TEMPORARY TABLE retention_cohorts;
-DROP TEMPORARY TABLE retention_first_activity;
+DROP TEMPORARY TABLE retention_first_observed_activity;
 DROP TEMPORARY TABLE retention_first_watch;
 DROP TEMPORARY TABLE retention_activity_days;

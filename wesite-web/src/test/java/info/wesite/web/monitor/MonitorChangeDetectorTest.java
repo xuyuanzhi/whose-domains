@@ -122,6 +122,41 @@ class MonitorChangeDetectorTest {
     }
 
     @Test
+    void firstObservationOfEachExpirySourceUsesOnlyTheMostUrgentApplicableThreshold() {
+        for (FirstObservationCase observation : List.of(
+            new FirstObservationCase(30, 30),
+            new FirstObservationCase(8, 30),
+            new FirstObservationCase(7, 7),
+            new FirstObservationCase(5, 7),
+            new FirstObservationCase(1, 1),
+            new FirstObservationCase(0, 1))) {
+            MonitorState current = state()
+                .domainExpiry(today().plusDays(observation.daysRemaining()))
+                .sslExpiry(today().plusDays(observation.daysRemaining()))
+                .build();
+
+            List<MonitorEventDraft> events = detector.detect(
+                state().build(),
+                current,
+                CLOCK.instant().minusSeconds(86_400),
+                CLOCK.instant(),
+                Set.of(MonitorCollectorResult.Source.DNS),
+                Set.of(
+                    MonitorCollectorResult.Source.DNS,
+                    MonitorCollectorResult.Source.DOMAIN,
+                    MonitorCollectorResult.Source.SSL));
+
+            assertEquals(
+                Set.of(
+                    "domainExpiry:" + observation.expectedThreshold(),
+                    "sslExpiry:" + observation.expectedThreshold()),
+                events.stream().map(MonitorEventDraft::field).collect(java.util.stream.Collectors.toSet()),
+                "days remaining=" + observation.daysRemaining());
+            assertEquals(2, events.size(), "first observation must emit one threshold per source");
+        }
+    }
+
+    @Test
     void sslExpiryThresholdsProduceHighRiskEvents() {
         for (int daysRemaining : List.of(30, 7, 1)) {
             LocalDate expiry = today().plusDays(daysRemaining);
@@ -208,7 +243,7 @@ class MonitorChangeDetectorTest {
     }
 
     @Test
-    void changesAreComparedOnlyForSourcesObservedOnBothSnapshots() {
+    void newlyObservedExpiryStartsItsReminderWhileOtherChangesStillRequireBothSnapshots() {
         MonitorState previous = state()
             .sslExpiry(today().plusDays(8))
             .dns(Map.of())
@@ -232,7 +267,9 @@ class MonitorChangeDetectorTest {
                 MonitorCollectorResult.Source.SSL,
                 MonitorCollectorResult.Source.WEBSITE));
 
-        assertTrue(events.isEmpty());
+        assertEquals("sslExpiry:7", onlyEventOfType(events, MonitorEventType.SSL_EXPIRING).field());
+        assertFalse(events.stream().anyMatch(event -> event.type() == MonitorEventType.DNS_CHANGED));
+        assertFalse(events.stream().anyMatch(event -> event.type() == MonitorEventType.WEBSITE_DOWN));
     }
 
     private static MonitorEventDraft onlyEventOfType(List<MonitorEventDraft> events, MonitorEventType type) {
@@ -250,6 +287,9 @@ class MonitorChangeDetectorTest {
     }
 
     private record ExpiryCase(int daysRemaining, MonitorRisk risk) {
+    }
+
+    private record FirstObservationCase(int daysRemaining, int expectedThreshold) {
     }
 
     private static final class StateBuilder {

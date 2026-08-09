@@ -76,7 +76,7 @@ You can also override settings via environment variables without touching the co
 
 | Variable | Description |
 | --- | --- |
-| `WD_DB_URL` | MySQL JDBC URL |
+| `WD_DB_URL` | MySQL JDBC URL; production overrides must preserve the documented explicit UTC connection/session options |
 | `WD_DB_USERNAME` | Database username |
 | `WD_DB_PASSWORD` | Database password |
 | `REDIS_PASSWORD` | Redis password (may be empty) |
@@ -152,7 +152,7 @@ WHERE TABLE_SCHEMA = DATABASE()
     OR (TABLE_NAME = 'WEB_MONITOR_EVENT' AND COLUMN_NAME IN ('RISK','SOURCE'))
     OR (TABLE_NAME = 'WEB_USER_NOTIFICATION' AND COLUMN_NAME IN ('RECIPIENT_EMAIL','EMAIL_MODE','EMAIL_ATTEMPT_COUNT','EMAIL_CLAIM_TOKEN','DELIVERY_BATCH_ID'))
     OR (TABLE_NAME = 'WEB_NOTIFICATION_DELIVERY_BATCH' AND COLUMN_NAME IN ('RECIPIENT_EMAIL','CANCELLATION_REQUESTED'))
-    OR (TABLE_NAME = 'WEB_DOMAIN_WATCH' AND COLUMN_NAME IN ('NOTIFY_EMAIL','SCAN_CLAIM_TOKEN','SCAN_CLAIM_UNTIL')))
+    OR (TABLE_NAME = 'WEB_DOMAIN_WATCH' AND COLUMN_NAME IN ('NOTIFY_EMAIL','SCAN_CLAIM_TOKEN','SCAN_CLAIM_UNTIL','WATCH_CREATED_ON')))
 ORDER BY TABLE_NAME, COLUMN_NAME;"
 ```
 
@@ -190,7 +190,20 @@ mysql -u root -p wesitedb < doc/alter_retention_notification_center_from_e73ff4d
 
 This increment adds every schema change through the current release. On the exact e73ff4d shape it adds an empty watch recipient field and safely converts every old email route to in-app only. On the operational legacy-field shape it validates and preserves watch recipients, freezes them onto still-compatible queued notifications, and cancels ambiguous, malformed, or opted-out routes. It never derives a recipient from `SYS_USER.EMAIL`. Apart from the explicitly supported presence or absence of that one watch field, if the preflight does not match the old baseline, stop and reconcile the partial migration rather than guessing which statements to skip.
 
-The rollout verifier exercises the three deployment paths in disposable MySQL 8.4 containers; `LegacyUpgrade` runs both the exact e73ff4d schema and its operational watch-email variant:
+`WATCH_CREATED_ON` is a nullable `DATE` because a legacy `CREATE_TIME DATETIME` has no timezone attached. New watches always write it from `WESITE_RETENTION_REPORTING_ZONE`. For old rows, never run `DATE(CREATE_TIME)` or assume the database/JVM timezone. If the wall-clock source zone is known, prefix the selected migration in the same MySQL session with both explicit zones:
+
+```bash
+# Example: legacy wall times were UTC and the formal reporting calendar is Shanghai.
+{ printf "%s\n" \
+    "SET @legacy_watch_source_time_zone='+00:00';" \
+    "SET @retention_reporting_time_zone='+08:00';"; \
+  cat doc/alter_retention_notification_center_from_e73ff4d.sql; } \
+  | mysql -u root -p wesitedb
+```
+
+Use the same prefix with `doc/alter_retention_notification_center.sql` on Path A/B when it contains legacy watch rows. For zones with historical daylight-saving changes, use named zones such as `America/New_York` only after loading MySQL timezone tables; a fixed current offset is not a reliable historical conversion. If `@legacy_watch_source_time_zone` is unknown, omit both variables: the migration reports `LEGACY_WATCH_DATES_LEFT_NULL_AND_EXCLUDED`, leaves those rows null, and the retention report excludes their users from both cohorts. After migration, explicitly audit `SELECT COUNT(*) FROM WEB_DOMAIN_WATCH WHERE WATCH_CREATED_ON IS NULL`; do not invent a backfill later from an undocumented timezone.
+
+The rollout verifier exercises the three deployment paths in disposable MySQL 8.4 containers; `LegacyUpgrade` runs both the exact e73ff4d schema and its operational watch-email variant. One fixture proves conservative null exclusion; the other explicitly converts a UTC `2026-08-01 16:30` wall time to Shanghai `2026-08-02`:
 
 ```powershell
 powershell.exe -NoProfile -File scripts/verify-retention-rollout.ps1 -Fixture PathA
@@ -240,7 +253,9 @@ Use GA4 only with the privacy-safe custom events `watch_created`, `watchlist_ret
 
 The account-level source of record is the local MySQL aggregate report, not GA4. Run it with a database account allowed to create temporary tables; it selects only daily/overall aggregates and never emits a user ID.
 
-`WESITE_RETENTION_REPORTING_ZONE` is the only formal reporting-calendar configuration. The application parses it as an IANA `ZoneId` and derives each activity `LocalDate` in that zone. Every SQL caller must derive the matching MySQL session offset from that same ZoneId: `Asia/Shanghai` maps to `+08:00`. For a DST ZoneId, calculate the offset effective for the invocation and record that mapping in the change/run log; the SQL offset is derived session state, not a second configuration. Never use the host, JVM, container, or database default as a substitute.
+`WESITE_RETENTION_REPORTING_ZONE` is the only formal reporting-calendar configuration. The application creates one named reporting `Clock` from that IANA `ZoneId`; new-watch `WATCH_CREATED_ON`, authenticated-activity facts, and fact-failure dates all consume that same clock. This remains correct across UTC day boundaries and for non-`+08:00` zones. Every SQL caller must derive the matching MySQL session offset from that same ZoneId: `Asia/Shanghai` maps to `+08:00`. For a DST ZoneId, calculate the offset effective for the invocation and record that mapping in the change/run log; the SQL offset is derived session state, not a second configuration. Never use the host, JVM, container, or database default as a substitute.
+
+The JDBC instant contract is separate from the reporting calendar. Both production property examples set Connector/J `connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true`, so timezone-less operational `DATETIME` reads/writes do not depend on a host or database default. Any `WD_DB_URL` override must preserve those options (or an operationally equivalent explicit UTC contract). Cohort dates never come from those timestamps: they use persisted `DATE` facts.
 
 Initialize the report in one session by either setting `@reporting_time_zone` before the script or using the MySQL connection init command:
 
@@ -275,11 +290,11 @@ The script uses these persisted fields, deduplicated by `(USER_ID, activity_date
 
 | Purpose | Persisted source |
 | --- | --- |
-| Monitored cohort | `WEB_DOMAIN_WATCH.CREATE_TIME`; cohort date is each user's first watch creation date, including a watch later soft-deleted. |
+| Monitored cohort | `WEB_DOMAIN_WATCH.WATCH_CREATED_ON`; cohort date is each user's first reliable reporting-calendar watch date, including a watch later soft-deleted. Any user with a legacy null watch date is conservatively excluded. |
 | Authenticated activity | `WEB_AUTHENTICATED_ACTIVITY_DAILY.ACTIVITY_DATE`; the interceptor writes at most one minimal `(USER_ID, ACTIVITY_DATE)` fact per authenticated user/day and stores no path, domain, email, or request payload. Keep these facts for at least 120 days. |
 | Observation boundary | Migration leaves `WEB_RETENTION_FACT_COLLECTION.COLLECTION_STARTED_ON` null. The writer records only non-user-level observed counts/heartbeats in `WEB_RETENTION_FACT_HEALTH`; rows remain `OPEN` and cannot prove their own completeness. Export the daily distinct-authenticated-user count from an independent source such as the authentication gateway, then set `@reporting_time_zone`, `@verified_fact_date`, `@external_expected_rows`, `@reconciliation_source`, and a unique `@reconciliation_id` before sourcing `scripts/verify-retention-fact-day.sql`. Never derive the external expected count from this application database. Reports require 120 continuous `VERIFIED` days. Java uses `WESITE_RETENTION_REPORTING_ZONE` (default `Asia/Shanghai`); SQL callers must map that ZoneId to the matching offset (`+08:00` for Shanghai). Fixed offsets are unsuitable for DST zones, so deployments using one must supply the date-appropriate offset. |
 
-The monitored cohort contains every user whose first watch was created on the cohort day. The non-monitored control contains users on their first observed authenticated-activity day who do not create a watch through the following 30 days. Accounts created before `COLLECTION_STARTED_ON` are excluded from the control because their true first-seen date is unknown; the first post-rollout fact must never turn a legacy account into a new-user cohort. This also prevents a control user who soon becomes monitored from contaminating the 30-day comparison. Both cohorts must begin on or after the durable collection boundary and close at least 30 days in the configured reporting offset before execution, so their 7-day and 30-day outcomes are complete. A return is any later persisted activity above on days 1–7 or 1–30, counted at most once per user per window before the script aggregates it.
+The monitored cohort contains every user whose first reliable watch `DATE` falls on the cohort day. The observed non-monitored cohort contains users on their first authenticated-activity fact inside the continuous verified collection window who have no reliable watch through the following 30 days. It is deliberately named an observed cohort: it does not claim that the date is account creation or the user's lifetime first visit, and it never reads `SYS_USER.CREATE_TIME`. Activity before the verified window is ignored when selecting the first observed date. A user with any null legacy watch date is excluded from both sides because historical monitored status is ambiguous. This also prevents a control user who soon becomes monitored from contaminating the 30-day comparison. Both cohorts must begin inside the continuous verified fact window and close at least 30 days in the configured reporting offset before execution, so their 7-day and 30-day outcomes are complete. A return is any later persisted activity above on days 1–7 or 1–30, counted at most once per user per window before the script aggregates it.
 
 ```text
 7-day return rate  = returning cohort users on days 1-7  / eligible cohort users
