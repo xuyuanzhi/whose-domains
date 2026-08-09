@@ -10,9 +10,10 @@ import lombok.EqualsAndHashCode;
 @EqualsAndHashCode(callSuper = true)
 public class NotificationPreference extends BaseEntity {
 
-    public static final String MODE_IMMEDIATE = "immediate";
-    public static final String MODE_DAILY = "daily";
-    public static final String MODE_DISABLED = "disabled";
+    public static final String MODE_IMMEDIATE = "IMMEDIATE";
+    public static final String MODE_DAILY = "DAILY";
+    public static final String MODE_WEEKLY = "WEEKLY";
+    public static final String MODE_IN_APP_ONLY = "IN_APP_ONLY";
 
     private String userId;
 

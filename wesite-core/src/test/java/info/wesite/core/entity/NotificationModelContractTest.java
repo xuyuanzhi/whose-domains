@@ -10,7 +10,11 @@ class NotificationModelContractTest {
     @Test
     void notificationDefaultsAreStable() {
         NotificationPreference preference = NotificationPreference.defaultsFor("u1");
-        assertEquals(NotificationPreference.MODE_DAILY, preference.getEmailMode());
+        assertEquals("IMMEDIATE", NotificationPreference.MODE_IMMEDIATE);
+        assertEquals("DAILY", NotificationPreference.MODE_DAILY);
+        assertEquals("WEEKLY", NotificationPreference.MODE_WEEKLY);
+        assertEquals("IN_APP_ONLY", NotificationPreference.MODE_IN_APP_ONLY);
+        assertEquals("DAILY", preference.getEmailMode());
         assertTrue(preference.getDomainExpiryEnabled());
         assertTrue(preference.getSslExpiryEnabled());
         assertEquals(0, preference.getDeleted());
