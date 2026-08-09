@@ -1,9 +1,12 @@
 package info.wesite.web.controller.api;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -24,6 +27,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 
 import info.wesite.core.config.UserHolder;
@@ -120,7 +124,49 @@ class NotificationControllerTest {
     }
 
     @Test
-    void markReadRejectsAnotherUsersNotificationWithoutUpdating() throws Exception {
+    void markReadUsesAnAtomicCurrentUserUpdateWithoutWritingDeliveryFields() throws Exception {
+        when(notifications.update(isNull(), any(Wrapper.class))).thenReturn(true);
+
+        mvc.perform(put("/api/notifications/notice-1/read"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0));
+
+        ArgumentCaptor<Wrapper<UserNotification>> update = ArgumentCaptor.forClass((Class) Wrapper.class);
+        verify(notifications).update(isNull(), update.capture());
+        LambdaUpdateWrapper<UserNotification> wrapper = (LambdaUpdateWrapper<UserNotification>) update.getValue();
+        String sql = wrapper.getSqlSegment();
+        String set = wrapper.getSqlSet();
+        assertTrue(sql.contains("id") && sql.contains("user_id") && sql.contains("deleted")
+                && sql.contains("read_at IS NULL"), sql);
+        assertTrue(set.contains("read_at"), set);
+        assertFalse(set.contains("email_state"), set);
+        assertFalse(set.contains("email_claim"), set);
+        assertFalse(set.contains("delivery_batch"), set);
+        verify(notifications, never()).getOne(any(Wrapper.class));
+        verify(notifications, never()).updateById(any(UserNotification.class));
+    }
+
+    @Test
+    void markReadTreatsAnAlreadyReadCurrentUsersNotificationAsIdempotentSuccess() throws Exception {
+        UserNotification alreadyRead = notification("notice-1", "/domain/example.com");
+        alreadyRead.setReadAt(new Date());
+        when(notifications.update(isNull(), any(Wrapper.class))).thenReturn(false);
+        when(notifications.getOne(any(Wrapper.class))).thenReturn(alreadyRead);
+
+        mvc.perform(put("/api/notifications/notice-1/read"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0));
+
+        ArgumentCaptor<Wrapper<UserNotification>> query = ArgumentCaptor.forClass((Class) Wrapper.class);
+        verify(notifications).getOne(query.capture());
+        String sql = query.getValue().getSqlSegment();
+        assertTrue(sql.contains("id") && sql.contains("user_id") && sql.contains("deleted")
+                && sql.contains("read_at IS NOT NULL"), sql);
+    }
+
+    @Test
+    void markReadRejectsAnotherUsersNotificationWhenTheAtomicUpdateChangesNoRows() throws Exception {
+        when(notifications.update(isNull(), any(Wrapper.class))).thenReturn(false);
         when(notifications.getOne(any(Wrapper.class))).thenReturn(null);
 
         mvc.perform(put("/api/notifications/other-users-notice/read"))
@@ -130,23 +176,58 @@ class NotificationControllerTest {
         ArgumentCaptor<Wrapper<UserNotification>> query = ArgumentCaptor.forClass((Class) Wrapper.class);
         verify(notifications).getOne(query.capture());
         String sql = query.getValue().getSqlSegment();
-        assertTrue(sql.contains("id") && sql.contains("user_id"), sql);
+        assertTrue(sql.contains("id") && sql.contains("user_id") && sql.contains("deleted"), sql);
         verify(notifications, never()).updateById(any(UserNotification.class));
     }
 
     @Test
     void markAllReadUpdatesOnlyUnreadNotificationsOwnedByTheCurrentUser() throws Exception {
-        when(notifications.update(any(UserNotification.class), any(Wrapper.class))).thenReturn(true);
+        when(notifications.count(any(Wrapper.class))).thenReturn(1L);
+        when(notifications.update(isNull(), any(Wrapper.class))).thenReturn(true);
 
         mvc.perform(put("/api/notifications/read-all"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0));
 
         ArgumentCaptor<Wrapper<UserNotification>> update = ArgumentCaptor.forClass((Class) Wrapper.class);
-        verify(notifications).update(any(UserNotification.class), update.capture());
+        verify(notifications).update(isNull(), update.capture());
         String sql = update.getValue().getSqlSegment();
         assertTrue(sql.contains("user_id"), sql);
         assertTrue(sql.contains("read_at IS NULL"), sql);
+        assertTrue(sql.contains("deleted"), sql);
+    }
+
+    @Test
+    void markAllReadIsIdempotentWhenNoUnreadNotificationsExist() throws Exception {
+        when(notifications.count(any(Wrapper.class))).thenReturn(0L);
+
+        mvc.perform(put("/api/notifications/read-all"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0));
+
+        verify(notifications, never()).update(any(), any(Wrapper.class));
+    }
+
+    @Test
+    void markAllReadFailsWhenUnreadNotificationsRemainAfterAnUpdateFailure() throws Exception {
+        when(notifications.count(any(Wrapper.class))).thenReturn(1L);
+        when(notifications.update(isNull(), any(Wrapper.class))).thenReturn(false);
+
+        mvc.perform(put("/api/notifications/read-all"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(400));
+
+        verify(notifications, times(2)).count(any(Wrapper.class));
+    }
+
+    @Test
+    void markAllReadTreatsAConcurrentSuccessfulReadAsIdempotentSuccess() throws Exception {
+        when(notifications.count(any(Wrapper.class))).thenReturn(1L, 0L);
+        when(notifications.update(isNull(), any(Wrapper.class))).thenReturn(false);
+
+        mvc.perform(put("/api/notifications/read-all"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0));
     }
 
     @Test

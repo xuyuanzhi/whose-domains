@@ -15,6 +15,8 @@ class ProtectedApiAccessControlTest {
         assertSessionProtected(DomainHistoryController.class);
         assertSessionProtected(DomainScoreController.class);
         assertSessionProtected(RelatedDomainsController.class);
+        assertSessionProtected(NotificationController.class);
+        assertSessionProtected(NotificationPreferenceController.class);
     }
 
     private void assertSessionProtected(Class<?> controller) {

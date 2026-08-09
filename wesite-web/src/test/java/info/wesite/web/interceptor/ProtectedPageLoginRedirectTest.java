@@ -25,6 +25,7 @@ import info.wesite.web.config.GoogleLoginProperties;
 import info.wesite.web.controller.ApiKeyController;
 import info.wesite.web.controller.MainController;
 import info.wesite.web.controller.UserController;
+import info.wesite.web.controller.api.NotificationController;
 import info.wesite.web.seo.CanonicalUrlService;
 
 class ProtectedPageLoginRedirectTest {
@@ -74,6 +75,19 @@ class ProtectedPageLoginRedirectTest {
         assertTrue(response.getContentAsString().contains("\"code\":" + ResponseJson.CODE_NOAUTH));
     }
 
+    @Test
+    void notificationApiWithoutASessionKeepsTheApiNoAuthResponse() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/notifications");
+        request.addHeader("Accept", "*/*");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        assertFalse(interceptor().preHandle(request, response, notificationListHandler()));
+
+        assertNull(response.getRedirectedUrl());
+        assertEquals("application/json;charset=utf-8", response.getContentType());
+        assertTrue(response.getContentAsString().contains("\"code\":" + ResponseJson.CODE_NOAUTH));
+    }
+
     private WebInterceptor interceptor() {
         Environment environment = mock(Environment.class);
         when(environment.getActiveProfiles()).thenReturn(new String[0]);
@@ -93,5 +107,10 @@ class ProtectedPageLoginRedirectTest {
     private HandlerMethod userSessionHandler() throws NoSuchMethodException {
         Method method = UserController.class.getMethod("session");
         return new HandlerMethod(new UserController(), method);
+    }
+
+    private HandlerMethod notificationListHandler() throws NoSuchMethodException {
+        Method method = NotificationController.class.getMethod("list", int.class, String.class);
+        return new HandlerMethod(new NotificationController(), method);
     }
 }

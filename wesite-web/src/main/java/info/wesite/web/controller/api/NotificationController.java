@@ -83,30 +83,44 @@ public class NotificationController {
     @Operation(summary = "Mark one notification read")
     @PutMapping("/{id}/read")
     public ResponseJson<Void> markRead(@PathVariable String id) {
-        UserNotification notification = notificationService.getOne(Wrappers.<UserNotification>lambdaQuery()
+        String userId = UserHolder.get().getId();
+        Date readAt = new Date();
+        boolean marked = notificationService.update(null, Wrappers.<UserNotification>lambdaUpdate()
+                .set(UserNotification::getReadAt, readAt)
                 .eq(UserNotification::getId, id)
-                .eq(UserNotification::getUserId, UserHolder.get().getId()));
-        if (notification == null) {
-            return ResponseJson.failure("Notification not found.");
+                .eq(UserNotification::getUserId, userId)
+                .eq(UserNotification::getDeleted, 0)
+                .isNull(UserNotification::getReadAt));
+        if (marked) {
+            return ResponseJson.success(null);
         }
-        if (notification.getReadAt() == null) {
-            notification.setReadAt(new Date());
-            if (!notificationService.updateById(notification)) {
-                return ResponseJson.failure("Failed to mark notification read.");
-            }
-        }
-        return ResponseJson.success(null);
+        UserNotification alreadyRead = notificationService.getOne(Wrappers.<UserNotification>lambdaQuery()
+                .select(UserNotification::getId)
+                .eq(UserNotification::getId, id)
+                .eq(UserNotification::getUserId, userId)
+                .eq(UserNotification::getDeleted, 0)
+                .isNotNull(UserNotification::getReadAt));
+        return alreadyRead != null
+                ? ResponseJson.success(null)
+                : ResponseJson.failure("Notification not found.");
     }
 
     @Operation(summary = "Mark all current-user notifications read")
     @PutMapping("/read-all")
     public ResponseJson<Void> markAllRead() {
-        UserNotification update = new UserNotification();
-        update.setReadAt(new Date());
-        notificationService.update(update, Wrappers.<UserNotification>lambdaUpdate()
-                .eq(UserNotification::getUserId, UserHolder.get().getId())
+        String userId = UserHolder.get().getId();
+        if (unreadCount(userId) == 0) {
+            return ResponseJson.success(null);
+        }
+        boolean updated = notificationService.update(null, Wrappers.<UserNotification>lambdaUpdate()
+                .set(UserNotification::getReadAt, new Date())
+                .eq(UserNotification::getUserId, userId)
+                .eq(UserNotification::getDeleted, 0)
                 .isNull(UserNotification::getReadAt));
-        return ResponseJson.success(null);
+        if (updated || unreadCount(userId) == 0) {
+            return ResponseJson.success(null);
+        }
+        return ResponseJson.failure("Failed to mark notifications read.");
     }
 
     @Operation(summary = "Delete one current-user notification")
@@ -125,6 +139,13 @@ public class NotificationController {
         data.put("page", page);
         data.put("size", PAGE_SIZE);
         return data;
+    }
+
+    private long unreadCount(String userId) {
+        return notificationService.count(Wrappers.<UserNotification>lambdaQuery()
+                .eq(UserNotification::getUserId, userId)
+                .eq(UserNotification::getDeleted, 0)
+                .isNull(UserNotification::getReadAt));
     }
 
     private static Map<String, Object> toDto(UserNotification notification) {

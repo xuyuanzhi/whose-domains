@@ -15,6 +15,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.MediaType;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
@@ -79,8 +81,14 @@ class NotificationPreferenceControllerTest {
                 .andExpect(jsonPath("$.code").value(400));
     }
 
-    @Test
-    void putUpdatesOnlyTheCurrentUsersPreference() throws Exception {
+    @ParameterizedTest
+    @ValueSource(strings = {
+            NotificationPreference.MODE_IMMEDIATE,
+            NotificationPreference.MODE_DAILY,
+            NotificationPreference.MODE_WEEKLY,
+            NotificationPreference.MODE_IN_APP_ONLY
+    })
+    void putAcceptsEveryAllowedEmailModeAndUpdatesOnlyTheCurrentUsersPreference(String emailMode) throws Exception {
         NotificationPreference existing = NotificationPreference.defaultsFor("user-1");
         existing.setId("preference-1");
         when(preferences.getOne(any(Wrapper.class))).thenReturn(existing);
@@ -88,10 +96,10 @@ class NotificationPreferenceControllerTest {
 
         mvc.perform(put("/api/notification-preferences")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"emailMode\":\"WEEKLY\",\"dnsChangeEnabled\":false,\"userId\":\"other-user\"}"))
+                .content("{\"emailMode\":\"" + emailMode + "\",\"dnsChangeEnabled\":false,\"userId\":\"other-user\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
-                .andExpect(jsonPath("$.data.emailMode").value("WEEKLY"))
+                .andExpect(jsonPath("$.data.emailMode").value(emailMode))
                 .andExpect(jsonPath("$.data.userId").doesNotExist());
 
         ArgumentCaptor<Wrapper<NotificationPreference>> query = ArgumentCaptor.forClass((Class) Wrapper.class);
@@ -100,7 +108,7 @@ class NotificationPreferenceControllerTest {
         verify(preferences).updateById(saved.capture());
         assertTrue(query.getValue().getSqlSegment().contains("user_id"));
         assertEquals("user-1", saved.getValue().getUserId());
-        assertEquals(NotificationPreference.MODE_WEEKLY, saved.getValue().getEmailMode());
+        assertEquals(emailMode, saved.getValue().getEmailMode());
         assertEquals(Boolean.FALSE, saved.getValue().getDnsChangeEnabled());
     }
 }
