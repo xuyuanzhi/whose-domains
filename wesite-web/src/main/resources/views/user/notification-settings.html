@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+<header th:replace="~{template::template_header}"></header>
+
+<main class="signal-center signal-settings" aria-labelledby="notificationSettingsTitle">
+    <div class="container signal-center__container">
+        <section class="signal-center__hero">
+            <div>
+                <p class="signal-center__eyebrow"><span aria-hidden="true"></span> Signal routing</p>
+                <h1 id="notificationSettingsTitle">Notification settings</h1>
+                <p>Choose how quickly domain changes reach you and which monitoring channels remain active.</p>
+            </div>
+            <a class="signal-button signal-button--quiet" href="/user/notifications"><i class="fas fa-arrow-left" aria-hidden="true"></i> Back to signal center</a>
+        </section>
+
+        <div id="settingsLoading" class="signal-state settings-state" role="status">
+            <span class="signal-state__pulse" aria-hidden="true"></span>
+            <div><strong>Loading your routing rules</strong><p>Reading your current delivery cadence and event channels.</p></div>
+        </div>
+        <div id="settingsError" class="signal-state signal-state--error settings-state" role="alert" hidden>
+            <i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
+            <div><strong>Settings could not be loaded</strong><p>Refresh this panel before changing your routing rules.</p></div>
+            <button id="retrySettings" class="signal-button signal-button--quiet" type="button">Try again</button>
+        </div>
+
+        <form id="notificationSettingsForm" class="settings-workspace" hidden>
+            <section class="settings-panel" aria-labelledby="deliveryCadenceTitle">
+                <div class="settings-panel__intro">
+                    <p class="signal-response__label">01 / Delivery cadence</p>
+                    <h2 id="deliveryCadenceTitle">When should email arrive?</h2>
+                    <p>In-app signals are always kept in the operations log. This setting controls email only.</p>
+                </div>
+                <div class="cadence-grid">
+                    <label><input type="radio" name="emailMode" value="IMMEDIATE"><span><i class="fas fa-bolt" aria-hidden="true"></i><strong>Immediate</strong><small>Email each enabled signal as it happens.</small></span></label>
+                    <label><input type="radio" name="emailMode" value="DAILY"><span><i class="fas fa-sun" aria-hidden="true"></i><strong>Daily digest</strong><small>Group routine changes into one daily review.</small></span></label>
+                    <label><input type="radio" name="emailMode" value="WEEKLY"><span><i class="fas fa-calendar-week" aria-hidden="true"></i><strong>Weekly digest</strong><small>Receive one lower-frequency operations summary.</small></span></label>
+                    <label><input type="radio" name="emailMode" value="IN_APP_ONLY"><span><i class="fas fa-inbox" aria-hidden="true"></i><strong>In-app only</strong><small>Keep every signal here without email.</small></span></label>
+                </div>
+            </section>
+
+            <section class="settings-panel" aria-labelledby="eventChannelsTitle">
+                <div class="settings-panel__intro">
+                    <p class="signal-response__label">02 / Event channels</p>
+                    <h2 id="eventChannelsTitle">Which changes matter?</h2>
+                    <p>Disable a channel only when you no longer need that operational signal.</p>
+                </div>
+                <div class="channel-list">
+                    <label><span class="channel-list__icon channel-list__icon--warning"><i class="fas fa-hourglass-half" aria-hidden="true"></i></span><span><strong>Domain expiry</strong><small>Renewal windows and approaching registration expiry.</small></span><input type="checkbox" name="domainExpiryEnabled"><i class="signal-switch" aria-hidden="true"></i></label>
+                    <label><span class="channel-list__icon channel-list__icon--warning"><i class="fas fa-lock" aria-hidden="true"></i></span><span><strong>SSL expiry</strong><small>Certificate renewal windows and urgent expiry.</small></span><input type="checkbox" name="sslExpiryEnabled"><i class="signal-switch" aria-hidden="true"></i></label>
+                    <label><span class="channel-list__icon channel-list__icon--danger"><i class="fas fa-shield-halved" aria-hidden="true"></i></span><span><strong>Domain status</strong><small>Hold states and registration status changes.</small></span><input type="checkbox" name="domainStatusEnabled"><i class="signal-switch" aria-hidden="true"></i></label>
+                    <label><span class="channel-list__icon"><i class="fas fa-diagram-project" aria-hidden="true"></i></span><span><strong>DNS changes</strong><small>Changes to NS, A, AAAA, and MX records.</small></span><input type="checkbox" name="dnsChangeEnabled"><i class="signal-switch" aria-hidden="true"></i></label>
+                    <label><span class="channel-list__icon channel-list__icon--danger"><i class="fas fa-heart-pulse" aria-hidden="true"></i></span><span><strong>Website availability</strong><small>Confirmed downtime and recovery signals.</small></span><input type="checkbox" name="websiteAvailabilityEnabled"><i class="signal-switch" aria-hidden="true"></i></label>
+                </div>
+            </section>
+
+            <div class="settings-submit">
+                <p id="settingsStatus" role="status" aria-live="polite"></p>
+                <button id="saveNotificationSettings" class="signal-button signal-button--primary" type="submit"><i class="fas fa-check" aria-hidden="true"></i> Save notification settings</button>
+            </div>
+        </form>
+    </div>
+</main>
+
+<footer th:replace="~{template::template_footer}"></footer>
+</body>
+</html>

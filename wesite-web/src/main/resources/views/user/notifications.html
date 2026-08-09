@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+<header th:replace="~{template::template_header}"></header>
+
+<main class="signal-center" aria-labelledby="notificationCenterTitle">
+    <div class="container signal-center__container">
+        <section class="signal-center__hero">
+            <div>
+                <p class="signal-center__eyebrow"><span aria-hidden="true"></span> Domain operations log</p>
+                <h1 id="notificationCenterTitle">Signal center</h1>
+                <p>See what changed across your watched domains, understand the risk, and move directly to the next action.</p>
+            </div>
+            <a class="signal-button signal-button--quiet" href="/user/notification-settings"><i class="fas fa-sliders" aria-hidden="true"></i> Notification settings</a>
+        </section>
+
+        <div class="signal-center__layout">
+            <section class="signal-log" aria-labelledby="signalLogTitle">
+                <div class="signal-log__header">
+                    <div>
+                        <h2 id="signalLogTitle">Recent changes</h2>
+                        <p id="notificationStatus" role="status" aria-live="polite">Loading your domain signals.</p>
+                    </div>
+                    <button id="markAllRead" class="signal-button signal-button--quiet" type="button"><i class="fas fa-check-double" aria-hidden="true"></i> Mark all read</button>
+                </div>
+
+                <div class="signal-filters" role="group" aria-label="Filter notifications">
+                    <button type="button" data-category="all" aria-pressed="true">All</button>
+                    <button type="button" data-category="expiry" aria-pressed="false">Expiry</button>
+                    <button type="button" data-category="security" aria-pressed="false">Security</button>
+                    <button type="button" data-category="domain-change" aria-pressed="false">Domain changes</button>
+                    <button type="button" data-category="investment" aria-pressed="false">Opportunities</button>
+                </div>
+
+                <div id="notificationLoading" class="signal-state" role="status">
+                    <span class="signal-state__pulse" aria-hidden="true"></span>
+                    <div><strong>Reading the operations log</strong><p>Checking for the latest changes across your watchlist.</p></div>
+                </div>
+                <div id="notificationError" class="signal-state signal-state--error" role="alert" hidden>
+                    <i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
+                    <div><strong>Signals could not be loaded</strong><p>Check your connection, then try loading the log again.</p></div>
+                    <button id="retryNotifications" class="signal-button signal-button--quiet" type="button">Try again</button>
+                </div>
+                <div id="notificationEmpty" class="signal-state signal-state--empty" hidden>
+                    <i class="fas fa-wave-square" aria-hidden="true"></i>
+                    <div><strong>No signals in this channel</strong><p>New domain changes will appear here after the next successful check.</p></div>
+                    <a href="/user/watchlist">Review watchlist</a>
+                </div>
+
+                <div id="notificationList" class="signal-timeline" aria-live="polite"></div>
+                <div id="notificationPagination" class="signal-pagination" hidden>
+                    <button id="loadMoreNotifications" class="signal-button signal-button--quiet" type="button">Load earlier signals</button>
+                </div>
+            </section>
+
+            <aside class="signal-response" aria-labelledby="responseLaneTitle">
+                <p class="signal-response__label">Response lane</p>
+                <h2 id="responseLaneTitle">Act on the signal</h2>
+                <p>Open the affected domain for full evidence, or tune which changes reach you next time.</p>
+                <nav aria-label="Notification actions">
+                    <a href="/user/watchlist"><span><i class="fas fa-eye" aria-hidden="true"></i></span><div><strong>Watched domains</strong><small>Review monitored assets</small></div><i class="fas fa-arrow-right" aria-hidden="true"></i></a>
+                    <a href="/user/notification-settings"><span><i class="fas fa-sliders" aria-hidden="true"></i></span><div><strong>Delivery settings</strong><small>Control channels and cadence</small></div><i class="fas fa-arrow-right" aria-hidden="true"></i></a>
+                </nav>
+                <div class="signal-legend" aria-label="Risk signal legend">
+                    <span data-risk="high"><i aria-hidden="true"></i> High</span>
+                    <span data-risk="elevated"><i aria-hidden="true"></i> Elevated</span>
+                    <span data-risk="info"><i aria-hidden="true"></i> Info</span>
+                </div>
+            </aside>
+        </div>
+    </div>
+
+    <template id="notificationRowTemplate">
+        <article class="signal-event">
+            <span data-risk="high">High</span><span data-risk="elevated">Elevated</span><span data-risk="info">Info</span>
+            <time datetime=""></time>
+            <button type="button" data-action="read">Mark read</button>
+            <button type="button" data-action="delete">Delete</button>
+        </article>
+    </template>
+</main>
+
+<footer th:replace="~{template::template_footer}"></footer>
+</body>
+</html>

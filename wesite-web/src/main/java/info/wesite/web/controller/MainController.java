@@ -694,6 +694,24 @@ public class MainController {
 		return "user/api-keys";
 	}
 
+	@GetMapping("/user/notifications")
+	@info.wesite.core.config.AccessControl(level = info.wesite.core.config.AccessControl.Level.SESSION)
+	public String notificationCenter(Model model) {
+		model.addAttribute(Constants.PAGE_TITLE, "Domain Signal Center - Whose.Domains");
+		model.addAttribute(Constants.PAGE_META_DESC,
+				"Review domain monitoring changes, risk signals, and notification history.");
+		return "user/notifications";
+	}
+
+	@GetMapping("/user/notification-settings")
+	@info.wesite.core.config.AccessControl(level = info.wesite.core.config.AccessControl.Level.SESSION)
+	public String notificationSettings(Model model) {
+		model.addAttribute(Constants.PAGE_TITLE, "Notification Settings - Whose.Domains");
+		model.addAttribute(Constants.PAGE_META_DESC,
+				"Choose notification cadence and domain monitoring event preferences.");
+		return "user/notification-settings";
+	}
+
 	@Operation(summary = "查询历史页面")
 	@GetMapping("/user/query-history")
 	public String queryHistory(Model model) {
