@@ -2,6 +2,9 @@ package info.wesite.web.notification;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -43,6 +46,7 @@ import info.wesite.core.entity.MonitorEvent;
 import info.wesite.core.entity.NotificationPreference;
 import info.wesite.core.entity.UserNotification;
 import info.wesite.core.mapper.DomainWatchMapper;
+import info.wesite.core.mapper.DomainWatchNotifyLogMapper;
 import info.wesite.core.mapper.NotificationDeliveryBatchMapper;
 import info.wesite.core.mapper.NotificationPreferenceMapper;
 import info.wesite.core.mapper.UserMapper;
@@ -133,6 +137,78 @@ class NotificationPreferenceMySqlConcurrencyTest {
             + "DOMAIN_STATUS_ENABLED, DNS_CHANGE_ENABLED, WEBSITE_AVAILABILITY_ENABLED) VALUES "
             + "('preference-1', 1, 0, 'user-1', 'IMMEDIATE', 1, 1, 1, 1, 1)");
         racePolicyChange(false);
+    }
+
+    @Test
+    void initialClaimSerializesWithCancel() throws Exception { raceInitialClaim("cancel"); }
+
+    @Test
+    void initialClaimSerializesWithNotifyNone() throws Exception { raceInitialClaim("none"); }
+
+    @Test
+    void initialClaimSerializesWithCategoryDisable() throws Exception { raceInitialClaim("category"); }
+
+    @Test
+    void initialClaimSerializesWithEmailChange() throws Exception { raceInitialClaim("email"); }
+
+    private void raceInitialClaim(String change) throws Exception {
+        execute("UPDATE WEB_USER_NOTIFICATION SET EMAIL_MODE='IMMEDIATE', EMAIL_STATE='QUEUED', "
+            + "RECIPIENT_EMAIL='old@example.com' WHERE ID='notification-1'");
+        CountDownLatch claimOwnsUserLock = new CountDownLatch(1);
+        CountDownLatch releaseClaim = new CountDownLatch(1);
+        UserNotificationMapper gated = gateImmediateRead(notifications, claimOwnsUserLock, releaseClaim);
+        NotificationDeliveryBatchMapper claimBatches = mock(NotificationDeliveryBatchMapper.class);
+        DomainWatchNotifyLogMapper logs = mock(DomainWatchNotifyLogMapper.class);
+        when(claimBatches.insert(any(info.wesite.core.entity.NotificationDeliveryBatch.class))).thenReturn(1);
+        when(logs.insert(any(info.wesite.core.entity.DomainWatchNotifyLog.class))).thenReturn(1);
+        NotificationPolicyLock policy = new NotificationPolicyLock(users, preferences);
+        NotificationDeliveryCoordinator claimCoordinator = new NotificationDeliveryCoordinator(
+            claimBatches, gated, logs, policy);
+        NotificationDeliveryBatchMapper cancelBatches = mock(NotificationDeliveryBatchMapper.class);
+        when(cancelBatches.selectForUserForUpdate("user-1")).thenReturn(java.util.List.of());
+        when(cancelBatches.selectForWatchForUpdate("user-1", "watch-1")).thenReturn(java.util.List.of());
+        when(cancelBatches.selectForEventTypesForUpdate(any(), any())).thenReturn(java.util.List.of());
+        NotificationCancellationService cancellation = new NotificationCancellationService(
+            cancelBatches, notifications, policy, watches);
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            Future<?> claimant = pool.submit(() -> new TransactionTemplate(transactions).executeWithoutResult(s ->
+                claimCoordinator.startImmediate("notification-1", Instant.now(), Instant.now().plusSeconds(60))));
+            claimOwnsUserLock.await(10, TimeUnit.SECONDS);
+            Future<?> closer = pool.submit(() -> new TransactionTemplate(transactions).executeWithoutResult(s -> {
+                policy.lockUser("user-1");
+                try {
+                    if ("none".equals(change)) execute("UPDATE WEB_DOMAIN_WATCH SET NOTIFY_TYPE=0 WHERE ID='watch-1'");
+                    if ("email".equals(change)) execute("UPDATE WEB_DOMAIN_WATCH SET NOTIFY_EMAIL='new@example.com' WHERE ID='watch-1'");
+                    if ("category".equals(change)) {
+                        execute("INSERT INTO WEB_NOTIFICATION_PREFERENCE (ID,STATUS,DELETED,USER_ID,EMAIL_MODE,DNS_CHANGE_ENABLED) VALUES ('p-close',1,0,'user-1','IMMEDIATE',0)");
+                    }
+                } catch (Exception e) { throw new RuntimeException(e); }
+                if ("category".equals(change)) cancellation.cancelForEventTypes("user-1", Set.of("DNS_CHANGED"), Instant.now());
+                else if ("cancel".equals(change)) cancellation.cancelAllForUser("user-1", Instant.now());
+                else cancellation.cancelForWatch("user-1", "watch-1", Instant.now());
+            }));
+            Thread.sleep(150);
+            assertFalse(closer.isDone(), "policy change must wait for initial claim user mutex");
+            releaseClaim.countDown();
+            claimant.get(20, TimeUnit.SECONDS);
+            closer.get(20, TimeUnit.SECONDS);
+        } finally {
+            releaseClaim.countDown(); pool.shutdownNow(); pool.awaitTermination(5, TimeUnit.SECONDS);
+        }
+        assertEquals(0, scalar("SELECT COUNT(*) FROM WEB_USER_NOTIFICATION WHERE EMAIL_STATE='CLAIMED' AND RECIPIENT_EMAIL='old@example.com'"));
+    }
+
+    private static UserNotificationMapper gateImmediateRead(UserNotificationMapper delegate,
+            CountDownLatch reached, CountDownLatch release) {
+        return (UserNotificationMapper) Proxy.newProxyInstance(UserNotificationMapper.class.getClassLoader(),
+            new Class<?>[] { UserNotificationMapper.class }, (proxy, method, args) -> {
+                if (method.getName().equals("selectImmediateForUpdate")) {
+                    reached.countDown(); release.await(10, TimeUnit.SECONDS);
+                }
+                try { return method.invoke(delegate, args); }
+                catch (InvocationTargetException e) { throw e.getCause(); }
+            });
     }
 
     private void racePolicyChange(boolean global) throws Exception {
