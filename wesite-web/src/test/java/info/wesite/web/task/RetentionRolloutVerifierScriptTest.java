@@ -54,7 +54,7 @@ class RetentionRolloutVerifierScriptTest {
         String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
 
         assertEquals(0, process.exitValue(), output);
-        assertTrue(output.contains("RETENTION_REPORT_DATA|PASS|PATH=PathA|IMMATURE=EMPTY|MATURE=5|SUPPRESSED=4"), output);
+        assertTrue(output.contains("RETENTION_REPORT_DATA|PASS|PATH=PathA|IMMATURE=EMPTY|GAP=INSUFFICIENT|CLEANUP=INSUFFICIENT|MATURE=5|SUPPRESSED=4"), output);
         assertTrue(output.contains("RETENTION_ROLLOUT_VERIFY|PASS|FIXTURE=PathA"), output);
     }
 

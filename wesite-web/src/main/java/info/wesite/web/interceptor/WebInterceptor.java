@@ -1,6 +1,5 @@
 package info.wesite.web.interceptor;
 
-import java.time.LocalDate;
 
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -20,7 +19,8 @@ import com.alibaba.fastjson2.JSONObject;
 import info.wesite.core.config.AccessControl;
 import info.wesite.core.config.UserHolder;
 import info.wesite.core.entity.User;
-import info.wesite.core.mapper.AuthenticatedActivityDailyMapper;
+import info.wesite.web.retention.AuthenticatedActivityRecorder;
+import info.wesite.web.retention.RetentionFactFailureRecorder;
 import info.wesite.core.utils.ApiTokenUtils;
 import info.wesite.core.utils.Constants;
 import info.wesite.core.utils.IpUtils;
@@ -47,7 +47,10 @@ public class WebInterceptor implements HandlerInterceptor {
     private final ReturnTargetService returnTargetService;
 
     @Autowired(required = false)
-    private AuthenticatedActivityDailyMapper authenticatedActivityMapper;
+    private AuthenticatedActivityRecorder authenticatedActivityRecorder;
+
+    @Autowired(required = false)
+    private RetentionFactFailureRecorder retentionFactFailureRecorder;
 
     @Autowired(required = false)
     public WebInterceptor(Environment environment, GoogleLoginProperties googleLoginProperties,
@@ -166,14 +169,21 @@ public class WebInterceptor implements HandlerInterceptor {
     }
 
     private void recordAuthenticatedActivity(User user) {
-        if (authenticatedActivityMapper == null) {
+        if (authenticatedActivityRecorder == null) {
             return;
         }
         try {
-            authenticatedActivityMapper.recordDaily(user.getId(), LocalDate.now());
+            authenticatedActivityRecorder.record(user.getId());
         } catch (RuntimeException e) {
             // Product traffic must not fail when the privacy-preserving analytics fact cannot be written.
             log.warn("Unable to record authenticated daily activity", e);
+            if (retentionFactFailureRecorder != null) {
+                try {
+                    retentionFactFailureRecorder.recordFailure();
+                } catch (RuntimeException healthFailure) {
+                    log.warn("Unable to record retention fact collection failure", healthFailure);
+                }
+            }
         }
     }
 

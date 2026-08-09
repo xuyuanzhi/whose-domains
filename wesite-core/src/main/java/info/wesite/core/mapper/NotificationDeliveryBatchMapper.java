@@ -17,6 +17,45 @@ import info.wesite.core.entity.NotificationDeliveryBatch;
 public interface NotificationDeliveryBatchMapper extends BaseMapper<NotificationDeliveryBatch> {
 
     @Select("SELECT * FROM WEB_NOTIFICATION_DELIVERY_BATCH "
+        + "WHERE USER_ID = #{userId} AND STATE IN ('FAILED','CLAIMED') AND DELETED = 0 "
+        + "ORDER BY ID FOR UPDATE")
+    List<NotificationDeliveryBatch> selectForUserForUpdate(@Param("userId") String userId);
+
+    @Select("SELECT B.* FROM WEB_NOTIFICATION_DELIVERY_BATCH B "
+        + "WHERE B.USER_ID = #{userId} AND B.STATE IN ('FAILED','CLAIMED') AND B.DELETED = 0 "
+        + "AND EXISTS (SELECT 1 FROM WEB_USER_NOTIFICATION N "
+        + "JOIN WEB_MONITOR_EVENT E ON E.ID = N.EVENT_ID "
+        + "WHERE N.DELIVERY_BATCH_ID = B.ID AND E.WATCH_ID = #{watchId}) "
+        + "ORDER BY B.ID FOR UPDATE")
+    List<NotificationDeliveryBatch> selectForWatchForUpdate(
+        @Param("userId") String userId,
+        @Param("watchId") String watchId);
+
+    @Select({"<script>",
+        "SELECT B.* FROM WEB_NOTIFICATION_DELIVERY_BATCH B ",
+        "WHERE B.USER_ID = #{userId} AND B.STATE IN ('FAILED','CLAIMED') AND B.DELETED = 0 ",
+        "AND EXISTS (SELECT 1 FROM WEB_USER_NOTIFICATION N ",
+        "JOIN WEB_MONITOR_EVENT E ON E.ID = N.EVENT_ID ",
+        "WHERE N.DELIVERY_BATCH_ID = B.ID AND E.EVENT_TYPE IN ",
+        "<foreach collection='eventTypes' item='eventType' open='(' separator=',' close=')'>",
+        "#{eventType}",
+        "</foreach>",
+        ") ORDER BY B.ID FOR UPDATE",
+        "</script>"})
+    List<NotificationDeliveryBatch> selectForEventTypesForUpdate(
+        @Param("userId") String userId,
+        @Param("eventTypes") Set<String> eventTypes);
+
+    @Update("UPDATE WEB_NOTIFICATION_DELIVERY_BATCH SET STATE = 'CANCELLED', "
+        + "NEXT_ATTEMPT_AT = NULL, COMPLETED_AT = #{completedAt}, UPDATE_TIME = #{completedAt} "
+        + "WHERE ID = #{id} AND STATE = 'FAILED' AND DELETED = 0")
+    int cancelFailedById(@Param("id") String id, @Param("completedAt") Date completedAt);
+
+    @Update("UPDATE WEB_NOTIFICATION_DELIVERY_BATCH SET CANCELLATION_REQUESTED = 1, "
+        + "UPDATE_TIME = #{updatedAt} WHERE ID = #{id} AND STATE = 'CLAIMED' AND DELETED = 0")
+    int requestCancellationById(@Param("id") String id, @Param("updatedAt") Date updatedAt);
+
+    @Select("SELECT * FROM WEB_NOTIFICATION_DELIVERY_BATCH "
         + "WHERE EMAIL_MODE = #{emailMode} AND DELETED = 0 AND ATTEMPT_COUNT < #{maxAttempts} AND ("
         + "(STATE = 'FAILED' AND NEXT_ATTEMPT_AT <= #{now}) OR "
         + "(STATE = 'CLAIMED' AND CLAIM_UNTIL < #{now})) "
@@ -31,7 +70,7 @@ public interface NotificationDeliveryBatchMapper extends BaseMapper<Notification
         + "WHERE EMAIL_MODE = #{emailMode} AND STATE = 'CLAIMED' AND DELETED = 0 "
         + "AND CANCELLATION_REQUESTED = 0 "
         + "AND ATTEMPT_COUNT >= #{maxAttempts} AND CLAIM_UNTIL < #{now} "
-        + "ORDER BY CLAIM_UNTIL, ID LIMIT #{limit} FOR UPDATE SKIP LOCKED")
+        + "ORDER BY ID LIMIT #{limit} FOR UPDATE SKIP LOCKED")
     List<NotificationDeliveryBatch> selectExpiredExhaustedForUpdate(
         @Param("emailMode") String emailMode,
         @Param("now") Date now,
@@ -41,7 +80,7 @@ public interface NotificationDeliveryBatchMapper extends BaseMapper<Notification
     @Select("SELECT * FROM WEB_NOTIFICATION_DELIVERY_BATCH "
         + "WHERE EMAIL_MODE = #{emailMode} AND STATE = 'CLAIMED' AND DELETED = 0 "
         + "AND CANCELLATION_REQUESTED = 1 AND CLAIM_UNTIL < #{now} "
-        + "ORDER BY CLAIM_UNTIL, ID LIMIT #{limit} FOR UPDATE SKIP LOCKED")
+        + "ORDER BY ID LIMIT #{limit} FOR UPDATE SKIP LOCKED")
     List<NotificationDeliveryBatch> selectExpiredCancellationRequestedForUpdate(
         @Param("emailMode") String emailMode,
         @Param("now") Date now,

@@ -314,7 +314,7 @@ class NotificationDeliveryCoordinatorMySqlConcurrencyTest {
         NotificationDeliveryBatchMapper failingBatchMapper = (NotificationDeliveryBatchMapper) Proxy.newProxyInstance(
             NotificationDeliveryBatchMapper.class.getClassLoader(),
             new Class<?>[] {NotificationDeliveryBatchMapper.class},
-            (proxy, method, arguments) -> method.getName().equals("cancelFailedForWatch")
+            (proxy, method, arguments) -> method.getName().equals("selectForWatchForUpdate")
                 ? throwSqlFailure()
                 : invoke(batchMapper, method, arguments));
         NotificationCancellationService failingCancellation = new NotificationCancellationService(
@@ -329,6 +329,49 @@ class NotificationDeliveryCoordinatorMySqlConcurrencyTest {
 
         assertEquals(3, scalar("SELECT NOTIFY_TYPE FROM WEB_DOMAIN_WATCH WHERE ID = 'watch-1'"));
         assertEquals(1, scalar("SELECT COUNT(*) FROM WEB_USER_NOTIFICATION WHERE ID = 'n1' AND EMAIL_STATE = 'QUEUED'"));
+    }
+
+    @Test
+    void failedBatchCancellationRacingRetryHasNoDeadlockAndCannotEscapeCancellation() throws Exception {
+        TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+        DeliveryBatchClaim first = transaction.execute(status -> coordinator.startDigest(
+            "user-1", "DAILY_DIGEST", "2026-08-09", "person@example.com",
+            NOW, NOW, NOW.plusSeconds(60)).orElseThrow());
+        transaction.executeWithoutResult(status -> coordinator.complete(
+            first, false,
+            new DeliveryAttemptDetails(null, null, null, "person@example.com", null, null, "subject", "smtp"),
+            NOW.plusSeconds(1), NOW.plusSeconds(2)));
+
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<?> cancel = executor.submit(() -> {
+                start.await(10, TimeUnit.SECONDS);
+                new TransactionTemplate(transactionManager).executeWithoutResult(status ->
+                    cancellationService.cancelForWatch("user-1", "watch-1", NOW.plusSeconds(3)));
+                return null;
+            });
+            Future<?> retry = executor.submit(() -> {
+                start.await(10, TimeUnit.SECONDS);
+                new TransactionTemplate(transactionManager).execute(status ->
+                    coordinator.retryNext("DAILY_DIGEST", NOW.plusSeconds(3), NOW.plusSeconds(30)));
+                return null;
+            });
+            start.countDown();
+            cancel.get(20, TimeUnit.SECONDS);
+            retry.get(20, TimeUnit.SECONDS);
+        } finally {
+            executor.shutdownNow();
+            executor.awaitTermination(10, TimeUnit.SECONDS);
+        }
+
+        transaction.executeWithoutResult(status ->
+            coordinator.finalizeExpiredCancelled("DAILY_DIGEST", NOW.plusSeconds(31)));
+        assertEquals(1, scalar("SELECT COUNT(*) FROM WEB_NOTIFICATION_DELIVERY_BATCH WHERE STATE = 'CANCELLED'"));
+        assertEquals(2, scalar("SELECT COUNT(*) FROM WEB_USER_NOTIFICATION "
+            + "WHERE EMAIL_STATE = 'IN_APP_ONLY' AND EMAIL_MODE = 'IN_APP_ONLY'"));
+        assertEquals(0, scalar("SELECT COUNT(*) FROM WEB_NOTIFICATION_DELIVERY_BATCH "
+            + "WHERE STATE IN ('FAILED','CLAIMED')"));
     }
 
     private Attempt startDigestInTransaction(CountDownLatch start) {

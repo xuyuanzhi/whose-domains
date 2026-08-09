@@ -30,6 +30,7 @@ import info.wesite.core.service.MonitorSnapshotService;
 import info.wesite.core.service.UserNotificationService;
 import info.wesite.core.utils.RandomUtils;
 import info.wesite.web.notification.NotificationDispatcher;
+import info.wesite.web.notification.NotificationPolicyLock;
 
 /**
  * Persists monitoring snapshots and turns changes between successful checks into
@@ -44,6 +45,7 @@ public class MonitorEventPublisher {
     private final MonitorEventMapper eventMapper;
     private final UserNotificationMapper notificationMapper;
     private final NotificationDispatcher dispatcher;
+    private final NotificationPolicyLock policyLock;
     private final MonitorChangeDetector detector;
     private final Clock clock;
 
@@ -54,7 +56,8 @@ public class MonitorEventPublisher {
         UserNotificationService notificationService,
         MonitorEventMapper eventMapper,
         UserNotificationMapper notificationMapper,
-        NotificationDispatcher dispatcher) {
+        NotificationDispatcher dispatcher,
+        NotificationPolicyLock policyLock) {
         this(
             snapshotService,
             eventService,
@@ -62,6 +65,7 @@ public class MonitorEventPublisher {
             eventMapper,
             notificationMapper,
             dispatcher,
+            policyLock,
             Clock.systemUTC());
     }
 
@@ -72,6 +76,7 @@ public class MonitorEventPublisher {
         MonitorEventMapper eventMapper,
         UserNotificationMapper notificationMapper,
         NotificationDispatcher dispatcher,
+        NotificationPolicyLock policyLock,
         Clock clock) {
         this(
             snapshotService,
@@ -80,6 +85,7 @@ public class MonitorEventPublisher {
             eventMapper,
             notificationMapper,
             dispatcher,
+            policyLock,
             new MonitorChangeDetector(clock),
             clock);
     }
@@ -99,6 +105,7 @@ public class MonitorEventPublisher {
             eventMapper,
             notificationMapper,
             null,
+            null,
             detector,
             clock);
     }
@@ -112,12 +119,27 @@ public class MonitorEventPublisher {
         NotificationDispatcher dispatcher,
         MonitorChangeDetector detector,
         Clock clock) {
+        this(snapshotService, eventService, notificationService, eventMapper, notificationMapper,
+            dispatcher, null, detector, clock);
+    }
+
+    MonitorEventPublisher(
+        MonitorSnapshotService snapshotService,
+        MonitorEventService eventService,
+        UserNotificationService notificationService,
+        MonitorEventMapper eventMapper,
+        UserNotificationMapper notificationMapper,
+        NotificationDispatcher dispatcher,
+        NotificationPolicyLock policyLock,
+        MonitorChangeDetector detector,
+        Clock clock) {
         this.snapshotService = Objects.requireNonNull(snapshotService, "snapshotService");
         this.eventService = Objects.requireNonNull(eventService, "eventService");
         this.notificationService = Objects.requireNonNull(notificationService, "notificationService");
         this.eventMapper = Objects.requireNonNull(eventMapper, "eventMapper");
         this.notificationMapper = Objects.requireNonNull(notificationMapper, "notificationMapper");
         this.dispatcher = dispatcher;
+        this.policyLock = policyLock;
         this.detector = Objects.requireNonNull(detector, "detector");
         this.clock = Objects.requireNonNull(clock, "clock");
     }
@@ -162,6 +184,9 @@ public class MonitorEventPublisher {
         }
 
         Objects.requireNonNull(current, "current");
+        if (policyLock != null) {
+            policyLock.lockUser(watch.getUserId());
+        }
         MonitorSnapshot previousSnapshot = latestSuccessfulSnapshot(watch.getId());
         MonitorState previous = previousSnapshot == null
             ? null

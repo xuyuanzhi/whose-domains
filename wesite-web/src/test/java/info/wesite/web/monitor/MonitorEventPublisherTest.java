@@ -46,6 +46,7 @@ import info.wesite.core.service.MonitorEventService;
 import info.wesite.core.service.MonitorSnapshotService;
 import info.wesite.core.service.UserNotificationService;
 import info.wesite.web.notification.NotificationDispatcher;
+import info.wesite.web.notification.NotificationPolicyLock;
 
 class MonitorEventPublisherTest {
 
@@ -58,6 +59,7 @@ class MonitorEventPublisherTest {
     private UserNotificationMapper notificationMapper;
     private MonitorChangeDetector detector;
     private NotificationDispatcher dispatcher;
+    private NotificationPolicyLock policyLock;
     private MonitorEventPublisher publisher;
 
     @BeforeEach
@@ -69,6 +71,7 @@ class MonitorEventPublisherTest {
         notificationMapper = mock(UserNotificationMapper.class);
         detector = mock(MonitorChangeDetector.class);
         dispatcher = mock(NotificationDispatcher.class);
+        policyLock = mock(NotificationPolicyLock.class);
         when(snapshotService.save(any(MonitorSnapshot.class))).thenReturn(true);
         when(eventService.save(any(MonitorEvent.class))).thenReturn(true);
         when(notificationService.save(any(UserNotification.class))).thenReturn(true);
@@ -79,8 +82,24 @@ class MonitorEventPublisherTest {
             eventMapper,
             notificationMapper,
             dispatcher,
+            policyLock,
             detector,
             CLOCK);
+    }
+
+    @Test
+    void successfulPublishLocksTheStableUserMutexBeforeReadingOrWritingMonitorRows() {
+        DomainWatch watch = watch();
+        when(snapshotService.getOne(any())).thenReturn(null);
+        when(detector.detect(nullable(MonitorState.class), any(MonitorState.class),
+                nullable(Instant.class), nullable(Instant.class)))
+            .thenReturn(List.of());
+
+        publisher.publish(watch, state(Set.of("ok")), true);
+
+        InOrder order = inOrder(policyLock, snapshotService);
+        order.verify(policyLock).lockUser("user-1");
+        order.verify(snapshotService).getOne(any());
     }
 
     @Test

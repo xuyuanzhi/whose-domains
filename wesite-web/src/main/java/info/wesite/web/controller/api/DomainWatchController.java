@@ -39,6 +39,7 @@ import info.wesite.core.view.ResponseJson;
 import info.wesite.web.monitor.MonitorRisk;
 import info.wesite.web.notification.NotificationEmailAddress;
 import info.wesite.web.notification.NotificationCancellationService;
+import info.wesite.web.notification.NotificationPolicyLock;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
@@ -64,6 +65,9 @@ public class DomainWatchController {
 
     @Autowired
     private NotificationCancellationService cancellationService;
+
+    @Autowired
+    private NotificationPolicyLock policyLock;
 
     @Operation(summary = "获取用户的域名监控列表")
     @GetMapping("/list")
@@ -240,6 +244,7 @@ public class DomainWatchController {
     @Transactional
     public ResponseJson<String> unwatchDomain(@PathVariable("id") String id) {
         String userId = UserHolder.get().getId();
+        policyLock.lockUser(userId);
 
         DomainWatch watch = domainWatchService.getOne(
                 Wrappers.<DomainWatch>lambdaQuery()
@@ -267,6 +272,7 @@ public class DomainWatchController {
     @Transactional
     public ResponseJson<DomainWatch> updateWatch(@PathVariable("id") String id, @RequestBody DomainWatch param) {
         String userId = UserHolder.get().getId();
+        policyLock.lockUser(userId);
 
         if (!validNotifyType(param.getNotifyType())) {
             return ResponseJson.failure("Invalid notification threshold selection.");

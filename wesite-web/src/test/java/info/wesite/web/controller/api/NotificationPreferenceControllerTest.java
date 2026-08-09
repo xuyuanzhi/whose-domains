@@ -30,12 +30,14 @@ import info.wesite.core.entity.NotificationPreference;
 import info.wesite.core.entity.User;
 import info.wesite.core.service.NotificationPreferenceService;
 import info.wesite.web.notification.NotificationCancellationService;
+import info.wesite.web.notification.NotificationPolicyLock;
 
 @SuppressWarnings({ "rawtypes", "unchecked" })
 class NotificationPreferenceControllerTest {
 
     private NotificationPreferenceService preferences;
     private NotificationCancellationService cancellations;
+    private NotificationPolicyLock policyLock;
     private MockMvc mvc;
 
     @BeforeEach
@@ -46,9 +48,11 @@ class NotificationPreferenceControllerTest {
                 NotificationPreference.class);
         preferences = mock(NotificationPreferenceService.class);
         cancellations = mock(NotificationCancellationService.class);
+        policyLock = mock(NotificationPolicyLock.class);
         NotificationPreferenceController controller = new NotificationPreferenceController();
         ReflectionTestUtils.setField(controller, "preferenceService", preferences);
         ReflectionTestUtils.setField(controller, "cancellationService", cancellations);
+        ReflectionTestUtils.setField(controller, "policyLock", policyLock);
         mvc = MockMvcBuilders.standaloneSetup(controller).build();
 
         User user = new User();
@@ -96,7 +100,7 @@ class NotificationPreferenceControllerTest {
     void putAcceptsEveryAllowedEmailModeAndUpdatesOnlyTheCurrentUsersPreference(String emailMode) throws Exception {
         NotificationPreference existing = NotificationPreference.defaultsFor("user-1");
         existing.setId("preference-1");
-        when(preferences.getOne(any(Wrapper.class))).thenReturn(existing);
+        when(policyLock.lockCurrent("user-1")).thenReturn(existing);
         when(preferences.updateById(any(NotificationPreference.class))).thenReturn(true);
 
         mvc.perform(put("/api/notification-preferences")
@@ -107,11 +111,9 @@ class NotificationPreferenceControllerTest {
                 .andExpect(jsonPath("$.data.emailMode").value(emailMode))
                 .andExpect(jsonPath("$.data.userId").doesNotExist());
 
-        ArgumentCaptor<Wrapper<NotificationPreference>> query = ArgumentCaptor.forClass((Class) Wrapper.class);
         ArgumentCaptor<NotificationPreference> saved = ArgumentCaptor.forClass(NotificationPreference.class);
-        verify(preferences).getOne(query.capture());
+        verify(policyLock).lockCurrent("user-1");
         verify(preferences).updateById(saved.capture());
-        assertTrue(query.getValue().getSqlSegment().contains("user_id"));
         assertEquals("user-1", saved.getValue().getUserId());
         assertEquals(emailMode, saved.getValue().getEmailMode());
         assertEquals(Boolean.FALSE, saved.getValue().getDnsChangeEnabled());
@@ -129,7 +131,7 @@ class NotificationPreferenceControllerTest {
     void disablingWebsiteAvailabilityCancelsDownAndRecoveryAsOneCategory() throws Exception {
         NotificationPreference existing = NotificationPreference.defaultsFor("user-1");
         existing.setId("preference-1");
-        when(preferences.getOne(any(Wrapper.class))).thenReturn(existing);
+        when(policyLock.lockCurrent("user-1")).thenReturn(existing);
         when(preferences.updateById(any(NotificationPreference.class))).thenReturn(true);
 
         mvc.perform(put("/api/notification-preferences")

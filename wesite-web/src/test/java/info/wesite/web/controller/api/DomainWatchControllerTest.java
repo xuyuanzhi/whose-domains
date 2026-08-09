@@ -28,6 +28,7 @@ import info.wesite.core.service.DomainService;
 import info.wesite.core.service.DomainWatchService;
 import info.wesite.core.view.ResponseJson;
 import info.wesite.web.notification.NotificationCancellationService;
+import info.wesite.web.notification.NotificationPolicyLock;
 
 @SuppressWarnings({ "rawtypes", "unchecked" })
 class DomainWatchControllerTest {
@@ -35,6 +36,7 @@ class DomainWatchControllerTest {
     private DomainWatchService watches;
     private DomainWatchController controller;
     private NotificationCancellationService cancellations;
+    private NotificationPolicyLock policyLock;
 
     @BeforeEach
     void setUp() {
@@ -43,7 +45,9 @@ class DomainWatchControllerTest {
         ReflectionTestUtils.setField(controller, "domainWatchService", watches);
         ReflectionTestUtils.setField(controller, "domainService", mock(DomainService.class));
         cancellations = mock(NotificationCancellationService.class);
+        policyLock = mock(NotificationPolicyLock.class);
         ReflectionTestUtils.setField(controller, "cancellationService", cancellations);
+        ReflectionTestUtils.setField(controller, "policyLock", policyLock);
 
         User user = new User();
         user.setId("user-1");
@@ -130,6 +134,7 @@ class DomainWatchControllerTest {
         verify(cancellations, times(2)).cancelForWatch(
             org.mockito.ArgumentMatchers.eq("user-1"),
             org.mockito.ArgumentMatchers.eq("watch-1"), any());
+        verify(policyLock, times(2)).lockUser("user-1");
     }
 
     @Test

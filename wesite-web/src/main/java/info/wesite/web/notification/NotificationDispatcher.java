@@ -28,26 +28,29 @@ public class NotificationDispatcher {
     private final UserNotificationService notificationService;
     private final DomainWatchMapper watchMapper;
     private final NotificationPreferenceResolver resolver;
+    private final NotificationPolicyLock policyLock;
 
     @Autowired
     public NotificationDispatcher(
         NotificationPreferenceService preferenceService,
         UserNotificationService notificationService,
-        DomainWatchMapper watchMapper) {
-        this(preferenceService, notificationService, watchMapper, new NotificationPreferenceResolver());
+        DomainWatchMapper watchMapper,
+        NotificationPolicyLock policyLock) {
+        this(preferenceService, notificationService, watchMapper,
+            new NotificationPreferenceResolver(), policyLock);
     }
 
     NotificationDispatcher(
         NotificationPreferenceService preferenceService,
         UserNotificationService notificationService) {
-        this(preferenceService, notificationService, null, new NotificationPreferenceResolver());
+        this(preferenceService, notificationService, null, new NotificationPreferenceResolver(), null);
     }
 
     NotificationDispatcher(
         NotificationPreferenceService preferenceService,
         UserNotificationService notificationService,
         NotificationPreferenceResolver resolver) {
-        this(preferenceService, notificationService, null, resolver);
+        this(preferenceService, notificationService, null, resolver, null);
     }
 
     NotificationDispatcher(
@@ -55,10 +58,20 @@ public class NotificationDispatcher {
         UserNotificationService notificationService,
         DomainWatchMapper watchMapper,
         NotificationPreferenceResolver resolver) {
+        this(preferenceService, notificationService, watchMapper, resolver, null);
+    }
+
+    NotificationDispatcher(
+        NotificationPreferenceService preferenceService,
+        UserNotificationService notificationService,
+        DomainWatchMapper watchMapper,
+        NotificationPreferenceResolver resolver,
+        NotificationPolicyLock policyLock) {
         this.preferenceService = Objects.requireNonNull(preferenceService, "preferenceService");
         this.notificationService = Objects.requireNonNull(notificationService, "notificationService");
         this.watchMapper = watchMapper;
         this.resolver = Objects.requireNonNull(resolver, "resolver");
+        this.policyLock = policyLock;
     }
 
     @Transactional
@@ -71,12 +84,9 @@ public class NotificationDispatcher {
         Objects.requireNonNull(notification, "notification");
         Objects.requireNonNull(watch, "watch");
 
-        DomainWatch currentWatch = currentWatch(watch);
         String userId = notification.getUserId();
-        NotificationPreference preference = StringUtils.isBlank(userId)
-            ? null
-            : preferenceService.getOne(Wrappers.<NotificationPreference>lambdaQuery()
-                .eq(NotificationPreference::getUserId, userId));
+        NotificationPreference preference = currentPreference(userId);
+        DomainWatch currentWatch = currentWatch(watch);
         String recipient = currentWatch == null
             ? null
             : NotificationEmailAddress.normalize(currentWatch.getNotifyEmail()).orElse(null);
@@ -100,6 +110,17 @@ public class NotificationDispatcher {
             throw new IllegalStateException("Failed to persist notification delivery state");
         }
         return decision;
+    }
+
+    private NotificationPreference currentPreference(String userId) {
+        if (StringUtils.isBlank(userId)) {
+            return null;
+        }
+        if (policyLock != null) {
+            return policyLock.lockCurrent(userId);
+        }
+        return preferenceService.getOne(Wrappers.<NotificationPreference>lambdaQuery()
+            .eq(NotificationPreference::getUserId, userId));
     }
 
     private DomainWatch currentWatch(DomainWatch supplied) {

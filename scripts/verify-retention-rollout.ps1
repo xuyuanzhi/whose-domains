@@ -71,7 +71,8 @@ function Test-StaticRolloutContract {
             'WEB_USER_NOTIFICATION',
             'WEB_NOTIFICATION_DELIVERY_BATCH',
             'WEB_NOTIFICATION_PREFERENCE',
-            'WEB_RETENTION_FACT_COLLECTION')) {
+            'WEB_RETENTION_FACT_COLLECTION',
+            'WEB_RETENTION_FACT_HEALTH')) {
         Assert-Contains $baseline "CREATE TABLE ``$table``" "retention baseline missing $table"
     }
     foreach ($column in @(
@@ -92,7 +93,8 @@ function Test-StaticRolloutContract {
     foreach ($table in @(
             'WEB_NOTIFICATION_DELIVERY_BATCH',
             'WEB_AUTHENTICATED_ACTIVITY_DAILY',
-            'WEB_RETENTION_FACT_COLLECTION')) {
+            'WEB_RETENTION_FACT_COLLECTION',
+            'WEB_RETENTION_FACT_HEALTH')) {
         Assert-Contains $completeIncrement "CREATE TABLE ``$table``" "complete increment missing $table"
     }
     foreach ($column in @(
@@ -311,7 +313,7 @@ function Assert-RetentionSchema(
 SELECT COUNT(*)
 FROM information_schema.TABLES
 WHERE TABLE_SCHEMA = 'wesitedb'
-  AND TABLE_NAME IN ('WEB_MONITOR_SNAPSHOT','WEB_MONITOR_EVENT','WEB_USER_NOTIFICATION','WEB_NOTIFICATION_DELIVERY_BATCH','WEB_NOTIFICATION_PREFERENCE','WEB_RETENTION_FACT_COLLECTION')
+  AND TABLE_NAME IN ('WEB_MONITOR_SNAPSHOT','WEB_MONITOR_EVENT','WEB_USER_NOTIFICATION','WEB_NOTIFICATION_DELIVERY_BATCH','WEB_NOTIFICATION_PREFERENCE','WEB_RETENTION_FACT_COLLECTION','WEB_RETENTION_FACT_HEALTH')
 '@
     $canonicalColumns = Get-FixtureCount $ContainerName $Password @'
 SELECT COUNT(*)
@@ -355,7 +357,7 @@ WHERE TABLE_SCHEMA = 'wesitedb'
 SELECT COUNT(*)
 FROM WEB_RETENTION_FACT_COLLECTION
 WHERE FACT_NAME = 'AUTHENTICATED_ACTIVITY_DAILY'
-  AND COLLECTION_STARTED_ON IS NOT NULL
+  AND COLLECTION_STARTED_ON IS NULL
   AND MINIMUM_RETENTION_DAYS >= 120
 '@
     $auditColumns = Get-FixtureCount $ContainerName $Password @'
@@ -388,7 +390,7 @@ WHERE TABLE_SCHEMA = 'wesitedb'
   AND IS_NULLABLE = 'NO'
 '@
 
-    Assert-RolloutContract ($tables -eq 6) "$Label expected six retention tables, found $tables"
+    Assert-RolloutContract ($tables -eq 7) "$Label expected seven retention tables, found $tables"
     Assert-RolloutContract ($canonicalColumns -eq 4) "$Label expected four canonical columns, found $canonicalColumns"
     Assert-RolloutContract ($pipelineColumns -eq 22) "$Label expected 22 key pipeline columns, found $pipelineColumns"
     Assert-RolloutContract ($watchColumns -eq 3) "$Label expected three watch compatibility/lease columns, found $watchColumns"
@@ -417,12 +419,13 @@ CREATE TABLE IF NOT EXISTS SYS_USER (
         -not [regex]::IsMatch($immature, '(?m)^(monitored|non_monitored)\t')
     ) "$Label immature report emitted a cohort"
 
-    [void](Invoke-FixtureQuery $ContainerName $Password @'
+    $retentionFixtureSql = @'
 UPDATE WEB_RETENTION_FACT_COLLECTION
 SET COLLECTION_STARTED_ON = DATE_SUB(CURDATE(), INTERVAL 130 DAY),
     MINIMUM_RETENTION_DAYS = 120
 WHERE FACT_NAME = 'AUTHENTICATED_ACTIVITY_DAILY';
-DELETE FROM WEB_AUTHENTICATED_ACTIVITY_DAILY WHERE ID LIKE 'ret-%';
+DELETE FROM WEB_AUTHENTICATED_ACTIVITY_DAILY WHERE USER_ID LIKE 'ret-%';
+DELETE FROM WEB_RETENTION_FACT_HEALTH WHERE FACT_NAME = 'AUTHENTICATED_ACTIVITY_DAILY';
 DELETE FROM WEB_DOMAIN_WATCH WHERE ID LIKE 'ret-%';
 DELETE FROM SYS_USER WHERE ID LIKE 'ret-%';
 INSERT INTO SYS_USER (ID, CREATE_TIME) VALUES
@@ -448,30 +451,74 @@ VALUES
   ('ret-immature-3', 1, 0, 'ret-imm-3', 'immature-3.example', 0, DATE_SUB(CURDATE(), INTERVAL 10 DAY)),
   ('ret-immature-4', 1, 0, 'ret-imm-4', 'immature-4.example', 0, DATE_SUB(CURDATE(), INTERVAL 10 DAY)),
   ('ret-immature-5', 1, 0, 'ret-imm-5', 'immature-5.example', 0, DATE_SUB(CURDATE(), INTERVAL 10 DAY));
-INSERT INTO WEB_AUTHENTICATED_ACTIVITY_DAILY (ID, USER_ID, ACTIVITY_DATE) VALUES
-  ('ret-return-m1', 'ret-mon-1', DATE_SUB(CURDATE(), INTERVAL 55 DAY)),
-  ('ret-return-m2', 'ret-mon-2', DATE_SUB(CURDATE(), INTERVAL 55 DAY)),
-  ('ret-return-m3', 'ret-mon-3', DATE_SUB(CURDATE(), INTERVAL 55 DAY)),
+INSERT INTO WEB_AUTHENTICATED_ACTIVITY_DAILY (USER_ID, ACTIVITY_DATE) VALUES
+  ('ret-return-m1-5', 'ret-mon-1', DATE_SUB(CURDATE(), INTERVAL 55 DAY)),
+  ('ret-return-m1-20', 'ret-mon-1', DATE_SUB(CURDATE(), INTERVAL 40 DAY)),
+  ('ret-return-m2-5', 'ret-mon-2', DATE_SUB(CURDATE(), INTERVAL 55 DAY)),
+  ('ret-return-m2-25', 'ret-mon-2', DATE_SUB(CURDATE(), INTERVAL 35 DAY)),
+  ('ret-return-m3-5', 'ret-mon-3', DATE_SUB(CURDATE(), INTERVAL 55 DAY)),
+  ('ret-return-m3-29', 'ret-mon-3', DATE_SUB(CURDATE(), INTERVAL 31 DAY)),
+  ('ret-return-m4-20', 'ret-mon-4', DATE_SUB(CURDATE(), INTERVAL 40 DAY)),
   ('ret-first-new1', 'ret-new-1', DATE_SUB(CURDATE(), INTERVAL 60 DAY)),
+  ('ret-return-new1-5', 'ret-new-1', DATE_SUB(CURDATE(), INTERVAL 55 DAY)),
+  ('ret-return-new1-20', 'ret-new-1', DATE_SUB(CURDATE(), INTERVAL 40 DAY)),
   ('ret-first-new2', 'ret-new-2', DATE_SUB(CURDATE(), INTERVAL 60 DAY)),
+  ('ret-return-new2-5', 'ret-new-2', DATE_SUB(CURDATE(), INTERVAL 55 DAY)),
+  ('ret-return-new2-20', 'ret-new-2', DATE_SUB(CURDATE(), INTERVAL 40 DAY)),
   ('ret-first-new3', 'ret-new-3', DATE_SUB(CURDATE(), INTERVAL 60 DAY)),
+  ('ret-return-new3-5', 'ret-new-3', DATE_SUB(CURDATE(), INTERVAL 55 DAY)),
+  ('ret-return-new3-20', 'ret-new-3', DATE_SUB(CURDATE(), INTERVAL 40 DAY)),
   ('ret-first-new4', 'ret-new-4', DATE_SUB(CURDATE(), INTERVAL 60 DAY)),
+  ('ret-return-new4-5', 'ret-new-4', DATE_SUB(CURDATE(), INTERVAL 55 DAY)),
+  ('ret-return-new4-20', 'ret-new-4', DATE_SUB(CURDATE(), INTERVAL 40 DAY)),
   ('ret-first-old1', 'ret-old-1', DATE_SUB(CURDATE(), INTERVAL 60 DAY)),
   ('ret-first-old2', 'ret-old-2', DATE_SUB(CURDATE(), INTERVAL 60 DAY)),
   ('ret-first-old3', 'ret-old-3', DATE_SUB(CURDATE(), INTERVAL 60 DAY)),
   ('ret-first-old4', 'ret-old-4', DATE_SUB(CURDATE(), INTERVAL 60 DAY)),
   ('ret-first-old5', 'ret-old-5', DATE_SUB(CURDATE(), INTERVAL 60 DAY));
+'@
+    $factIds = @('ret-return-m1-5','ret-return-m1-20','ret-return-m2-5','ret-return-m2-25','ret-return-m3-5','ret-return-m3-29','ret-return-m4-20','ret-first-new1','ret-return-new1-5','ret-return-new1-20','ret-first-new2','ret-return-new2-5','ret-return-new2-20','ret-first-new3','ret-return-new3-5','ret-return-new3-20','ret-first-new4','ret-return-new4-5','ret-return-new4-20','ret-first-old1','ret-first-old2','ret-first-old3','ret-first-old4','ret-first-old5')
+    foreach ($factId in $factIds) { $retentionFixtureSql = $retentionFixtureSql.Replace("('$factId', ", '(') }
+    [void](Invoke-FixtureQuery $ContainerName $Password $retentionFixtureSql)
+
+    [void](Invoke-FixtureQuery $ContainerName $Password @'
+INSERT INTO WEB_RETENTION_FACT_HEALTH
+  (FACT_NAME, FACT_DATE, SUCCESSFUL_WRITE_COUNT, FAILURE_COUNT, EXPECTED_FACT_ROWS, LAST_SUCCESS_AT)
+WITH RECURSIVE days AS (
+  SELECT DATE_SUB(CURDATE(), INTERVAL 120 DAY) AS fact_date
+  UNION ALL SELECT DATE_ADD(fact_date, INTERVAL 1 DAY) FROM days
+  WHERE fact_date < DATE_SUB(CURDATE(), INTERVAL 1 DAY)
+)
+SELECT 'AUTHENTICATED_ACTIVITY_DAILY', fact_date, 1, 0,
+  (SELECT COUNT(*) FROM WEB_AUTHENTICATED_ACTIVITY_DAILY A WHERE A.ACTIVITY_DATE = fact_date), NOW()
+FROM days;
 '@)
+
+    [void](Invoke-FixtureQuery $ContainerName $Password "DELETE FROM WEB_RETENTION_FACT_HEALTH WHERE FACT_NAME='AUTHENTICATED_ACTIVITY_DAILY' AND FACT_DATE=DATE_SUB(CURDATE(), INTERVAL 100 DAY);")
+    $gap = Invoke-FixtureSqlFileOutput $ContainerName $Password 'scripts/retention-report.sql'
+    Assert-RolloutContract $gap.Contains('INSUFFICIENT_HISTORY') "$Label report accepted an interrupted health interval"
+    [void](Invoke-FixtureQuery $ContainerName $Password @'
+INSERT INTO WEB_RETENTION_FACT_HEALTH
+  (FACT_NAME, FACT_DATE, SUCCESSFUL_WRITE_COUNT, FAILURE_COUNT, EXPECTED_FACT_ROWS, LAST_SUCCESS_AT)
+SELECT 'AUTHENTICATED_ACTIVITY_DAILY', DATE_SUB(CURDATE(), INTERVAL 100 DAY), 1, 0,
+  COUNT(*), NOW() FROM WEB_AUTHENTICATED_ACTIVITY_DAILY
+WHERE ACTIVITY_DATE=DATE_SUB(CURDATE(), INTERVAL 100 DAY);
+DELETE FROM WEB_AUTHENTICATED_ACTIVITY_DAILY
+WHERE USER_ID='ret-mon-1' AND ACTIVITY_DATE=DATE_SUB(CURDATE(), INTERVAL 55 DAY);
+'@)
+    $cleaned = Invoke-FixtureSqlFileOutput $ContainerName $Password 'scripts/retention-report.sql'
+    Assert-RolloutContract $cleaned.Contains('INSUFFICIENT_HISTORY') "$Label report accepted prematurely cleaned facts"
+    [void](Invoke-FixtureQuery $ContainerName $Password "INSERT INTO WEB_AUTHENTICATED_ACTIVITY_DAILY (USER_ID,ACTIVITY_DATE) VALUES ('ret-mon-1',DATE_SUB(CURDATE(), INTERVAL 55 DAY));")
 
     $mature = Invoke-FixtureSqlFileOutput $ContainerName $Password 'scripts/retention-report.sql'
     Assert-RolloutContract $mature.Contains('READY') "$Label mature report did not become ready"
     Assert-RolloutContract (
-        [regex]::Matches($mature, '(?m)^monitored\t\d{4}-\d{2}-\d{2}\t5\t3\t60\.00\t3\t60\.00\r?$').Count -eq 1
+        [regex]::Matches($mature, '(?m)^monitored\t\d{4}-\d{2}-\d{2}\t5\t3\t60\.00\t4\t80\.00\r?$').Count -eq 1
     ) "$Label mature five-user cohort or return counts were incorrect: $mature"
     Assert-RolloutContract (
         [regex]::Matches($mature, '(?m)^non_monitored\t').Count -eq 0
     ) "$Label emitted a k=4 control cohort or treated pre-collection accounts as first seen: $mature"
-    Write-Host "RETENTION_REPORT_DATA|PASS|PATH=$Label|IMMATURE=EMPTY|MATURE=5|SUPPRESSED=4"
+    Write-Host "RETENTION_REPORT_DATA|PASS|PATH=$Label|IMMATURE=EMPTY|GAP=INSUFFICIENT|CLEANUP=INSUFFICIENT|MATURE=5|SUPPRESSED=4"
 }
 
 function Assert-LegacyUpgradeData(

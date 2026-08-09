@@ -5,18 +5,14 @@ import java.time.LocalDate;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Param;
 
-import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-
-import info.wesite.core.entity.AuthenticatedActivityDaily;
-
-public interface AuthenticatedActivityDailyMapper extends BaseMapper<AuthenticatedActivityDaily> {
+public interface AuthenticatedActivityDailyMapper {
 
     @Insert("""
         INSERT INTO WEB_AUTHENTICATED_ACTIVITY_DAILY
-          (ID, USER_ID, ACTIVITY_DATE, CREATE_TIME)
+          (USER_ID, ACTIVITY_DATE)
         VALUES
-          (LOWER(REPLACE(UUID(), '-', '')), #{userId}, #{activityDate}, CURRENT_TIMESTAMP)
-        ON DUPLICATE KEY UPDATE ACTIVITY_DATE = VALUES(ACTIVITY_DATE)
+          (#{userId}, #{activityDate})
+        ON DUPLICATE KEY UPDATE USER_ID = USER_ID
         """)
     int recordDaily(@Param("userId") String userId, @Param("activityDate") LocalDate activityDate);
 }

@@ -3,10 +3,7 @@
 -- never SELECTs a user ID. A complete 90-day window of closed 30-day cohorts
 -- requires at least 120 days of continuously retained activity facts.
 --
--- IMPORTANT: use the same fixed offset as the production JVM default time zone.
--- Authenticated activity uses LocalDate.now() without an explicit ZoneId. Do not
--- substitute UTC unless the production JVM and database both use UTC. Update this
--- value for the deployed production offset before execution.
+-- IMPORTANT: +08:00 is the configured reporting zone used by the writer too.
 
 SET time_zone = '+08:00';
 SET @minimum_cohort_size = 5;
@@ -25,14 +22,27 @@ SET @configured_retention_days = (
   LIMIT 1
 );
 SET @required_fact_days = GREATEST(COALESCE(@configured_retention_days, 0), @minimum_report_days);
+SET @health_start = DATE_SUB(CURDATE(), INTERVAL @required_fact_days DAY);
+SET @healthy_days = (
+  SELECT COUNT(*) FROM WEB_RETENTION_FACT_HEALTH
+  WHERE FACT_NAME = @fact_name AND FACT_DATE >= @health_start AND FACT_DATE < CURDATE()
+    AND FAILURE_COUNT = 0 AND SUCCESSFUL_WRITE_COUNT > 0
+);
+SET @incomplete_days = (
+  SELECT COUNT(*) FROM WEB_RETENTION_FACT_HEALTH H
+  WHERE H.FACT_NAME = @fact_name AND H.FACT_DATE >= @health_start AND H.FACT_DATE < CURDATE()
+    AND (H.FAILURE_COUNT > 0 OR
+      (SELECT COUNT(*) FROM WEB_AUTHENTICATED_ACTIVITY_DAILY A WHERE A.ACTIVITY_DATE = H.FACT_DATE)
+        < H.EXPECTED_FACT_ROWS)
+);
 SET @observed_fact_days = CASE
   WHEN @fact_collection_start IS NULL THEN 0
   ELSE GREATEST(DATEDIFF(CURDATE(), @fact_collection_start), 0)
 END;
 SET @report_status = CASE
-  WHEN @fact_collection_start IS NULL OR @configured_retention_days IS NULL
-    THEN 'MISSING_COLLECTION_METADATA'
-  WHEN @observed_fact_days < @required_fact_days
+  WHEN @configured_retention_days IS NULL THEN 'MISSING_COLLECTION_METADATA'
+  WHEN @fact_collection_start IS NULL OR @observed_fact_days < @required_fact_days
+    OR @healthy_days <> @required_fact_days OR @incomplete_days <> 0
     THEN 'INSUFFICIENT_HISTORY'
   ELSE 'READY'
 END;
@@ -106,24 +116,38 @@ WHERE @report_status = 'READY'
   -- A control user must remain without a watch through the entire 30-day window.
   AND (W.first_watch_date IS NULL OR W.first_watch_date > DATE_ADD(A.first_activity_date, INTERVAL 30 DAY));
 
-DROP TEMPORARY TABLE IF EXISTS retention_results;
-CREATE TEMPORARY TABLE retention_results AS
+-- Collapse activity to exactly one row per cohort/user before counting the
+-- privacy denominator. Multiple active days must never turn one person into
+-- multiple cohort members or let a sub-k cohort escape suppression.
+DROP TEMPORARY TABLE IF EXISTS retention_user_results;
+CREATE TEMPORARY TABLE retention_user_results AS
 SELECT
   C.cohort_type,
   C.cohort_date,
-  COUNT(*) AS cohort_users,
-  COUNT(DISTINCT CASE WHEN A.activity_date > C.cohort_date
-                        AND A.activity_date <= DATE_ADD(C.cohort_date, INTERVAL 7 DAY)
-                      THEN C.USER_ID END) AS returned_users_7d,
-  COUNT(DISTINCT CASE WHEN A.activity_date > C.cohort_date
-                        AND A.activity_date <= DATE_ADD(C.cohort_date, INTERVAL 30 DAY)
-                      THEN C.USER_ID END) AS returned_users_30d
+  C.USER_ID,
+  MAX(CASE WHEN A.activity_date > C.cohort_date
+             AND A.activity_date <= DATE_ADD(C.cohort_date, INTERVAL 7 DAY)
+           THEN 1 ELSE 0 END) AS returned_7d,
+  MAX(CASE WHEN A.activity_date > C.cohort_date
+             AND A.activity_date <= DATE_ADD(C.cohort_date, INTERVAL 30 DAY)
+           THEN 1 ELSE 0 END) AS returned_30d
 FROM retention_cohorts C
 LEFT JOIN retention_activity_days A
   ON A.USER_ID = C.USER_ID
  AND A.activity_date > C.cohort_date
  AND A.activity_date <= DATE_ADD(C.cohort_date, INTERVAL 30 DAY)
-GROUP BY C.cohort_type, C.cohort_date;
+GROUP BY C.cohort_type, C.cohort_date, C.USER_ID;
+
+DROP TEMPORARY TABLE IF EXISTS retention_results;
+CREATE TEMPORARY TABLE retention_results AS
+SELECT
+  cohort_type,
+  cohort_date,
+  COUNT(*) AS cohort_users,
+  SUM(returned_7d) AS returned_users_7d,
+  SUM(returned_30d) AS returned_users_30d
+FROM retention_user_results
+GROUP BY cohort_type, cohort_date;
 
 -- Daily closed cohorts, suitable for a trend chart. Cohorts smaller than k=5 are
 -- suppressed rather than emitted; no user-level fields are selected.
@@ -155,6 +179,7 @@ HAVING SUM(cohort_users) >= @minimum_cohort_size
 ORDER BY cohort_type;
 
 DROP TEMPORARY TABLE retention_results;
+DROP TEMPORARY TABLE retention_user_results;
 DROP TEMPORARY TABLE retention_cohorts;
 DROP TEMPORARY TABLE retention_first_activity;
 DROP TEMPORARY TABLE retention_first_watch;

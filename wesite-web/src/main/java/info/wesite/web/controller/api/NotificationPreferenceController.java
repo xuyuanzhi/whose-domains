@@ -23,6 +23,7 @@ import info.wesite.core.entity.NotificationPreference;
 import info.wesite.core.service.NotificationPreferenceService;
 import info.wesite.core.view.ResponseJson;
 import info.wesite.web.notification.NotificationCancellationService;
+import info.wesite.web.notification.NotificationPolicyLock;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
@@ -44,6 +45,9 @@ public class NotificationPreferenceController {
     @Autowired
     private NotificationCancellationService cancellationService;
 
+    @Autowired
+    private NotificationPolicyLock policyLock;
+
     @Operation(summary = "Get current user's notification preference")
     @GetMapping
     public ResponseJson<LinkedHashMap<String, Object>> get() {
@@ -58,12 +62,8 @@ public class NotificationPreferenceController {
             return ResponseJson.failure("Invalid email notification mode.");
         }
         String userId = UserHolder.get().getId();
-        NotificationPreference preference = preferenceService.getOne(Wrappers.<NotificationPreference>lambdaQuery()
-                .eq(NotificationPreference::getUserId, userId));
-        boolean existing = preference != null;
-        if (!existing) {
-            preference = NotificationPreference.defaultsFor(userId);
-        }
+        NotificationPreference preference = policyLock.lockCurrent(userId);
+        boolean existing = preference.getId() != null;
         apply(request, preference);
         preference.setUserId(userId);
         boolean saved = existing ? preferenceService.updateById(preference) : preferenceService.save(preference);

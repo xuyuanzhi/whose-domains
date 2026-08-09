@@ -3,6 +3,7 @@ package info.wesite.web.notification;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -16,6 +17,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 
 import info.wesite.core.entity.MonitorEvent;
 import info.wesite.core.entity.DomainWatch;
@@ -159,6 +161,31 @@ class NotificationDispatcherTest {
         assertEquals(NotificationDispatchDecision.IN_APP_ONLY, decision);
         assertEquals(null, notification.getRecipientEmail());
         verify(watchMapper).selectByIdForUpdate("watch-1");
+    }
+
+    @Test
+    void dispatchLocksTheUserPolicyBeforeTheWatchAndUsesTheCurrentPreference() {
+        DomainWatchMapper watchMapper = mock(DomainWatchMapper.class);
+        NotificationPolicyLock policyLock = mock(NotificationPolicyLock.class);
+        DomainWatch current = watch(DomainWatch.NOTIFY_BOTH, "current@example.com");
+        current.setStatus(DomainWatch.STATUS_ACTIVE);
+        current.setDeleted(0);
+        when(policyLock.lockCurrent("user-1"))
+            .thenReturn(preference(NotificationPreference.MODE_IN_APP_ONLY));
+        when(watchMapper.selectByIdForUpdate("watch-1")).thenReturn(current);
+        NotificationDispatcher lockedDispatcher = new NotificationDispatcher(
+            preferenceService, notificationService, watchMapper,
+            new NotificationPreferenceResolver(), policyLock);
+
+        UserNotification notification = notification();
+        NotificationDispatchDecision decision = lockedDispatcher.dispatch(
+            event("DNS_CHANGED", "192.0.2.2"), notification,
+            watch(DomainWatch.NOTIFY_BOTH, "stale@example.com"), null);
+
+        assertEquals(NotificationDispatchDecision.IN_APP_ONLY, decision);
+        InOrder order = inOrder(policyLock, watchMapper);
+        order.verify(policyLock).lockCurrent("user-1");
+        order.verify(watchMapper).selectByIdForUpdate("watch-1");
     }
 
     @Test

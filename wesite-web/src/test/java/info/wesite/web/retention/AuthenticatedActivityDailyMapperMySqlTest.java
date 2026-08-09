@@ -40,11 +40,9 @@ class AuthenticatedActivityDailyMapperMySqlTest {
         dataSource = new DriverManagerDataSource(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword());
         execute("""
             CREATE TABLE WEB_AUTHENTICATED_ACTIVITY_DAILY (
-              ID varchar(32) NOT NULL PRIMARY KEY,
               USER_ID varchar(32) NOT NULL,
               ACTIVITY_DATE date NOT NULL,
-              CREATE_TIME datetime NOT NULL,
-              UNIQUE KEY UK_AUTH_ACTIVITY_USER_DATE (USER_ID, ACTIVITY_DATE)
+              PRIMARY KEY (USER_ID, ACTIVITY_DATE)
             ) ENGINE=InnoDB
             """);
         MybatisSqlSessionFactoryBean factoryBean = new MybatisSqlSessionFactoryBean();

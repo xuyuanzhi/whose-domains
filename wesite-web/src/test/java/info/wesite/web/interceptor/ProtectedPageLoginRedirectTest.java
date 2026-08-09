@@ -20,7 +20,7 @@ import org.springframework.ui.Model;
 import org.springframework.web.method.HandlerMethod;
 
 import info.wesite.core.entity.User;
-import info.wesite.core.mapper.AuthenticatedActivityDailyMapper;
+import info.wesite.web.retention.AuthenticatedActivityRecorder;
 import info.wesite.core.service.ApiKeyService;
 import info.wesite.core.utils.ApiTokenUtils;
 import info.wesite.core.utils.Constants;
@@ -100,17 +100,16 @@ class ProtectedPageLoginRedirectTest {
         User user = new User();
         user.setId("user-1");
         user.setName("Test User");
-        AuthenticatedActivityDailyMapper activities = mock(AuthenticatedActivityDailyMapper.class);
+        AuthenticatedActivityRecorder activities = mock(AuthenticatedActivityRecorder.class);
         WebInterceptor interceptor = interceptor();
-        ReflectionTestUtils.setField(interceptor, "authenticatedActivityMapper", activities);
+        ReflectionTestUtils.setField(interceptor, "authenticatedActivityRecorder", activities);
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/notifications");
         request.addHeader(Constants.TOKEN_KEY, TokenUtils.createToken(user, 5));
         MockHttpServletResponse response = new MockHttpServletResponse();
 
         assertTrue(interceptor.preHandle(request, response, notificationListHandler()));
 
-        verify(activities).recordDaily(org.mockito.ArgumentMatchers.eq("user-1"),
-                org.mockito.ArgumentMatchers.any(java.time.LocalDate.class));
+        verify(activities).record("user-1");
         interceptor.afterCompletion(request, response, notificationListHandler(), null);
     }
 
