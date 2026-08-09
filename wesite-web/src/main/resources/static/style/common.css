@@ -4277,9 +4277,12 @@ ul.tld-list li {list-style: none; font-size: 1.1rem;}
 .signal-event__meta time { color: #6f8398; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 11px; }
 .signal-risk { padding: 3px 7px; border-radius: 4px; font-size: 10px; font-weight: 900; letter-spacing: .045em; text-transform: uppercase; }
 .signal-risk[data-risk="high"] { color: #ffadad; background: rgba(255, 82, 82, .12); }
-.signal-risk[data-risk="elevated"] { color: #ffd783; background: rgba(255, 171, 0, .11); }
-.signal-risk[data-risk="info"] { color: #8beaf4; background: rgba(0, 229, 255, .09); }
+.signal-risk[data-risk="critical"] { color: #ffadad; background: rgba(255, 82, 82, .16); }
+.signal-risk[data-risk="medium"] { color: #ffd783; background: rgba(255, 171, 0, .11); }
+.signal-risk[data-risk="low"],.signal-risk[data-risk="unknown"] { color: #8beaf4; background: rgba(0, 229, 255, .09); }
 .signal-event h3 { margin: 8px 0 0; color: #e5eef7; font-size: 16px; line-height: 1.35; }
+.signal-event__context { display:flex; flex-wrap:wrap; gap:10px; margin-top:5px; color:#6f879d; font-size:11px; }
+.signal-event__context span + span::before { content:"/"; margin-right:10px; color:#42566a; }
 .signal-event__body > p { margin: 6px 0 0; color: #8da1b5; font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
 .signal-event__actions { display: flex; align-items: center; gap: 13px; margin-top: 13px; }
 .signal-event__actions a,
@@ -4305,7 +4308,7 @@ ul.tld-list li {list-style: none; font-size: 1.1rem;}
 .signal-legend { display: flex; gap: 12px; margin-top: 20px; padding-top: 16px; border-top: 1px solid rgba(143, 174, 201, .12); color: #6e8398; font-size: 10px; }
 .signal-legend span { display: inline-flex; align-items: center; gap: 5px; }
 .signal-legend i { width: 6px; height: 6px; border-radius: 50%; }
-.signal-legend [data-risk="high"] i { background: #ff6767; }.signal-legend [data-risk="elevated"] i { background: #ffb942; }.signal-legend [data-risk="info"] i { background: #4cd9e7; }
+.signal-legend [data-risk="critical"] i { background: #ff5252; }.signal-legend [data-risk="high"] i { background: #ff8b5c; }.signal-legend [data-risk="medium"] i { background: #ffb942; }.signal-legend [data-risk="low"] i { background: #4cd9e7; }
 
 .signal-settings { max-width: 100%; }
 .settings-state { max-width: 780px; margin: 0 auto; }
@@ -4322,6 +4325,7 @@ ul.tld-list li {list-style: none; font-size: 1.1rem;}
 .cadence-grid strong { color: #c7d7e5; font-size: 13px; }
 .cadence-grid small { margin-top: 5px; font-size: 11px; line-height: 1.45; }
 .cadence-grid input:checked + span { border-color: rgba(0, 229, 255, .48); background: rgba(0, 229, 255, .07); box-shadow: inset 3px 0 0 var(--primary); }
+.cadence-grid input:focus-visible + span { outline: 3px solid rgba(0, 229, 255, .48); outline-offset: 3px; }
 .channel-list { display: grid; }
 .channel-list label { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 13px 0; border-bottom: 1px solid rgba(143, 174, 201, .11); cursor: pointer; }
 .channel-list label:last-child { border-bottom: 0; }
@@ -4337,12 +4341,15 @@ ul.tld-list li {list-style: none; font-size: 1.1rem;}
 .signal-switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 15px; height: 15px; border-radius: 50%; background: #8192a4; transition: transform .18s ease, background .18s ease; }
 .channel-list input:checked + .signal-switch { background: rgba(0, 229, 255, .28); }
 .channel-list input:checked + .signal-switch::after { transform: translateX(17px); background: var(--primary); }
+.channel-list input:focus-visible + .signal-switch { outline: 3px solid rgba(0, 229, 255, .48); outline-offset: 3px; }
 .settings-submit { display: flex; align-items: center; justify-content: flex-end; gap: 18px; padding: 7px 2px 0; }
 .settings-submit p { flex: 1; margin: 0; color: #8297ac; font-size: 12px; text-align: right; }
 .settings-submit .settings-status--success { color: #73e5a0; }.settings-submit .settings-status--error { color: #ff9999; }
 
 .signal-center :is(a, button, input):focus-visible,
 .notification-bell:focus-visible { outline: 3px solid rgba(0, 229, 255, .48); outline-offset: 3px; }
+.signal-event:focus-visible,
+.signal-timeline:focus-visible { outline: 3px solid rgba(0, 229, 255, .48); outline-offset: 3px; border-radius: 8px; }
 @media (prefers-reduced-motion: reduce) {
     .signal-state__pulse { animation: none; box-shadow: 0 0 0 4px rgba(0, 229, 255, .12); }
     .signal-switch,

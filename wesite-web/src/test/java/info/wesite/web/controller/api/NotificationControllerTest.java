@@ -23,6 +23,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.util.ReflectionUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -33,12 +34,18 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import info.wesite.core.config.UserHolder;
 import info.wesite.core.entity.User;
 import info.wesite.core.entity.UserNotification;
+import info.wesite.core.entity.DomainWatch;
+import info.wesite.core.entity.MonitorEvent;
+import info.wesite.core.service.DomainWatchService;
+import info.wesite.core.service.MonitorEventService;
 import info.wesite.core.service.UserNotificationService;
 
 @SuppressWarnings({ "rawtypes", "unchecked" })
 class NotificationControllerTest {
 
     private UserNotificationService notifications;
+    private MonitorEventService events;
+    private DomainWatchService watches;
     private MockMvc mvc;
 
     @BeforeEach
@@ -48,8 +55,14 @@ class NotificationControllerTest {
                         new com.baomidou.mybatisplus.core.MybatisConfiguration(), "NotificationControllerTest"),
                 UserNotification.class);
         notifications = mock(UserNotificationService.class);
+        events = mock(MonitorEventService.class);
+        watches = mock(DomainWatchService.class);
         NotificationController controller = new NotificationController();
         ReflectionTestUtils.setField(controller, "notificationService", notifications);
+        if (ReflectionUtils.findField(NotificationController.class, "monitorEventService") != null) {
+            ReflectionTestUtils.setField(controller, "monitorEventService", events);
+            ReflectionTestUtils.setField(controller, "domainWatchService", watches);
+        }
         mvc = MockMvcBuilders.standaloneSetup(controller).build();
 
         User user = new User();
@@ -107,6 +120,44 @@ class NotificationControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].targetPath").doesNotExist())
                 .andExpect(jsonPath("$.data.items[1].targetPath").doesNotExist());
+    }
+
+    @Test
+    void listBatchEnrichesCanonicalWebsiteSslAndDomainRisksWithoutUsingNotificationCopy() throws Exception {
+        UserNotification website = notification("notice-web", "/domain/example.com");
+        website.setEventId("event-web");
+        website.setTitle("Recovered wording must not lower canonical risk");
+        UserNotification ssl = notification("notice-ssl", "/domain/example.com");
+        ssl.setEventId("event-ssl");
+        UserNotification domain = notification("notice-domain", "/domain/example.com");
+        domain.setEventId("event-domain");
+        Page<UserNotification> page = new Page<>(1, 20, 3);
+        page.setRecords(List.of(website, ssl, domain));
+        when(notifications.page(any(Page.class), any(Wrapper.class))).thenReturn(page);
+
+        Date occurredAt = new Date(1_786_233_600_000L); // 2026-08-09T00:00:00Z
+        MonitorEvent websiteEvent = event("event-web", "watch-1", "WEBSITE_DOWN", "false", occurredAt);
+        MonitorEvent sslEvent = event("event-ssl", "watch-1", "SSL_EXPIRING", "2026-09-08", occurredAt);
+        MonitorEvent domainEvent = event("event-domain", "watch-1", "DOMAIN_EXPIRING", "2026-08-16", occurredAt);
+        when(events.listByIds(any())).thenReturn(List.of(websiteEvent, sslEvent, domainEvent));
+        DomainWatch watch = new DomainWatch();
+        watch.setId("watch-1");
+        watch.setDomainName("example.com");
+        when(watches.list(any(Wrapper.class))).thenReturn(List.of(watch));
+
+        mvc.perform(get("/api/notifications"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].eventType").value("WEBSITE_DOWN"))
+                .andExpect(jsonPath("$.data.items[0].risk").value("CRITICAL"))
+                .andExpect(jsonPath("$.data.items[0].domain").value("example.com"))
+                .andExpect(jsonPath("$.data.items[0].source").value("HTTP"))
+                .andExpect(jsonPath("$.data.items[1].risk").value("HIGH"))
+                .andExpect(jsonPath("$.data.items[1].source").value("TLS"))
+                .andExpect(jsonPath("$.data.items[2].risk").value("HIGH"))
+                .andExpect(jsonPath("$.data.items[2].source").value("WHOIS/RDAP"));
+
+        verify(events, times(1)).listByIds(any());
+        verify(watches, times(1)).list(any(Wrapper.class));
     }
 
     @Test
@@ -252,5 +303,15 @@ class NotificationControllerTest {
         notification.setTargetPath(targetPath);
         notification.setCreateTime(new Date(0));
         return notification;
+    }
+
+    private static MonitorEvent event(String id, String watchId, String type, String newValue, Date occurredAt) {
+        MonitorEvent event = new MonitorEvent();
+        event.setId(id);
+        event.setWatchId(watchId);
+        event.setEventType(type);
+        event.setNewValue(newValue);
+        event.setOccurredAt(occurredAt);
+        return event;
     }
 }

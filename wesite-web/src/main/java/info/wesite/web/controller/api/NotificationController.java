@@ -2,9 +2,11 @@ package info.wesite.web.controller.api;
 
 import java.util.Date;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,8 +25,13 @@ import info.wesite.core.config.AccessControl;
 import info.wesite.core.config.AccessControl.Level;
 import info.wesite.core.config.UserHolder;
 import info.wesite.core.entity.UserNotification;
+import info.wesite.core.entity.DomainWatch;
+import info.wesite.core.entity.MonitorEvent;
+import info.wesite.core.service.DomainWatchService;
+import info.wesite.core.service.MonitorEventService;
 import info.wesite.core.service.UserNotificationService;
 import info.wesite.core.view.ResponseJson;
+import info.wesite.web.monitor.NotificationEventMetadataMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
@@ -40,6 +47,12 @@ public class NotificationController {
 
     @Autowired
     private UserNotificationService notificationService;
+
+    @Autowired
+    private MonitorEventService monitorEventService;
+
+    @Autowired
+    private DomainWatchService domainWatchService;
 
     @Operation(summary = "List current user's notifications")
     @GetMapping
@@ -65,9 +78,7 @@ public class NotificationController {
                     "SELECT ID FROM WEB_MONITOR_EVENT WHERE EVENT_TYPE IN (" + eventTypes + ")");
         }
         Page<UserNotification> result = notificationService.page(new Page<>(page, PAGE_SIZE), query);
-        List<Map<String, Object>> items = result.getRecords().stream()
-                .map(NotificationController::toDto)
-                .collect(Collectors.toList());
+        List<Map<String, Object>> items = toDtos(result.getRecords(), UserHolder.get().getId());
         return ResponseJson.success(pageData(items, result.getTotal(), page));
     }
 
@@ -148,7 +159,34 @@ public class NotificationController {
                 .isNull(UserNotification::getReadAt));
     }
 
-    private static Map<String, Object> toDto(UserNotification notification) {
+    private List<Map<String, Object>> toDtos(List<UserNotification> notifications, String userId) {
+        Set<String> eventIds = notifications.stream()
+                .map(UserNotification::getEventId)
+                .filter(value -> value != null && !value.isBlank())
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        Map<String, MonitorEvent> eventsById = eventIds.isEmpty()
+                ? Map.of()
+                : monitorEventService.listByIds(eventIds).stream()
+                        .collect(Collectors.toMap(MonitorEvent::getId, Function.identity()));
+        Set<String> watchIds = eventsById.values().stream()
+                .map(MonitorEvent::getWatchId)
+                .filter(value -> value != null && !value.isBlank())
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        Map<String, DomainWatch> watchesById = watchIds.isEmpty()
+                ? Map.of()
+                : domainWatchService.list(Wrappers.<DomainWatch>lambdaQuery()
+                        .in(DomainWatch::getId, watchIds)
+                        .eq(DomainWatch::getUserId, userId)).stream()
+                        .collect(Collectors.toMap(DomainWatch::getId, Function.identity()));
+        return notifications.stream()
+                .map(notification -> toDto(notification, eventsById, watchesById))
+                .collect(Collectors.toList());
+    }
+
+    private static Map<String, Object> toDto(
+            UserNotification notification,
+            Map<String, MonitorEvent> eventsById,
+            Map<String, DomainWatch> watchesById) {
         Map<String, Object> dto = new LinkedHashMap<>();
         dto.put("id", notification.getId());
         dto.put("title", notification.getTitle());
@@ -158,6 +196,16 @@ public class NotificationController {
         }
         dto.put("readAt", notification.getReadAt());
         dto.put("createTime", notification.getCreateTime());
+        MonitorEvent event = notification.getEventId() == null ? null : eventsById.get(notification.getEventId());
+        DomainWatch watch = event == null ? null : watchesById.get(event.getWatchId());
+        NotificationEventMetadataMapper.Metadata metadata = NotificationEventMetadataMapper.map(
+                event, watch == null ? null : watch.getDomainName());
+        if (metadata != null) {
+            dto.put("eventType", metadata.eventType());
+            dto.put("risk", metadata.risk());
+            dto.put("domain", metadata.domain());
+            dto.put("source", metadata.source());
+        }
         return dto;
     }
 

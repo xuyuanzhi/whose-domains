@@ -1,15 +1,12 @@
 package info.wesite.web.notification;
 
-import java.time.LocalDate;
-import java.time.ZoneOffset;
-import java.time.temporal.ChronoUnit;
-import java.util.Locale;
-
 import org.apache.commons.lang3.StringUtils;
 
 import info.wesite.core.entity.MonitorEvent;
 import info.wesite.core.entity.NotificationPreference;
 import info.wesite.web.monitor.MonitorEventType;
+import info.wesite.web.monitor.MonitorRisk;
+import info.wesite.web.monitor.NotificationEventMetadataMapper;
 
 /**
  * Resolves a notification's delivery route without performing delivery.
@@ -30,7 +27,7 @@ public class NotificationPreferenceResolver {
         }
 
         if (preference == null || StringUtils.isBlank(preference.getEmailMode())) {
-            return defaultDecision(event, eventType);
+            return defaultDecision(event);
         }
 
         return switch (preference.getEmailMode()) {
@@ -63,43 +60,14 @@ public class NotificationPreferenceResolver {
         };
     }
 
-    private static NotificationDispatchDecision defaultDecision(MonitorEvent event, MonitorEventType eventType) {
-        return isHighRisk(event, eventType)
+    private static NotificationDispatchDecision defaultDecision(MonitorEvent event) {
+        return isHighRisk(event)
             ? NotificationDispatchDecision.IMMEDIATE_EMAIL
             : NotificationDispatchDecision.DAILY_DIGEST;
     }
 
-    private static boolean isHighRisk(MonitorEvent event, MonitorEventType eventType) {
-        return switch (eventType) {
-            case SSL_EXPIRING, WEBSITE_DOWN -> true;
-            case DOMAIN_STATUS_CHANGED -> enteredHoldStatus(event.getNewValue());
-            case DOMAIN_EXPIRING -> expiresWithinSevenDays(event);
-            case DNS_CHANGED, WEBSITE_RECOVERED -> false;
-        };
-    }
-
-    private static boolean enteredHoldStatus(String statusValues) {
-        if (StringUtils.isBlank(statusValues)) {
-            return false;
-        }
-        for (String status : statusValues.split(",")) {
-            if (status.trim().toLowerCase(Locale.ROOT).endsWith("hold")) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static boolean expiresWithinSevenDays(MonitorEvent event) {
-        if (event.getOccurredAt() == null || StringUtils.isBlank(event.getNewValue())) {
-            return false;
-        }
-        try {
-            LocalDate eventDate = event.getOccurredAt().toInstant().atZone(ZoneOffset.UTC).toLocalDate();
-            LocalDate expiryDate = LocalDate.parse(event.getNewValue());
-            return ChronoUnit.DAYS.between(eventDate, expiryDate) <= 7;
-        } catch (java.time.format.DateTimeParseException ignored) {
-            return false;
-        }
+    private static boolean isHighRisk(MonitorEvent event) {
+        MonitorRisk risk = NotificationEventMetadataMapper.risk(event);
+        return risk == MonitorRisk.HIGH || risk == MonitorRisk.CRITICAL;
     }
 }

@@ -63,9 +63,10 @@
                     <a href="/user/notification-settings"><span><i class="fas fa-sliders" aria-hidden="true"></i></span><div><strong>Delivery settings</strong><small>Control channels and cadence</small></div><i class="fas fa-arrow-right" aria-hidden="true"></i></a>
                 </nav>
                 <div class="signal-legend" aria-label="Risk signal legend">
+                    <span data-risk="critical"><i aria-hidden="true"></i> Critical</span>
                     <span data-risk="high"><i aria-hidden="true"></i> High</span>
-                    <span data-risk="elevated"><i aria-hidden="true"></i> Elevated</span>
-                    <span data-risk="info"><i aria-hidden="true"></i> Info</span>
+                    <span data-risk="medium"><i aria-hidden="true"></i> Medium</span>
+                    <span data-risk="low"><i aria-hidden="true"></i> Low</span>
                 </div>
             </aside>
         </div>
@@ -73,7 +74,7 @@
 
     <template id="notificationRowTemplate">
         <article class="signal-event">
-            <span data-risk="high">High</span><span data-risk="elevated">Elevated</span><span data-risk="info">Info</span>
+            <span data-risk="critical">Critical</span><span data-risk="high">High</span><span data-risk="medium">Medium</span><span data-risk="low">Low</span>
             <time datetime=""></time>
             <button type="button" data-action="read">Mark read</button>
             <button type="button" data-action="delete">Delete</button>

@@ -8,6 +8,11 @@
     var currentPage = 1;
     var bellStarted = false;
     var visibilityBound = false;
+    var unreadRequest = null;
+    var lastUnreadRefreshAt = -Infinity;
+    var bellTimer = null;
+    var activeListController = null;
+    var listGeneration = 0;
 
     function requestJson(url, options) {
         var config = options || {};
@@ -37,12 +42,12 @@
         }
     }
 
-    function inferRisk(item) {
-        var signal = ((item && item.title) || '') + ' ' + ((item && item.content) || '');
-        signal = signal.toLowerCase();
-        if (/down|hold|expired|critical|urgent/.test(signal)) return { key: 'high', label: 'High risk' };
-        if (/expir|dns|changed|certificate|status/.test(signal)) return { key: 'elevated', label: 'Elevated' };
-        return { key: 'info', label: 'Info' };
+    function canonicalRisk(value) {
+        var risk = typeof value === 'string' ? value.toUpperCase() : '';
+        var labels = { CRITICAL: 'Critical', HIGH: 'High', MEDIUM: 'Medium', LOW: 'Low' };
+        return labels[risk]
+            ? { key: risk.toLowerCase(), label: labels[risk] }
+            : { key: 'unknown', label: 'Unrated' };
     }
 
     function formatTime(value) {
@@ -64,15 +69,20 @@
         var time = doc.createElement('time');
         var title = doc.createElement('h3');
         var content = doc.createElement('p');
+        var context = doc.createElement('div');
+        var domain = doc.createElement('span');
+        var source = doc.createElement('span');
         var actions = doc.createElement('div');
         var target = doc.createElement('a');
         var read = doc.createElement('button');
         var remove = doc.createElement('button');
-        var riskValue = inferRisk(item);
+        var riskValue = canonicalRisk(item && item.risk);
         var targetPath = safeInternalTarget(item && item.targetPath);
 
         article.classList.add('signal-event');
         article.dataset.notificationId = String((item && item.id) || '');
+        article.dataset.eventType = String((item && item.eventType) || '');
+        article.setAttribute('tabindex', '-1');
         if (item && item.readAt) article.classList.add('is-read');
         rail.classList.add('signal-event__rail');
         rail.setAttribute('aria-hidden', 'true');
@@ -86,6 +96,9 @@
         time.textContent = formatTime(item && item.createTime);
         title.textContent = (item && item.title) || 'Domain signal';
         content.textContent = (item && item.content) || 'No additional detail was provided.';
+        context.classList.add('signal-event__context');
+        domain.textContent = (item && item.domain) || 'Domain unavailable';
+        source.textContent = (item && item.source) || 'Source unavailable';
         actions.classList.add('signal-event__actions');
         target.classList.add('signal-event__target');
         target.textContent = 'Open domain evidence';
@@ -99,13 +112,14 @@
         remove.setAttribute('data-action', 'delete');
         remove.textContent = 'Delete';
 
-        read.addEventListener('click', function () { markRead(item.id, article, read); });
-        remove.addEventListener('click', function () { deleteNotification(item.id, article, remove); });
+        read.addEventListener('click', function () { markRead(item.id, article, read).catch(function () {}); });
+        remove.addEventListener('click', function () { deleteNotification(item.id, article, remove).catch(function () {}); });
         meta.append(risk, time);
+        context.append(domain, source);
         actions.append(target, read, remove);
-        body.append(meta, title, content, actions);
+        body.append(meta, title, context, content, actions);
         article.append(rail, body);
-        article.parts = { title: title, content: content, target: target, risk: risk, time: time, read: read, remove: remove };
+        article.parts = { title: title, content: content, domain: domain, source: source, target: target, risk: risk, time: time, read: read, remove: remove };
         return article;
     }
 
@@ -120,32 +134,54 @@
         if (status && message) status.textContent = message;
     }
 
-    function loadNotifications(category, page) {
-        currentCategory = normalizeCategory(category);
-        currentPage = Math.max(1, Number(page) || 1);
-        setCenterState('loading', 'Loading the latest signals.');
+    function loadNotifications(category, page, append) {
+        var requestedCategory = normalizeCategory(category);
+        var requestedPage = Math.max(1, Number(page) || 1);
+        var shouldAppend = Boolean(append) && requestedCategory === currentCategory && requestedPage > 1;
+        var generation = ++listGeneration;
+        if (activeListController) activeListController.abort();
+        activeListController = new AbortController();
+        var controller = activeListController;
+        if (!shouldAppend) {
+            currentCategory = requestedCategory;
+            currentPage = 1;
+        }
+        setCenterState(shouldAppend ? 'ready' : 'loading', shouldAppend
+            ? 'Loading earlier signals.' : 'Loading the latest signals.');
         var list = document.getElementById('notificationList');
         var pagination = document.getElementById('notificationPagination');
-        if (list) list.replaceChildren();
+        if (list && !shouldAppend) list.replaceChildren();
         if (pagination) pagination.hidden = true;
-        return requestJson('/api/notifications?page=' + currentPage + '&category=' + encodeURIComponent(currentCategory))
+        return requestJson('/api/notifications?page=' + requestedPage + '&category=' + encodeURIComponent(requestedCategory), {
+            signal: controller.signal
+        })
             .then(function (data) {
+                if (generation !== listGeneration) return null;
                 var items = data && Array.isArray(data.items) ? data.items : [];
                 if (list) items.forEach(function (item) { list.appendChild(createNotificationRow(item)); });
-                setCenterState(items.length ? 'ready' : 'empty', items.length
-                    ? String(data.total || items.length) + ' signals in this channel.'
+                currentCategory = requestedCategory;
+                currentPage = requestedPage;
+                var visibleCount = list ? list.children.length : items.length;
+                setCenterState(visibleCount ? 'ready' : 'empty', visibleCount
+                    ? String(data.total || visibleCount) + ' signals in this channel.'
                     : 'No signals in this channel.');
                 if (pagination) pagination.hidden = !data || currentPage * (data.size || 20) >= (data.total || 0);
                 return data;
             })
             .catch(function (error) {
+                if (generation !== listGeneration || error.name === 'AbortError') return null;
                 setCenterState('error', error.message);
-                throw error;
+                return null;
+            })
+            .finally(function () {
+                if (generation === listGeneration) activeListController = null;
             });
     }
 
     function refreshUnreadCount() {
-        return requestJson('/api/notifications/unread-count').then(function (data) {
+        if (unreadRequest) return unreadRequest;
+        lastUnreadRefreshAt = Date.now();
+        var request = requestJson('/api/notifications/unread-count').then(function (data) {
             var unread = Math.max(0, Number(data && data.unreadCount) || 0);
             var live = document.getElementById('notificationCount');
             var badge = document.getElementById('notificationCountBadge');
@@ -159,6 +195,11 @@
             }
             return unread;
         });
+        var tracked = request.finally(function () {
+            if (unreadRequest === tracked) unreadRequest = null;
+        });
+        unreadRequest = tracked;
+        return tracked;
     }
 
     function markRead(id, row, button) {
@@ -172,7 +213,7 @@
             .catch(function (error) {
                 if (button) button.disabled = false;
                 setCenterState('ready', error.message);
-                throw error;
+                return null;
             });
     }
 
@@ -180,13 +221,22 @@
         if (button) button.disabled = true;
         return requestJson('/api/notifications/' + encodeURIComponent(id), { method: 'DELETE' })
             .then(function () {
-                if (row && row.parentNode) row.parentNode.removeChild(row);
-                return Promise.all([loadNotifications(currentCategory, currentPage), refreshUnreadCount()]);
+                var list = row && row.parentNode;
+                var focusTarget = row && (row.nextElementSibling || row.previousElementSibling);
+                if (list) list.removeChild(row);
+                if (!focusTarget && list) {
+                    list.setAttribute('tabindex', '-1');
+                    focusTarget = list;
+                }
+                if (focusTarget) focusTarget.focus();
+                if (list && !list.children.length) setCenterState('empty', 'No signals in this channel.');
+                else setCenterState('ready', 'Notification deleted.');
+                return refreshUnreadCount().catch(function () { return null; });
             })
             .catch(function (error) {
                 if (button) button.disabled = false;
                 setCenterState('ready', error.message);
-                throw error;
+                return null;
             });
     }
 
@@ -231,7 +281,7 @@
         setSettingsState('loading');
         return requestJson('/api/notification-preferences')
             .then(function (data) { applyPreferences(form, data || {}); setSettingsState('ready'); return data; })
-            .catch(function (error) { setSettingsState('error', error.message, 'error'); throw error; });
+            .catch(function (error) { setSettingsState('error', error.message, 'error'); return null; });
     }
 
     function savePreferences(event) {
@@ -256,22 +306,52 @@
         });
     }
 
+    function clearBellTimer() {
+        if (bellTimer) root.clearTimeout(bellTimer);
+        bellTimer = null;
+    }
+
+    function scheduleBell() {
+        clearBellTimer();
+        if (!bellStarted || document.visibilityState !== 'visible') return;
+        var elapsed = Date.now() - lastUnreadRefreshAt;
+        bellTimer = root.setTimeout(runBellRefresh, Math.max(0, 60000 - elapsed));
+    }
+
+    function runBellRefresh() {
+        bellTimer = null;
+        if (document.visibilityState !== 'visible') return;
+        if (unreadRequest) {
+            unreadRequest.finally(scheduleBell);
+            return;
+        }
+        if (Date.now() - lastUnreadRefreshAt < 60000) {
+            scheduleBell();
+            return;
+        }
+        refreshUnreadCount().catch(function () {}).finally(scheduleBell);
+    }
+
+    function handleVisibilityChange() {
+        clearBellTimer();
+        if (document.visibilityState !== 'visible') return;
+        if (unreadRequest) unreadRequest.finally(scheduleBell);
+        else if (Date.now() - lastUnreadRefreshAt >= 60000) {
+            refreshUnreadCount().catch(function () {}).finally(scheduleBell);
+        } else scheduleBell();
+    }
+
     function startBell() {
         var nav = document.getElementById('notificationNav');
         if (!nav) return;
         nav.hidden = false;
-        refreshUnreadCount().catch(function () {});
         if (!bellStarted) {
             bellStarted = true;
-            setInterval(function () {
-                if (document.visibilityState === 'visible') refreshUnreadCount().catch(function () {});
-            }, 60000);
-        }
+            refreshUnreadCount().catch(function () {}).finally(scheduleBell);
+        } else scheduleBell();
         if (!visibilityBound) {
             visibilityBound = true;
-            document.addEventListener('visibilitychange', function () {
-                if (document.visibilityState === 'visible') refreshUnreadCount().catch(function () {});
-            });
+            document.addEventListener('visibilitychange', handleVisibilityChange);
         }
     }
 
@@ -288,7 +368,7 @@
         });
         document.getElementById('markAllRead').addEventListener('click', function () { markAllRead().catch(function () {}); });
         document.getElementById('retryNotifications').addEventListener('click', function () { loadNotifications(currentCategory, currentPage).catch(function () {}); });
-        document.getElementById('loadMoreNotifications').addEventListener('click', function () { loadNotifications(currentCategory, currentPage + 1).catch(function () {}); });
+        document.getElementById('loadMoreNotifications').addEventListener('click', function () { loadNotifications(currentCategory, currentPage + 1, true); });
         loadNotifications('all', 1).catch(function () {});
     }
 
@@ -302,6 +382,7 @@
 
     var api = {
         createNotificationRow: createNotificationRow,
+        deleteNotification: deleteNotification,
         loadNotifications: loadNotifications,
         markRead: markRead,
         preferencePayload: preferencePayload,

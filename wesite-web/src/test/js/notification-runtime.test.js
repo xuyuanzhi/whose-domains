@@ -33,6 +33,7 @@ class FakeElement {
         this.textContent = '';
         this.value = '';
         this.checked = false;
+        this.focused = false;
     }
     append(...children) { this.children.push(...children); children.forEach(child => { child.parentNode = this; }); }
     appendChild(child) { this.append(child); return child; }
@@ -41,7 +42,10 @@ class FakeElement {
     setAttribute(name, value) { this.attributes.set(name, String(value)); }
     getAttribute(name) { return this.attributes.get(name) || null; }
     removeAttribute(name) { this.attributes.delete(name); }
-    focus() {}
+    removeChild(child) { this.children = this.children.filter(candidate => candidate !== child); child.parentNode = null; }
+    get nextElementSibling() { if (!this.parentNode) return null; const index = this.parentNode.children.indexOf(this); return this.parentNode.children[index + 1] || null; }
+    get previousElementSibling() { if (!this.parentNode) return null; const index = this.parentNode.children.indexOf(this); return index > 0 ? this.parentNode.children[index - 1] : null; }
+    focus() { this.focused = true; }
 }
 
 class FakeDocument {
@@ -58,6 +62,11 @@ class FakeDocument {
     querySelectorAll() { return []; }
 }
 
+class FakeAbortController {
+    constructor() { this.signal = { aborted: false }; }
+    abort() { this.signal.aborted = true; }
+}
+
 function ok(data) {
     return Promise.resolve({ ok: true, json: () => Promise.resolve({ code: 0, data }) });
 }
@@ -66,8 +75,11 @@ function createHarness(fetchImpl = () => ok(null), readyState = 'complete') {
     const document = new FakeDocument();
     document.readyState = readyState;
     const requests = [];
-    const intervals = [];
+    const timers = [];
+    let now = 0;
     const windowListeners = new Map();
+    const setFakeTimeout = (callback, delay) => { const timer = { callback, due: now + delay, cleared: false }; timers.push(timer); return timer; };
+    const clearFakeTimeout = timer => { if (timer) timer.cleared = true; };
     const context = vm.createContext({
         document,
         console,
@@ -75,37 +87,56 @@ function createHarness(fetchImpl = () => ok(null), readyState = 'complete') {
         URLSearchParams,
         location: { origin: 'https://whose.domains', pathname: '/user/notifications' },
         fetch: (url, options = {}) => { requests.push({ url, options }); return fetchImpl(url, options); },
-        setInterval: (callback, delay) => { intervals.push({ callback, delay }); return intervals.length; },
-        clearInterval() {},
+        Date: class extends Date { static now() { return now; } },
+        AbortController: FakeAbortController,
+        setTimeout: setFakeTimeout,
+        clearTimeout: clearFakeTimeout,
         setTimeout,
         window: {
             addEventListener(type, listener) { windowListeners.set(type, listener); },
             dispatchEvent() {},
+            setTimeout: setFakeTimeout,
+            clearTimeout: clearFakeTimeout,
             location: { origin: 'https://whose.domains', pathname: '/user/notifications' }
         }
     });
     context.globalThis = context;
     vm.runInContext(script, context, { filename: scriptPath });
-    return { api: context.window.WhoseNotifications, context, document, requests, intervals, windowListeners };
+    return {
+        api: context.window.WhoseNotifications, context, document, requests, timers, windowListeners,
+        setNow(value) { now = value; },
+        runDueTimers() {
+            timers.filter(timer => !timer.cleared && timer.due <= now).forEach(timer => { timer.cleared = true; timer.callback(); });
+        }
+    };
 }
 
 async function flush() {
-    for (let index = 0; index < 8; index += 1) await Promise.resolve();
+    for (let index = 0; index < 20; index += 1) await Promise.resolve();
+    await new Promise(resolve => setImmediate(resolve));
 }
 
-test('notification rows keep API text inert and reject external targets', () => {
+test('notification rows keep API text inert, use canonical metadata, and reject external targets', () => {
     const harness = createHarness();
     const row = harness.api.createNotificationRow({
         id: 'notice-1',
         title: '<img src=x onerror=alert(1)>',
         content: '<script>steal()</script>',
         targetPath: 'https://evil.example/collect',
+        risk: 'LOW',
+        eventType: 'WEBSITE_DOWN',
+        domain: '<img src=x onerror=alert(2)>',
+        source: '<script>source()</script>',
         readAt: null,
         createTime: '2026-08-09T12:30:00Z'
     }, harness.document);
 
     assert.equal(row.parts.title.textContent, '<img src=x onerror=alert(1)>');
     assert.equal(row.parts.content.textContent, '<script>steal()</script>');
+    assert.equal(row.parts.risk.textContent, 'Low');
+    assert.equal(row.parts.risk.getAttribute('data-risk'), 'low');
+    assert.equal(row.parts.domain.textContent, '<img src=x onerror=alert(2)>');
+    assert.equal(row.parts.source.textContent, '<script>source()</script>');
     assert.equal(row.parts.target.hidden, true);
     assert.equal(row.parts.target.getAttribute('href'), null);
 });
@@ -175,7 +206,7 @@ test('settings payload drops fields outside the preference API allowlist', () =>
     });
 });
 
-test('bell refreshes immediately, polls at sixty seconds, and refreshes when visibility returns', async () => {
+test('visibility refresh resets polling so 119.9 seconds is skipped and 120 seconds refreshes', async () => {
     const harness = createHarness(() => ok({ unreadCount: 3 }));
     harness.document.register('notificationNav');
     harness.document.register('notificationCount');
@@ -183,13 +214,101 @@ test('bell refreshes immediately, polls at sixty seconds, and refreshes when vis
     harness.api.startBell();
     await flush();
     assert.equal(harness.requests.length, 1);
-    assert.equal(harness.intervals.length, 1);
-    assert.equal(harness.intervals[0].delay, 60000);
+    assert.deepEqual(harness.timers.filter(timer => !timer.cleared).map(timer => timer.due), [60000]);
 
+    harness.setNow(60000);
     harness.document.visibilityState = 'visible';
     harness.document.listeners.get('visibilitychange')();
     await flush();
     assert.equal(harness.requests.length, 2);
+    assert.deepEqual(harness.timers.filter(timer => !timer.cleared).map(timer => timer.due), [120000]);
+
+    harness.setNow(119900);
+    harness.runDueTimers();
+    await flush();
+    assert.equal(harness.requests.length, 2);
+
+    harness.setNow(120000);
+    harness.runDueTimers();
+    await flush();
+    assert.equal(harness.requests.length, 3);
+});
+
+test('concurrent unread refresh requests share one in-flight fetch', async () => {
+    let resolveResponse;
+    const response = new Promise(resolve => { resolveResponse = resolve; });
+    const harness = createHarness(() => response);
+    harness.document.register('notificationCount');
+
+    const first = harness.api.refreshUnreadCount();
+    const second = harness.api.refreshUnreadCount();
+    assert.equal(harness.requests.length, 1);
+    resolveResponse({ ok: true, json: () => Promise.resolve({ code: 0, data: { unreadCount: 4 } }) });
+    await Promise.all([first, second]);
+    assert.equal(harness.requests.length, 1);
+});
+
+test('loading an earlier page appends rows instead of replacing the current log', async () => {
+    const responses = [
+        ok({ items: [{ id: 'new', title: 'Newest', content: 'A', risk: 'LOW' }], total: 2, page: 1, size: 1 }),
+        ok({ items: [{ id: 'old', title: 'Earlier', content: 'B', risk: 'MEDIUM' }], total: 2, page: 2, size: 1 })
+    ];
+    const harness = createHarness(() => responses.shift());
+    const list = harness.document.register('notificationList');
+    harness.document.register('notificationLoading');
+    harness.document.register('notificationError');
+    harness.document.register('notificationEmpty');
+    harness.document.register('notificationPagination');
+    harness.document.register('notificationStatus');
+
+    await harness.api.loadNotifications('all', 1);
+    await harness.api.loadNotifications('all', 2, true);
+
+    assert.equal(list.children.length, 2);
+    assert.equal(list.children[0].parts.title.textContent, 'Newest');
+    assert.equal(list.children[1].parts.title.textContent, 'Earlier');
+});
+
+test('a stale filter response cannot overwrite the newest category', async () => {
+    const pending = [];
+    const harness = createHarness(() => new Promise(resolve => pending.push(resolve)));
+    const list = harness.document.register('notificationList');
+    harness.document.register('notificationLoading');
+    harness.document.register('notificationError');
+    harness.document.register('notificationEmpty');
+    harness.document.register('notificationPagination');
+    harness.document.register('notificationStatus');
+
+    const all = harness.api.loadNotifications('all', 1);
+    const expiry = harness.api.loadNotifications('expiry', 1);
+    pending[1]({ ok: true, json: () => Promise.resolve({ code: 0, data: { items: [{ id: 'expiry', title: 'Expiry only', content: '', risk: 'HIGH' }], total: 1, page: 1, size: 20 } }) });
+    await expiry;
+    pending[0]({ ok: true, json: () => Promise.resolve({ code: 0, data: { items: [{ id: 'stale', title: 'Stale all', content: '', risk: 'LOW' }], total: 1, page: 1, size: 20 } }) });
+    await all;
+
+    assert.equal(list.children.length, 1);
+    assert.equal(list.children[0].parts.title.textContent, 'Expiry only');
+});
+
+test('deleting a notification restores focus to the next event without reloading the list', async () => {
+    const harness = createHarness(() => ok(null));
+    const list = harness.document.register('notificationList');
+    harness.document.register('notificationLoading');
+    harness.document.register('notificationError');
+    harness.document.register('notificationEmpty');
+    harness.document.register('notificationPagination');
+    harness.document.register('notificationStatus');
+    harness.document.register('notificationCount');
+    const first = harness.api.createNotificationRow({ id: 'first', title: 'First', content: '', risk: 'LOW' }, harness.document);
+    const second = harness.api.createNotificationRow({ id: 'second', title: 'Second', content: '', risk: 'LOW' }, harness.document);
+    list.append(first, second);
+
+    await harness.api.deleteNotification('first', first, first.parts.remove);
+
+    assert.equal(list.children.length, 1);
+    assert.equal(list.children[0], second);
+    assert.equal(second.focused, true);
+    assert.equal(harness.requests.some(request => request.url.startsWith('/api/notifications?page=')), false);
 });
 
 test('notification page initializes after header script runs before the main document is parsed', async () => {

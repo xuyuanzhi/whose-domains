@@ -70,6 +70,22 @@ class NotificationCenterTemplateTest {
         assertSessionRoute("/user/notification-settings");
     }
 
+    @Test
+    void visuallyCustomInputsRetainVisibleKeyboardFocus() throws IOException {
+        String css = resource("/static/style/common.css");
+
+        assertTrue(css.contains(".cadence-grid input:focus-visible + span"));
+        assertTrue(css.contains(".channel-list input:focus-visible + .signal-switch"));
+    }
+
+    @Test
+    void deletionFocusTargetsHaveAVisibleIndicator() throws IOException {
+        String css = resource("/static/style/common.css");
+
+        assertTrue(css.contains(".signal-event:focus-visible"));
+        assertTrue(css.contains(".signal-timeline:focus-visible"));
+    }
+
     private void assertSessionRoute(String path) {
         Method route = Arrays.stream(MainController.class.getDeclaredMethods())
                 .filter(method -> {
