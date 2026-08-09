@@ -5,8 +5,7 @@
 --
 -- IMPORTANT: +08:00 is the configured reporting zone used by the writer too.
 
-SET time_zone = '+08:00';
-SET @reporting_time_zone = '+08:00';
+SET @reporting_time_zone = COALESCE(@reporting_time_zone, '+08:00');
 SET time_zone = @reporting_time_zone;
 SET @minimum_cohort_size = 5;
 SET @minimum_report_days = 120;

@@ -2,9 +2,6 @@ package info.wesite.web.notification;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -75,6 +72,7 @@ class NotificationPreferenceMySqlConcurrencyTest {
     private static DomainWatchMapper watches;
     private static UserNotificationMapper notifications;
     private static NotificationDeliveryBatchMapper batches;
+    private static DomainWatchNotifyLogMapper logs;
     private static NotificationPreferenceService preferenceService;
     private static UserNotificationService notificationService;
 
@@ -92,6 +90,7 @@ class NotificationPreferenceMySqlConcurrencyTest {
         watches = mapper(DomainWatchMapper.class, sessions);
         notifications = mapper(UserNotificationMapper.class, sessions);
         batches = mapper(NotificationDeliveryBatchMapper.class, sessions);
+        logs = mapper(DomainWatchNotifyLogMapper.class, sessions);
         NotificationPreferenceServiceImpl preferenceImpl = new NotificationPreferenceServiceImpl();
         ReflectionTestUtils.setField(preferenceImpl, "baseMapper", preferences);
         preferenceService = preferenceImpl;
@@ -108,6 +107,7 @@ class NotificationPreferenceMySqlConcurrencyTest {
 
     @BeforeEach
     void reset() throws Exception {
+        execute("DELETE FROM WEB_DOMAIN_WATCH_NOTIFY_LOG");
         execute("DELETE FROM WEB_USER_NOTIFICATION");
         execute("DELETE FROM WEB_MONITOR_EVENT");
         execute("DELETE FROM WEB_NOTIFICATION_PREFERENCE");
@@ -152,24 +152,16 @@ class NotificationPreferenceMySqlConcurrencyTest {
     void initialClaimSerializesWithEmailChange() throws Exception { raceInitialClaim("email"); }
 
     private void raceInitialClaim(String change) throws Exception {
-        execute("UPDATE WEB_USER_NOTIFICATION SET EMAIL_MODE='IMMEDIATE', EMAIL_STATE='QUEUED', "
+        execute("UPDATE WEB_USER_NOTIFICATION SET EMAIL_MODE='IMMEDIATE_EMAIL', EMAIL_STATE='QUEUED', "
             + "RECIPIENT_EMAIL='old@example.com' WHERE ID='notification-1'");
         CountDownLatch claimOwnsUserLock = new CountDownLatch(1);
         CountDownLatch releaseClaim = new CountDownLatch(1);
         UserNotificationMapper gated = gateImmediateRead(notifications, claimOwnsUserLock, releaseClaim);
-        NotificationDeliveryBatchMapper claimBatches = mock(NotificationDeliveryBatchMapper.class);
-        DomainWatchNotifyLogMapper logs = mock(DomainWatchNotifyLogMapper.class);
-        when(claimBatches.insert(any(info.wesite.core.entity.NotificationDeliveryBatch.class))).thenReturn(1);
-        when(logs.insert(any(info.wesite.core.entity.DomainWatchNotifyLog.class))).thenReturn(1);
         NotificationPolicyLock policy = new NotificationPolicyLock(users, preferences);
         NotificationDeliveryCoordinator claimCoordinator = new NotificationDeliveryCoordinator(
-            claimBatches, gated, logs, policy);
-        NotificationDeliveryBatchMapper cancelBatches = mock(NotificationDeliveryBatchMapper.class);
-        when(cancelBatches.selectForUserForUpdate("user-1")).thenReturn(java.util.List.of());
-        when(cancelBatches.selectForWatchForUpdate("user-1", "watch-1")).thenReturn(java.util.List.of());
-        when(cancelBatches.selectForEventTypesForUpdate(any(), any())).thenReturn(java.util.List.of());
+            batches, gated, logs, policy);
         NotificationCancellationService cancellation = new NotificationCancellationService(
-            cancelBatches, notifications, policy, watches);
+            batches, notifications, policy, watches);
         ExecutorService pool = Executors.newFixedThreadPool(2);
         try {
             Future<?> claimant = pool.submit(() -> new TransactionTemplate(transactions).executeWithoutResult(s ->
@@ -196,7 +188,10 @@ class NotificationPreferenceMySqlConcurrencyTest {
         } finally {
             releaseClaim.countDown(); pool.shutdownNow(); pool.awaitTermination(5, TimeUnit.SECONDS);
         }
+        claimCoordinator.finalizeExpiredCancelled("IMMEDIATE_EMAIL", Instant.now().plusSeconds(120));
         assertEquals(0, scalar("SELECT COUNT(*) FROM WEB_USER_NOTIFICATION WHERE EMAIL_STATE='CLAIMED' AND RECIPIENT_EMAIL='old@example.com'"));
+        assertEquals(1, scalar("SELECT COUNT(*) FROM WEB_NOTIFICATION_DELIVERY_BATCH WHERE RECIPIENT_EMAIL='old@example.com' AND STATE='CANCELLED'"));
+        assertEquals(1, scalar("SELECT COUNT(*) FROM WEB_DOMAIN_WATCH_NOTIFY_LOG"));
     }
 
     private static UserNotificationMapper gateImmediateRead(UserNotificationMapper delegate,
@@ -354,12 +349,12 @@ class NotificationPreferenceMySqlConcurrencyTest {
             + "CREATE_TIME datetime, UPDATE_TIME datetime, USER_ID varchar(32) NOT NULL, EMAIL_MODE varchar(32), "
             + "DOMAIN_EXPIRY_ENABLED tinyint, SSL_EXPIRY_ENABLED tinyint, DOMAIN_STATUS_ENABLED tinyint, "
             + "DNS_CHANGE_ENABLED tinyint, WEBSITE_AVAILABILITY_ENABLED tinyint, UNIQUE KEY UK_PREF_USER (USER_ID)) ENGINE=InnoDB");
-        execute("CREATE TABLE WEB_NOTIFICATION_DELIVERY_BATCH (ID varchar(32) PRIMARY KEY, USER_ID varchar(32), "
-            + "STATE varchar(32), DELETED smallint DEFAULT 0) ENGINE=InnoDB");
+        execute("CREATE TABLE WEB_NOTIFICATION_DELIVERY_BATCH (ID varchar(32) PRIMARY KEY, STATUS smallint, DELETED smallint DEFAULT 0, USER_ID varchar(32), EMAIL_MODE varchar(32), RECIPIENT_EMAIL varchar(254), WINDOW_KEY varchar(128), STATE varchar(32), ATTEMPT_COUNT int, CLAIM_TOKEN varchar(64), CLAIM_UNTIL datetime, CANCELLATION_REQUESTED tinyint DEFAULT 0, NEXT_ATTEMPT_AT datetime, COMPLETED_AT datetime, CREATE_TIME datetime, UPDATE_TIME datetime, UNIQUE KEY UK_BATCH_ROUTE (USER_ID,EMAIL_MODE,RECIPIENT_EMAIL,WINDOW_KEY)) ENGINE=InnoDB");
         execute("CREATE TABLE WEB_USER_NOTIFICATION (ID varchar(32) PRIMARY KEY, STATUS smallint, DELETED smallint, "
             + "CREATE_TIME datetime, UPDATE_TIME datetime, USER_ID varchar(32), EVENT_ID varchar(32), TITLE varchar(255), "
             + "TARGET_PATH varchar(500), EMAIL_MODE varchar(32), EMAIL_STATE varchar(32), EMAIL_ATTEMPT_COUNT int, "
             + "EMAIL_CLAIM_TOKEN varchar(64), EMAIL_CLAIM_UNTIL datetime, DELIVERY_BATCH_ID varchar(32), "
             + "RECIPIENT_EMAIL varchar(254), EMAILED_AT datetime) ENGINE=InnoDB");
+        execute("CREATE TABLE WEB_DOMAIN_WATCH_NOTIFY_LOG (ID varchar(32) PRIMARY KEY, STATUS smallint, DELETED smallint, CREATE_TIME datetime, UPDATE_TIME datetime, USER_ID varchar(32), WATCH_ID varchar(32), EVENT_ID varchar(32), NOTIFICATION_ID varchar(32), BATCH_ID varchar(32), DOMAIN_NAME varchar(255), NOTIFY_EMAIL varchar(254), TO_EMAIL varchar(254), DELIVERY_MODE varchar(32), SEND_STATUS smallint, RETRY_COUNT int, ATTEMPT_NO int, ERROR_MESSAGE varchar(500), ERROR_MSG varchar(500), CLAIM_TOKEN varchar(64), SENT_AT datetime, DAYS_LEFT int, SUBJECT varchar(255)) ENGINE=InnoDB");
     }
 }

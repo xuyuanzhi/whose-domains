@@ -279,6 +279,16 @@ function Invoke-FixtureSqlFileOutput(
         "mysql --user=root --password=$Password --batch wesitedb < /sql/$RelativePath")
 }
 
+function Invoke-ReconciliationScript(
+        [string]$ContainerName,
+        [string]$Password,
+        [string]$InitSql) {
+    $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($InitSql))
+    return Invoke-DockerCommand -ReturnOutput -Arguments @(
+        'exec', $ContainerName, 'sh', '-c',
+        "{ echo $encoded | base64 -d; echo ';'; cat /sql/scripts/verify-retention-fact-day.sql; } | mysql --user=root --password=$Password --batch wesitedb")
+}
+
 function Invoke-FixtureQuery(
         [string]$ContainerName,
         [string]$Password,
@@ -493,6 +503,17 @@ SELECT 'AUTHENTICATED_ACTIVITY_DAILY', fact_date, 1, 0,
   (SELECT COUNT(*) FROM WEB_AUTHENTICATED_ACTIVITY_DAILY A WHERE A.ACTIVITY_DATE = fact_date), NOW(), 'VERIFIED', NOW()
 FROM days;
 '@)
+
+    [void](Invoke-FixtureQuery $ContainerName $Password "UPDATE WEB_RETENTION_FACT_HEALTH SET VERIFICATION_STATUS='OPEN',VERIFIED_AT=NULL WHERE FACT_NAME='AUTHENTICATED_ACTIVITY_DAILY' AND FACT_DATE=DATE_SUB(CURDATE(),INTERVAL 100 DAY);")
+    try { [void](Invoke-ReconciliationScript $ContainerName $Password ''); throw 'missing reconciliation input was accepted' }
+    catch { Assert-RolloutContract (-not $_.Exception.Message.Contains('was accepted')) "$Label missing reconciliation input was accepted" }
+    $mismatchInit = "SET @reporting_time_zone='+08:00',@verified_fact_date=DATE_SUB(CURDATE(),INTERVAL 100 DAY),@external_expected_rows=1,@reconciliation_source='auth-gateway',@reconciliation_id='mismatch-$Label'"
+    try { [void](Invoke-ReconciliationScript $ContainerName $Password $mismatchInit); throw 'mismatched reconciliation was accepted' }
+    catch { Assert-RolloutContract (-not $_.Exception.Message.Contains('was accepted')) "$Label mismatched reconciliation was accepted" }
+    $matchInit = "SET @reporting_time_zone='+08:00',@verified_fact_date=DATE_SUB(CURDATE(),INTERVAL 100 DAY),@external_expected_rows=0,@reconciliation_source='auth-gateway',@reconciliation_id='gateway-$Label-100'"
+    [void](Invoke-ReconciliationScript $ContainerName $Password $matchInit)
+    $reconciled = Get-FixtureCount $ContainerName $Password "SELECT COUNT(*) FROM WEB_RETENTION_FACT_HEALTH WHERE FACT_DATE=DATE_SUB(CURDATE(),INTERVAL 100 DAY) AND VERIFICATION_STATUS='VERIFIED' AND EXTERNAL_EXPECTED_ROWS=0 AND RECONCILIATION_SOURCE='auth-gateway' AND RECONCILIATION_ID='gateway-$Label-100';"
+    Assert-RolloutContract ($reconciled -eq 1) "$Label matching reconciliation did not persist audit fields"
 
     [void](Invoke-FixtureQuery $ContainerName $Password "DELETE FROM WEB_RETENTION_FACT_HEALTH WHERE FACT_NAME='AUTHENTICATED_ACTIVITY_DAILY' AND FACT_DATE=DATE_SUB(CURDATE(), INTERVAL 100 DAY);")
     $gap = Invoke-FixtureSqlFileOutput $ContainerName $Password 'scripts/retention-report.sql'
