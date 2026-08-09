@@ -21,12 +21,15 @@ import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 
 /**
  * Small HTTP/1.1 client that connects to the exact address approved by the
  * target policy while retaining the original Host header, TLS SNI, and HTTPS
  * hostname verification.
  */
+@Component
 final class BoundHttpClient {
 
     private static final int MAX_REDIRECTS = 3;
@@ -40,6 +43,7 @@ final class BoundHttpClient {
     private final MonitorTargetPolicy.HostResolver resolver;
     private final AddressTransport transport;
 
+    @Autowired
     BoundHttpClient(MonitorTargetPolicy.HostResolver resolver) {
         this(resolver, BoundHttpClient::exchangeBound);
     }
