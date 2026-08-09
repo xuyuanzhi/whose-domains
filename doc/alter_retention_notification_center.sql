@@ -25,6 +25,8 @@ CREATE TABLE `WEB_MONITOR_EVENT` (
   `SNAPSHOT_ID` varchar(32),
   `FINGERPRINT` varchar(128) NOT NULL,
   `EVENT_TYPE` varchar(64) NOT NULL,
+  `RISK` varchar(16) NULL COMMENT 'LOW, MEDIUM, HIGH, CRITICAL; NULL only for legacy rows',
+  `SOURCE` varchar(32) NULL COMMENT 'Collector source captured when the event is published',
   `OLD_VALUE` text,
   `NEW_VALUE` text,
   `OCCURRED_AT` datetime NOT NULL,

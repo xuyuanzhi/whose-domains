@@ -123,7 +123,7 @@ class NotificationControllerTest {
     }
 
     @Test
-    void listBatchEnrichesCanonicalWebsiteSslAndDomainRisksWithoutUsingNotificationCopy() throws Exception {
+    void listBatchUsesPersistedCanonicalRiskAndSourceWithoutReinterpretingEventFields() throws Exception {
         UserNotification website = notification("notice-web", "/domain/example.com");
         website.setEventId("event-web");
         website.setTitle("Recovered wording must not lower canonical risk");
@@ -139,6 +139,12 @@ class NotificationControllerTest {
         MonitorEvent websiteEvent = event("event-web", "watch-1", "WEBSITE_DOWN", "false", occurredAt);
         MonitorEvent sslEvent = event("event-ssl", "watch-1", "SSL_EXPIRING", "2026-09-08", occurredAt);
         MonitorEvent domainEvent = event("event-domain", "watch-1", "DOMAIN_EXPIRING", "2026-08-16", occurredAt);
+        websiteEvent.setRisk("LOW");
+        websiteEvent.setSource("HTTP");
+        sslEvent.setRisk("MEDIUM");
+        sslEvent.setSource("TLS");
+        domainEvent.setRisk("CRITICAL");
+        domainEvent.setSource("WHOIS/RDAP");
         when(events.listByIds(any())).thenReturn(List.of(websiteEvent, sslEvent, domainEvent));
         DomainWatch watch = new DomainWatch();
         watch.setId("watch-1");
@@ -148,16 +154,41 @@ class NotificationControllerTest {
         mvc.perform(get("/api/notifications"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].eventType").value("WEBSITE_DOWN"))
-                .andExpect(jsonPath("$.data.items[0].risk").value("CRITICAL"))
+                .andExpect(jsonPath("$.data.items[0].risk").value("LOW"))
                 .andExpect(jsonPath("$.data.items[0].domain").value("example.com"))
                 .andExpect(jsonPath("$.data.items[0].source").value("HTTP"))
-                .andExpect(jsonPath("$.data.items[1].risk").value("HIGH"))
+                .andExpect(jsonPath("$.data.items[1].risk").value("MEDIUM"))
                 .andExpect(jsonPath("$.data.items[1].source").value("TLS"))
-                .andExpect(jsonPath("$.data.items[2].risk").value("HIGH"))
+                .andExpect(jsonPath("$.data.items[2].risk").value("CRITICAL"))
                 .andExpect(jsonPath("$.data.items[2].source").value("WHOIS/RDAP"));
 
         verify(events, times(1)).listByIds(any());
         verify(watches, times(1)).list(any(Wrapper.class));
+    }
+
+    @Test
+    void listLabelsLegacyNullRiskAndSourceAsUnknownInsteadOfInventingCanonicalFacts() throws Exception {
+        UserNotification legacy = notification("notice-legacy", "/domain/example.com");
+        legacy.setEventId("event-legacy");
+        Page<UserNotification> page = new Page<>(1, 20, 1);
+        page.setRecords(List.of(legacy));
+        when(notifications.page(any(Page.class), any(Wrapper.class))).thenReturn(page);
+        MonitorEvent event = event(
+            "event-legacy",
+            "watch-1",
+            "WEBSITE_DOWN",
+            "false",
+            new Date(1_786_233_600_000L));
+        when(events.listByIds(any())).thenReturn(List.of(event));
+        DomainWatch watch = new DomainWatch();
+        watch.setId("watch-1");
+        watch.setDomainName("example.com");
+        when(watches.list(any(Wrapper.class))).thenReturn(List.of(watch));
+
+        mvc.perform(get("/api/notifications"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].risk").value("UNKNOWN"))
+                .andExpect(jsonPath("$.data.items[0].source").value("UNKNOWN"));
     }
 
     @Test

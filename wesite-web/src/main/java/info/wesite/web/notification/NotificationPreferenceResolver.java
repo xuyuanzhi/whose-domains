@@ -67,7 +67,7 @@ public class NotificationPreferenceResolver {
     }
 
     private static boolean isHighRisk(MonitorEvent event) {
-        MonitorRisk risk = NotificationEventMetadataMapper.risk(event);
+        MonitorRisk risk = NotificationEventMetadataMapper.canonicalRisk(event);
         return risk == MonitorRisk.HIGH || risk == MonitorRisk.CRITICAL;
     }
 }

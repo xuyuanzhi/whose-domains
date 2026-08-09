@@ -324,6 +324,60 @@ class MonitorEventPublisherTest {
         verify(dispatcher, times(1)).dispatch(any(MonitorEvent.class), any(UserNotification.class));
     }
 
+    @Test
+    void oneScanCrossingAllExpiryThresholdsPreservesEachDraftRisk() {
+        detector = new MonitorChangeDetector(CLOCK);
+        publisher = new MonitorEventPublisher(
+            snapshotService,
+            eventService,
+            notificationService,
+            eventMapper,
+            notificationMapper,
+            dispatcher,
+            detector,
+            CLOCK);
+        MonitorState previous = expiryState(LocalDate.of(2026, 8, 10));
+        MonitorState current = expiryState(LocalDate.of(2026, 8, 10));
+        MonitorSnapshot previousSnapshot = snapshot("previous", previous);
+        previousSnapshot.setCheckedAt(Date.from(CLOCK.instant().minusSeconds(31L * 86_400L)));
+        when(snapshotService.getOne(any())).thenReturn(previousSnapshot);
+
+        List<MonitorEvent> events = publisher.publish(watch(), current, true);
+
+        assertEquals(List.of("LOW", "HIGH", "CRITICAL"), events.stream()
+            .map(MonitorEvent::getRisk)
+            .toList());
+        assertTrue(events.stream().allMatch(event -> "WHOIS/RDAP".equals(event.getSource())));
+    }
+
+    @Test
+    void holdEntryAndExitPreserveTheDraftRiskAtBothBoundaries() {
+        MonitorState beforeHold = state(Set.of("ok"));
+        MonitorState duringHold = state(Set.of("clientHold"));
+        MonitorState afterHold = state(Set.of("ok"));
+        MonitorEventDraft entered = statusDraft();
+        MonitorEventDraft exited = new MonitorEventDraft(
+            MonitorEventType.DOMAIN_STATUS_CHANGED,
+            MonitorRisk.MEDIUM,
+            "example.com",
+            "domainStatuses",
+            "clientHold",
+            "ok");
+        when(snapshotService.getOne(any())).thenReturn(
+            snapshot("before-hold", beforeHold),
+            snapshot("during-hold", duringHold));
+        when(detector.detect(eq(beforeHold), eq(duringHold), nullable(Instant.class), nullable(Instant.class)))
+            .thenReturn(List.of(entered));
+        when(detector.detect(eq(duringHold), eq(afterHold), nullable(Instant.class), nullable(Instant.class)))
+            .thenReturn(List.of(exited));
+
+        MonitorEvent entryEvent = publisher.publish(watch(), duringHold, true).get(0);
+        MonitorEvent exitEvent = publisher.publish(watch(), afterHold, true).get(0);
+
+        assertEquals("CRITICAL", entryEvent.getRisk());
+        assertEquals("MEDIUM", exitEvent.getRisk());
+    }
+
     private static DomainWatch watch() {
         DomainWatch watch = new DomainWatch();
         watch.setId("watch-1");
@@ -339,6 +393,17 @@ class MonitorEventPublisherTest {
             LocalDate.of(2026, 9, 8),
             LocalDate.of(2026, 9, 8),
             Map.of("A", Set.of("192.0.2.1")),
+            true,
+            0);
+    }
+
+    private static MonitorState expiryState(LocalDate domainExpiry) {
+        return new MonitorState(
+            "example.com",
+            Set.of("ok"),
+            domainExpiry,
+            LocalDate.of(2027, 8, 9),
+            Map.of(),
             true,
             0);
     }

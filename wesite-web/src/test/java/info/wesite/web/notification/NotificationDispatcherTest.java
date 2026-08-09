@@ -133,6 +133,7 @@ class NotificationDispatcherTest {
     private static MonitorEvent event(String eventType, String newValue) {
         MonitorEvent event = new MonitorEvent();
         event.setEventType(eventType);
+        event.setRisk("WEBSITE_DOWN".equals(eventType) ? "CRITICAL" : "MEDIUM");
         event.setNewValue(newValue);
         event.setOccurredAt(Date.from(Instant.parse("2026-09-01T00:00:00Z")));
         return event;

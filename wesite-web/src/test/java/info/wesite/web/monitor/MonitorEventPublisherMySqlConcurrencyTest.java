@@ -293,6 +293,7 @@ class MonitorEventPublisherMySqlConcurrencyTest {
                   SNAPSHOT_ID varchar(32),
                   FINGERPRINT varchar(128) NOT NULL,
                   EVENT_TYPE varchar(64) NOT NULL,
+                  RISK varchar(16), SOURCE varchar(32),
                   OLD_VALUE text, NEW_VALUE text,
                   OCCURRED_AT datetime NOT NULL,
                   UNIQUE KEY UK_MONITOR_EVENT_WATCH_FINGERPRINT (WATCH_ID, FINGERPRINT)

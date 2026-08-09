@@ -179,6 +179,8 @@ public class MonitorEventPublisher {
         event.setSnapshotId(snapshot.getId());
         event.setFingerprint(fingerprint);
         event.setEventType(draft.type().name());
+        event.setRisk(draft.risk().name());
+        event.setSource(source(draft.type()));
         event.setOldValue(draft.oldValue());
         event.setNewValue(draft.newValue());
         event.setOccurredAt(occurredAt);
@@ -266,6 +268,15 @@ public class MonitorEventPublisher {
             case DNS_CHANGED -> "DNS records changed";
             case WEBSITE_DOWN -> "Website unavailable";
             case WEBSITE_RECOVERED -> "Website recovered";
+        };
+    }
+
+    private static String source(MonitorEventType type) {
+        return switch (type) {
+            case DOMAIN_EXPIRING, DOMAIN_STATUS_CHANGED -> "WHOIS/RDAP";
+            case SSL_EXPIRING -> "TLS";
+            case DNS_CHANGED -> "DNS";
+            case WEBSITE_DOWN, WEBSITE_RECOVERED -> "HTTP";
         };
     }
 

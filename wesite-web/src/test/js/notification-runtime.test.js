@@ -152,6 +152,21 @@ test('notification rows allow only same-origin internal paths', () => {
     assert.equal(backslash.parts.target.hidden, true);
 });
 
+test('legacy unknown risk is rendered as a quiet unrated signal', () => {
+    const harness = createHarness();
+    const row = harness.api.createNotificationRow({
+        id: 'legacy',
+        title: 'Legacy event',
+        content: 'Risk was not recorded',
+        risk: 'UNKNOWN',
+        source: 'UNKNOWN'
+    }, harness.document);
+
+    assert.equal(row.parts.risk.textContent, 'Unrated');
+    assert.equal(row.parts.risk.getAttribute('data-risk'), 'unknown');
+    assert.equal(row.parts.source.textContent, 'UNKNOWN');
+});
+
 test('category loading normalizes unrecognized filters to all', async () => {
     const harness = createHarness(() => ok({ items: [], total: 0, page: 1, size: 20 }));
     harness.document.register('notificationList');

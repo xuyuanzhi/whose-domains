@@ -20,6 +20,10 @@ public class MonitorEvent extends BaseEntity {
 
     private String eventType;
 
+    private String risk;
+
+    private String source;
+
     private String oldValue;
 
     private String newValue;
