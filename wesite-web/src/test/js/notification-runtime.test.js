@@ -75,6 +75,7 @@ function createHarness(fetchImpl = () => ok(null), readyState = 'complete') {
     const document = new FakeDocument();
     document.readyState = readyState;
     const requests = [];
+    const analyticsCalls = [];
     const timers = [];
     let now = 0;
     const windowListeners = new Map();
@@ -97,13 +98,18 @@ function createHarness(fetchImpl = () => ok(null), readyState = 'complete') {
             dispatchEvent() {},
             setTimeout: setFakeTimeout,
             clearTimeout: clearFakeTimeout,
-            location: { origin: 'https://whose.domains', pathname: '/user/notifications' }
+            location: { origin: 'https://whose.domains', pathname: '/user/notifications' },
+            WhoseRetentionAnalytics: {
+                track(eventName, parameters) {
+                    analyticsCalls.push({ eventName, parameters: JSON.parse(JSON.stringify(parameters)) });
+                }
+            }
         }
     });
     context.globalThis = context;
     vm.runInContext(script, context, { filename: scriptPath });
     return {
-        api: context.window.WhoseNotifications, context, document, requests, timers, windowListeners,
+        api: context.window.WhoseNotifications, context, document, requests, timers, windowListeners, analyticsCalls,
         setNow(value) { now = value; },
         runDueTimers() {
             timers.filter(timer => !timer.cleared && timer.due <= now).forEach(timer => { timer.cleared = true; timer.callback(); });
@@ -209,6 +215,36 @@ test('marking a row read refreshes and announces the unread count', async () => 
     assert.equal(count.textContent, '2 unread notifications');
     assert.equal(count.getAttribute('data-count'), '2');
     assert.equal(row.classList.contains('is-read'), true);
+});
+
+test('notification actions emit only after their API succeeds and never include notification identity or text', async () => {
+    const successResponses = [ok(null), ok({ unreadCount: 0 })];
+    const successful = createHarness(() => successResponses.shift());
+    successful.document.register('notificationCount');
+    const row = successful.api.createNotificationRow({
+        id: 'notification-123',
+        title: 'Private notification text',
+        content: 'Domain private-example.com changed',
+        domain: 'private-example.com',
+        risk: 'CRITICAL'
+    }, successful.document);
+
+    row.parts.read.listeners.get('click')();
+    await flush();
+
+    assert.deepEqual(successful.analyticsCalls, [{
+        eventName: 'notification_action_clicked',
+        parameters: { type: 'mark_read', category: 'all', risk: 'CRITICAL', source: 'notification_center' }
+    }]);
+
+    const failed = createHarness(() => Promise.reject(new Error('offline')));
+    const failedRow = failed.api.createNotificationRow({
+        id: 'notification-456', title: 'Do not track', content: 'Do not track', risk: 'HIGH'
+    }, failed.document);
+    failedRow.parts.read.listeners.get('click')();
+    await flush();
+
+    assert.deepEqual(failed.analyticsCalls, []);
 });
 
 test('settings payload drops fields outside the preference API allowlist', () => {

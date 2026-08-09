@@ -1,3 +1,7 @@
+-- Retention notification-center release migration.
+-- Apply after doc/alter_domain_watch_snapshot.sql on an existing installation.
+-- This current baseline already includes SCHEMA_VERSION/OBSERVED_SOURCES and RISK/SOURCE.
+-- Do not also run the later incremental column migrations on a fresh application of this file.
 CREATE TABLE `WEB_MONITOR_SNAPSHOT` (
   `ID` varchar(32) NOT NULL,
   `STATUS` smallint(1) DEFAULT '1',

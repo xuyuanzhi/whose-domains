@@ -59,6 +59,22 @@
             : { key: 'unknown', label: 'Unrated' };
     }
 
+    function trackRetentionEvent(eventName, parameters) {
+        if (root.WhoseRetentionAnalytics && typeof root.WhoseRetentionAnalytics.track === 'function') {
+            root.WhoseRetentionAnalytics.track(eventName, parameters);
+        }
+    }
+
+    function notificationActionParameters(type, item) {
+        var risk = canonicalRisk(item && item.risk).key;
+        return {
+            type: type,
+            category: currentCategory,
+            risk: risk === 'unknown' ? 'UNKNOWN' : risk.toUpperCase(),
+            source: 'notification_center'
+        };
+    }
+
     function formatTime(value) {
         if (!value) return 'Time unavailable';
         var date = new Date(value);
@@ -121,8 +137,8 @@
         remove.setAttribute('data-action', 'delete');
         remove.textContent = 'Delete';
 
-        read.addEventListener('click', function () { markRead(item.id, article, read).catch(function () {}); });
-        remove.addEventListener('click', function () { deleteNotification(item.id, article, remove).catch(function () {}); });
+        read.addEventListener('click', function () { markRead(item.id, article, read, notificationActionParameters('mark_read', item)).catch(function () {}); });
+        remove.addEventListener('click', function () { deleteNotification(item.id, article, remove, notificationActionParameters('delete', item)).catch(function () {}); });
         meta.append(risk, time);
         context.append(domain, source);
         actions.append(target, read, remove);
@@ -178,6 +194,9 @@
                     ? String(data.total || visibleCount) + ' signals in this channel.'
                     : 'No signals in this channel.');
                 if (pagination) pagination.hidden = !data || currentPage * (data.size || 20) >= (data.total || 0);
+                trackRetentionEvent('notification_opened', {
+                    type: 'notification_opened', category: requestedCategory, source: 'notification_center'
+                });
                 return data;
             })
             .catch(function (error) {
@@ -214,12 +233,13 @@
         return tracked;
     }
 
-    function markRead(id, row, button) {
+    function markRead(id, row, button, analyticsParameters) {
         if (button) button.disabled = true;
         return requestJson('/api/notifications/' + encodeURIComponent(id) + '/read', { method: 'PUT' })
             .then(function () {
                 if (row) row.classList.add('is-read');
                 if (button) button.textContent = 'Read';
+                if (analyticsParameters) trackRetentionEvent('notification_action_clicked', analyticsParameters);
                 return refreshUnreadCount();
             })
             .catch(function (error) {
@@ -229,7 +249,7 @@
             });
     }
 
-    function deleteNotification(id, row, button) {
+    function deleteNotification(id, row, button, analyticsParameters) {
         if (button) button.disabled = true;
         return requestJson('/api/notifications/' + encodeURIComponent(id), { method: 'DELETE' })
             .then(function () {
@@ -243,6 +263,7 @@
                 if (focusTarget) focusTarget.focus();
                 if (list && !list.children.length) setCenterState('empty', 'No signals in this channel.');
                 else setCenterState('ready', 'Notification deleted.');
+                if (analyticsParameters) trackRetentionEvent('notification_action_clicked', analyticsParameters);
                 return refreshUnreadCount().catch(function () { return null; });
             })
             .catch(function (error) {
@@ -256,7 +277,12 @@
         var button = document.getElementById('markAllRead');
         if (button) button.disabled = true;
         return requestJson('/api/notifications/read-all', { method: 'PUT' })
-            .then(function () { return Promise.all([loadNotifications(currentCategory, 1), refreshUnreadCount()]); })
+            .then(function () {
+                trackRetentionEvent('notification_action_clicked', {
+                    type: 'mark_all_read', category: currentCategory, source: 'notification_center'
+                });
+                return Promise.all([loadNotifications(currentCategory, 1), refreshUnreadCount()]);
+            })
             .finally(function () { if (button) button.disabled = false; });
     }
 
@@ -310,6 +336,9 @@
         }).then(function (data) {
             applyPreferences(form, data || {});
             setSettingsState('ready', 'Notification settings saved.', 'success');
+            trackRetentionEvent('notification_preferences_saved', {
+                type: 'notification_preferences_saved', category: 'preferences', source: 'notification_settings'
+            });
         }).catch(function (error) {
             setSettingsState('ready', error.message, 'error');
         }).finally(function () {

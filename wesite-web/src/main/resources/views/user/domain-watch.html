@@ -241,6 +241,9 @@
                 document.getElementById('loginRequired').style.display = 'none';
                 document.getElementById('watchlistUI').style.display = 'block';
                 renderList(data.data || []);
+                trackRetentionEvent('watchlist_return_visit', {
+                    type: 'watchlist_return_visit', category: 'watchlist', source: 'watchlist'
+                });
             })
             .catch(function() { showLoginRequired(); });
     }
@@ -372,6 +375,9 @@
                 document.getElementById('addDomainInput').value = '';
                 document.getElementById('addNotifyEmail').value = '';
                 showAddMsg('✅ ' + domain + ' added to your watchlist!', 'success');
+                trackRetentionEvent('watch_created', {
+                    type: 'watch_created', category: 'watchlist', source: 'watchlist'
+                });
                 reloadList();
             } else if (data.code === -401 || data.code === 401) {
                 showLoginRequired();
@@ -452,6 +458,12 @@
 
     function escHtml(str) {
         return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function trackRetentionEvent(eventName, parameters) {
+        if (typeof window !== 'undefined' && window.WhoseRetentionAnalytics && typeof window.WhoseRetentionAnalytics.track === 'function') {
+            window.WhoseRetentionAnalytics.track(eventName, parameters);
+        }
     }
 
     function monitoringSummary(summary) {
