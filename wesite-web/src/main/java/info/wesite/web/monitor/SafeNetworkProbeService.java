@@ -121,6 +121,8 @@ public final class SafeNetworkProbeService {
             BoundHttpClient.Response response = httpClient.execute(uri, "HEAD", deadline);
             int status = response.status();
             return new HttpProbe(status > 0 && status < 600, status, elapsedMillis(startedAt));
+        } catch (MonitorTargetPolicy.BlockedTargetException blocked) {
+            throw blocked;
         } catch (IOException failed) {
             deadline.throwIfExpired();
             return new HttpProbe(false, null, null);
@@ -162,8 +164,8 @@ public final class SafeNetworkProbeService {
     }
 
     private static List<Integer> validatePorts(List<Integer> ports) {
-        if (ports == null || ports.size() > MAX_PORTS) {
-            throw new IllegalArgumentException("Between zero and twenty ports are required");
+        if (ports == null || ports.isEmpty() || ports.size() > MAX_PORTS) {
+            throw new IllegalArgumentException("Between one and twenty ports are required");
         }
         for (Integer port : ports) {
             if (port == null || port < 1 || port > 65_535) {

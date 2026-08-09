@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -13,6 +14,7 @@ import java.net.InetAddress;
 import java.net.URI;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
@@ -64,6 +66,20 @@ class SafeNetworkProbeServiceTest {
             () -> service.checkPorts("example.com", java.util.Collections.nCopies(21, 443)));
         assertThrows(IllegalArgumentException.class,
             () -> service.checkPorts("example.com", java.util.Arrays.asList(443, null)));
+
+        assertEquals(0, resolutions.get());
+    }
+
+    @Test
+    void rejectsEmptyPortListBeforeResolving() {
+        AtomicInteger resolutions = new AtomicInteger();
+        SafeNetworkProbeService service = serviceWithResolver((host, deadline) -> {
+            resolutions.incrementAndGet();
+            return new InetAddress[] {InetAddress.getByName("93.184.216.34")};
+        });
+
+        assertThrows(IllegalArgumentException.class,
+            () -> service.checkPorts("example.com", List.of()));
 
         assertEquals(0, resolutions.get());
     }
@@ -123,23 +139,43 @@ class SafeNetworkProbeServiceTest {
 
     @Test
     void portResultsPreserveRequestOrderWhenTasksFinishOutOfOrder() throws Exception {
+        CountDownLatch firstTaskStarted = new CountDownLatch(1);
+        CountDownLatch secondTaskFinished = new CountDownLatch(1);
+        List<Integer> completionOrder = Collections.synchronizedList(new ArrayList<>());
         SafeNetworkProbeService service = serviceWith(
             publicResolver(),
             (address, port, timeoutMillis) -> {
                 if (port == 80) {
+                    firstTaskStarted.countDown();
                     try {
-                        Thread.sleep(100);
+                        if (!secondTaskFinished.await(1, TimeUnit.SECONDS)) {
+                            throw new IOException("second port probe did not finish");
+                        }
                     } catch (InterruptedException interrupted) {
                         Thread.currentThread().interrupt();
                         throw new IOException("interrupted", interrupted);
                     }
+                } else {
+                    try {
+                        if (!firstTaskStarted.await(1, TimeUnit.SECONDS)) {
+                            throw new IOException("first port probe did not start");
+                        }
+                    } catch (InterruptedException interrupted) {
+                        Thread.currentThread().interrupt();
+                        throw new IOException("interrupted", interrupted);
+                    }
+                    completionOrder.add(port);
+                    secondTaskFinished.countDown();
+                    return true;
                 }
+                completionOrder.add(port);
                 return true;
             });
 
         SafeNetworkProbeService.PortProbeResult result =
             service.checkPorts("example.com", List.of(80, 443));
 
+        assertEquals(List.of(443, 80), completionOrder);
         assertEquals(List.of(80, 443), result.ports().stream()
             .map(SafeNetworkProbeService.PortResult::port).toList());
     }
@@ -197,6 +233,43 @@ class SafeNetworkProbeServiceTest {
     }
 
     @Test
+    void interruptingPortCallerCancelsEveryUnfinishedPortFuture() throws Exception {
+        CountDownLatch started = new CountDownLatch(2);
+        CountDownLatch interrupted = new CountDownLatch(2);
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+        SafeNetworkProbeService service = serviceWith(
+            publicResolver(), executor(2), defaultHttpClient(publicResolver()),
+            (address, timeoutMillis) -> false,
+            (address, port, timeoutMillis) -> {
+                started.countDown();
+                try {
+                    new CountDownLatch(1).await();
+                    return true;
+                } catch (InterruptedException cancelled) {
+                    interrupted.countDown();
+                    throw new IOException("cancelled", cancelled);
+                }
+            },
+            MonitorDeadline::after);
+        Thread caller = new Thread(() -> {
+            try {
+                service.checkPorts("example.com", List.of(80, 443));
+            } catch (Throwable thrown) {
+                failure.set(thrown);
+            }
+        });
+
+        caller.start();
+        assertTrue(started.await(1, TimeUnit.SECONDS), "port probes did not start");
+        caller.interrupt();
+        caller.join(1_000);
+
+        assertFalse(caller.isAlive(), "interrupted caller did not return");
+        assertTrue(failure.get() instanceof IOException);
+        assertTrue(interrupted.await(1, TimeUnit.SECONDS), "unfinished port probes were not cancelled");
+    }
+
+    @Test
     void pingUsesTheFirstApprovedAddressForIcmp() throws Exception {
         InetAddress approved = InetAddress.getByName("93.184.216.34");
         AtomicReference<InetAddress> reached = new AtomicReference<>();
@@ -219,8 +292,10 @@ class SafeNetworkProbeServiceTest {
     void httpsFailureFallsBackToHttpWithTheSameRequestDeadline() throws Exception {
         MonitorTargetPolicy.HostResolver resolver = publicResolver();
         List<String> schemes = new ArrayList<>();
+        List<MonitorDeadline> deadlines = new ArrayList<>();
         BoundHttpClient client = new BoundHttpClient(resolver, (uri, method, address, deadline) -> {
             schemes.add(uri.getScheme());
+            deadlines.add(deadline);
             if ("https".equals(uri.getScheme())) {
                 throw new IOException("TLS failed");
             }
@@ -235,12 +310,13 @@ class SafeNetworkProbeServiceTest {
         SafeNetworkProbeService.PingProbeResult result = service.ping("example.com");
 
         assertEquals(List.of("https", "http"), schemes);
+        assertSame(deadlines.get(0), deadlines.get(1));
         assertTrue(result.httpReachable());
         assertEquals(204, result.httpStatus());
     }
 
     @Test
-    void privateRedirectIsRejectedByBoundHttpClientBeforeAnyPrivateConnection() throws Exception {
+    void privateRedirectPolicyRejectionIsPropagatedBeforeHttpFallback() throws Exception {
         InetAddress approved = InetAddress.getByName("93.184.216.34");
         AtomicInteger privateConnections = new AtomicInteger();
         MonitorTargetPolicy.HostResolver resolver = (host, deadline) -> {
@@ -264,10 +340,10 @@ class SafeNetworkProbeServiceTest {
             (address, port, timeoutMillis) -> false,
             MonitorDeadline::after);
 
-        SafeNetworkProbeService.PingProbeResult result = service.ping("example.com");
+        assertThrows(MonitorTargetPolicy.BlockedTargetException.class,
+            () -> service.ping("example.com"));
 
         assertEquals(0, privateConnections.get());
-        assertTrue(result.httpReachable());
     }
 
     @Test
