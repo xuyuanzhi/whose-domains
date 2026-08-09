@@ -21,7 +21,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Profile;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import info.wesite.core.entity.MonitorEvent;
@@ -90,17 +89,14 @@ public class NotificationDeliveryTask {
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
-    @Scheduled(cron = "0 */5 * * * ?")
     public void deliverImmediate() {
         deliver(NotificationDispatchDecision.IMMEDIATE_EMAIL, false, "Immediate");
     }
 
-    @Scheduled(cron = "0 0 8 * * ?")
     public void deliverDailyDigest() {
         deliver(NotificationDispatchDecision.DAILY_DIGEST, true, "Daily");
     }
 
-    @Scheduled(cron = "0 0 8 * * MON")
     public void deliverWeeklyDigest() {
         deliver(NotificationDispatchDecision.WEEKLY_DIGEST, true, "Weekly");
     }

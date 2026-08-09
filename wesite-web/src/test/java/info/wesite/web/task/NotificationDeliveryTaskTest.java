@@ -13,7 +13,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.lang.reflect.Method;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -29,7 +28,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.thymeleaf.context.Context;
 import org.thymeleaf.spring6.SpringTemplateEngine;
 import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver;
@@ -217,13 +215,6 @@ class NotificationDeliveryTaskTest {
     }
 
     @Test
-    void schedulesMatchImmediateDailyAndWeeklyDeliveryWindows() throws Exception {
-        assertEquals("0 */5 * * * ?", cron("deliverImmediate"));
-        assertEquals("0 0 8 * * ?", cron("deliverDailyDigest"));
-        assertEquals("0 0 8 * * MON", cron("deliverWeeklyDigest"));
-    }
-
-    @Test
     void templatesEscapeEventValuesInsteadOfRenderingInjectedMarkup() {
         SpringTemplateEngine engine = templateEngine();
         Context eventContext = new Context();
@@ -294,11 +285,6 @@ class NotificationDeliveryTaskTest {
         User user = new User();
         user.setEmail(email);
         return user;
-    }
-
-    private static String cron(String methodName) throws Exception {
-        Method method = NotificationDeliveryTask.class.getMethod(methodName);
-        return method.getAnnotation(Scheduled.class).cron();
     }
 
     private static SpringTemplateEngine templateEngine() {

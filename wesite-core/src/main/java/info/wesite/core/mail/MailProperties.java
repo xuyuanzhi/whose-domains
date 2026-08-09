@@ -31,6 +31,6 @@ public class MailProperties {
     /** 批量发送限速（封/秒），默认 10，避免被 SMTP 服务商限流 */
     private int sendRatePerSecond = 10;
 
-    /** 是否启用邮件发送（false 时 SmtpMailSender 直接返回成功，便于测试环境关闭）*/
+    /** 是否启用邮件发送；false 表示发送能力不可用，绝不记录为成功。 */
     private boolean enabled = true;
 }

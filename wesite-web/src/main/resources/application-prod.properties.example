@@ -98,3 +98,7 @@ wesite.mail.from=${WESITE_MAIL_FROM:alerts@mail.whose.domains}
 wesite.mail.from-name=Whose.Domains
 wesite.mail.reply-to=${WESITE_MAIL_REPLY_TO:support@whose.domains}
 wesite.mail.send-rate-per-second=2
+
+# Roll out delivery in phases. Missing values stay false and never claim queued notifications.
+wesite.notification-delivery.immediate-enabled=${WESITE_NOTIFICATION_DELIVERY_IMMEDIATE_ENABLED:false}
+wesite.notification-delivery.digest-enabled=${WESITE_NOTIFICATION_DELIVERY_DIGEST_ENABLED:false}

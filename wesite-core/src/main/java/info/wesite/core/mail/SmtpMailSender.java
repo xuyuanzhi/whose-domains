@@ -49,8 +49,8 @@ public class SmtpMailSender implements MailSender {
     @Override
     public MailSendResult send(Mail mail) {
         if (!mailProperties.isEnabled()) {
-            log.info("[mail] disabled, skip sending to={}", mail.getTo());
-            return MailSendResult.ok();
+            log.warn("[mail] disabled, reject sending to={}", mail.getTo());
+            return MailSendResult.fail("mail sending is disabled");
         }
         if (mail.getTo() == null || mail.getTo().isEmpty()) {
             return MailSendResult.fail("'to' is required");
