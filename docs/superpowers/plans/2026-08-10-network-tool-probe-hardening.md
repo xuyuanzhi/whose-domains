@@ -355,9 +355,9 @@ git commit -m "fix: bind port probes to approved addresses"
 - Consumes: completed safe facade and migrated controllers.
 - Produces: documented probe boundaries and complete verification evidence.
 
-- [ ] **Step 1: Add a static contract test before documentation/cleanup**
+- [ ] **Step 1: Add an end-to-end probe-boundary regression test**
 
-Add one test that reads both controller sources and asserts they contain `SafeNetworkProbeService` while excluding `InetAddress.getByName`, `URL.openConnection`, `new Socket`, and `Executors.new`. Run it before any final cleanup and verify it fails if one forbidden primitive is temporarily reintroduced.
+Add a service integration test with a resolver that first returns an approved public address and would return a private address on any later lookup. Inject a recording port connector and HTTP transport, execute Ping and Port Checker service operations, and assert that every connection receives only the originally approved `InetAddress`, the resolver call count is exactly the number of policy-required resolutions, and no connection receives a host name. Mutate the test connector locally to resolve the host again, run the test to observe RED, then restore the bound-address behavior and verify GREEN. This tests the externally meaningful connection boundary rather than controller source text.
 
 - [ ] **Step 2: Document the security and capacity contract**
 
