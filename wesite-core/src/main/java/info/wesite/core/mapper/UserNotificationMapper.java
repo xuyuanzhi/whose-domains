@@ -21,36 +21,73 @@ public interface UserNotificationMapper extends BaseMapper<UserNotification> {
         @Param("userId") String userId,
         @Param("eventId") String eventId);
 
-    @Select("SELECT n.* FROM WEB_USER_NOTIFICATION n "
-        + "WHERE n.STATUS = 1 AND n.DELETED = 0 AND ("
-        + "n.EMAIL_STATE = #{deliveryMode} OR ("
-        + "n.EMAIL_STATE = 'FAILED' AND "
-        + "EXISTS (SELECT 1 FROM WEB_DOMAIN_WATCH_NOTIFY_LOG route_log "
-        + "WHERE route_log.NOTIFICATION_ID = n.ID "
-        + "AND route_log.DELIVERY_MODE = #{deliveryMode} AND route_log.DELETED = 0) AND "
-        + "(SELECT COALESCE(MAX(attempt_log.RETRY_COUNT), 0) "
-        + "FROM WEB_DOMAIN_WATCH_NOTIFY_LOG attempt_log "
-        + "WHERE attempt_log.NOTIFICATION_ID = n.ID "
-        + "AND attempt_log.DELIVERY_MODE = #{deliveryMode} AND attempt_log.DELETED = 0) < #{maxAttempts})) "
-        + "ORDER BY n.CREATE_TIME ASC, n.ID ASC LIMIT #{limit}")
-    List<UserNotification> selectForDelivery(
-        @Param("deliveryMode") String deliveryMode,
-        @Param("maxAttempts") int maxAttempts,
+    @Select("SELECT * FROM WEB_USER_NOTIFICATION WHERE ID = #{id} AND EMAIL_MODE = 'IMMEDIATE_EMAIL' "
+        + "AND EMAIL_STATE = 'QUEUED' AND DELIVERY_BATCH_ID IS NULL AND DELETED = 0 FOR UPDATE")
+    UserNotification selectImmediateForUpdate(@Param("id") String id);
+
+    @Select("SELECT ID FROM WEB_USER_NOTIFICATION WHERE EMAIL_MODE = 'IMMEDIATE_EMAIL' "
+        + "AND EMAIL_STATE = 'QUEUED' AND DELIVERY_BATCH_ID IS NULL AND DELETED = 0 "
+        + "AND ID > #{afterId} ORDER BY ID LIMIT #{limit}")
+    List<String> selectImmediateCandidateIds(
+        @Param("afterId") String afterId,
         @Param("limit") int limit);
 
-    @Update("UPDATE WEB_USER_NOTIFICATION SET EMAIL_STATE = 'SENDING', UPDATE_TIME = #{claimedAt} "
-        + "WHERE ID = #{id} AND EMAIL_STATE = #{expectedState} AND DELETED = 0")
-    int claimForDelivery(
-        @Param("id") String id,
-        @Param("expectedState") String expectedState,
-        @Param("claimedAt") Date claimedAt);
+    @Select("SELECT DISTINCT USER_ID FROM WEB_USER_NOTIFICATION WHERE EMAIL_MODE = #{emailMode} "
+        + "AND EMAIL_STATE = 'QUEUED' AND DELIVERY_BATCH_ID IS NULL AND DELETED = 0 "
+        + "AND CREATE_TIME <= #{cutoff} AND USER_ID > #{afterUserId} "
+        + "ORDER BY USER_ID LIMIT #{limit}")
+    List<String> selectDigestCandidateUserIds(
+        @Param("emailMode") String emailMode,
+        @Param("cutoff") Date cutoff,
+        @Param("afterUserId") String afterUserId,
+        @Param("limit") int limit);
 
-    @Update("UPDATE WEB_USER_NOTIFICATION SET EMAIL_STATE = #{newState}, "
-        + "EMAILED_AT = #{emailedAt}, UPDATE_TIME = #{updatedAt} "
-        + "WHERE ID = #{id} AND EMAIL_STATE = 'SENDING' AND DELETED = 0")
-    int finishDelivery(
-        @Param("id") String id,
-        @Param("newState") String newState,
+    @Update("UPDATE WEB_USER_NOTIFICATION SET DELIVERY_BATCH_ID = #{batchId}, UPDATE_TIME = #{updatedAt} "
+        + "WHERE ID = #{notificationId} AND EMAIL_STATE = 'QUEUED' "
+        + "AND DELIVERY_BATCH_ID IS NULL AND DELETED = 0")
+    int assignImmediateToBatch(
+        @Param("notificationId") String notificationId,
+        @Param("batchId") String batchId,
+        @Param("updatedAt") Date updatedAt);
+
+    @Update("UPDATE WEB_USER_NOTIFICATION SET DELIVERY_BATCH_ID = #{batchId}, UPDATE_TIME = #{updatedAt} "
+        + "WHERE USER_ID = #{userId} AND EMAIL_MODE = #{emailMode} AND EMAIL_STATE = 'QUEUED' "
+        + "AND DELIVERY_BATCH_ID IS NULL AND CREATE_TIME <= #{cutoff} AND DELETED = 0")
+    int assignDigestToBatch(
+        @Param("userId") String userId,
+        @Param("emailMode") String emailMode,
+        @Param("batchId") String batchId,
+        @Param("cutoff") Date cutoff,
+        @Param("updatedAt") Date updatedAt);
+
+    @Update("UPDATE WEB_USER_NOTIFICATION SET EMAIL_STATE = 'CLAIMED', EMAIL_ATTEMPT_COUNT = #{attempt}, "
+        + "EMAIL_CLAIM_TOKEN = #{claimToken}, EMAIL_CLAIM_UNTIL = #{claimUntil}, UPDATE_TIME = #{updatedAt} "
+        + "WHERE DELIVERY_BATCH_ID = #{batchId} AND DELETED = 0")
+    int claimBatchForAttempt(
+        @Param("batchId") String batchId,
+        @Param("attempt") int attempt,
+        @Param("claimToken") String claimToken,
+        @Param("claimUntil") Date claimUntil,
+        @Param("updatedAt") Date updatedAt);
+
+    @Select("SELECT * FROM WEB_USER_NOTIFICATION WHERE DELIVERY_BATCH_ID = #{batchId} "
+        + "AND DELETED = 0 ORDER BY CREATE_TIME, ID")
+    List<UserNotification> selectBatchMembers(@Param("batchId") String batchId);
+
+    @Update("UPDATE WEB_USER_NOTIFICATION SET EMAIL_STATE = #{state}, EMAILED_AT = #{emailedAt}, "
+        + "EMAIL_CLAIM_TOKEN = NULL, EMAIL_CLAIM_UNTIL = NULL, UPDATE_TIME = #{updatedAt} "
+        + "WHERE DELIVERY_BATCH_ID = #{batchId} AND EMAIL_STATE = 'CLAIMED' "
+        + "AND EMAIL_CLAIM_TOKEN = #{claimToken} AND DELETED = 0")
+    int completeBatchNotifications(
+        @Param("batchId") String batchId,
+        @Param("claimToken") String claimToken,
+        @Param("state") String state,
         @Param("emailedAt") Date emailedAt,
         @Param("updatedAt") Date updatedAt);
+
+    @Update("UPDATE WEB_USER_NOTIFICATION SET EMAIL_STATE = 'FAILED', EMAIL_CLAIM_TOKEN = NULL, "
+        + "EMAIL_CLAIM_UNTIL = NULL, UPDATE_TIME = #{updatedAt} "
+        + "WHERE DELIVERY_BATCH_ID = #{batchId} AND EMAIL_STATE = 'CLAIMED' AND DELETED = 0")
+    int finalizeExpiredBatch(@Param("batchId") String batchId, @Param("updatedAt") Date updatedAt);
+
 }

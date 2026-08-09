@@ -2,13 +2,11 @@ package info.wesite.web.task;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -22,30 +20,32 @@ import java.time.ZoneOffset;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.stream.IntStream;
 
+import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.apache.ibatis.annotations.Select;
-import org.apache.ibatis.annotations.Update;
+import org.mockito.InOrder;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.thymeleaf.context.Context;
 import org.thymeleaf.spring6.SpringTemplateEngine;
 import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver;
 
-import info.wesite.core.entity.DomainWatchNotifyLog;
 import info.wesite.core.entity.MonitorEvent;
 import info.wesite.core.entity.User;
 import info.wesite.core.entity.UserNotification;
 import info.wesite.core.mail.Mail;
 import info.wesite.core.mail.MailSendResult;
 import info.wesite.core.mail.MailSender;
-import info.wesite.core.mapper.DomainWatchNotifyLogMapper;
 import info.wesite.core.mapper.UserNotificationMapper;
-import info.wesite.core.service.DomainWatchNotifyLogService;
 import info.wesite.core.service.MonitorEventService;
 import info.wesite.core.service.UserService;
-import info.wesite.web.notification.NotificationDispatchDecision;
+import info.wesite.web.notification.DeliveryAttemptDetails;
+import info.wesite.web.notification.DeliveryBatchClaim;
+import info.wesite.web.notification.NotificationDeliveryCoordinator;
 
 class NotificationDeliveryTaskTest {
 
@@ -55,8 +55,7 @@ class NotificationDeliveryTaskTest {
     private UserNotificationMapper notificationMapper;
     private MonitorEventService eventService;
     private UserService userService;
-    private DomainWatchNotifyLogService logService;
-    private DomainWatchNotifyLogMapper logMapper;
+    private NotificationDeliveryCoordinator coordinator;
     private MailSender mailSender;
     private NotificationDeliveryTask task;
 
@@ -65,146 +64,156 @@ class NotificationDeliveryTaskTest {
         notificationMapper = mock(UserNotificationMapper.class);
         eventService = mock(MonitorEventService.class);
         userService = mock(UserService.class);
-        logService = mock(DomainWatchNotifyLogService.class);
-        logMapper = mock(DomainWatchNotifyLogMapper.class);
+        coordinator = mock(NotificationDeliveryCoordinator.class);
         mailSender = mock(MailSender.class);
-
-        when(notificationMapper.claimForDelivery(anyString(), anyString(), any(Date.class))).thenReturn(1);
-        when(notificationMapper.finishDelivery(anyString(), anyString(), any(), any(Date.class))).thenReturn(1);
-        when(logMapper.selectMaxRetryCount(anyString(), anyString())).thenReturn(0);
-        when(logService.save(any(DomainWatchNotifyLog.class))).thenReturn(true);
+        when(coordinator.retryNext(anyString(), any(Instant.class), any(Instant.class)))
+            .thenReturn(Optional.empty());
+        when(notificationMapper.selectImmediateCandidateIds(anyString(), eq(500))).thenReturn(List.of());
+        when(notificationMapper.selectDigestCandidateUserIds(
+            anyString(), any(Date.class), anyString(), eq(100))).thenReturn(List.of());
         when(mailSender.send(any(Mail.class))).thenReturn(MailSendResult.ok());
-
         task = new NotificationDeliveryTask(
-            notificationMapper,
-            eventService,
-            userService,
-            logService,
-            logMapper,
-            mailSender,
-            CLOCK);
+            notificationMapper, eventService, userService, coordinator, mailSender, CLOCK);
     }
 
     @Test
-    void immediateQueueSendsOneEventMailAndMarksTheNotificationSent() {
-        UserNotification notification = notification(
-            "notification-1", "event-1", "user-1", NotificationDispatchDecision.IMMEDIATE_EMAIL.name());
-        stubQueue(NotificationDispatchDecision.IMMEDIATE_EMAIL, List.of(notification));
-        when(eventService.getById("event-1")).thenReturn(event("event-1", "watch-1"));
+    void durableStartCompletesBeforeImmediateSmtpBegins() {
+        DeliveryBatchClaim claim = claim("batch-1", "notification-1", 1);
+        when(notificationMapper.selectImmediateCandidateIds("", 500))
+            .thenReturn(List.of("notification-1"), List.of());
+        when(coordinator.startImmediate(eq("notification-1"), any(Instant.class), any(Instant.class)))
+            .thenReturn(Optional.of(claim));
+        when(notificationMapper.selectBatchMembers("batch-1"))
+            .thenReturn(List.of(notification("notification-1", "event-1")));
+        when(eventService.getById("event-1")).thenReturn(event("event-1"));
         when(userService.getById("user-1")).thenReturn(user("person@example.com"));
 
         task.deliverImmediate();
 
-        ArgumentCaptor<Mail> mail = ArgumentCaptor.forClass(Mail.class);
-        verify(mailSender).send(mail.capture());
-        assertEquals(List.of("person@example.com"), mail.getValue().getTo());
-        assertEquals("email/monitor-event", mail.getValue().getTemplateName());
-        verify(notificationMapper).finishDelivery(
-            eq("notification-1"), eq(NotificationDeliveryTask.STATE_SENT), any(Date.class), any(Date.class));
-
-        ArgumentCaptor<DomainWatchNotifyLog> log = ArgumentCaptor.forClass(DomainWatchNotifyLog.class);
-        verify(logService).save(log.capture());
-        assertEquals("notification-1", log.getValue().getNotificationId());
-        assertEquals(1, log.getValue().getRetryCount());
-        assertEquals(DomainWatchNotifyLog.SEND_STATUS_SUCCESS, log.getValue().getSendStatus());
+        InOrder order = inOrder(coordinator, mailSender);
+        order.verify(coordinator).startImmediate(eq("notification-1"), any(Instant.class), any(Instant.class));
+        order.verify(mailSender).send(any(Mail.class));
+        order.verify(coordinator).complete(eq(claim), eq(true), any(DeliveryAttemptDetails.class),
+            any(Instant.class), any(Instant.class));
     }
 
     @Test
-    void atomicClaimLoserDoesNotSendTheSameImmediateNotification() {
-        UserNotification notification = notification(
-            "notification-1", "event-1", "user-1", NotificationDispatchDecision.IMMEDIATE_EMAIL.name());
-        stubQueue(NotificationDispatchDecision.IMMEDIATE_EMAIL, List.of(notification));
-        when(notificationMapper.claimForDelivery(
-            eq("notification-1"), eq(NotificationDispatchDecision.IMMEDIATE_EMAIL.name()), any(Date.class)))
-            .thenReturn(0);
+    void failedDurableStartNeverCallsSmtp() {
+        when(notificationMapper.selectImmediateCandidateIds("", 500))
+            .thenReturn(List.of("notification-1"), List.of());
+        when(coordinator.startImmediate(eq("notification-1"), any(Instant.class), any(Instant.class)))
+            .thenThrow(new IllegalStateException("pending log insert failed"));
 
         task.deliverImmediate();
 
         verify(mailSender, never()).send(any(Mail.class));
-        verify(logService, never()).save(any(DomainWatchNotifyLog.class));
     }
 
     @Test
-    void dailyDigestGroupsQueuedEventsByUserIntoOneMail() {
-        UserNotification first = notification(
-            "notification-1", "event-1", "user-1", NotificationDispatchDecision.DAILY_DIGEST.name());
-        UserNotification second = notification(
-            "notification-2", "event-2", "user-1", NotificationDispatchDecision.DAILY_DIGEST.name());
-        stubQueue(NotificationDispatchDecision.DAILY_DIGEST, List.of(first, second));
-        when(eventService.getById("event-1")).thenReturn(event("event-1", "watch-1"));
-        when(eventService.getById("event-2")).thenReturn(event("event-2", "watch-2"));
+    void dependencyFailureAfterClaimIsRecordedAsAFailedAttempt() {
+        DeliveryBatchClaim claim = claim("batch-1", "notification-1", 1);
+        when(notificationMapper.selectImmediateCandidateIds("", 500))
+            .thenReturn(List.of("notification-1"), List.of());
+        when(coordinator.startImmediate(eq("notification-1"), any(Instant.class), any(Instant.class)))
+            .thenReturn(Optional.of(claim));
+        when(notificationMapper.selectBatchMembers("batch-1"))
+            .thenThrow(new IllegalStateException("notification lookup failed"));
+
+        task.deliverImmediate();
+
+        ArgumentCaptor<DeliveryAttemptDetails> details = ArgumentCaptor.forClass(DeliveryAttemptDetails.class);
+        verify(coordinator).complete(eq(claim), eq(false), details.capture(),
+            any(Instant.class), any(Instant.class));
+        assertTrue(details.getValue().errorMessage().contains("notification lookup failed"));
+        verify(mailSender, never()).send(any(Mail.class));
+    }
+
+    @Test
+    void dailyDigestContainsAll501AtomicallyAssignedEvents() {
+        DeliveryBatchClaim claim = new DeliveryBatchClaim(
+            "batch-1", "user-1", "DAILY_DIGEST", "2026-08-09", 1, "claim-1");
+        List<UserNotification> notifications = IntStream.rangeClosed(1, 501)
+            .mapToObj(index -> notification("notification-" + index, "event-" + index))
+            .toList();
+        when(notificationMapper.selectDigestCandidateUserIds(
+            eq("DAILY_DIGEST"), any(Date.class), eq(""), eq(100)))
+            .thenReturn(List.of("user-1"));
+        when(coordinator.startDigest(eq("user-1"), eq("DAILY_DIGEST"), eq("2026-08-09"),
+            any(Instant.class), any(Instant.class), any(Instant.class))).thenReturn(Optional.of(claim));
+        when(notificationMapper.selectBatchMembers("batch-1")).thenReturn(notifications);
+        when(eventService.getById(anyString())).thenAnswer(invocation -> event(invocation.getArgument(0)));
         when(userService.getById("user-1")).thenReturn(user("person@example.com"));
 
         task.deliverDailyDigest();
 
         ArgumentCaptor<Mail> mail = ArgumentCaptor.forClass(Mail.class);
         verify(mailSender).send(mail.capture());
-        assertEquals("email/monitor-digest", mail.getValue().getTemplateName());
-        assertEquals(2, events(mail.getValue()).size());
-        verify(notificationMapper, times(2)).finishDelivery(
-            anyString(), eq(NotificationDeliveryTask.STATE_SENT), any(Date.class), any(Date.class));
+        assertEquals(501, events(mail.getValue()).size());
     }
 
     @Test
-    void weeklyDigestCreatesOneMailPerUser() {
-        UserNotification first = notification(
-            "notification-1", "event-1", "user-1", NotificationDispatchDecision.WEEKLY_DIGEST.name());
-        UserNotification second = notification(
-            "notification-2", "event-2", "user-1", NotificationDispatchDecision.WEEKLY_DIGEST.name());
-        UserNotification third = notification(
-            "notification-3", "event-3", "user-2", NotificationDispatchDecision.WEEKLY_DIGEST.name());
-        stubQueue(NotificationDispatchDecision.WEEKLY_DIGEST, List.of(first, second, third));
-        when(eventService.getById(anyString())).thenAnswer(invocation ->
-            event(invocation.getArgument(0), "watch-" + invocation.getArgument(0)));
-        when(userService.getById("user-1")).thenReturn(user("one@example.com"));
-        when(userService.getById("user-2")).thenReturn(user("two@example.com"));
-
-        task.deliverWeeklyDigest();
-
-        ArgumentCaptor<Mail> mails = ArgumentCaptor.forClass(Mail.class);
-        verify(mailSender, times(2)).send(mails.capture());
-        assertEquals(List.of(1, 2), mails.getAllValues().stream()
-            .map(mail -> events(mail).size())
-            .sorted()
-            .toList());
-    }
-
-    @Test
-    void smtpFailureKeepsTheInAppRecordAndMakesDeliveryRetryable() {
-        UserNotification notification = notification(
-            "notification-1", "event-1", "user-1", NotificationDispatchDecision.IMMEDIATE_EMAIL.name());
-        notification.setReadAt(Date.from(Instant.parse("2026-08-08T10:00:00Z")));
-        stubQueue(NotificationDispatchDecision.IMMEDIATE_EMAIL, List.of(notification));
-        when(eventService.getById("event-1")).thenReturn(event("event-1", "watch-1"));
+    void immediateQueueDrainsPastTheFirst500CandidatePage() {
+        List<String> firstPage = IntStream.rangeClosed(1, 500).mapToObj(index -> "n" + index).toList();
+        when(notificationMapper.selectImmediateCandidateIds("", 500)).thenReturn(firstPage);
+        when(notificationMapper.selectImmediateCandidateIds("n500", 500)).thenReturn(List.of("n501"));
+        when(coordinator.startImmediate(anyString(), any(Instant.class), any(Instant.class)))
+            .thenAnswer(invocation -> {
+                String id = invocation.getArgument(0);
+                return Optional.of(claim("batch-" + id, id, 1));
+            });
+        when(notificationMapper.selectBatchMembers(anyString())).thenAnswer(invocation -> {
+            String batchId = invocation.getArgument(0);
+            String id = batchId.substring("batch-".length());
+            return List.of(notification(id, "event-" + id));
+        });
+        when(eventService.getById(anyString())).thenAnswer(invocation -> event(invocation.getArgument(0)));
         when(userService.getById("user-1")).thenReturn(user("person@example.com"));
-        when(mailSender.send(any(Mail.class))).thenReturn(MailSendResult.fail("smtp unavailable"));
 
         task.deliverImmediate();
 
-        verify(notificationMapper).finishDelivery(
-            eq("notification-1"), eq(NotificationDeliveryTask.STATE_FAILED), isNull(), any(Date.class));
-        assertEquals("A <changed> title", notification.getTitle());
-        assertNotNull(notification.getReadAt());
-        ArgumentCaptor<DomainWatchNotifyLog> log = ArgumentCaptor.forClass(DomainWatchNotifyLog.class);
-        verify(logService).save(log.capture());
-        assertEquals(DomainWatchNotifyLog.SEND_STATUS_FAIL, log.getValue().getSendStatus());
-        assertEquals("smtp unavailable", log.getValue().getErrorMsg());
+        verify(notificationMapper).selectImmediateCandidateIds("", 500);
+        verify(notificationMapper).selectImmediateCandidateIds("n500", 500);
+        verify(mailSender, times(501)).send(any(Mail.class));
     }
 
     @Test
-    void exhaustedNotificationDoesNotMakeAFourthDeliveryAttempt() {
-        UserNotification notification = notification(
-            "notification-1", "event-1", "user-1", NotificationDeliveryTask.STATE_FAILED);
-        stubQueue(NotificationDispatchDecision.IMMEDIATE_EMAIL, List.of(notification));
-        when(logMapper.selectMaxRetryCount(
-            "notification-1", NotificationDispatchDecision.IMMEDIATE_EMAIL.name())).thenReturn(3);
+    void thirdRetryIsDeliveredOnceAndNoFourthAttemptIsRequestedByTheTask() {
+        DeliveryBatchClaim third = claim("batch-1", "notification-1", 3);
+        when(coordinator.retryNext(eq("IMMEDIATE_EMAIL"), any(Instant.class), any(Instant.class)))
+            .thenReturn(Optional.of(third), Optional.empty());
+        when(notificationMapper.selectBatchMembers("batch-1"))
+            .thenReturn(List.of(notification("notification-1", "event-1")));
+        when(eventService.getById("event-1")).thenReturn(event("event-1"));
+        when(userService.getById("user-1")).thenReturn(user("person@example.com"));
 
         task.deliverImmediate();
 
-        verify(mailSender, never()).send(any(Mail.class));
-        verify(logService, never()).save(any(DomainWatchNotifyLog.class));
-        verify(notificationMapper).finishDelivery(
-            eq("notification-1"), eq(NotificationDeliveryTask.STATE_FAILED), isNull(), any(Date.class));
+        verify(mailSender).send(any(Mail.class));
+        verify(coordinator, times(2)).retryNext(
+            eq("IMMEDIATE_EMAIL"), any(Instant.class), any(Instant.class));
+        verify(coordinator).complete(eq(third), eq(true), any(), any(), any());
+    }
+
+    @Test
+    void digestSqlClaimsOneUserWindowWithoutALimitOrImmediateItems() throws Exception {
+        String assignment = sql(UserNotificationMapper.class.getMethod(
+            "assignDigestToBatch", String.class, String.class, String.class, Date.class, Date.class)
+            .getAnnotation(Update.class).value());
+        assertTrue(assignment.contains("USER_ID = #{USERID}"));
+        assertTrue(assignment.contains("EMAIL_MODE = #{EMAILMODE}"));
+        assertTrue(assignment.contains("EMAIL_STATE = 'QUEUED'"));
+        assertTrue(assignment.contains("DELIVERY_BATCH_ID IS NULL"));
+        assertFalse(assignment.contains("LIMIT"));
+
+        String members = sql(UserNotificationMapper.class.getMethod(
+            "selectBatchMembers", String.class).getAnnotation(Select.class).value());
+        assertFalse(members.contains("LIMIT"));
+
+        String users = sql(UserNotificationMapper.class.getMethod(
+            "selectDigestCandidateUserIds", String.class, Date.class, String.class, int.class)
+            .getAnnotation(Select.class).value());
+        assertTrue(users.contains("SELECT DISTINCT USER_ID"));
+        assertTrue(users.contains("USER_ID > #{AFTERUSERID}"));
     }
 
     @Test
@@ -212,22 +221,6 @@ class NotificationDeliveryTaskTest {
         assertEquals("0 */5 * * * ?", cron("deliverImmediate"));
         assertEquals("0 0 8 * * ?", cron("deliverDailyDigest"));
         assertEquals("0 0 8 * * MON", cron("deliverWeeklyDigest"));
-    }
-
-    @Test
-    void deliverySqlFiltersByRouteAndAttemptLimitAndClaimsWithCompareAndSet() throws Exception {
-        String selection = sql(UserNotificationMapper.class.getMethod(
-            "selectForDelivery", String.class, int.class, int.class).getAnnotation(Select.class).value());
-        assertTrue(selection.contains("N.EMAIL_STATE = #{DELIVERYMODE}"));
-        assertTrue(selection.contains("N.EMAIL_STATE = 'FAILED'"));
-        assertTrue(selection.contains("ROUTE_LOG.DELIVERY_MODE = #{DELIVERYMODE}"));
-        assertTrue(selection.contains("< #{MAXATTEMPTS}"));
-        assertFalse(selection.contains("N.EMAIL_STATE = 'SENT'"));
-
-        String claim = sql(UserNotificationMapper.class.getMethod(
-            "claimForDelivery", String.class, String.class, Date.class).getAnnotation(Update.class).value());
-        assertTrue(claim.contains("SET EMAIL_STATE = 'SENDING'"));
-        assertTrue(claim.contains("WHERE ID = #{ID} AND EMAIL_STATE = #{EXPECTEDSTATE}"));
     }
 
     @Test
@@ -267,17 +260,18 @@ class NotificationDeliveryTaskTest {
         return (List<Map<String, Object>>) mail.getTemplateVariables().get("events");
     }
 
-    private void stubQueue(NotificationDispatchDecision mode, List<UserNotification> notifications) {
-        when(notificationMapper.selectForDelivery(mode.name(), NotificationDeliveryTask.MAX_ATTEMPTS, 500))
-            .thenReturn(notifications);
+    private static DeliveryBatchClaim claim(String batchId, String notificationId, int attempt) {
+        return new DeliveryBatchClaim(
+            batchId, "user-1", "IMMEDIATE_EMAIL", notificationId, attempt, "claim-" + attempt);
     }
 
-    private static UserNotification notification(String id, String eventId, String userId, String emailState) {
+    private static UserNotification notification(String id, String eventId) {
         UserNotification notification = new UserNotification();
         notification.setId(id);
         notification.setEventId(eventId);
-        notification.setUserId(userId);
-        notification.setEmailState(emailState);
+        notification.setUserId("user-1");
+        notification.setEmailMode("DAILY_DIGEST");
+        notification.setEmailState("CLAIMED");
         notification.setTitle("A <changed> title");
         notification.setContent("Old <value> -> new & value");
         notification.setTargetPath("/domain/example.com");
@@ -285,10 +279,10 @@ class NotificationDeliveryTaskTest {
         return notification;
     }
 
-    private static MonitorEvent event(String id, String watchId) {
+    private static MonitorEvent event(String id) {
         MonitorEvent event = new MonitorEvent();
         event.setId(id);
-        event.setWatchId(watchId);
+        event.setWatchId("watch-1");
         event.setEventType("DNS_CHANGED");
         event.setOldValue("<old>");
         event.setNewValue("<new>");

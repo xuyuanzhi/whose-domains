@@ -39,6 +39,44 @@ class MonitorChangeDetectorTest {
     }
 
     @Test
+    void firstSuccessfulScanAtEachExpiryThresholdCreatesReminder() {
+        for (ExpiryCase expiryCase : List.of(
+            new ExpiryCase(30, MonitorRisk.LOW),
+            new ExpiryCase(7, MonitorRisk.HIGH),
+            new ExpiryCase(1, MonitorRisk.CRITICAL))) {
+            LocalDate expiry = today().plusDays(expiryCase.daysRemaining());
+
+            List<MonitorEventDraft> events = detector.detect(
+                null,
+                state().domainExpiry(expiry).build(),
+                null,
+                CLOCK.instant());
+
+            MonitorEventDraft event = onlyEventOfType(events, MonitorEventType.DOMAIN_EXPIRING);
+            assertEquals(expiryCase.risk(), event.risk());
+            assertEquals("domainExpiry:" + expiryCase.daysRemaining(), event.field());
+        }
+    }
+
+    @Test
+    void delayedScanCreatesEveryExpiryReminderWhoseThresholdWasCrossed() {
+        Instant previousCheckedAt = Instant.parse("2026-07-01T10:15:30Z");
+
+        List<MonitorEventDraft> events = detector.detect(
+            state().domainExpiry(LocalDate.of(2026, 8, 10)).build(),
+            state().domainExpiry(LocalDate.of(2026, 8, 10)).build(),
+            previousCheckedAt,
+            CLOCK.instant());
+
+        assertEquals(
+            Set.of("domainExpiry:30", "domainExpiry:7", "domainExpiry:1"),
+            events.stream()
+                .filter(event -> event.type() == MonitorEventType.DOMAIN_EXPIRING)
+                .map(MonitorEventDraft::field)
+                .collect(java.util.stream.Collectors.toSet()));
+    }
+
+    @Test
     void sslExpiryThresholdsProduceHighRiskEvents() {
         for (int daysRemaining : List.of(30, 7, 1)) {
             LocalDate expiry = today().plusDays(daysRemaining);

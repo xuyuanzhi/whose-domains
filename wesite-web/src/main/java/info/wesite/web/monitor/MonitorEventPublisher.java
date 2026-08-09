@@ -12,6 +12,7 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.util.UriUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import com.alibaba.fastjson2.JSON;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
@@ -35,8 +36,6 @@ import info.wesite.web.notification.NotificationDispatcher;
  */
 @Service
 public class MonitorEventPublisher {
-
-    private static final String EMAIL_PENDING = "pending";
 
     private final MonitorSnapshotService snapshotService;
     private final MonitorEventService eventService;
@@ -143,7 +142,13 @@ public class MonitorEventPublisher {
             watch.getId(), current, checkedAt, BaseEntity.STATUS_ACTIVE);
 
         List<MonitorEvent> published = new ArrayList<>();
-        for (MonitorEventDraft draft : detector.detect(previous, current)) {
+        for (MonitorEventDraft draft : detector.detect(
+            previous,
+            current,
+            previousSnapshot == null || previousSnapshot.getCheckedAt() == null
+                ? null
+                : previousSnapshot.getCheckedAt().toInstant(),
+            checkedAt.toInstant())) {
             MonitorEvent event = publishEvent(watch, currentSnapshot, draft, checkedAt);
             publishNotification(watch, event, draft, checkedAt);
             published.add(event);
@@ -202,7 +207,7 @@ public class MonitorEventPublisher {
         notification.setTitle(title(draft.type()));
         notification.setContent(content(draft));
         notification.setTargetPath(internalDomainTarget(watch.getDomainName()));
-        notification.setEmailState(EMAIL_PENDING);
+        notification.setEmailState(UserNotification.EMAIL_STATE_QUEUED);
 
         UserNotification persisted;
         boolean needsDispatch;
@@ -217,7 +222,9 @@ public class MonitorEventPublisher {
                 throw duplicate;
             }
             persisted = winner;
-            needsDispatch = EMAIL_PENDING.equalsIgnoreCase(winner.getEmailState());
+            needsDispatch = StringUtils.isBlank(winner.getEmailMode())
+                && (UserNotification.EMAIL_STATE_QUEUED.equalsIgnoreCase(winner.getEmailState())
+                    || "pending".equalsIgnoreCase(winner.getEmailState()));
         }
 
         if (needsDispatch && dispatcher != null) {

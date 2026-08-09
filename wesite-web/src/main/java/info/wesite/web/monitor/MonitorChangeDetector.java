@@ -1,6 +1,7 @@
 package info.wesite.web.monitor;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -22,14 +23,27 @@ public final class MonitorChangeDetector {
     }
 
     public java.util.List<MonitorEventDraft> detect(MonitorState previous, MonitorState current) {
+        Instant currentCheckedAt = clock.instant();
+        return detect(previous, current, currentCheckedAt.minus(1, ChronoUnit.DAYS), currentCheckedAt);
+    }
+
+    public java.util.List<MonitorEventDraft> detect(
+        MonitorState previous,
+        MonitorState current,
+        Instant previousCheckedAt,
+        Instant currentCheckedAt) {
         Objects.requireNonNull(current, "current");
+        Objects.requireNonNull(currentCheckedAt, "currentCheckedAt");
         if (previous == null) {
-            return java.util.List.of();
+            java.util.List<MonitorEventDraft> initialEvents = new ArrayList<>();
+            detectExpiry(initialEvents, null, current, null, currentCheckedAt, true);
+            detectExpiry(initialEvents, null, current, null, currentCheckedAt, false);
+            return java.util.List.copyOf(initialEvents);
         }
 
         java.util.List<MonitorEventDraft> events = new ArrayList<>();
-        detectExpiry(events, previous, current, true);
-        detectExpiry(events, previous, current, false);
+        detectExpiry(events, previous, current, previousCheckedAt, currentCheckedAt, true);
+        detectExpiry(events, previous, current, previousCheckedAt, currentCheckedAt, false);
         detectStatus(events, previous, current);
         detectDns(events, previous, current);
         detectWebsiteAvailability(events, previous, current);
@@ -40,28 +54,42 @@ public final class MonitorChangeDetector {
         java.util.List<MonitorEventDraft> events,
         MonitorState previous,
         MonitorState current,
+        Instant previousCheckedAt,
+        Instant currentCheckedAt,
         boolean domainExpiry) {
         LocalDate currentExpiry = domainExpiry ? current.domainExpiry() : current.sslExpiry();
         if (currentExpiry == null) {
             return;
         }
 
-        long daysRemaining = ChronoUnit.DAYS.between(LocalDate.now(clock), currentExpiry);
-        if (!EXPIRY_THRESHOLDS.contains(daysRemaining)) {
-            return;
-        }
+        LocalDate currentScanDate = currentCheckedAt.atZone(clock.getZone()).toLocalDate();
+        long currentDaysRemaining = ChronoUnit.DAYS.between(currentScanDate, currentExpiry);
+        LocalDate previousExpiry = previous == null
+            ? null
+            : domainExpiry ? previous.domainExpiry() : previous.sslExpiry();
+        Long previousDaysRemaining = previousCheckedAt == null
+            ? null
+            : ChronoUnit.DAYS.between(
+                previousCheckedAt.atZone(clock.getZone()).toLocalDate(), currentExpiry);
 
-        LocalDate previousExpiry = domainExpiry ? previous.domainExpiry() : previous.sslExpiry();
-        MonitorEventType type = domainExpiry ? MonitorEventType.DOMAIN_EXPIRING : MonitorEventType.SSL_EXPIRING;
-        MonitorRisk risk = domainExpiry ? domainExpiryRisk(daysRemaining) : MonitorRisk.HIGH;
-        String field = (domainExpiry ? "domainExpiry:" : "sslExpiry:") + daysRemaining;
-        events.add(new MonitorEventDraft(
-            type,
-            risk,
-            current.domain(),
-            field,
-            dateValue(previousExpiry),
-            currentExpiry.toString()));
+        for (long threshold : EXPIRY_THRESHOLDS.stream().sorted(java.util.Comparator.reverseOrder()).toList()) {
+            boolean crossed = previousDaysRemaining == null
+                ? currentDaysRemaining == threshold
+                : previousDaysRemaining > threshold && currentDaysRemaining <= threshold;
+            if (!crossed) {
+                continue;
+            }
+            MonitorEventType type = domainExpiry ? MonitorEventType.DOMAIN_EXPIRING : MonitorEventType.SSL_EXPIRING;
+            MonitorRisk risk = domainExpiry ? domainExpiryRisk(threshold) : MonitorRisk.HIGH;
+            String field = (domainExpiry ? "domainExpiry:" : "sslExpiry:") + threshold;
+            events.add(new MonitorEventDraft(
+                type,
+                risk,
+                current.domain(),
+                field,
+                dateValue(previousExpiry),
+                currentExpiry.toString()));
+        }
     }
 
     private static MonitorRisk domainExpiryRisk(long daysRemaining) {

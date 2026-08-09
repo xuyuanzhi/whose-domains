@@ -62,7 +62,15 @@ public class NotificationDispatcher {
         boolean hasEmail = user != null && StringUtils.isNotBlank(user.getEmail());
 
         NotificationDispatchDecision decision = resolver.resolve(event, preference, hasEmail);
-        notification.setEmailState(decision.name());
+        notification.setEmailMode(decision.name());
+        notification.setEmailState(decision == NotificationDispatchDecision.IN_APP_ONLY
+            ? UserNotification.EMAIL_STATE_IN_APP_ONLY
+            : UserNotification.EMAIL_STATE_QUEUED);
+        notification.setEmailAttemptCount(0);
+        notification.setEmailClaimToken(null);
+        notification.setEmailClaimUntil(null);
+        notification.setDeliveryBatchId(null);
+        notification.setEmailedAt(null);
         if (!notificationService.updateById(notification)) {
             throw new IllegalStateException("Failed to persist notification delivery state");
         }

@@ -77,10 +77,16 @@ public class DomainWatchTask {
                     if (!result.checked()) {
                         continue;
                     }
+                    eventPublisher.publish(watch, result.state(), result.succeeded());
+                    Date checkedAt = new Date();
+                    watch.setLastCheckTime(checkedAt);
+                    watch.setUpdateTime(checkedAt);
+                    if (!domainWatchService.updateById(watch)) {
+                        throw new IllegalStateException("Failed to persist refreshed domain watch " + watch.getId());
+                    }
                     if (result.changed()) {
                         updated++;
                     }
-                    eventPublisher.publish(watch, result.state(), result.succeeded());
                 } catch (RuntimeException failure) {
                     log.error("Failed to refresh monitored domain {}", watch.getDomainName(), failure);
                 }
@@ -124,13 +130,6 @@ public class DomainWatchTask {
                 watch.setDomainId(domain.getId());
                 changed = true;
             }
-        }
-
-        Date checkedAt = new Date();
-        watch.setLastCheckTime(checkedAt);
-        watch.setUpdateTime(checkedAt);
-        if (!domainWatchService.updateById(watch)) {
-            throw new IllegalStateException("Failed to persist refreshed domain watch " + watch.getId());
         }
 
         if (domain == null) {

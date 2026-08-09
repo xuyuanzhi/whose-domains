@@ -1,14 +1,17 @@
 package info.wesite.web.task;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.time.temporal.WeekFields;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -21,38 +24,29 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import info.wesite.core.entity.BaseEntity;
-import info.wesite.core.entity.DomainWatchNotifyLog;
 import info.wesite.core.entity.MonitorEvent;
 import info.wesite.core.entity.User;
 import info.wesite.core.entity.UserNotification;
 import info.wesite.core.mail.Mail;
 import info.wesite.core.mail.MailSendResult;
 import info.wesite.core.mail.MailSender;
-import info.wesite.core.mapper.DomainWatchNotifyLogMapper;
 import info.wesite.core.mapper.UserNotificationMapper;
-import info.wesite.core.service.DomainWatchNotifyLogService;
 import info.wesite.core.service.MonitorEventService;
 import info.wesite.core.service.UserService;
-import info.wesite.core.utils.RandomUtils;
+import info.wesite.web.notification.DeliveryAttemptDetails;
+import info.wesite.web.notification.DeliveryBatchClaim;
+import info.wesite.web.notification.NotificationDeliveryCoordinator;
 import info.wesite.web.notification.NotificationDispatchDecision;
 
-/**
- * Claims queued notification routes and performs SMTP delivery outside the
- * event-publication transaction. In-app records therefore survive any SMTP
- * failure.
- */
+/** Delivers only attempts that already have a durable batch lease and pending audit log. */
 @Profile({"prod", "mac"})
 @Component
 public class NotificationDeliveryTask {
 
-    static final int MAX_ATTEMPTS = 3;
-    static final String STATE_SENDING = "SENDING";
-    static final String STATE_SENT = "SENT";
-    static final String STATE_FAILED = "FAILED";
-
     private static final Logger log = LoggerFactory.getLogger(NotificationDeliveryTask.class);
-    private static final int BATCH_SIZE = 500;
+    private static final int IMMEDIATE_PAGE_SIZE = 500;
+    private static final int DIGEST_USER_PAGE_SIZE = 100;
+    private static final long LEASE_SECONDS = 10 * 60;
     private static final String BASE_URL = "https://whose.domains";
     private static final DateTimeFormatter OCCURRED_AT_FORMAT = DateTimeFormatter
         .ofPattern("yyyy-MM-dd HH:mm 'UTC'")
@@ -61,8 +55,7 @@ public class NotificationDeliveryTask {
     private final UserNotificationMapper notificationMapper;
     private final MonitorEventService eventService;
     private final UserService userService;
-    private final DomainWatchNotifyLogService logService;
-    private final DomainWatchNotifyLogMapper logMapper;
+    private final NotificationDeliveryCoordinator coordinator;
     private final MailSender mailSender;
     private final Clock clock;
 
@@ -71,15 +64,13 @@ public class NotificationDeliveryTask {
         UserNotificationMapper notificationMapper,
         MonitorEventService eventService,
         UserService userService,
-        DomainWatchNotifyLogService logService,
-        DomainWatchNotifyLogMapper logMapper,
+        NotificationDeliveryCoordinator coordinator,
         Optional<MailSender> mailSender) {
         this(
             notificationMapper,
             eventService,
             userService,
-            logService,
-            logMapper,
+            coordinator,
             mailSender.orElse(null),
             Clock.systemUTC());
     }
@@ -88,15 +79,13 @@ public class NotificationDeliveryTask {
         UserNotificationMapper notificationMapper,
         MonitorEventService eventService,
         UserService userService,
-        DomainWatchNotifyLogService logService,
-        DomainWatchNotifyLogMapper logMapper,
+        NotificationDeliveryCoordinator coordinator,
         MailSender mailSender,
         Clock clock) {
         this.notificationMapper = Objects.requireNonNull(notificationMapper, "notificationMapper");
         this.eventService = Objects.requireNonNull(eventService, "eventService");
         this.userService = Objects.requireNonNull(userService, "userService");
-        this.logService = Objects.requireNonNull(logService, "logService");
-        this.logMapper = Objects.requireNonNull(logMapper, "logMapper");
+        this.coordinator = Objects.requireNonNull(coordinator, "coordinator");
         this.mailSender = mailSender;
         this.clock = Objects.requireNonNull(clock, "clock");
     }
@@ -122,85 +111,140 @@ public class NotificationDeliveryTask {
             return;
         }
 
-        List<UserNotification> candidates = notificationMapper.selectForDelivery(
-            mode.name(), MAX_ATTEMPTS, BATCH_SIZE);
-        if (candidates == null || candidates.isEmpty()) {
+        recoverAndRetry(mode, digest, period);
+        if (digest) {
+            startDigestBatches(mode, period);
+        } else {
+            startImmediateBatches(period);
+        }
+    }
+
+    private void recoverAndRetry(NotificationDispatchDecision mode, boolean digest, String period) {
+        try {
+            coordinator.finalizeExpiredExhausted(mode.name(), clock.instant());
+        } catch (RuntimeException failure) {
+            log.error("Failed to finalize exhausted {} notification leases", mode, failure);
             return;
         }
 
-        Map<String, List<DeliveryItem>> claimedByUser = new LinkedHashMap<>();
-        for (UserNotification notification : candidates) {
-            DeliveryItem item = claim(notification, mode);
-            if (item != null) {
-                claimedByUser.computeIfAbsent(notification.getUserId(), ignored -> new ArrayList<>()).add(item);
+        while (true) {
+            Optional<DeliveryBatchClaim> retry;
+            Instant now = clock.instant();
+            try {
+                retry = coordinator.retryNext(mode.name(), now, leaseUntil(now));
+            } catch (RuntimeException failure) {
+                log.error("Failed to start a durable {} retry", mode, failure);
+                return;
             }
+            if (retry.isEmpty()) {
+                return;
+            }
+            deliverClaimSafely(retry.orElseThrow(), digest, period);
         }
+    }
 
-        for (List<DeliveryItem> userItems : claimedByUser.values()) {
-            if (digest) {
-                send(userItems, mode, true, period);
-            } else {
-                for (DeliveryItem item : userItems) {
-                    send(List.of(item), mode, false, period);
+    private void startImmediateBatches(String period) {
+        String afterId = "";
+        while (true) {
+            List<String> ids = notificationMapper.selectImmediateCandidateIds(afterId, IMMEDIATE_PAGE_SIZE);
+            if (ids == null || ids.isEmpty()) {
+                return;
+            }
+            for (String id : ids) {
+                Instant now = clock.instant();
+                try {
+                    coordinator.startImmediate(id, now, leaseUntil(now))
+                        .ifPresent(claim -> deliverClaimSafely(claim, false, period));
+                } catch (RuntimeException failure) {
+                    log.error("Failed to durably start immediate notification {}", id, failure);
                 }
             }
+            afterId = ids.get(ids.size() - 1);
+            if (ids.size() < IMMEDIATE_PAGE_SIZE) {
+                return;
+            }
         }
     }
 
-    private DeliveryItem claim(UserNotification notification, NotificationDispatchDecision mode) {
-        if (notification == null || StringUtils.isBlank(notification.getId())) {
-            return null;
+    private void startDigestBatches(NotificationDispatchDecision mode, String period) {
+        Instant cutoff = clock.instant();
+        String windowKey = windowKey(mode, cutoff);
+        String afterUserId = "";
+        while (true) {
+            List<String> userIds = notificationMapper.selectDigestCandidateUserIds(
+                mode.name(), Date.from(cutoff), afterUserId, DIGEST_USER_PAGE_SIZE);
+            if (userIds == null || userIds.isEmpty()) {
+                return;
+            }
+            for (String userId : userIds) {
+                Instant now = clock.instant();
+                try {
+                    coordinator.startDigest(
+                        userId, mode.name(), windowKey, cutoff, now, leaseUntil(now))
+                        .ifPresent(claim -> deliverClaimSafely(claim, true, period));
+                } catch (RuntimeException failure) {
+                    log.error("Failed to durably start {} digest for user {}", period, userId, failure);
+                }
+            }
+            afterUserId = userIds.get(userIds.size() - 1);
+            if (userIds.size() < DIGEST_USER_PAGE_SIZE) {
+                return;
+            }
         }
-        Date claimedAt = now();
-        String expectedState = notification.getEmailState();
-        if (notificationMapper.claimForDelivery(notification.getId(), expectedState, claimedAt) != 1) {
-            return null;
-        }
-
-        int attempt = maxAttempt(notification.getId(), mode.name()) + 1;
-        if (attempt > MAX_ATTEMPTS) {
-            finish(notification.getId(), STATE_FAILED, null);
-            return null;
-        }
-
-        MonitorEvent event = eventService.getById(notification.getEventId());
-        if (event == null) {
-            log.warn("Cannot deliver notification {} because event {} is missing",
-                notification.getId(), notification.getEventId());
-            finish(notification.getId(), STATE_FAILED, null);
-            return null;
-        }
-        return new DeliveryItem(notification, event, attempt);
     }
 
-    private int maxAttempt(String notificationId, String mode) {
-        Integer value = logMapper.selectMaxRetryCount(notificationId, mode);
-        return value == null ? 0 : Math.max(0, value);
+    private void deliverClaimSafely(DeliveryBatchClaim claim, boolean digest, String period) {
+        DeliveryOutcome outcome;
+        try {
+            outcome = attemptDelivery(claim, digest, period);
+        } catch (RuntimeException failure) {
+            outcome = DeliveryOutcome.failed(errorMessage(failure));
+        }
+
+        Instant completedAt = clock.instant();
+        try {
+            coordinator.complete(
+                claim,
+                outcome.success(),
+                outcome.details(),
+                completedAt,
+                completedAt.plus(5L * Math.max(1, claim.attempt()), ChronoUnit.MINUTES));
+        } catch (RuntimeException persistenceFailure) {
+            log.error("Delivery batch {} remains leased because completion persistence failed",
+                claim.batchId(), persistenceFailure);
+        }
     }
 
-    private void send(
-        List<DeliveryItem> items,
-        NotificationDispatchDecision mode,
-        boolean digest,
-        String period) {
-        if (items.isEmpty()) {
-            return;
+    private DeliveryOutcome attemptDelivery(DeliveryBatchClaim claim, boolean digest, String period) {
+        List<UserNotification> notifications = notificationMapper.selectBatchMembers(claim.batchId());
+        if (notifications == null || notifications.isEmpty()) {
+            throw new IllegalStateException("delivery batch has no notification members");
         }
-        User user = userService.getById(items.get(0).notification().getUserId());
+
+        List<DeliveryItem> items = new ArrayList<>(notifications.size());
+        for (UserNotification notification : notifications) {
+            MonitorEvent event = eventService.getById(notification.getEventId());
+            if (event == null) {
+                throw new IllegalStateException("monitor event is missing: " + notification.getEventId());
+            }
+            items.add(new DeliveryItem(notification, event));
+        }
+
+        User user = userService.getById(claim.userId());
         String email = user == null ? null : user.getEmail();
-        Mail mail = StringUtils.isBlank(email) ? null : buildMail(email, items, digest, period);
-        MailSendResult result = mail == null
-            ? MailSendResult.fail("recipient email unavailable")
-            : sendSafely(mail);
-
-        Date completedAt = now();
-        for (DeliveryItem item : items) {
-            saveAttempt(item, mode, mail, result, completedAt);
-            finish(
-                item.notification().getId(),
-                result.isSuccess() ? STATE_SENT : STATE_FAILED,
-                result.isSuccess() ? completedAt : null);
+        if (StringUtils.isBlank(email)) {
+            return DeliveryOutcome.failed("recipient email unavailable");
         }
+
+        Mail mail = buildMail(email, items, digest, period);
+        MailSendResult result = sendSafely(mail);
+        DeliveryItem auditItem = digest ? null : items.get(0);
+        DeliveryAttemptDetails details = details(
+            auditItem,
+            email,
+            mail.getSubject(),
+            result.isSuccess() ? null : result.getErrorMessage());
+        return new DeliveryOutcome(result.isSuccess(), details);
     }
 
     private MailSendResult sendSafely(Mail mail) {
@@ -208,8 +252,7 @@ public class NotificationDeliveryTask {
             MailSendResult result = mailSender.send(mail);
             return result == null ? MailSendResult.fail("mail sender returned no result") : result;
         } catch (RuntimeException failure) {
-            log.error("Notification SMTP delivery failed", failure);
-            return MailSendResult.fail(failure.getClass().getSimpleName() + ": " + failure.getMessage());
+            return MailSendResult.fail(errorMessage(failure));
         }
     }
 
@@ -226,7 +269,7 @@ public class NotificationDeliveryTask {
         }
 
         List<Map<String, Object>> events = items.stream().map(this::eventView).toList();
-        String subject = "Whose.Domains " + period.toLowerCase(java.util.Locale.ROOT) + " monitoring digest";
+        String subject = "Whose.Domains " + period.toLowerCase(Locale.ROOT) + " monitoring digest";
         String plainText = events.stream()
             .map(event -> event.get("title") + ": " + event.get("content"))
             .collect(java.util.stream.Collectors.joining("\n"));
@@ -234,8 +277,10 @@ public class NotificationDeliveryTask {
             .to(List.of(email))
             .subject(subject)
             .templateName("email/monitor-digest")
-            .templateVariables(Map.of("period", period, "events", events, "notificationCenterUrl",
-                BASE_URL + "/user/notifications"))
+            .templateVariables(Map.of(
+                "period", period,
+                "events", events,
+                "notificationCenterUrl", BASE_URL + "/user/notifications"))
             .plainTextContent(plainText)
             .build();
     }
@@ -254,6 +299,25 @@ public class NotificationDeliveryTask {
         return Map.copyOf(view);
     }
 
+    private static DeliveryAttemptDetails details(
+        DeliveryItem item,
+        String email,
+        String subject,
+        String error) {
+        if (item == null) {
+            return new DeliveryAttemptDetails(null, null, null, email, null, null, subject, error);
+        }
+        return new DeliveryAttemptDetails(
+            item.notification().getId(),
+            item.event().getId(),
+            item.event().getWatchId(),
+            email,
+            domainName(item.notification().getTargetPath()),
+            daysLeft(item.event()),
+            subject,
+            error);
+    }
+
     private static String safeTargetUrl(String targetPath) {
         if (StringUtils.isBlank(targetPath)
             || !targetPath.startsWith("/")
@@ -261,42 +325,6 @@ public class NotificationDeliveryTask {
             return BASE_URL + "/user/notifications";
         }
         return BASE_URL + targetPath;
-    }
-
-    private void saveAttempt(
-        DeliveryItem item,
-        NotificationDispatchDecision mode,
-        Mail mail,
-        MailSendResult result,
-        Date completedAt) {
-        DomainWatchNotifyLog entry = new DomainWatchNotifyLog();
-        entry.setId(RandomUtils.generateId());
-        entry.setStatus(BaseEntity.STATUS_ACTIVE);
-        entry.setDeleted(0);
-        entry.setCreateTime(completedAt);
-        entry.setNotificationId(item.notification().getId());
-        entry.setEventId(item.event().getId());
-        entry.setDeliveryMode(mode.name());
-        entry.setSubject(mail == null ? null : mail.getSubject());
-        entry.setWatchId(item.event().getWatchId());
-        entry.setToEmail(mail == null ? null : mail.getTo().get(0));
-        entry.setDomainName(domainName(item.notification().getTargetPath()));
-        entry.setDaysLeft(daysLeft(item.event()));
-        entry.setSentAt(completedAt);
-        entry.setSendStatus(result.isSuccess()
-            ? DomainWatchNotifyLog.SEND_STATUS_SUCCESS
-            : DomainWatchNotifyLog.SEND_STATUS_FAIL);
-        entry.setErrorMsg(result.isSuccess() ? null : result.getErrorMessage());
-        entry.setRetryCount(item.attempt());
-        try {
-            if (!logService.save(entry)) {
-                log.error("Failed to save notification delivery attempt for notification {}",
-                    item.notification().getId());
-            }
-        } catch (RuntimeException failure) {
-            log.error("Failed to save notification delivery attempt for notification {}",
-                item.notification().getId(), failure);
-        }
     }
 
     private static String domainName(String targetPath) {
@@ -320,17 +348,34 @@ public class NotificationDeliveryTask {
         }
     }
 
-    private void finish(String notificationId, String state, Date emailedAt) {
-        Date updatedAt = now();
-        if (notificationMapper.finishDelivery(notificationId, state, emailedAt, updatedAt) != 1) {
-            log.warn("Notification {} left SENDING before it could be marked {}", notificationId, state);
+    private static String windowKey(NotificationDispatchDecision mode, Instant cutoff) {
+        LocalDate date = cutoff.atZone(ZoneOffset.UTC).toLocalDate();
+        if (mode == NotificationDispatchDecision.DAILY_DIGEST) {
+            return date.toString();
         }
+        WeekFields iso = WeekFields.ISO;
+        return "%04d-W%02d".formatted(
+            date.get(iso.weekBasedYear()),
+            date.get(iso.weekOfWeekBasedYear()));
     }
 
-    private Date now() {
-        return Date.from(clock.instant());
+    private static Instant leaseUntil(Instant now) {
+        return now.plusSeconds(LEASE_SECONDS);
     }
 
-    private record DeliveryItem(UserNotification notification, MonitorEvent event, int attempt) {
+    private static String errorMessage(RuntimeException failure) {
+        String message = StringUtils.defaultIfBlank(failure.getMessage(), "no detail");
+        return failure.getClass().getSimpleName() + ": " + message;
+    }
+
+    private record DeliveryItem(UserNotification notification, MonitorEvent event) {
+    }
+
+    private record DeliveryOutcome(boolean success, DeliveryAttemptDetails details) {
+        private static DeliveryOutcome failed(String error) {
+            return new DeliveryOutcome(
+                false,
+                new DeliveryAttemptDetails(null, null, null, null, null, null, null, error));
+        }
     }
 }

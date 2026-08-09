@@ -52,10 +52,16 @@ class NotificationDispatcherTest {
         NotificationDispatchDecision decision = dispatcher.dispatch(event, notification);
 
         assertEquals(expected, decision);
-        assertEquals(expected.name(), notification.getEmailState());
+        assertEquals(expected.name(), notification.getEmailMode());
+        assertEquals(expected == NotificationDispatchDecision.IN_APP_ONLY ? "IN_APP_ONLY" : "QUEUED",
+            notification.getEmailState());
+        assertEquals(0, notification.getEmailAttemptCount());
+        assertEquals(null, notification.getEmailClaimToken());
+        assertEquals(null, notification.getEmailClaimUntil());
+        assertEquals(null, notification.getDeliveryBatchId());
         ArgumentCaptor<UserNotification> persisted = ArgumentCaptor.forClass(UserNotification.class);
         verify(notificationService).updateById(persisted.capture());
-        assertEquals(expected.name(), persisted.getValue().getEmailState());
+        assertEquals(expected.name(), persisted.getValue().getEmailMode());
     }
 
     private static Stream<Arguments> explicitModes() {
@@ -79,6 +85,7 @@ class NotificationDispatcherTest {
 
         assertEquals(NotificationDispatchDecision.IN_APP_ONLY, decision);
         assertEquals("IN_APP_ONLY", notification.getEmailState());
+        assertEquals("IN_APP_ONLY", notification.getEmailMode());
     }
 
     @Test
@@ -91,7 +98,8 @@ class NotificationDispatcherTest {
         NotificationDispatchDecision decision = dispatcher.dispatch(event, notification);
 
         assertEquals(NotificationDispatchDecision.DAILY_DIGEST, decision);
-        assertEquals("DAILY_DIGEST", notification.getEmailState());
+        assertEquals("DAILY_DIGEST", notification.getEmailMode());
+        assertEquals("QUEUED", notification.getEmailState());
     }
 
     @Test
@@ -105,6 +113,7 @@ class NotificationDispatcherTest {
 
         assertEquals(NotificationDispatchDecision.IN_APP_ONLY, decision);
         assertEquals("IN_APP_ONLY", notification.getEmailState());
+        assertEquals("IN_APP_ONLY", notification.getEmailMode());
     }
 
     @Test
@@ -117,7 +126,8 @@ class NotificationDispatcherTest {
         NotificationDispatchDecision decision = dispatcher.dispatch(event, notification);
 
         assertEquals(NotificationDispatchDecision.IMMEDIATE_EMAIL, decision);
-        assertEquals("IMMEDIATE_EMAIL", notification.getEmailState());
+        assertEquals("IMMEDIATE_EMAIL", notification.getEmailMode());
+        assertEquals("QUEUED", notification.getEmailState());
     }
 
     private static MonitorEvent event(String eventType, String newValue) {

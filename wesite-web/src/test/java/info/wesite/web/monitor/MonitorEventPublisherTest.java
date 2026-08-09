@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -17,9 +19,11 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -100,7 +104,8 @@ class MonitorEventPublisherTest {
         MonitorState current = state(Set.of("clientHold"));
         MonitorEventDraft draft = statusDraft();
         when(snapshotService.getOne(any())).thenReturn(snapshot("previous", previous));
-        when(detector.detect(previous, current)).thenReturn(List.of(draft));
+        when(detector.detect(eq(previous), eq(current), nullable(Instant.class), nullable(Instant.class)))
+            .thenReturn(List.of(draft));
         when(eventService.save(any(MonitorEvent.class)))
             .thenThrow(new DuplicateKeyException("UK_MONITOR_EVENT_WATCH_FINGERPRINT"));
         MonitorEvent winner = new MonitorEvent();
@@ -127,7 +132,8 @@ class MonitorEventPublisherTest {
             statusDraft(),
             MonitorEventDraft.dns("example.com", "A", Set.of("192.0.2.1"), Set.of("192.0.2.2")));
         when(snapshotService.getOne(any())).thenReturn(snapshot("previous", previous));
-        when(detector.detect(previous, current)).thenReturn(drafts);
+        when(detector.detect(eq(previous), eq(current), nullable(Instant.class), nullable(Instant.class)))
+            .thenReturn(drafts);
 
         publisher.publish(watch, current, true);
 
@@ -143,7 +149,7 @@ class MonitorEventPublisherTest {
 
         InOrder order = inOrder(detector, eventService, notificationService, dispatcher, snapshotService);
         order.verify(snapshotService).getOne(any());
-        order.verify(detector).detect(previous, current);
+        order.verify(detector).detect(eq(previous), eq(current), nullable(Instant.class), nullable(Instant.class));
         order.verify(eventService).save(any(MonitorEvent.class));
         order.verify(notificationService).save(any(UserNotification.class));
         order.verify(dispatcher).dispatch(any(MonitorEvent.class), any(UserNotification.class));
@@ -159,7 +165,8 @@ class MonitorEventPublisherTest {
         MonitorState previous = state(Set.of("ok"));
         MonitorState current = state(Set.of("clientHold"));
         when(snapshotService.getOne(any())).thenReturn(snapshot("previous", previous));
-        when(detector.detect(previous, current)).thenReturn(List.of(statusDraft()));
+        when(detector.detect(eq(previous), eq(current), nullable(Instant.class), nullable(Instant.class)))
+            .thenReturn(List.of(statusDraft()));
         when(notificationService.save(any(UserNotification.class)))
             .thenThrow(new DuplicateKeyException("UK_USER_NOTIFICATION_USER_EVENT"));
         UserNotification winner = new UserNotification();
@@ -183,7 +190,8 @@ class MonitorEventPublisherTest {
         MonitorState previous = state(Set.of("ok"));
         MonitorState current = state(Set.of("clientHold"));
         when(snapshotService.getOne(any())).thenReturn(snapshot("previous", previous));
-        when(detector.detect(previous, current)).thenReturn(List.of(statusDraft()));
+        when(detector.detect(eq(previous), eq(current), nullable(Instant.class), nullable(Instant.class)))
+            .thenReturn(List.of(statusDraft()));
         when(notificationService.save(any(UserNotification.class)))
             .thenThrow(new DuplicateKeyException("UK_USER_NOTIFICATION_USER_EVENT"));
         UserNotification winner = new UserNotification();
@@ -212,7 +220,8 @@ class MonitorEventPublisherTest {
         MonitorState previous = state(Set.of("ok"));
         MonitorState current = state(Set.of("clientHold"));
         when(snapshotService.getOne(any())).thenReturn(snapshot("previous", previous));
-        when(detector.detect(previous, current)).thenReturn(List.of(statusDraft()));
+        when(detector.detect(eq(previous), eq(current), nullable(Instant.class), nullable(Instant.class)))
+            .thenReturn(List.of(statusDraft()));
         when(eventService.save(any(MonitorEvent.class))).thenReturn(false);
 
         assertThrows(IllegalStateException.class, () -> publisher.publish(watch(), current, true));
@@ -227,7 +236,8 @@ class MonitorEventPublisherTest {
         MonitorState previous = state(Set.of("ok"));
         MonitorState current = state(Set.of("clientHold"));
         when(snapshotService.getOne(any())).thenReturn(snapshot("previous", previous));
-        when(detector.detect(previous, current)).thenReturn(List.of(statusDraft()));
+        when(detector.detect(eq(previous), eq(current), nullable(Instant.class), nullable(Instant.class)))
+            .thenReturn(List.of(statusDraft()));
         when(notificationService.save(any(UserNotification.class))).thenReturn(false);
 
         assertThrows(IllegalStateException.class, () -> publisher.publish(watch(), current, true));
@@ -238,7 +248,8 @@ class MonitorEventPublisherTest {
     @Test
     void successfulSnapshotSaveFalseAbortsPublication() {
         MonitorState current = state(Set.of("ok"));
-        when(detector.detect(null, current)).thenReturn(List.of());
+        when(detector.detect(eq(null), eq(current), nullable(Instant.class), nullable(Instant.class)))
+            .thenReturn(List.of());
         when(snapshotService.save(any(MonitorSnapshot.class))).thenReturn(false);
 
         assertThrows(IllegalStateException.class, () -> publisher.publish(watch(), current, true));
@@ -257,6 +268,60 @@ class MonitorEventPublisherTest {
         assertTrue(notificationSql.contains("USER_ID = #{USERID}"));
         assertTrue(notificationSql.contains("EVENT_ID = #{EVENTID}"));
         assertTrue(notificationSql.endsWith("FOR UPDATE"));
+    }
+
+    @Test
+    void firstScanAtExpiryThresholdUsesRealDetectorAndStableFingerprint() {
+        detector = new MonitorChangeDetector(CLOCK);
+        publisher = new MonitorEventPublisher(
+            snapshotService,
+            eventService,
+            notificationService,
+            eventMapper,
+            notificationMapper,
+            dispatcher,
+            detector,
+            CLOCK);
+        DomainWatch watch = watch();
+        MonitorState current = new MonitorState(
+            "example.com",
+            Set.of("ok"),
+            LocalDate.of(2026, 8, 16),
+            LocalDate.of(2026, 11, 1),
+            Map.of(),
+            true,
+            0);
+        AtomicReference<MonitorEvent> firstEvent = new AtomicReference<>();
+        AtomicReference<UserNotification> firstNotification = new AtomicReference<>();
+        when(eventService.save(any(MonitorEvent.class))).thenAnswer(invocation -> {
+            MonitorEvent candidate = invocation.getArgument(0);
+            if (firstEvent.compareAndSet(null, candidate)) {
+                return true;
+            }
+            assertEquals(firstEvent.get().getFingerprint(), candidate.getFingerprint());
+            throw new DuplicateKeyException("UK_MONITOR_EVENT_WATCH_FINGERPRINT");
+        });
+        when(eventMapper.selectByIdentityForUpdate(eq("watch-1"), any(String.class)))
+            .thenAnswer(invocation -> firstEvent.get());
+        when(notificationService.save(any(UserNotification.class))).thenAnswer(invocation -> {
+            UserNotification candidate = invocation.getArgument(0);
+            if (firstNotification.compareAndSet(null, candidate)) {
+                return true;
+            }
+            throw new DuplicateKeyException("UK_USER_NOTIFICATION_USER_EVENT");
+        });
+        when(notificationMapper.selectByIdentityForUpdate(eq("user-1"), any(String.class)))
+            .thenAnswer(invocation -> firstNotification.get());
+
+        List<MonitorEvent> first = publisher.publish(watch, current, true);
+        firstNotification.get().setEmailState("SENT");
+        List<MonitorEvent> replay = publisher.publish(watch, current, true);
+
+        assertEquals(1, first.size());
+        assertSame(first.get(0), replay.get(0));
+        assertEquals("DOMAIN_EXPIRING", first.get(0).getEventType());
+        assertTrue(first.get(0).getFingerprint() != null && !first.get(0).getFingerprint().isBlank());
+        verify(dispatcher, times(1)).dispatch(any(MonitorEvent.class), any(UserNotification.class));
     }
 
     private static DomainWatch watch() {
@@ -283,6 +348,7 @@ class MonitorEventPublisherTest {
         snapshot.setId(id);
         snapshot.setStatus(BaseEntity.STATUS_ACTIVE);
         snapshot.setStateJson(JSON.toJSONString(state));
+        snapshot.setCheckedAt(Date.from(CLOCK.instant().minusSeconds(86_400)));
         return snapshot;
     }
 

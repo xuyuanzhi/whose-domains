@@ -15,11 +15,15 @@ import lombok.EqualsAndHashCode;
 @EqualsAndHashCode(callSuper = true)
 public class DomainWatchNotifyLog extends BaseEntity {
 
+    public static final int SEND_STATUS_PENDING = 0;
     public static final int SEND_STATUS_SUCCESS = 1;
     public static final int SEND_STATUS_FAIL = 2;
 
     /** Notification whose email delivery was attempted. */
     private String notificationId;
+
+    /** Delivery batch and attempt whose SMTP result this row audits. */
+    private String batchId;
 
     /** Monitoring event included in this delivery attempt. */
     private String eventId;
