@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.inOrder;
@@ -19,6 +21,8 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -34,11 +38,16 @@ import info.wesite.core.mail.MailSender;
 import info.wesite.core.service.DomainService;
 import info.wesite.core.service.DomainWatchService;
 import info.wesite.core.service.MonitorSnapshotService;
+import info.wesite.web.monitor.DnsMonitorCollector;
+import info.wesite.web.monitor.DomainMonitorCollector;
 import info.wesite.web.monitor.MonitorChangeDetector;
+import info.wesite.web.monitor.MonitorCollectorResult;
 import info.wesite.web.monitor.MonitorEventDraft;
 import info.wesite.web.monitor.MonitorEventPublisher;
 import info.wesite.web.monitor.MonitorEventType;
 import info.wesite.web.monitor.MonitorState;
+import info.wesite.web.monitor.SslMonitorCollector;
+import info.wesite.web.monitor.WebsiteMonitorCollector;
 
 class DomainWatchTaskEventMigrationTest {
 
@@ -56,7 +65,7 @@ class DomainWatchTaskEventMigrationTest {
         when(watchService.updateById(any(DomainWatch.class))).thenReturn(true);
         when(domainService.getById("domain-1")).thenReturn(domain());
 
-        new DomainWatchTask(watchService, domainService, snapshotService, publisher).checkDomainExpiry();
+        task(watchService, domainService, snapshotService, publisher).checkDomainExpiry();
 
         ArgumentCaptor<MonitorState> state = ArgumentCaptor.forClass(MonitorState.class);
         verify(publisher).publish(eq(watch), state.capture(), eq(true));
@@ -82,7 +91,7 @@ class DomainWatchTaskEventMigrationTest {
         when(publisher.publish(eq(watch), any(MonitorState.class), eq(true)))
             .thenThrow(new IllegalStateException("publisher unavailable"));
 
-        new DomainWatchTask(watchService, domainService, snapshotService, publisher).checkDomainExpiry();
+        task(watchService, domainService, snapshotService, publisher).checkDomainExpiry();
 
         assertNull(watch.getLastCheckTime());
         verify(watchService, never()).updateById(any(DomainWatch.class));
@@ -105,7 +114,7 @@ class DomainWatchTaskEventMigrationTest {
         when(snapshotService.count(any(Wrapper.class))).thenReturn(0L);
         when(domainService.getById("domain-1")).thenReturn(domain("2026-08-10"));
 
-        new DomainWatchTask(watchService, domainService, snapshotService, publisher).checkDomainExpiry();
+        task(watchService, domainService, snapshotService, publisher).checkDomainExpiry();
 
         ArgumentCaptor<MonitorState> state = ArgumentCaptor.forClass(MonitorState.class);
         verify(publisher).publish(eq(watch), state.capture(), eq(true));
@@ -130,7 +139,7 @@ class DomainWatchTaskEventMigrationTest {
         when(watchService.page(any(IPage.class), any(Wrapper.class))).thenReturn(page);
         when(snapshotService.count(any(Wrapper.class))).thenReturn(1L);
 
-        new DomainWatchTask(watchService, domainService, snapshotService, publisher).checkDomainExpiry();
+        task(watchService, domainService, snapshotService, publisher).checkDomainExpiry();
 
         verifyNoInteractions(domainService, publisher);
         verify(watchService, never()).updateById(any(DomainWatch.class));
@@ -154,6 +163,49 @@ class DomainWatchTaskEventMigrationTest {
         watch.setDomainName("example.com");
         watch.setStatus(DomainWatch.STATUS_ACTIVE);
         return watch;
+    }
+
+    private static DomainWatchTask task(
+        DomainWatchService watchService,
+        DomainService domainService,
+        MonitorSnapshotService snapshotService,
+        MonitorEventPublisher publisher) {
+        DomainMonitorCollector domainCollector = mock(DomainMonitorCollector.class);
+        DnsMonitorCollector dnsCollector = mock(DnsMonitorCollector.class);
+        SslMonitorCollector sslCollector = mock(SslMonitorCollector.class);
+        WebsiteMonitorCollector websiteCollector = mock(WebsiteMonitorCollector.class);
+        when(domainCollector.collect(any(Domain.class))).thenAnswer(invocation -> {
+            Domain value = invocation.getArgument(0);
+            LocalDate expiry = LocalDate.parse(value.getRegistExpiryDateText().substring(0, 10));
+            return MonitorCollectorResult.success(
+                MonitorCollectorResult.Source.DOMAIN,
+                new MonitorState(value.getName(), Set.of(value.getDomainStatus()), expiry,
+                    null, Map.of(), false, 0));
+        });
+        when(dnsCollector.collect(anyString())).thenAnswer(invocation ->
+            MonitorCollectorResult.success(
+                MonitorCollectorResult.Source.DNS,
+                new MonitorState(invocation.getArgument(0), Set.of(), null, null,
+                    Map.of(), false, 0)));
+        when(sslCollector.collect(anyString())).thenAnswer(invocation ->
+            MonitorCollectorResult.success(
+                MonitorCollectorResult.Source.SSL,
+                new MonitorState(invocation.getArgument(0), Set.of(), null, null,
+                    Map.of(), false, 0)));
+        when(websiteCollector.collect(anyString(), anyInt())).thenAnswer(invocation ->
+            MonitorCollectorResult.success(
+                MonitorCollectorResult.Source.WEBSITE,
+                new MonitorState(invocation.getArgument(0), Set.of(), null, null,
+                    Map.of(), true, 0)));
+        return new DomainWatchTask(
+            watchService,
+            domainService,
+            snapshotService,
+            publisher,
+            domainCollector,
+            dnsCollector,
+            sslCollector,
+            websiteCollector);
     }
 
     private static Domain domain() {
