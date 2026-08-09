@@ -62,3 +62,25 @@ Before Task 10 changes, the first full-suite run had one existing timing-depende
 - GREEN focused verification: `mvn -pl wesite-web -am "-Dtest=MonitorCollectorTest,DomainWatchTaskTest,MonitorChangeDetectorTest,MonitorEventPublisherTest" "-Dsurefire.failIfNoSpecifiedTests=false" test` passed 45 tests.
 - Migration test verification: `DomainWatchTaskEventMigrationTest` passed 5 tests after moving its mocks to the new deadline/provenance interfaces.
 - Fresh full regression: `mvn test` passed 10 core tests and 373 web tests; the admin module also built successfully. MySQL/Testcontainers concurrency fixtures passed. All Google-login tests passed and no Google-login implementation was changed.
+
+## Fix round 2
+
+### Allocation-safe HTTP framing
+
+- Chunk sizes are parsed as bounded long values and compared with the remaining one MiB response budget before any array allocation or body read. Negative, overflowing, over-budget, and overlong chunk-extension lines fail with `IOException`.
+- Initial headers and chunk trailers now have explicit 64 KiB aggregate section budgets and 100 physical-field limits. Repeated fields and continuation lines consume those budgets before semantic validation.
+- The `7fffffff` regression test was first run with a constrained Surefire heap and reproduced the previous `Requested array size exceeds VM limit` fork crash; it now returns a normal size-limit failure without attempting allocation.
+
+### Deadline-aware bounded address resolution
+
+- Added one Spring-managed resolver executor with four fixed worker threads, an eight-entry queue, abort rejection, named daemon threads, and non-waiting shutdown. Monitoring calls never create per-request resolver threads or unbounded queued work.
+- `MonitorAddressResolver` submits the otherwise-unbounded system lookup once, waits with `Future.get` using the monotonic parent deadline, cancels on timeout/interruption, preserves interruption, rejects late results, and maps pool saturation to an explicit capacity failure.
+- RDAP and website redirects, WHOIS, and TLS all use the injected resolver and the same existing collector/watch deadline. Address-bound connections, Host, HTTPS SNI, certificate hostname verification, and redirect revalidation remain intact.
+
+### Round 2 TDD evidence
+
+- RED: `7fffffff` crashed the old parser before JUnit could report a test; 101 unique headers were accepted; the desired resolver type did not exist; and a resolver result completed after the fake monotonic deadline was incorrectly accepted.
+- GREEN focused verification: 55 monitoring, publisher, and task tests passed under a 128 MiB Surefire heap.
+- Resolver-specific verification covers blocking lookup cancellation within budget, rejection when a fixed one-thread/zero-queue pool remains occupied by an uninterruptible lookup, and rejection of a result completed after its monotonic deadline.
+- Initial full regression after wiring: `mvn test` passed 10 core tests and 378 web tests; the admin module built successfully. No Google-login implementation was changed.
+- Fresh final regression after adding the late-result guard: `mvn test` passed 10 core tests and 379 web tests with zero failures/errors; the admin module built successfully.

@@ -32,13 +32,16 @@ final class BoundHttpClient {
     private static final int MAX_REDIRECTS = 3;
     private static final int MAX_BODY_BYTES = 1_048_576;
     private static final int MAX_LINE_BYTES = 65_536;
+    private static final int MAX_HEADER_SECTION_BYTES = 65_536;
+    private static final int MAX_HEADER_FIELDS = 100;
+    private static final int MAX_CHUNK_LINE_BYTES = 1_024;
     private static final int STEP_TIMEOUT_MS = 5_000;
 
     private final MonitorTargetPolicy.HostResolver resolver;
     private final AddressTransport transport;
 
-    BoundHttpClient() {
-        this(InetAddressResolver.INSTANCE, BoundHttpClient::exchangeBound);
+    BoundHttpClient(MonitorTargetPolicy.HostResolver resolver) {
+        this(resolver, BoundHttpClient::exchangeBound);
     }
 
     BoundHttpClient(
@@ -54,7 +57,7 @@ final class BoundHttpClient {
             deadline.throwIfExpired();
             requireHttpUri(uri);
             MonitorTargetPolicy.ResolvedTarget target = MonitorTargetPolicy.resolvePublic(
-                uri.getHost(), resolver);
+                uri.getHost(), deadline, resolver);
             deadline.throwIfExpired();
             Response response = exchangeAddresses(uri, method, target, deadline);
             if (response.status() < 300 || response.status() >= 400 || redirects == MAX_REDIRECTS) {
@@ -156,7 +159,8 @@ final class BoundHttpClient {
         MonitorDeadline deadline) throws IOException {
         DeadlineInput input = new DeadlineInput(
             new BufferedInputStream(socket.getInputStream()), socket, deadline);
-        String statusLine = readLine(input, deadline);
+        HeaderBudget headerBudget = new HeaderBudget();
+        String statusLine = readHeaderLine(input, deadline, headerBudget);
         String[] statusParts = statusLine.split(" ", 3);
         if (statusParts.length < 2) {
             throw new IOException("Malformed HTTP status line");
@@ -170,7 +174,8 @@ final class BoundHttpClient {
 
         Map<String, String> headers = new LinkedHashMap<>();
         String line;
-        while (!(line = readLine(input, deadline)).isEmpty()) {
+        while (!(line = readHeaderLine(input, deadline, headerBudget)).isEmpty()) {
+            headerBudget.recordField();
             int separator = line.indexOf(':');
             if (separator <= 0) {
                 throw new IOException("Malformed HTTP header");
@@ -222,20 +227,31 @@ final class BoundHttpClient {
         ByteArrayOutputStream body = new ByteArrayOutputStream();
         while (true) {
             String sizeLine = readLine(input, deadline);
+            if (sizeLine.length() > MAX_CHUNK_LINE_BYTES) {
+                throw new IOException("HTTP chunk extension exceeded size limit");
+            }
             String hex = sizeLine.split(";", 2)[0].trim();
-            int size;
+            long size;
             try {
-                size = Integer.parseInt(hex, 16);
+                size = Long.parseLong(hex, 16);
             } catch (NumberFormatException malformed) {
                 throw new IOException("Invalid HTTP chunk size", malformed);
             }
+            if (size < 0 || size > MAX_BODY_BYTES - body.size()) {
+                throw new IOException("HTTP response exceeded size limit");
+            }
             if (size == 0) {
-                while (!readLine(input, deadline).isEmpty()) {
-                    // Consume trailers.
+                HeaderBudget trailerBudget = new HeaderBudget();
+                String trailer;
+                while (!(trailer = readHeaderLine(input, deadline, trailerBudget)).isEmpty()) {
+                    trailerBudget.recordField();
+                    if (trailer.indexOf(':') <= 0) {
+                        throw new IOException("Malformed HTTP trailer");
+                    }
                 }
                 return body.toByteArray();
             }
-            byte[] chunk = readExactly(input, size, deadline);
+            byte[] chunk = readExactly(input, (int) size, deadline);
             appendBounded(body, chunk, chunk.length);
             if (!readLine(input, deadline).isEmpty()) {
                 throw new IOException("Malformed HTTP chunk terminator");
@@ -285,9 +301,18 @@ final class BoundHttpClient {
         }
     }
 
+    private static String readHeaderLine(
+        DeadlineInput input,
+        MonitorDeadline deadline,
+        HeaderBudget budget) throws IOException {
+        String line = readLine(input, deadline);
+        budget.recordLine(line);
+        return line;
+    }
+
     private static void appendBounded(ByteArrayOutputStream target, byte[] value, int length)
         throws IOException {
-        if (target.size() + length > MAX_BODY_BYTES) {
+        if (length < 0 || length > MAX_BODY_BYTES - target.size()) {
             throw new IOException("HTTP response exceeded size limit");
         }
         target.write(value, 0, length);
@@ -321,6 +346,26 @@ final class BoundHttpClient {
             MonitorDeadline deadline) throws IOException;
     }
 
+    private static final class HeaderBudget {
+        private int bytes;
+        private int fields;
+
+        private void recordLine(String line) throws IOException {
+            int lineBytes = line.length() + 2;
+            if (lineBytes > MAX_HEADER_SECTION_BYTES - bytes) {
+                throw new IOException("HTTP header section exceeded size limit");
+            }
+            bytes += lineBytes;
+        }
+
+        private void recordField() throws IOException {
+            fields++;
+            if (fields > MAX_HEADER_FIELDS) {
+                throw new IOException("HTTP header field count exceeded limit");
+            }
+        }
+    }
+
     private static final class DeadlineInput extends InputStream {
         private final InputStream delegate;
         private final Socket socket;
@@ -349,12 +394,4 @@ final class BoundHttpClient {
         }
     }
 
-    private enum InetAddressResolver implements MonitorTargetPolicy.HostResolver {
-        INSTANCE;
-
-        @Override
-        public java.net.InetAddress[] resolve(String host) throws IOException {
-            return java.net.InetAddress.getAllByName(host);
-        }
-    }
 }

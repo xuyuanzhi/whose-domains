@@ -54,9 +54,7 @@ public final class MonitorDeadline {
     }
 
     public void throwIfExpired() throws SocketTimeoutException {
-        if (remainingNanos() <= 0) {
-            throw new SocketTimeoutException("Monitoring deadline exceeded");
-        }
+        remainingNanos();
     }
 
     public int timeoutMillis(int maximumMillis) throws SocketTimeoutException {
@@ -64,14 +62,15 @@ public final class MonitorDeadline {
             throw new IllegalArgumentException("maximumMillis must be positive");
         }
         long remaining = remainingNanos();
-        if (remaining <= 0) {
-            throw new SocketTimeoutException("Monitoring deadline exceeded");
-        }
         long millis = Math.max(1L, (remaining + 999_999L) / 1_000_000L);
         return (int) Math.min(maximumMillis, millis);
     }
 
-    private long remainingNanos() {
-        return deadlineNanos - ticker.getAsLong();
+    long remainingNanos() throws SocketTimeoutException {
+        long remaining = deadlineNanos - ticker.getAsLong();
+        if (remaining <= 0) {
+            throw new SocketTimeoutException("Monitoring deadline exceeded");
+        }
+        return remaining;
     }
 }

@@ -236,7 +236,7 @@ class MonitorCollectorTest {
         AtomicInteger resolutions = new AtomicInteger();
         List<InetAddress> connected = new ArrayList<>();
         BoundHttpClient client = new BoundHttpClient(
-            host -> resolutions.incrementAndGet() == 1
+            (host, ignoredDeadline) -> resolutions.incrementAndGet() == 1
                 ? new InetAddress[] {InetAddress.getByName("8.8.8.8")}
                 : new InetAddress[] {InetAddress.getByName("127.0.0.1")},
             (uri, method, address, deadline) -> {
@@ -263,7 +263,7 @@ class MonitorCollectorTest {
         MonitorDeadline deadline = MonitorDeadline.forTest(
             Duration.ofMillis(100), now::get);
         BoundHttpClient client = new BoundHttpClient(
-            host -> new InetAddress[] {
+            (host, ignoredDeadline) -> new InetAddress[] {
                 InetAddress.getByName("8.8.8.8"),
                 InetAddress.getByName("1.1.1.1")},
             (uri, method, address, ignored) -> {
@@ -284,7 +284,7 @@ class MonitorCollectorTest {
         MonitorDeadline deadline = MonitorDeadline.forTest(
             Duration.ofMillis(100), now::get);
         BoundHttpClient client = new BoundHttpClient(
-            host -> {
+            (host, ignoredDeadline) -> {
                 if (attempts.get() > 0) {
                     now.addAndGet(Duration.ofMillis(50).toNanos());
                 }
@@ -300,6 +300,28 @@ class MonitorCollectorTest {
         assertThrows(SocketTimeoutException.class, () -> client.execute(
             URI.create("https://example.com/start"), "GET", deadline));
         assertEquals(1, attempts.get());
+    }
+
+    @Test
+    void boundHttpResolutionConsumesTheParentDeadlineBeforeAnyConnection() throws Exception {
+        AtomicLong now = new AtomicLong();
+        AtomicInteger connections = new AtomicInteger();
+        MonitorDeadline deadline = MonitorDeadline.forTest(
+            Duration.ofMillis(100), now::get);
+        BoundHttpClient client = new BoundHttpClient(
+            (host, parentDeadline) -> {
+                now.addAndGet(Duration.ofMillis(101).toNanos());
+                parentDeadline.throwIfExpired();
+                return new InetAddress[] {InetAddress.getByName("8.8.8.8")};
+            },
+            (uri, method, address, ignored) -> {
+                connections.incrementAndGet();
+                return new BoundHttpClient.Response(200, Map.of(), new byte[0]);
+            });
+
+        assertThrows(SocketTimeoutException.class, () -> client.execute(
+            URI.create("https://example.com/"), "HEAD", deadline));
+        assertEquals(0, connections.get());
     }
 
     @Test

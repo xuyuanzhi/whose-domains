@@ -18,6 +18,7 @@ import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /** Collects the peer leaf certificate expiry with bounded connect/read timeouts. */
@@ -30,8 +31,10 @@ public class SslMonitorCollector {
 
     private final TimedCertificateProbe probe;
 
-    public SslMonitorCollector() {
-        this.probe = SslMonitorCollector::probeCertificate;
+    @Autowired
+    public SslMonitorCollector(MonitorAddressResolver addressResolver) {
+        this.probe = (domain, deadline) ->
+            probeCertificate(domain, deadline, addressResolver);
     }
 
     SslMonitorCollector(CertificateProbe probe) {
@@ -76,8 +79,10 @@ public class SslMonitorCollector {
 
     private static X509Certificate probeCertificate(
         String domain,
-        MonitorDeadline deadline) throws Exception {
-        MonitorTargetPolicy.ResolvedTarget target = MonitorTargetPolicy.resolvePublic(domain);
+        MonitorDeadline deadline,
+        MonitorTargetPolicy.HostResolver resolver) throws Exception {
+        MonitorTargetPolicy.ResolvedTarget target = MonitorTargetPolicy.resolvePublic(
+            domain, deadline, resolver);
         IOException lastFailure = null;
         for (java.net.InetAddress address : target.addresses()) {
             deadline.throwIfExpired();

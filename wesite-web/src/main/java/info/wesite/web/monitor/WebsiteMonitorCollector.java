@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /** Collects website availability from a completed, bounded HTTP probe. */
@@ -20,8 +21,10 @@ public class WebsiteMonitorCollector {
 
     private final TimedHttpProbe probe;
 
-    public WebsiteMonitorCollector() {
-        this.probe = WebsiteMonitorCollector::probeWebsite;
+    @Autowired
+    public WebsiteMonitorCollector(MonitorAddressResolver addressResolver) {
+        BoundHttpClient httpClient = new BoundHttpClient(addressResolver);
+        this.probe = (domain, deadline) -> probeWebsite(domain, deadline, httpClient);
     }
 
     WebsiteMonitorCollector(HttpProbe probe) {
@@ -62,16 +65,19 @@ public class WebsiteMonitorCollector {
         }
     }
 
-    private static int probeWebsite(String domain, MonitorDeadline deadline) throws Exception {
+    private static int probeWebsite(
+        String domain,
+        MonitorDeadline deadline,
+        BoundHttpClient httpClient) throws Exception {
         IOException httpsFailure;
         try {
-            return new BoundHttpClient().execute(
+            return httpClient.execute(
                 URI.create("https://" + domain), "HEAD", deadline).status();
         } catch (IOException failure) {
             httpsFailure = failure;
         }
         try {
-            return new BoundHttpClient().execute(
+            return httpClient.execute(
                 URI.create("http://" + domain), "HEAD", deadline).status();
         } catch (IOException httpFailure) {
             httpFailure.addSuppressed(httpsFailure);

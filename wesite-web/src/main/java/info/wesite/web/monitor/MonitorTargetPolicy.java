@@ -12,14 +12,13 @@ final class MonitorTargetPolicy {
     private MonitorTargetPolicy() {
     }
 
-    static ResolvedTarget resolvePublic(String rawHost) throws IOException {
-        return resolvePublic(rawHost, InetAddress::getAllByName);
-    }
-
-    static ResolvedTarget resolvePublic(String rawHost, HostResolver resolver) throws IOException {
+    static ResolvedTarget resolvePublic(
+        String rawHost,
+        MonitorDeadline deadline,
+        HostResolver resolver) throws IOException {
         String host = normalizeHost(rawHost);
-        InetAddress[] addresses = resolver.resolve(host);
-        if (addresses.length == 0) {
+        InetAddress[] addresses = resolver.resolve(host, deadline);
+        if (addresses == null || addresses.length == 0) {
             throw new UnknownHostException(host);
         }
         for (InetAddress address : addresses) {
@@ -102,6 +101,6 @@ final class MonitorTargetPolicy {
 
     @FunctionalInterface
     interface HostResolver {
-        InetAddress[] resolve(String host) throws IOException;
+        InetAddress[] resolve(String host, MonitorDeadline deadline) throws IOException;
     }
 }

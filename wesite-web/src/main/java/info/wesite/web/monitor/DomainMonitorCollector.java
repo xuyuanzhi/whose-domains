@@ -44,9 +44,14 @@ public class DomainMonitorCollector {
     private final DomainParser whoisParser;
 
     @Autowired
-    public DomainMonitorCollector(WhoisUtils whoisUtils) {
-        this.rdapLookup = DomainMonitorCollector::readRdap;
-        this.whoisLookup = DomainMonitorCollector::readWhois;
+    public DomainMonitorCollector(
+        WhoisUtils whoisUtils,
+        MonitorAddressResolver addressResolver) {
+        BoundHttpClient httpClient = new BoundHttpClient(addressResolver);
+        this.rdapLookup = (domain, server, deadline) ->
+            readRdap(domain, server, deadline, httpClient);
+        this.whoisLookup = (domain, server, deadline) ->
+            readWhois(domain, server, deadline, addressResolver);
         this.rdapParser = RdapUtils::fillRdapInfoFromText;
         this.whoisParser = whoisUtils::fillWhoisInfoFromText0;
     }
@@ -156,10 +161,11 @@ public class DomainMonitorCollector {
     private static String readRdap(
         String domain,
         String server,
-        MonitorDeadline deadline) throws Exception {
+        MonitorDeadline deadline,
+        BoundHttpClient httpClient) throws Exception {
         String separator = server.endsWith("/") ? "" : "/";
         URI uri = URI.create(server + separator + "domain/" + domain);
-        BoundHttpClient.Response response = new BoundHttpClient().execute(uri, "GET", deadline);
+        BoundHttpClient.Response response = httpClient.execute(uri, "GET", deadline);
         return response.status() >= 200 && response.status() < 300
             ? new String(response.body(), StandardCharsets.UTF_8)
             : null;
@@ -168,8 +174,10 @@ public class DomainMonitorCollector {
     private static String readWhois(
         String domain,
         String server,
-        MonitorDeadline deadline) throws Exception {
-        MonitorTargetPolicy.ResolvedTarget target = MonitorTargetPolicy.resolvePublic(server);
+        MonitorDeadline deadline,
+        MonitorTargetPolicy.HostResolver resolver) throws Exception {
+        MonitorTargetPolicy.ResolvedTarget target = MonitorTargetPolicy.resolvePublic(
+            server, deadline, resolver);
         IOException lastFailure = null;
         for (java.net.InetAddress address : target.addresses()) {
             deadline.throwIfExpired();
