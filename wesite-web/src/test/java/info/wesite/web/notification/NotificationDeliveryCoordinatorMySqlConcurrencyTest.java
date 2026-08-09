@@ -30,6 +30,7 @@ import org.junit.jupiter.api.Timeout;
 import org.mybatis.spring.mapper.MapperFactoryBean;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.containers.MySQLContainer;
@@ -61,6 +62,7 @@ class NotificationDeliveryCoordinatorMySqlConcurrencyTest {
     private static UserNotificationMapper notificationMapper;
     private static DomainWatchNotifyLogMapper logMapper;
     private static NotificationDeliveryCoordinator coordinator;
+    private static NotificationCancellationService cancellationService;
 
     @BeforeAll
     static void configureDatabase() throws Exception {
@@ -75,11 +77,13 @@ class NotificationDeliveryCoordinatorMySqlConcurrencyTest {
         notificationMapper = mapper(UserNotificationMapper.class, sessionFactory);
         logMapper = mapper(DomainWatchNotifyLogMapper.class, sessionFactory);
         coordinator = new NotificationDeliveryCoordinator(batchMapper, notificationMapper, logMapper);
+        cancellationService = new NotificationCancellationService(batchMapper, notificationMapper);
     }
 
     @AfterAll
     static void releaseDatabase() {
         coordinator = null;
+        cancellationService = null;
         logMapper = null;
         notificationMapper = null;
         batchMapper = null;
@@ -93,6 +97,18 @@ class NotificationDeliveryCoordinatorMySqlConcurrencyTest {
             statement.executeUpdate("DELETE FROM WEB_DOMAIN_WATCH_NOTIFY_LOG");
             statement.executeUpdate("DELETE FROM WEB_USER_NOTIFICATION");
             statement.executeUpdate("DELETE FROM WEB_NOTIFICATION_DELIVERY_BATCH");
+            statement.executeUpdate("DELETE FROM WEB_MONITOR_EVENT");
+            statement.executeUpdate("DELETE FROM WEB_DOMAIN_WATCH");
+            statement.executeUpdate("""
+                INSERT INTO WEB_DOMAIN_WATCH (ID, USER_ID, NOTIFY_TYPE, NOTIFY_EMAIL)
+                VALUES ('watch-1', 'user-1', 3, 'person@example.com'),
+                       ('watch-2', 'user-1', 3, 'person@example.com')
+                """);
+            statement.executeUpdate("""
+                INSERT INTO WEB_MONITOR_EVENT (ID, WATCH_ID, EVENT_TYPE)
+                VALUES ('e1', 'watch-1', 'SSL_EXPIRING'),
+                       ('e2', 'watch-2', 'DNS_CHANGED')
+                """);
             statement.executeUpdate("""
                 INSERT INTO WEB_USER_NOTIFICATION
                   (ID, STATUS, DELETED, CREATE_TIME, USER_ID, EVENT_ID, TITLE, TARGET_PATH,
@@ -252,6 +268,69 @@ class NotificationDeliveryCoordinatorMySqlConcurrencyTest {
         assertEquals(0, scalar("SELECT COUNT(*) FROM WEB_NOTIFICATION_DELIVERY_BATCH WHERE STATE IN ('CLAIMED','FAILED')"));
     }
 
+    @Test
+    void claimedWatchCancellationThenSmtpFailureCancelsTheWholeMixedDigestWithoutRetry() throws Exception {
+        TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+        DeliveryBatchClaim claim = transaction.execute(status -> coordinator.startDigest(
+            "user-1", "DAILY_DIGEST", "2026-08-09", "person@example.com",
+            NOW, NOW, NOW.plusSeconds(600)).orElseThrow());
+
+        transaction.executeWithoutResult(status -> cancellationService.cancelForWatch(
+            "user-1", "watch-1", NOW.plusSeconds(1)));
+
+        assertEquals(1, scalar("SELECT CANCELLATION_REQUESTED FROM WEB_NOTIFICATION_DELIVERY_BATCH"));
+        assertEquals(2, scalar("SELECT COUNT(*) FROM WEB_USER_NOTIFICATION WHERE EMAIL_STATE = 'CLAIMED'"));
+
+        transaction.executeWithoutResult(status -> coordinator.complete(
+            claim, false,
+            new DeliveryAttemptDetails(null, null, null, "person@example.com", null, null, "subject", "smtp"),
+            NOW.plusSeconds(2), NOW.plusSeconds(300)));
+
+        assertEquals(1, scalar("SELECT COUNT(*) FROM WEB_NOTIFICATION_DELIVERY_BATCH WHERE STATE = 'CANCELLED'"));
+        assertEquals(2, scalar("SELECT COUNT(*) FROM WEB_USER_NOTIFICATION WHERE EMAIL_STATE = 'IN_APP_ONLY'"));
+        assertEquals(0, transaction.execute(status -> coordinator.retryNext(
+            "DAILY_DIGEST", NOW.plusSeconds(301), NOW.plusSeconds(901))).stream().count());
+    }
+
+    @Test
+    void claimedCategoryCancellationAtLeaseExpiryCancelsTheWholeMixedDigestWithoutRetry() throws Exception {
+        TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+        transaction.execute(status -> coordinator.startDigest(
+            "user-1", "DAILY_DIGEST", "2026-08-09", "person@example.com",
+            NOW, NOW, NOW.plusSeconds(600)).orElseThrow());
+
+        transaction.executeWithoutResult(status -> cancellationService.cancelForEventTypes(
+            "user-1", java.util.Set.of("SSL_EXPIRING"), NOW.plusSeconds(1)));
+        transaction.executeWithoutResult(status -> coordinator.finalizeExpiredCancelled(
+            "DAILY_DIGEST", NOW.plusSeconds(601)));
+
+        assertEquals(1, scalar("SELECT COUNT(*) FROM WEB_NOTIFICATION_DELIVERY_BATCH WHERE STATE = 'CANCELLED'"));
+        assertEquals(2, scalar("SELECT COUNT(*) FROM WEB_USER_NOTIFICATION WHERE EMAIL_STATE = 'IN_APP_ONLY'"));
+        assertEquals(0, scalar("SELECT COUNT(*) FROM WEB_NOTIFICATION_DELIVERY_BATCH WHERE STATE IN ('CLAIMED','FAILED')"));
+    }
+
+    @Test
+    void cancellationSqlFailureRollsBackTheWatchSettingAndNotificationStateTogether() throws Exception {
+        NotificationDeliveryBatchMapper failingBatchMapper = (NotificationDeliveryBatchMapper) Proxy.newProxyInstance(
+            NotificationDeliveryBatchMapper.class.getClassLoader(),
+            new Class<?>[] {NotificationDeliveryBatchMapper.class},
+            (proxy, method, arguments) -> method.getName().equals("cancelFailedForWatch")
+                ? throwSqlFailure()
+                : invoke(batchMapper, method, arguments));
+        NotificationCancellationService failingCancellation = new NotificationCancellationService(
+            failingBatchMapper, notificationMapper);
+        TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+
+        assertThrows(IllegalStateException.class, () -> transaction.executeWithoutResult(status -> {
+            jdbc.update("UPDATE WEB_DOMAIN_WATCH SET NOTIFY_TYPE = 0, NOTIFY_EMAIL = NULL WHERE ID = 'watch-1'");
+            failingCancellation.cancelForWatch("user-1", "watch-1", NOW.plusSeconds(1));
+        }));
+
+        assertEquals(3, scalar("SELECT NOTIFY_TYPE FROM WEB_DOMAIN_WATCH WHERE ID = 'watch-1'"));
+        assertEquals(1, scalar("SELECT COUNT(*) FROM WEB_USER_NOTIFICATION WHERE ID = 'n1' AND EMAIL_STATE = 'QUEUED'"));
+    }
+
     private Attempt startDigestInTransaction(CountDownLatch start) {
         TransactionTemplate transaction = new TransactionTemplate(transactionManager);
         transaction.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
@@ -299,8 +378,24 @@ class NotificationDeliveryCoordinatorMySqlConcurrencyTest {
         }
     }
 
+    private static Object throwSqlFailure() {
+        throw new IllegalStateException("cancellation SQL failed");
+    }
+
     private static void createTables() throws SQLException {
         try (Connection connection = dataSource.getConnection(); Statement statement = connection.createStatement()) {
+            statement.execute("""
+                CREATE TABLE WEB_DOMAIN_WATCH (
+                  ID varchar(32) NOT NULL PRIMARY KEY, USER_ID varchar(32) NOT NULL,
+                  NOTIFY_TYPE int NOT NULL, NOTIFY_EMAIL varchar(254)
+                ) ENGINE=InnoDB
+                """);
+            statement.execute("""
+                CREATE TABLE WEB_MONITOR_EVENT (
+                  ID varchar(32) NOT NULL PRIMARY KEY, WATCH_ID varchar(32) NOT NULL,
+                  EVENT_TYPE varchar(64) NOT NULL
+                ) ENGINE=InnoDB
+                """);
             statement.execute("""
                 CREATE TABLE WEB_NOTIFICATION_DELIVERY_BATCH (
                   ID varchar(32) NOT NULL PRIMARY KEY, STATUS smallint DEFAULT 1, DELETED smallint DEFAULT 0,

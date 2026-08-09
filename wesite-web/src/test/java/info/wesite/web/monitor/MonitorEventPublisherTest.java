@@ -194,6 +194,36 @@ class MonitorEventPublisherTest {
     }
 
     @Test
+    void sslAndWebsiteEventsDeepLinkToTheirOwnEvidenceSections() {
+        DomainWatch watch = watch();
+        MonitorState previous = state(Set.of("ok"));
+        MonitorState current = state(Set.of("clientHold"));
+        List<MonitorEventDraft> drafts = List.of(
+            new MonitorEventDraft(
+                MonitorEventType.SSL_EXPIRING, MonitorRisk.HIGH,
+                "example.com", "sslExpiry:7", "2027-01-01", "2026-08-16"),
+            new MonitorEventDraft(
+                MonitorEventType.WEBSITE_DOWN, MonitorRisk.CRITICAL,
+                "example.com", "websiteAvailable", "true", "false"),
+            new MonitorEventDraft(
+                MonitorEventType.WEBSITE_RECOVERED, MonitorRisk.MEDIUM,
+                "example.com", "websiteAvailable", "false", "true"));
+        when(snapshotService.getOne(any())).thenReturn(snapshot("previous", previous));
+        when(detector.detect(eq(previous), eq(current), nullable(Instant.class), nullable(Instant.class)))
+            .thenReturn(drafts);
+
+        publisher.publish(watch, current, true);
+
+        ArgumentCaptor<UserNotification> notifications = ArgumentCaptor.forClass(UserNotification.class);
+        verify(notificationService, times(3)).save(notifications.capture());
+        assertEquals(List.of(
+            "/domain/example.com#ssl-evidence",
+            "/domain/example.com#website-availability-evidence",
+            "/domain/example.com#website-availability-evidence"),
+            notifications.getAllValues().stream().map(UserNotification::getTargetPath).toList());
+    }
+
+    @Test
     void duplicateNotificationIsAcceptedAsTheConcurrentWinner() {
         DomainWatch watch = watch();
         MonitorState previous = state(Set.of("ok"));

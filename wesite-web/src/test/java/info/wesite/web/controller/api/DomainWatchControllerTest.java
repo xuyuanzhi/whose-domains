@@ -1,7 +1,9 @@
 package info.wesite.web.controller.api;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -14,6 +16,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 
@@ -23,15 +26,15 @@ import info.wesite.core.entity.DomainWatch;
 import info.wesite.core.entity.User;
 import info.wesite.core.service.DomainService;
 import info.wesite.core.service.DomainWatchService;
-import info.wesite.core.mapper.UserNotificationMapper;
 import info.wesite.core.view.ResponseJson;
+import info.wesite.web.notification.NotificationCancellationService;
 
 @SuppressWarnings({ "rawtypes", "unchecked" })
 class DomainWatchControllerTest {
 
     private DomainWatchService watches;
     private DomainWatchController controller;
-    private UserNotificationMapper notifications;
+    private NotificationCancellationService cancellations;
 
     @BeforeEach
     void setUp() {
@@ -39,8 +42,8 @@ class DomainWatchControllerTest {
         controller = new DomainWatchController();
         ReflectionTestUtils.setField(controller, "domainWatchService", watches);
         ReflectionTestUtils.setField(controller, "domainService", mock(DomainService.class));
-        notifications = mock(UserNotificationMapper.class);
-        ReflectionTestUtils.setField(controller, "notificationMapper", notifications);
+        cancellations = mock(NotificationCancellationService.class);
+        ReflectionTestUtils.setField(controller, "cancellationService", cancellations);
 
         User user = new User();
         user.setId("user-1");
@@ -124,7 +127,7 @@ class DomainWatchControllerTest {
         clear.setNotifyEmail(null);
         controller.updateWatch("watch-1", clear);
         assertEquals(null, existing.getNotifyEmail());
-        verify(notifications, times(2)).cancelUnclaimedForWatch(
+        verify(cancellations, times(2)).cancelForWatch(
             org.mockito.ArgumentMatchers.eq("user-1"),
             org.mockito.ArgumentMatchers.eq("watch-1"), any());
     }
@@ -149,7 +152,7 @@ class DomainWatchControllerTest {
     }
 
     @Test
-    void unwatchCancelsOnlyUnclaimedEmailForThatWatch() {
+    void unwatchCancelsEveryUnsentBatchAffectedByThatWatch() {
         DomainWatch existing = new DomainWatch();
         existing.setId("watch-1");
         existing.setUserId("user-1");
@@ -160,8 +163,36 @@ class DomainWatchControllerTest {
         ResponseJson<String> response = controller.unwatchDomain("watch-1");
 
         assertEquals(ResponseJson.CODE_SUCCESS, response.getCode());
-        verify(notifications).cancelUnclaimedForWatch(
+        verify(cancellations).cancelForWatch(
                 org.mockito.ArgumentMatchers.eq("user-1"),
                 org.mockito.ArgumentMatchers.eq("watch-1"), any());
+    }
+
+    @Test
+    void cancellationFailureEscapesSoTheTransactionalWatchUpdateCanRollBack() throws Exception {
+        DomainWatch existing = new DomainWatch();
+        existing.setId("watch-1");
+        existing.setUserId("user-1");
+        existing.setStatus(BaseEntity.STATUS_ACTIVE);
+        existing.setNotifyType(DomainWatch.NOTIFY_BOTH);
+        existing.setNotifyEmail("old@example.com");
+        when(watches.getOne(any(Wrapper.class))).thenReturn(existing);
+        when(watches.updateById(existing)).thenReturn(true);
+        org.mockito.Mockito.doThrow(new IllegalStateException("cancellation SQL failed"))
+            .when(cancellations).cancelForWatch(
+                org.mockito.ArgumentMatchers.eq("user-1"),
+                org.mockito.ArgumentMatchers.eq("watch-1"), any());
+
+        DomainWatch update = new DomainWatch();
+        update.setNotifyType(DomainWatch.NOTIFY_NONE);
+        update.setNotifyEmail(null);
+
+        assertThrows(IllegalStateException.class, () -> controller.updateWatch("watch-1", update));
+        assertNotNull(DomainWatchController.class
+            .getMethod("updateWatch", String.class, DomainWatch.class)
+            .getAnnotation(Transactional.class));
+        assertNotNull(DomainWatchController.class
+            .getMethod("unwatchDomain", String.class)
+            .getAnnotation(Transactional.class));
     }
 }

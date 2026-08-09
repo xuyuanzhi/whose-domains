@@ -29,15 +29,13 @@ import info.wesite.core.config.UserHolder;
 import info.wesite.core.entity.NotificationPreference;
 import info.wesite.core.entity.User;
 import info.wesite.core.service.NotificationPreferenceService;
-import info.wesite.core.mapper.UserNotificationMapper;
-import info.wesite.core.mapper.NotificationDeliveryBatchMapper;
+import info.wesite.web.notification.NotificationCancellationService;
 
 @SuppressWarnings({ "rawtypes", "unchecked" })
 class NotificationPreferenceControllerTest {
 
     private NotificationPreferenceService preferences;
-    private UserNotificationMapper notifications;
-    private NotificationDeliveryBatchMapper batches;
+    private NotificationCancellationService cancellations;
     private MockMvc mvc;
 
     @BeforeEach
@@ -47,12 +45,10 @@ class NotificationPreferenceControllerTest {
                         new com.baomidou.mybatisplus.core.MybatisConfiguration(), "NotificationPreferenceControllerTest"),
                 NotificationPreference.class);
         preferences = mock(NotificationPreferenceService.class);
-        notifications = mock(UserNotificationMapper.class);
-        batches = mock(NotificationDeliveryBatchMapper.class);
+        cancellations = mock(NotificationCancellationService.class);
         NotificationPreferenceController controller = new NotificationPreferenceController();
         ReflectionTestUtils.setField(controller, "preferenceService", preferences);
-        ReflectionTestUtils.setField(controller, "notificationMapper", notifications);
-        ReflectionTestUtils.setField(controller, "batchMapper", batches);
+        ReflectionTestUtils.setField(controller, "cancellationService", cancellations);
         mvc = MockMvcBuilders.standaloneSetup(controller).build();
 
         User user = new User();
@@ -120,11 +116,30 @@ class NotificationPreferenceControllerTest {
         assertEquals(emailMode, saved.getValue().getEmailMode());
         assertEquals(Boolean.FALSE, saved.getValue().getDnsChangeEnabled());
         if (NotificationPreference.MODE_IN_APP_ONLY.equals(emailMode)) {
-            verify(notifications).cancelUnclaimedForUser(org.mockito.ArgumentMatchers.eq("user-1"), any());
-            verify(batches).cancelFailedForUser(org.mockito.ArgumentMatchers.eq("user-1"), any());
-            verify(batches).requestCancellationForClaimedUser(org.mockito.ArgumentMatchers.eq("user-1"), any());
+            verify(cancellations).cancelAllForUser(org.mockito.ArgumentMatchers.eq("user-1"), any());
         } else {
-            verify(notifications, never()).cancelUnclaimedForUser(any(), any());
+            verify(cancellations, never()).cancelAllForUser(any(), any());
+            verify(cancellations).cancelForEventTypes(
+                org.mockito.ArgumentMatchers.eq("user-1"),
+                org.mockito.ArgumentMatchers.eq(java.util.Set.of("DNS_CHANGED")), any());
         }
+    }
+
+    @Test
+    void disablingWebsiteAvailabilityCancelsDownAndRecoveryAsOneCategory() throws Exception {
+        NotificationPreference existing = NotificationPreference.defaultsFor("user-1");
+        existing.setId("preference-1");
+        when(preferences.getOne(any(Wrapper.class))).thenReturn(existing);
+        when(preferences.updateById(any(NotificationPreference.class))).thenReturn(true);
+
+        mvc.perform(put("/api/notification-preferences")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"websiteAvailabilityEnabled\":false}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.code").value(0));
+
+        verify(cancellations).cancelForEventTypes(
+            org.mockito.ArgumentMatchers.eq("user-1"),
+            org.mockito.ArgumentMatchers.eq(java.util.Set.of("WEBSITE_DOWN", "WEBSITE_RECOVERED")), any());
     }
 }

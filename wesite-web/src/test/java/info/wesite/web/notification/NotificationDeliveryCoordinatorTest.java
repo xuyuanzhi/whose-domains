@@ -174,7 +174,7 @@ class NotificationDeliveryCoordinatorTest {
             "IMMEDIATE_EMAIL", Date.from(NOW), 100)).thenReturn(List.of(cancelled));
         when(logMapper.finishPendingAttempt(
             eq("batch-1"), eq(1), eq(DomainWatchNotifyLog.SEND_STATUS_FAIL),
-            eq(Date.from(NOW)), eq("delivery cancelled after preference change"),
+            eq(Date.from(NOW)), eq("delivery cancelled after notification policy change"),
             eq(null), eq(null), eq(null), eq(null), eq(null), eq(null), eq(null)))
             .thenReturn(1);
         when(batchMapper.finalizeCancelledClaim("batch-1", Date.from(NOW))).thenReturn(1);

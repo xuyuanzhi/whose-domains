@@ -2,6 +2,7 @@ package info.wesite.core.mapper;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Set;
 
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -118,6 +119,31 @@ public interface UserNotificationMapper extends BaseMapper<UserNotification> {
     int cancelUnclaimedForWatch(
         @Param("userId") String userId,
         @Param("watchId") String watchId,
+        @Param("updatedAt") Date updatedAt);
+
+    @Update("UPDATE WEB_USER_NOTIFICATION N "
+        + "JOIN WEB_NOTIFICATION_DELIVERY_BATCH B ON B.ID = N.DELIVERY_BATCH_ID "
+        + "SET N.EMAIL_STATE = 'IN_APP_ONLY', N.EMAIL_MODE = 'IN_APP_ONLY', "
+        + "N.EMAIL_CLAIM_TOKEN = NULL, N.EMAIL_CLAIM_UNTIL = NULL, N.UPDATE_TIME = #{updatedAt} "
+        + "WHERE B.USER_ID = #{userId} AND B.STATE = 'CANCELLED' "
+        + "AND N.EMAIL_STATE IN ('QUEUED','FAILED')")
+    int cancelMembersOfCancelledBatchesForUser(
+        @Param("userId") String userId,
+        @Param("updatedAt") Date updatedAt);
+
+    @Update({"<script>",
+        "UPDATE WEB_USER_NOTIFICATION N JOIN WEB_MONITOR_EVENT E ON E.ID = N.EVENT_ID ",
+        "SET N.EMAIL_STATE = 'IN_APP_ONLY', N.EMAIL_MODE = 'IN_APP_ONLY', ",
+        "N.EMAIL_CLAIM_TOKEN = NULL, N.EMAIL_CLAIM_UNTIL = NULL, N.UPDATE_TIME = #{updatedAt} ",
+        "WHERE N.USER_ID = #{userId} AND N.EMAIL_STATE IN ('QUEUED','FAILED') ",
+        "AND E.EVENT_TYPE IN ",
+        "<foreach collection='eventTypes' item='eventType' open='(' separator=',' close=')'>",
+        "#{eventType}",
+        "</foreach>",
+        "</script>"})
+    int cancelUnclaimedForEventTypes(
+        @Param("userId") String userId,
+        @Param("eventTypes") Set<String> eventTypes,
         @Param("updatedAt") Date updatedAt);
 
 }

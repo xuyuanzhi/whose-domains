@@ -142,7 +142,7 @@ mysql -u root -p wesitedb -e "
 SELECT TABLE_NAME
 FROM information_schema.TABLES
 WHERE TABLE_SCHEMA = DATABASE()
-  AND TABLE_NAME IN ('WEB_DOMAIN_WATCH','WEB_DOMAIN_SNAPSHOT','WEB_DOMAIN_WATCH_NOTIFY_LOG','WEB_MONITOR_SNAPSHOT','WEB_MONITOR_EVENT','WEB_USER_NOTIFICATION','WEB_NOTIFICATION_DELIVERY_BATCH','WEB_NOTIFICATION_PREFERENCE','WEB_AUTHENTICATED_ACTIVITY_DAILY')
+  AND TABLE_NAME IN ('WEB_DOMAIN_WATCH','WEB_DOMAIN_SNAPSHOT','WEB_DOMAIN_WATCH_NOTIFY_LOG','WEB_MONITOR_SNAPSHOT','WEB_MONITOR_EVENT','WEB_USER_NOTIFICATION','WEB_NOTIFICATION_DELIVERY_BATCH','WEB_NOTIFICATION_PREFERENCE','WEB_AUTHENTICATED_ACTIVITY_DAILY','WEB_RETENTION_FACT_COLLECTION')
 ORDER BY TABLE_NAME;
 SELECT TABLE_NAME, COLUMN_NAME
 FROM information_schema.COLUMNS
@@ -171,7 +171,7 @@ Do **not** run `doc/alter_domain_watch_snapshot.sql` on Path A: its unguarded `C
    mysql -u root -p wesitedb < doc/alter_domain_watch_snapshot.sql
    ```
 
-2. Confirm `WEB_DOMAIN_WATCH_NOTIFY_LOG` exists, and that all five retention tables (`WEB_MONITOR_SNAPSHOT`, `WEB_MONITOR_EVENT`, `WEB_USER_NOTIFICATION`, `WEB_NOTIFICATION_DELIVERY_BATCH`, and `WEB_NOTIFICATION_PREFERENCE`) plus `WEB_AUTHENTICATED_ACTIVITY_DAILY` are absent. Then apply the current retention baseline exactly once:
+2. Confirm `WEB_DOMAIN_WATCH_NOTIFY_LOG` exists, and that all five notification tables (`WEB_MONITOR_SNAPSHOT`, `WEB_MONITOR_EVENT`, `WEB_USER_NOTIFICATION`, `WEB_NOTIFICATION_DELIVERY_BATCH`, and `WEB_NOTIFICATION_PREFERENCE`) plus `WEB_AUTHENTICATED_ACTIVITY_DAILY` and `WEB_RETENTION_FACT_COLLECTION` are absent. Then apply the current retention baseline exactly once:
 
    ```bash
    mysql -u root -p wesitedb < doc/alter_retention_notification_center.sql
@@ -181,7 +181,7 @@ Do **not** run `doc/alter_domain_watch_snapshot.sql` on Path A: its unguarded `C
 
 The Path B order is therefore: legacy watch/snapshot script only when both tables are absent → current retention baseline once. Never re-run a `CREATE TABLE` or `ADD COLUMN` migration against a schema that already contains its objects. Record the applied script name, deploy version, operator, and UTC time in the production change record.
 
-**Legacy e73ff4d upgrade — old notification baseline already present.** If preflight shows the four e73ff4d notification tables (`WEB_MONITOR_SNAPSHOT`, `WEB_MONITOR_EVENT`, `WEB_USER_NOTIFICATION`, and `WEB_NOTIFICATION_PREFERENCE`) but no delivery-batch/activity table or new claim/recipient columns, do not run the current baseline or the two historical two-column increments. The checked-in e73ff4d schema has no `WEB_DOMAIN_WATCH.NOTIFY_EMAIL`; the same increment also accepts operational installations that independently added that one legacy field. Back up the tables, stop workers, and apply the single complete increment:
+**Legacy e73ff4d upgrade — old notification baseline already present.** If preflight shows the four e73ff4d notification tables (`WEB_MONITOR_SNAPSHOT`, `WEB_MONITOR_EVENT`, `WEB_USER_NOTIFICATION`, and `WEB_NOTIFICATION_PREFERENCE`) but no delivery-batch/activity/fact-collection table or new claim/recipient columns, do not run the current baseline or the two historical two-column increments. The checked-in e73ff4d schema has no `WEB_DOMAIN_WATCH.NOTIFY_EMAIL`; the same increment also accepts operational installations that independently added that one legacy field. Back up the tables, stop workers, and apply the single complete increment:
 
 ```bash
 mysql -u root -p wesitedb < doc/alter_retention_notification_center_from_e73ff4d.sql
@@ -250,9 +250,10 @@ The script uses these persisted fields, deduplicated by `(USER_ID, activity_date
 | Purpose | Persisted source |
 | --- | --- |
 | Monitored cohort | `WEB_DOMAIN_WATCH.CREATE_TIME`; cohort date is each user's first watch creation date, including a watch later soft-deleted. |
-| Authenticated activity | `WEB_AUTHENTICATED_ACTIVITY_DAILY.ACTIVITY_DATE`; the interceptor writes at most one minimal `(USER_ID, ACTIVITY_DATE)` fact per authenticated user/day and stores no path, domain, email, or request payload. Keep these facts for at least 30 days. |
+| Authenticated activity | `WEB_AUTHENTICATED_ACTIVITY_DAILY.ACTIVITY_DATE`; the interceptor writes at most one minimal `(USER_ID, ACTIVITY_DATE)` fact per authenticated user/day and stores no path, domain, email, or request payload. Keep these facts for at least 120 days. |
+| Observation boundary | `WEB_RETENTION_FACT_COLLECTION.COLLECTION_STARTED_ON`; migration persists the first trustworthy collection day, while `MINIMUM_RETENTION_DAYS` is constrained to at least 120. Do not backdate this row to manufacture history. |
 
-The monitored cohort contains every user whose first watch was created on the cohort day. The non-monitored control contains users on their first observed authenticated-activity day who do not create a watch through the following 30 days. This prevents a control user who soon becomes monitored from contaminating the 30-day comparison. Both cohorts are closed at least 30 days in the configured reporting offset before execution, so their 7-day and 30-day outcomes are complete. A return is any later persisted activity above on days 1–7 or 1–30, counted at most once per user per window before the script aggregates it.
+The monitored cohort contains every user whose first watch was created on the cohort day. The non-monitored control contains users on their first observed authenticated-activity day who do not create a watch through the following 30 days. Accounts created before `COLLECTION_STARTED_ON` are excluded from the control because their true first-seen date is unknown; the first post-rollout fact must never turn a legacy account into a new-user cohort. This also prevents a control user who soon becomes monitored from contaminating the 30-day comparison. Both cohorts must begin on or after the durable collection boundary and close at least 30 days in the configured reporting offset before execution, so their 7-day and 30-day outcomes are complete. A return is any later persisted activity above on days 1–7 or 1–30, counted at most once per user per window before the script aggregates it.
 
 ```text
 7-day return rate  = returning cohort users on days 1-7  / eligible cohort users
@@ -260,7 +261,7 @@ The monitored cohort contains every user whose first watch was created on the co
 lift                = monitored return rate - comparison return rate
 ```
 
-The first result set is a daily closed-cohort trend; the second is the 90-day aggregate comparison. Both suppress any emitted cohort with fewer than five users (`@minimum_cohort_size = 5`) so the report never exposes tiny groups. `cohort_users` is the denominator, `returned_users_7d`/`returned_users_30d` are unique returning users, and `return_rate_*_pct` is their percentage. Compute monitored-minus-control lift from the two aggregate rows. GA4 may still show an anonymous privacy-safe funnel trend, but it must not be used for an account-level cohort comparison because no user ID is sent. This is an observational comparison, not a causal claim; repeat it weekly and inspect both absolute lift and confidence intervals before changing notification policy.
+The first result set is a single readiness row, the second is a daily closed-cohort trend, and the third is the 90-day aggregate comparison. A 90-day window of cohorts whose 30-day outcomes are closed requires at least 120 days of retained facts. Until `DATEDIFF(CURDATE(), COLLECTION_STARTED_ON)` reaches the configured minimum, the readiness row is `INSUFFICIENT_HISTORY` and both cohort result sets are intentionally empty. Missing metadata similarly returns `MISSING_COLLECTION_METADATA`; neither state may be presented as zero retention. Once ready, both cohort result sets suppress any emitted cohort with fewer than five users (`@minimum_cohort_size = 5`) so the report never exposes tiny groups. `cohort_users` is the denominator, `returned_users_7d`/`returned_users_30d` are unique returning users, and `return_rate_*_pct` is their percentage. Compute monitored-minus-control lift from the two aggregate rows. GA4 may still show an anonymous privacy-safe funnel trend, but it must not be used for an account-level cohort comparison because no user ID is sent. This is an observational comparison, not a causal claim; repeat it weekly and inspect both absolute lift and confidence intervals before changing notification policy.
 
 ## Contributing
 

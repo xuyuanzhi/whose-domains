@@ -106,7 +106,25 @@ CREATE TABLE `WEB_AUTHENTICATED_ACTIVITY_DAILY` (
   UNIQUE KEY `UK_AUTH_ACTIVITY_USER_DATE` (`USER_ID`, `ACTIVITY_DATE`),
   KEY `IDX_AUTH_ACTIVITY_DATE` (`ACTIVITY_DATE`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin
-  COMMENT='Minimal authenticated activity fact; retain for at least 30 days';
+  COMMENT='Minimal authenticated activity fact; retain for at least 120 days';
+
+CREATE TABLE `WEB_RETENTION_FACT_COLLECTION` (
+  `ID` varchar(32) NOT NULL,
+  `FACT_NAME` varchar(64) NOT NULL,
+  `COLLECTION_STARTED_ON` date NOT NULL,
+  `MINIMUM_RETENTION_DAYS` smallint unsigned NOT NULL DEFAULT '120',
+  `CREATE_TIME` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `UPDATE_TIME` datetime NULL,
+  PRIMARY KEY (`ID`),
+  UNIQUE KEY `UK_RETENTION_FACT_COLLECTION_NAME` (`FACT_NAME`),
+  CONSTRAINT `CK_RETENTION_FACT_MINIMUM_DAYS` CHECK (`MINIMUM_RETENTION_DAYS` >= 120)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin
+  COMMENT='Durable fact observation boundary and minimum retention contract';
+
+INSERT INTO `WEB_RETENTION_FACT_COLLECTION`
+  (`ID`, `FACT_NAME`, `COLLECTION_STARTED_ON`, `MINIMUM_RETENTION_DAYS`)
+VALUES
+  ('authenticated-activity', 'AUTHENTICATED_ACTIVITY_DAILY', CURDATE(), 120);
 
 -- Clean installs lack NOTIFY_EMAIL, while a few older operational databases
 -- added the legacy field independently. Preserve both preflight-approved shapes.

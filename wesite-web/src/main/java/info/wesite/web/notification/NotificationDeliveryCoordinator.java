@@ -214,7 +214,7 @@ public class NotificationDeliveryCoordinator {
                 batch.getAttemptCount(),
                 false,
                 completedAt,
-                "delivery cancelled after preference change",
+                "delivery cancelled after notification policy change",
                 null),
                 "cancelled pending attempt log");
             requireOne(batchMapper.finalizeCancelledClaim(batch.getId(), completedAt),

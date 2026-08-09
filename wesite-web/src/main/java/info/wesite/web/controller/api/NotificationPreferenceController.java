@@ -1,5 +1,7 @@
 package info.wesite.web.controller.api;
 
+import java.time.Instant;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Set;
 
@@ -19,9 +21,8 @@ import info.wesite.core.config.AccessControl.Level;
 import info.wesite.core.config.UserHolder;
 import info.wesite.core.entity.NotificationPreference;
 import info.wesite.core.service.NotificationPreferenceService;
-import info.wesite.core.mapper.UserNotificationMapper;
-import info.wesite.core.mapper.NotificationDeliveryBatchMapper;
 import info.wesite.core.view.ResponseJson;
+import info.wesite.web.notification.NotificationCancellationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
@@ -41,10 +42,7 @@ public class NotificationPreferenceController {
     private NotificationPreferenceService preferenceService;
 
     @Autowired
-    private UserNotificationMapper notificationMapper;
-
-    @Autowired
-    private NotificationDeliveryBatchMapper batchMapper;
+    private NotificationCancellationService cancellationService;
 
     @Operation(summary = "Get current user's notification preference")
     @GetMapping
@@ -70,10 +68,12 @@ public class NotificationPreferenceController {
         preference.setUserId(userId);
         boolean saved = existing ? preferenceService.updateById(preference) : preferenceService.save(preference);
         if (saved && NotificationPreference.MODE_IN_APP_ONLY.equals(preference.getEmailMode())) {
-            java.util.Date now = new java.util.Date();
-            notificationMapper.cancelUnclaimedForUser(userId, now);
-            batchMapper.cancelFailedForUser(userId, now);
-            batchMapper.requestCancellationForClaimedUser(userId, now);
+            cancellationService.cancelAllForUser(userId, Instant.now());
+        } else if (saved) {
+            Set<String> disabledEventTypes = disabledEventTypes(request);
+            if (!disabledEventTypes.isEmpty()) {
+                cancellationService.cancelForEventTypes(userId, disabledEventTypes, Instant.now());
+            }
         }
         return saved
                 ? ResponseJson.success(toDto(preference))
@@ -94,6 +94,19 @@ public class NotificationPreferenceController {
         if (request.domainStatusEnabled != null) preference.setDomainStatusEnabled(request.domainStatusEnabled);
         if (request.dnsChangeEnabled != null) preference.setDnsChangeEnabled(request.dnsChangeEnabled);
         if (request.websiteAvailabilityEnabled != null) preference.setWebsiteAvailabilityEnabled(request.websiteAvailabilityEnabled);
+    }
+
+    private static Set<String> disabledEventTypes(PreferenceRequest request) {
+        Set<String> eventTypes = new HashSet<>();
+        if (Boolean.FALSE.equals(request.domainExpiryEnabled)) eventTypes.add("DOMAIN_EXPIRING");
+        if (Boolean.FALSE.equals(request.sslExpiryEnabled)) eventTypes.add("SSL_EXPIRING");
+        if (Boolean.FALSE.equals(request.domainStatusEnabled)) eventTypes.add("DOMAIN_STATUS_CHANGED");
+        if (Boolean.FALSE.equals(request.dnsChangeEnabled)) eventTypes.add("DNS_CHANGED");
+        if (Boolean.FALSE.equals(request.websiteAvailabilityEnabled)) {
+            eventTypes.add("WEBSITE_DOWN");
+            eventTypes.add("WEBSITE_RECOVERED");
+        }
+        return Set.copyOf(eventTypes);
     }
 
     private static LinkedHashMap<String, Object> toDto(NotificationPreference preference) {

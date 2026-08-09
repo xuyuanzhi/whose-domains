@@ -32,13 +32,18 @@ import info.wesite.core.entity.DomainDns;
 import info.wesite.core.entity.DomainSite;
 import info.wesite.core.entity.DomainTld;
 import info.wesite.core.entity.DomainTldExt;
+import info.wesite.core.entity.DomainWatch;
+import info.wesite.core.entity.MonitorSnapshot;
 import info.wesite.core.entity.TldContent;
+import info.wesite.core.config.UserHolder;
 import info.wesite.core.service.ContactInfoService;
 import info.wesite.core.service.DomainDnsService;
 import info.wesite.core.service.DomainService;
 import info.wesite.core.service.DomainSiteService;
 import info.wesite.core.service.DomainTldExtService;
 import info.wesite.core.service.DomainTldService;
+import info.wesite.core.service.DomainWatchService;
+import info.wesite.core.service.MonitorSnapshotService;
 import info.wesite.core.service.TldContentService;
 import info.wesite.core.utils.Constants;
 import info.wesite.core.utils.DomainUtils;
@@ -50,6 +55,7 @@ import info.wesite.core.utils.RdapUtils;
 import info.wesite.core.view.ContactForm;
 import info.wesite.core.view.ResponseJson;
 import info.wesite.web.config.ResourceNotFoundException;
+import info.wesite.web.monitor.DomainMonitorEvidence;
 import info.wesite.web.seo.DomainReportIndexPolicy;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -81,6 +87,10 @@ public class MainController {
 	private ContactInfoService contactInfoService;
 	@Autowired
 	private info.wesite.core.service.DomainSnapshotService domainSnapshotService;
+	@Autowired
+	private DomainWatchService domainWatchService;
+	@Autowired
+	private MonitorSnapshotService monitorSnapshotService;
 
 	private static final String DOMAIN_REGEX = "^(?:(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)\\.)+[a-z]{2,}$";
 
@@ -220,6 +230,7 @@ public class MainController {
 
 				ModelAndView mv = new ModelAndView();
 				mv.addObject("domain", domain);
+				addMonitorEvidence(mv, domainName);
 				mv.addObject(Constants.PAGE_TITLE, domainName + " - Whose.Domains");
 				mv.addObject(Constants.PAGE_META_DESC, domain.getMetaDescription());
 
@@ -692,6 +703,36 @@ public class MainController {
 	public String apiKeys(Model model) {
 		model.addAttribute(Constants.PAGE_TITLE, "API Keys - Whose.Domains");
 		return "user/api-keys";
+	}
+
+	private void addMonitorEvidence(ModelAndView model, String domainName) {
+		if (UserHolder.get() == null || domainWatchService == null || monitorSnapshotService == null) {
+			return;
+		}
+		DomainWatch watch = domainWatchService.getOne(
+				Wrappers.<DomainWatch>lambdaQuery()
+						.eq(DomainWatch::getUserId, UserHolder.get().getId())
+						.eq(DomainWatch::getDomainName, domainName)
+						.eq(DomainWatch::getStatus, DomainWatch.STATUS_ACTIVE)
+						.last("LIMIT 1"));
+		if (watch == null) {
+			return;
+		}
+		MonitorSnapshot snapshot = monitorSnapshotService.getOne(
+				Wrappers.<MonitorSnapshot>lambdaQuery()
+						.eq(MonitorSnapshot::getWatchId, watch.getId())
+						.eq(MonitorSnapshot::getStatus, MonitorSnapshot.STATUS_ACTIVE)
+						.orderByDesc(MonitorSnapshot::getCheckedAt)
+						.orderByDesc(MonitorSnapshot::getId)
+						.last("LIMIT 1"));
+		if (snapshot == null) {
+			return;
+		}
+		try {
+			model.addObject("monitorEvidence", DomainMonitorEvidence.from(snapshot));
+		} catch (RuntimeException invalidSnapshot) {
+			logger.warn("Could not render monitor evidence for {}: {}", domainName, invalidSnapshot.getMessage());
+		}
 	}
 
 	@GetMapping("/user/notifications")

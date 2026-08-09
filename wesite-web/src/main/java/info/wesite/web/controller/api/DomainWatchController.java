@@ -1,5 +1,6 @@
 package info.wesite.web.controller.api;
 
+import java.time.Instant;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 
@@ -27,7 +29,6 @@ import info.wesite.core.config.UserHolder;
 import info.wesite.core.entity.Domain;
 import info.wesite.core.entity.DomainWatch;
 import info.wesite.core.mapper.DomainWatchSummaryMapper;
-import info.wesite.core.mapper.UserNotificationMapper;
 import info.wesite.core.mapper.model.DomainWatchLatestCheckRow;
 import info.wesite.core.mapper.model.DomainWatchLatestEventRow;
 import info.wesite.core.mapper.model.DomainWatchUnreadCountRow;
@@ -37,6 +38,7 @@ import info.wesite.core.utils.RandomUtils;
 import info.wesite.core.view.ResponseJson;
 import info.wesite.web.monitor.MonitorRisk;
 import info.wesite.web.notification.NotificationEmailAddress;
+import info.wesite.web.notification.NotificationCancellationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
@@ -61,7 +63,7 @@ public class DomainWatchController {
     private DomainWatchSummaryMapper domainWatchSummaryMapper;
 
     @Autowired
-    private UserNotificationMapper notificationMapper;
+    private NotificationCancellationService cancellationService;
 
     @Operation(summary = "获取用户的域名监控列表")
     @GetMapping("/list")
@@ -235,6 +237,7 @@ public class DomainWatchController {
 
     @Operation(summary = "取消域名监控")
     @DeleteMapping("/unwatch/{id}")
+    @Transactional
     public ResponseJson<String> unwatchDomain(@PathVariable("id") String id) {
         String userId = UserHolder.get().getId();
 
@@ -252,7 +255,7 @@ public class DomainWatchController {
         watch.setUpdateTime(new Date());
 
         if (domainWatchService.updateById(watch)) {
-            notificationMapper.cancelUnclaimedForWatch(userId, watch.getId(), new Date());
+            cancellationService.cancelForWatch(userId, watch.getId(), Instant.now());
             return ResponseJson.success("Domain watch removed.", null);
         } else {
             return ResponseJson.failure("Failed to remove domain watch.");
@@ -261,6 +264,7 @@ public class DomainWatchController {
 
     @Operation(summary = "更新域名监控设置")
     @PutMapping("/update/{id}")
+    @Transactional
     public ResponseJson<DomainWatch> updateWatch(@PathVariable("id") String id, @RequestBody DomainWatch param) {
         String userId = UserHolder.get().getId();
 
@@ -295,7 +299,7 @@ public class DomainWatchController {
         if (domainWatchService.updateById(watch)) {
             // A route or recipient edit is a delivery-policy boundary. Existing
             // unclaimed work keeps its in-app record but must not use stale settings.
-            notificationMapper.cancelUnclaimedForWatch(userId, watch.getId(), new Date());
+            cancellationService.cancelForWatch(userId, watch.getId(), Instant.now());
             return ResponseJson.success("Domain watch updated.", watch);
         } else {
             return ResponseJson.failure("Failed to update domain watch.");

@@ -70,7 +70,8 @@ function Test-StaticRolloutContract {
             'WEB_MONITOR_EVENT',
             'WEB_USER_NOTIFICATION',
             'WEB_NOTIFICATION_DELIVERY_BATCH',
-            'WEB_NOTIFICATION_PREFERENCE')) {
+            'WEB_NOTIFICATION_PREFERENCE',
+            'WEB_RETENTION_FACT_COLLECTION')) {
         Assert-Contains $baseline "CREATE TABLE ``$table``" "retention baseline missing $table"
     }
     foreach ($column in @(
@@ -81,10 +82,17 @@ function Test-StaticRolloutContract {
         Assert-Contains $baseline "``$column``" "retention baseline missing $column"
     }
     Assert-Contains $baseline 'CREATE TABLE `WEB_AUTHENTICATED_ACTIVITY_DAILY`' 'baseline missing daily authenticated activity fact'
+    Assert-Contains $baseline 'CREATE TABLE `WEB_RETENTION_FACT_COLLECTION`' 'baseline missing durable fact collection boundary'
+    Assert-Contains $baseline 'MINIMUM_RETENTION_DAYS' 'baseline missing fact retention contract'
+    Assert-Contains $baseline 'CHECK (`MINIMUM_RETENTION_DAYS` >= 120)' 'baseline must reject retention below 120 days'
+    Assert-Contains $baseline 'retain for at least 120 days' 'activity fact schema must document 120-day retention'
     Assert-Contains $baseline '(`USER_ID`, `EMAIL_MODE`, `RECIPIENT_EMAIL`, `WINDOW_KEY`)' 'baseline batch identity must include the frozen recipient'
 
     Assert-Contains $completeIncrement 'git e73ff4d' 'complete increment must identify its exact old baseline'
-    foreach ($table in @('WEB_NOTIFICATION_DELIVERY_BATCH', 'WEB_AUTHENTICATED_ACTIVITY_DAILY')) {
+    foreach ($table in @(
+            'WEB_NOTIFICATION_DELIVERY_BATCH',
+            'WEB_AUTHENTICATED_ACTIVITY_DAILY',
+            'WEB_RETENTION_FACT_COLLECTION')) {
         Assert-Contains $completeIncrement "CREATE TABLE ``$table``" "complete increment missing $table"
     }
     foreach ($column in @(
@@ -105,8 +113,13 @@ function Test-StaticRolloutContract {
     Assert-Contains $completeIncrement '(`USER_ID`, `EMAIL_MODE`, `RECIPIENT_EMAIL`, `WINDOW_KEY`)' 'complete increment batch identity must include the frozen recipient'
 
     Assert-Contains $retentionReport 'FROM WEB_AUTHENTICATED_ACTIVITY_DAILY' 'retention report must use daily authenticated activity facts'
+    Assert-Contains $retentionReport 'FROM WEB_RETENTION_FACT_COLLECTION' 'retention report must use the durable collection boundary'
     Assert-RolloutContract (-not $retentionReport.Contains('WEB_USER_QUERY_HISTORY')) 'retention report must not rely on capped query history'
     Assert-Contains $retentionReport 'SET @minimum_cohort_size = 5' 'retention report must define k-anonymity threshold'
+    Assert-Contains $retentionReport 'SET @minimum_report_days = 120' 'retention report must require the full 120-day observation window'
+    Assert-Contains $retentionReport 'INSUFFICIENT_HISTORY' 'retention report must expose an explicit immature-data state'
+    Assert-Contains $retentionReport "@report_status = 'READY'" 'retention report must gate cohorts on maturity'
+    Assert-Contains $retentionReport 'DATE(U.CREATE_TIME) >= @fact_collection_start' 'legacy accounts must not become fake first-seen cohorts'
     Assert-Contains $retentionReport 'cohort_users >= @minimum_cohort_size' 'daily cohorts below k must be suppressed'
 
     Assert-RolloutContract (
@@ -134,6 +147,8 @@ function Test-StaticRolloutContract {
     Assert-Contains $readme 'If exactly one is present, stop' 'README missing partial legacy stop guard'
     Assert-Contains $readme 'If only some retention tables exist, stop' 'README missing partial baseline stop guard'
     Assert-Contains $readme '-Fixture LegacyUpgrade' 'README must document the real legacy-upgrade verifier'
+    Assert-Contains $readme 'at least 120 days' 'README must document the minimum fact retention window'
+    Assert-Contains $readme 'INSUFFICIENT_HISTORY' 'README must document the explicit immature report state'
 
     $immediateLine = 'wesite.notification-delivery.immediate-enabled=${WESITE_NOTIFICATION_DELIVERY_IMMEDIATE_ENABLED:false}'
     $digestLine = 'wesite.notification-delivery.digest-enabled=${WESITE_NOTIFICATION_DELIVERY_DIGEST_ENABLED:false}'
@@ -250,6 +265,18 @@ function Invoke-FixtureSqlFile(
         "mysql --user=root --password=$Password wesitedb < /sql/$RelativePath")
 }
 
+function Invoke-FixtureSqlFileOutput(
+        [string]$ContainerName,
+        [string]$Password,
+        [string]$RelativePath) {
+    return Invoke-DockerCommand -ReturnOutput -Arguments @(
+        'exec',
+        $ContainerName,
+        'sh',
+        '-c',
+        "mysql --user=root --password=$Password --batch wesitedb < /sql/$RelativePath")
+}
+
 function Invoke-FixtureQuery(
         [string]$ContainerName,
         [string]$Password,
@@ -284,7 +311,7 @@ function Assert-RetentionSchema(
 SELECT COUNT(*)
 FROM information_schema.TABLES
 WHERE TABLE_SCHEMA = 'wesitedb'
-  AND TABLE_NAME IN ('WEB_MONITOR_SNAPSHOT','WEB_MONITOR_EVENT','WEB_USER_NOTIFICATION','WEB_NOTIFICATION_DELIVERY_BATCH','WEB_NOTIFICATION_PREFERENCE')
+  AND TABLE_NAME IN ('WEB_MONITOR_SNAPSHOT','WEB_MONITOR_EVENT','WEB_USER_NOTIFICATION','WEB_NOTIFICATION_DELIVERY_BATCH','WEB_NOTIFICATION_PREFERENCE','WEB_RETENTION_FACT_COLLECTION')
 '@
     $canonicalColumns = Get-FixtureCount $ContainerName $Password @'
 SELECT COUNT(*)
@@ -317,6 +344,20 @@ WHERE TABLE_SCHEMA = 'wesitedb'
   AND TABLE_NAME = 'WEB_AUTHENTICATED_ACTIVITY_DAILY'
   AND COLUMN_NAME IN ('USER_ID','ACTIVITY_DATE')
 '@
+    $collectionColumns = Get-FixtureCount $ContainerName $Password @'
+SELECT COUNT(*)
+FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA = 'wesitedb'
+  AND TABLE_NAME = 'WEB_RETENTION_FACT_COLLECTION'
+  AND COLUMN_NAME IN ('FACT_NAME','COLLECTION_STARTED_ON','MINIMUM_RETENTION_DAYS')
+'@
+    $collectionContract = Get-FixtureCount $ContainerName $Password @'
+SELECT COUNT(*)
+FROM WEB_RETENTION_FACT_COLLECTION
+WHERE FACT_NAME = 'AUTHENTICATED_ACTIVITY_DAILY'
+  AND COLLECTION_STARTED_ON IS NOT NULL
+  AND MINIMUM_RETENTION_DAYS >= 120
+'@
     $auditColumns = Get-FixtureCount $ContainerName $Password @'
 SELECT COUNT(*)
 FROM information_schema.COLUMNS
@@ -347,15 +388,90 @@ WHERE TABLE_SCHEMA = 'wesitedb'
   AND IS_NULLABLE = 'NO'
 '@
 
-    Assert-RolloutContract ($tables -eq 5) "$Label expected five retention tables, found $tables"
+    Assert-RolloutContract ($tables -eq 6) "$Label expected six retention tables, found $tables"
     Assert-RolloutContract ($canonicalColumns -eq 4) "$Label expected four canonical columns, found $canonicalColumns"
     Assert-RolloutContract ($pipelineColumns -eq 22) "$Label expected 22 key pipeline columns, found $pipelineColumns"
     Assert-RolloutContract ($watchColumns -eq 3) "$Label expected three watch compatibility/lease columns, found $watchColumns"
     Assert-RolloutContract ($activityColumns -eq 2) "$Label expected the daily activity fact columns, found $activityColumns"
+    Assert-RolloutContract ($collectionColumns -eq 3) "$Label expected three fact collection columns, found $collectionColumns"
+    Assert-RolloutContract ($collectionContract -eq 1) "$Label missing the durable 120-day fact collection row"
     Assert-RolloutContract ($auditColumns -eq 4) "$Label expected four delivery audit columns, found $auditColumns"
     Assert-RolloutContract ($batchIdentityColumns -eq 1) "$Label batch identity is not the exact frozen-recipient unique key"
     Assert-RolloutContract ($batchRecipientRequired -eq 1) "$Label batch recipient must be required"
-    Write-Host "RETENTION_ROLLOUT_FIXTURE|PASS|PATH=$Label|TABLES=$tables|PIPELINE_COLUMNS=$pipelineColumns|WATCH_COLUMNS=$watchColumns|ACTIVITY_COLUMNS=$activityColumns|AUDIT_COLUMNS=$auditColumns"
+    Write-Host "RETENTION_ROLLOUT_FIXTURE|PASS|PATH=$Label|TABLES=$tables|PIPELINE_COLUMNS=$pipelineColumns|WATCH_COLUMNS=$watchColumns|ACTIVITY_COLUMNS=$activityColumns|COLLECTION_COLUMNS=$collectionColumns|AUDIT_COLUMNS=$auditColumns"
+}
+
+function Assert-RetentionReportData(
+        [string]$ContainerName,
+        [string]$Password,
+        [string]$Label) {
+    [void](Invoke-FixtureQuery $ContainerName $Password @'
+CREATE TABLE IF NOT EXISTS SYS_USER (
+  ID varchar(32) NOT NULL PRIMARY KEY,
+  CREATE_TIME datetime NULL
+) ENGINE=InnoDB;
+'@)
+    $immature = Invoke-FixtureSqlFileOutput $ContainerName $Password 'scripts/retention-report.sql'
+    Assert-RolloutContract $immature.Contains('INSUFFICIENT_HISTORY') "$Label report did not expose immature history"
+    Assert-RolloutContract (
+        -not [regex]::IsMatch($immature, '(?m)^(monitored|non_monitored)\t')
+    ) "$Label immature report emitted a cohort"
+
+    [void](Invoke-FixtureQuery $ContainerName $Password @'
+UPDATE WEB_RETENTION_FACT_COLLECTION
+SET COLLECTION_STARTED_ON = DATE_SUB(CURDATE(), INTERVAL 130 DAY),
+    MINIMUM_RETENTION_DAYS = 120
+WHERE FACT_NAME = 'AUTHENTICATED_ACTIVITY_DAILY';
+DELETE FROM WEB_AUTHENTICATED_ACTIVITY_DAILY WHERE ID LIKE 'ret-%';
+DELETE FROM WEB_DOMAIN_WATCH WHERE ID LIKE 'ret-%';
+DELETE FROM SYS_USER WHERE ID LIKE 'ret-%';
+INSERT INTO SYS_USER (ID, CREATE_TIME) VALUES
+  ('ret-new-1', DATE_SUB(CURDATE(), INTERVAL 61 DAY)),
+  ('ret-new-2', DATE_SUB(CURDATE(), INTERVAL 61 DAY)),
+  ('ret-new-3', DATE_SUB(CURDATE(), INTERVAL 61 DAY)),
+  ('ret-new-4', DATE_SUB(CURDATE(), INTERVAL 61 DAY)),
+  ('ret-old-1', DATE_SUB(CURDATE(), INTERVAL 150 DAY)),
+  ('ret-old-2', DATE_SUB(CURDATE(), INTERVAL 150 DAY)),
+  ('ret-old-3', DATE_SUB(CURDATE(), INTERVAL 150 DAY)),
+  ('ret-old-4', DATE_SUB(CURDATE(), INTERVAL 150 DAY)),
+  ('ret-old-5', DATE_SUB(CURDATE(), INTERVAL 150 DAY));
+INSERT INTO WEB_DOMAIN_WATCH
+  (ID, STATUS, DELETED, USER_ID, DOMAIN_NAME, NOTIFY_TYPE, CREATE_TIME)
+VALUES
+  ('ret-mature-1', 1, 0, 'ret-mon-1', 'mature-1.example', 0, DATE_SUB(CURDATE(), INTERVAL 60 DAY)),
+  ('ret-mature-2', 1, 0, 'ret-mon-2', 'mature-2.example', 0, DATE_SUB(CURDATE(), INTERVAL 60 DAY)),
+  ('ret-mature-3', 1, 0, 'ret-mon-3', 'mature-3.example', 0, DATE_SUB(CURDATE(), INTERVAL 60 DAY)),
+  ('ret-mature-4', 1, 0, 'ret-mon-4', 'mature-4.example', 0, DATE_SUB(CURDATE(), INTERVAL 60 DAY)),
+  ('ret-mature-5', 1, 0, 'ret-mon-5', 'mature-5.example', 0, DATE_SUB(CURDATE(), INTERVAL 60 DAY)),
+  ('ret-immature-1', 1, 0, 'ret-imm-1', 'immature-1.example', 0, DATE_SUB(CURDATE(), INTERVAL 10 DAY)),
+  ('ret-immature-2', 1, 0, 'ret-imm-2', 'immature-2.example', 0, DATE_SUB(CURDATE(), INTERVAL 10 DAY)),
+  ('ret-immature-3', 1, 0, 'ret-imm-3', 'immature-3.example', 0, DATE_SUB(CURDATE(), INTERVAL 10 DAY)),
+  ('ret-immature-4', 1, 0, 'ret-imm-4', 'immature-4.example', 0, DATE_SUB(CURDATE(), INTERVAL 10 DAY)),
+  ('ret-immature-5', 1, 0, 'ret-imm-5', 'immature-5.example', 0, DATE_SUB(CURDATE(), INTERVAL 10 DAY));
+INSERT INTO WEB_AUTHENTICATED_ACTIVITY_DAILY (ID, USER_ID, ACTIVITY_DATE) VALUES
+  ('ret-return-m1', 'ret-mon-1', DATE_SUB(CURDATE(), INTERVAL 55 DAY)),
+  ('ret-return-m2', 'ret-mon-2', DATE_SUB(CURDATE(), INTERVAL 55 DAY)),
+  ('ret-return-m3', 'ret-mon-3', DATE_SUB(CURDATE(), INTERVAL 55 DAY)),
+  ('ret-first-new1', 'ret-new-1', DATE_SUB(CURDATE(), INTERVAL 60 DAY)),
+  ('ret-first-new2', 'ret-new-2', DATE_SUB(CURDATE(), INTERVAL 60 DAY)),
+  ('ret-first-new3', 'ret-new-3', DATE_SUB(CURDATE(), INTERVAL 60 DAY)),
+  ('ret-first-new4', 'ret-new-4', DATE_SUB(CURDATE(), INTERVAL 60 DAY)),
+  ('ret-first-old1', 'ret-old-1', DATE_SUB(CURDATE(), INTERVAL 60 DAY)),
+  ('ret-first-old2', 'ret-old-2', DATE_SUB(CURDATE(), INTERVAL 60 DAY)),
+  ('ret-first-old3', 'ret-old-3', DATE_SUB(CURDATE(), INTERVAL 60 DAY)),
+  ('ret-first-old4', 'ret-old-4', DATE_SUB(CURDATE(), INTERVAL 60 DAY)),
+  ('ret-first-old5', 'ret-old-5', DATE_SUB(CURDATE(), INTERVAL 60 DAY));
+'@)
+
+    $mature = Invoke-FixtureSqlFileOutput $ContainerName $Password 'scripts/retention-report.sql'
+    Assert-RolloutContract $mature.Contains('READY') "$Label mature report did not become ready"
+    Assert-RolloutContract (
+        [regex]::Matches($mature, '(?m)^monitored\t\d{4}-\d{2}-\d{2}\t5\t3\t60\.00\t3\t60\.00\r?$').Count -eq 1
+    ) "$Label mature five-user cohort or return counts were incorrect: $mature"
+    Assert-RolloutContract (
+        [regex]::Matches($mature, '(?m)^non_monitored\t').Count -eq 0
+    ) "$Label emitted a k=4 control cohort or treated pre-collection accounts as first seen: $mature"
+    Write-Host "RETENTION_REPORT_DATA|PASS|PATH=$Label|IMMATURE=EMPTY|MATURE=5|SUPPRESSED=4"
 }
 
 function Assert-LegacyUpgradeData(
@@ -430,6 +546,7 @@ function Invoke-MySqlFixture([ValidateSet('PathA', 'PathB', 'LegacyUpgrade', 'Le
             Invoke-FixtureSqlFile $containerName $password 'doc/alter_retention_notification_center_from_e73ff4d.sql'
             Assert-RetentionSchema $containerName $password $Path
             Assert-LegacyUpgradeData $containerName $password ($Path -eq 'LegacyWatchEmail')
+            Assert-RetentionReportData $containerName $password $Path
         } else {
             Invoke-FixtureSqlFile $containerName $password 'doc/create.sql'
             if ($Path -eq 'PathB') {
@@ -456,6 +573,7 @@ WHERE TABLE_SCHEMA = 'wesitedb'
             if ($Path -eq 'PathB') {
                 Assert-PathBWatchCompatibilityData $containerName $password
             }
+            Assert-RetentionReportData $containerName $password $Path
         }
     } catch {
         $bodyError = $_

@@ -2,6 +2,7 @@ package info.wesite.core.mapper;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Set;
 
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -92,6 +93,58 @@ public interface NotificationDeliveryBatchMapper extends BaseMapper<Notification
         + "UPDATE_TIME = #{updatedAt} WHERE USER_ID = #{userId} AND STATE = 'CLAIMED' AND DELETED = 0")
     int requestCancellationForClaimedUser(
         @Param("userId") String userId,
+        @Param("updatedAt") Date updatedAt);
+
+    @Update("UPDATE WEB_NOTIFICATION_DELIVERY_BATCH B SET B.STATE = 'CANCELLED', "
+        + "B.NEXT_ATTEMPT_AT = NULL, B.COMPLETED_AT = #{completedAt}, B.UPDATE_TIME = #{completedAt} "
+        + "WHERE B.USER_ID = #{userId} AND B.STATE = 'FAILED' AND B.DELETED = 0 AND EXISTS ("
+        + "SELECT 1 FROM WEB_USER_NOTIFICATION N JOIN WEB_MONITOR_EVENT E ON E.ID = N.EVENT_ID "
+        + "WHERE N.DELIVERY_BATCH_ID = B.ID AND E.WATCH_ID = #{watchId})")
+    int cancelFailedForWatch(
+        @Param("userId") String userId,
+        @Param("watchId") String watchId,
+        @Param("completedAt") Date completedAt);
+
+    @Update("UPDATE WEB_NOTIFICATION_DELIVERY_BATCH B SET B.CANCELLATION_REQUESTED = 1, "
+        + "B.UPDATE_TIME = #{updatedAt} WHERE B.USER_ID = #{userId} "
+        + "AND B.STATE = 'CLAIMED' AND B.DELETED = 0 AND EXISTS ("
+        + "SELECT 1 FROM WEB_USER_NOTIFICATION N JOIN WEB_MONITOR_EVENT E ON E.ID = N.EVENT_ID "
+        + "WHERE N.DELIVERY_BATCH_ID = B.ID AND E.WATCH_ID = #{watchId})")
+    int requestCancellationForClaimedWatch(
+        @Param("userId") String userId,
+        @Param("watchId") String watchId,
+        @Param("updatedAt") Date updatedAt);
+
+    @Update({"<script>",
+        "UPDATE WEB_NOTIFICATION_DELIVERY_BATCH B SET B.STATE = 'CANCELLED', ",
+        "B.NEXT_ATTEMPT_AT = NULL, B.COMPLETED_AT = #{completedAt}, B.UPDATE_TIME = #{completedAt} ",
+        "WHERE B.USER_ID = #{userId} AND B.STATE = 'FAILED' AND B.DELETED = 0 AND EXISTS (",
+        "SELECT 1 FROM WEB_USER_NOTIFICATION N JOIN WEB_MONITOR_EVENT E ON E.ID = N.EVENT_ID ",
+        "WHERE N.DELIVERY_BATCH_ID = B.ID AND E.EVENT_TYPE IN ",
+        "<foreach collection='eventTypes' item='eventType' open='(' separator=',' close=')'>",
+        "#{eventType}",
+        "</foreach>",
+        ")",
+        "</script>"})
+    int cancelFailedForEventTypes(
+        @Param("userId") String userId,
+        @Param("eventTypes") Set<String> eventTypes,
+        @Param("completedAt") Date completedAt);
+
+    @Update({"<script>",
+        "UPDATE WEB_NOTIFICATION_DELIVERY_BATCH B SET B.CANCELLATION_REQUESTED = 1, ",
+        "B.UPDATE_TIME = #{updatedAt} WHERE B.USER_ID = #{userId} ",
+        "AND B.STATE = 'CLAIMED' AND B.DELETED = 0 AND EXISTS (",
+        "SELECT 1 FROM WEB_USER_NOTIFICATION N JOIN WEB_MONITOR_EVENT E ON E.ID = N.EVENT_ID ",
+        "WHERE N.DELIVERY_BATCH_ID = B.ID AND E.EVENT_TYPE IN ",
+        "<foreach collection='eventTypes' item='eventType' open='(' separator=',' close=')'>",
+        "#{eventType}",
+        "</foreach>",
+        ")",
+        "</script>"})
+    int requestCancellationForClaimedEventTypes(
+        @Param("userId") String userId,
+        @Param("eventTypes") Set<String> eventTypes,
         @Param("updatedAt") Date updatedAt);
 
     @Update("UPDATE WEB_NOTIFICATION_DELIVERY_BATCH SET STATE = 'CANCELLED', CLAIM_TOKEN = NULL, "

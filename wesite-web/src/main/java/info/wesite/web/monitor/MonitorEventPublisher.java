@@ -321,7 +321,8 @@ public class MonitorEventPublisher {
         String anchor = switch (type) {
             case DOMAIN_EXPIRING, DOMAIN_STATUS_CHANGED -> "#domain-information";
             case DNS_CHANGED -> "#dns-records";
-            case SSL_EXPIRING, WEBSITE_DOWN, WEBSITE_RECOVERED -> "#domain-monitoring-actions";
+            case SSL_EXPIRING -> "#ssl-evidence";
+            case WEBSITE_DOWN, WEBSITE_RECOVERED -> "#website-availability-evidence";
         };
         return "/domain/" + UriUtils.encodePathSegment(domain, StandardCharsets.UTF_8) + anchor;
     }

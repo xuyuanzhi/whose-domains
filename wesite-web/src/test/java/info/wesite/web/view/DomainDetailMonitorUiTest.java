@@ -82,6 +82,17 @@ class DomainDetailMonitorUiTest {
         assertFalse(template.contains("We'll email a secure sign-in link"));
     }
 
+    @Test
+    void domainDetailExposesStableSslAndWebsiteEvidenceSections() throws IOException {
+        String template = template();
+
+        assertTrue(template.contains("id=\"ssl-evidence\""));
+        assertTrue(template.contains("SSL certificate evidence"));
+        assertTrue(template.contains("id=\"website-availability-evidence\""));
+        assertTrue(template.contains("Website availability evidence"));
+        assertTrue(template.contains("Latest successful monitor observation"));
+    }
+
     private String template() throws IOException {
         try (InputStream input = getClass().getResourceAsStream("/views/domain_detail.html")) {
             assertNotNull(input);
