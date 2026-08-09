@@ -21,6 +21,11 @@ public class DigestNotificationDeliveryJob {
         this.deliveryTask = deliveryTask;
     }
 
+    @Scheduled(cron = "0 */5 * * * ?")
+    public void recover() {
+        deliveryTask.recoverDigestDeliveries();
+    }
+
     @Scheduled(cron = "0 0 8 * * ?")
     public void runDaily() {
         deliveryTask.deliverDailyDigest();

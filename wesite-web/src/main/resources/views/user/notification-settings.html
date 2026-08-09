@@ -30,14 +30,18 @@
                 <div class="settings-panel__intro">
                     <p class="signal-response__label">01 / Delivery cadence</p>
                     <h2 id="deliveryCadenceTitle">When should email arrive?</h2>
-                    <p>In-app signals are always kept in the operations log. This setting controls email only.</p>
+                    <p>In-app signals are always kept in the operations log. High and critical enabled signals are
+                       immediate unless you choose “In-app only”, which overrides every watch-level email threshold.</p>
                 </div>
-                <div class="cadence-grid">
-                    <label><input type="radio" name="emailMode" value="IMMEDIATE"><span><i class="fas fa-bolt" aria-hidden="true"></i><strong>Immediate</strong><small>Email each enabled signal as it happens.</small></span></label>
-                    <label><input type="radio" name="emailMode" value="DAILY"><span><i class="fas fa-sun" aria-hidden="true"></i><strong>Daily digest</strong><small>Group routine changes into one daily review.</small></span></label>
-                    <label><input type="radio" name="emailMode" value="WEEKLY"><span><i class="fas fa-calendar-week" aria-hidden="true"></i><strong>Weekly digest</strong><small>Receive one lower-frequency operations summary.</small></span></label>
-                    <label><input type="radio" name="emailMode" value="IN_APP_ONLY"><span><i class="fas fa-inbox" aria-hidden="true"></i><strong>In-app only</strong><small>Keep every signal here without email.</small></span></label>
-                </div>
+                <fieldset class="cadence-fieldset">
+                    <legend>Email delivery cadence</legend>
+                    <div class="cadence-grid">
+                        <label><input type="radio" name="emailMode" value="IMMEDIATE"><span><i class="fas fa-bolt" aria-hidden="true"></i><strong>Immediate</strong><small>Email each enabled signal as it happens.</small></span></label>
+                        <label><input type="radio" name="emailMode" value="DAILY"><span><i class="fas fa-sun" aria-hidden="true"></i><strong>Daily digest</strong><small>Group routine changes daily; urgent signals remain immediate.</small></span></label>
+                        <label><input type="radio" name="emailMode" value="WEEKLY"><span><i class="fas fa-calendar-week" aria-hidden="true"></i><strong>Weekly digest</strong><small>Group routine changes weekly; urgent signals remain immediate.</small></span></label>
+                        <label><input type="radio" name="emailMode" value="IN_APP_ONLY"><span><i class="fas fa-inbox" aria-hidden="true"></i><strong>In-app only</strong><small>Keep every signal here without email.</small></span></label>
+                    </div>
+                </fieldset>
             </section>
 
             <section class="settings-panel" aria-labelledby="eventChannelsTitle">

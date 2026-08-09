@@ -82,24 +82,14 @@ public class NotificationController {
                     "SELECT ID FROM WEB_MONITOR_EVENT WHERE EVENT_TYPE IN (" + eventTypes + ")");
         }
         if (StringUtils.isNotBlank(domain)) {
-            DomainWatch watch = domainWatchService.getOne(Wrappers.<DomainWatch>lambdaQuery()
-                    .eq(DomainWatch::getUserId, userId)
-                    .eq(DomainWatch::getDomainName, domain.trim().toLowerCase(Locale.ROOT))
-                    .eq(DomainWatch::getStatus, DomainWatch.STATUS_ACTIVE));
-            if (watch == null) {
-                return ResponseJson.success(pageData(List.of(), 0, page));
-            }
-            List<String> eventIds = monitorEventService.list(Wrappers.<MonitorEvent>lambdaQuery()
-                    .select(MonitorEvent::getId)
-                    .eq(MonitorEvent::getWatchId, watch.getId()))
-                    .stream()
-                    .map(MonitorEvent::getId)
-                    .filter(value -> value != null && !value.isBlank())
-                    .toList();
-            if (eventIds.isEmpty()) {
-                return ResponseJson.success(pageData(List.of(), 0, page));
-            }
-            query.in(UserNotification::getEventId, eventIds);
+            query.apply("EXISTS (SELECT 1 FROM WEB_MONITOR_EVENT E "
+                    + "JOIN WEB_DOMAIN_WATCH W ON W.ID = E.WATCH_ID "
+                    + "WHERE E.ID = WEB_USER_NOTIFICATION.EVENT_ID "
+                    + "AND W.USER_ID = {0} AND W.DOMAIN_NAME = {1} "
+                    + "AND W.STATUS = {2} AND W.DELETED = 0)",
+                    userId,
+                    domain.trim().toLowerCase(Locale.ROOT),
+                    DomainWatch.STATUS_ACTIVE);
         }
         Page<UserNotification> result = notificationService.page(new Page<>(page, PAGE_SIZE), query);
         List<Map<String, Object>> items = toDtos(result.getRecords(), userId);

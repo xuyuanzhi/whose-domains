@@ -1,5 +1,7 @@
 package info.wesite.web.interceptor;
 
+import java.time.LocalDate;
+
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,6 +20,7 @@ import com.alibaba.fastjson2.JSONObject;
 import info.wesite.core.config.AccessControl;
 import info.wesite.core.config.UserHolder;
 import info.wesite.core.entity.User;
+import info.wesite.core.mapper.AuthenticatedActivityDailyMapper;
 import info.wesite.core.utils.ApiTokenUtils;
 import info.wesite.core.utils.Constants;
 import info.wesite.core.utils.IpUtils;
@@ -42,6 +45,9 @@ public class WebInterceptor implements HandlerInterceptor {
     private final GoogleLoginProperties googleLoginProperties;
     private final CanonicalUrlService canonicalUrlService;
     private final ReturnTargetService returnTargetService;
+
+    @Autowired(required = false)
+    private AuthenticatedActivityDailyMapper authenticatedActivityMapper;
 
     @Autowired(required = false)
     public WebInterceptor(Environment environment, GoogleLoginProperties googleLoginProperties,
@@ -123,6 +129,7 @@ public class WebInterceptor implements HandlerInterceptor {
             if (user != null) {
                 UserHolder.set(user);
                 request.setAttribute("user", user);
+                recordAuthenticatedActivity(user);
             }
         }
         
@@ -156,6 +163,18 @@ public class WebInterceptor implements HandlerInterceptor {
         }
 
         return false;
+    }
+
+    private void recordAuthenticatedActivity(User user) {
+        if (authenticatedActivityMapper == null) {
+            return;
+        }
+        try {
+            authenticatedActivityMapper.recordDaily(user.getId(), LocalDate.now());
+        } catch (RuntimeException e) {
+            // Product traffic must not fail when the privacy-preserving analytics fact cannot be written.
+            log.warn("Unable to record authenticated daily activity", e);
+        }
     }
 
     @Override

@@ -186,7 +186,8 @@ public class MonitorEventPublisher {
             drafts = detector.detect(previous, current, previousCheckedAt, checkedAt.toInstant());
         }
         for (MonitorEventDraft draft : drafts) {
-            MonitorEvent event = publishEvent(watch, currentSnapshot, draft, checkedAt);
+            MonitorEvent event = publishEvent(
+                watch, currentSnapshot, draft, checkedAt, episodeKey(previousSnapshot, checkedAt));
             publishNotification(watch, event, draft, checkedAt);
             published.add(event);
         }
@@ -201,6 +202,7 @@ public class MonitorEventPublisher {
                 .eq(MonitorSnapshot::getWatchId, watchId)
                 .eq(MonitorSnapshot::getStatus, BaseEntity.STATUS_ACTIVE)
                 .orderByDesc(MonitorSnapshot::getCheckedAt)
+                .orderByDesc(MonitorSnapshot::getId)
                 .last("LIMIT 1"));
     }
 
@@ -208,8 +210,9 @@ public class MonitorEventPublisher {
         DomainWatch watch,
         MonitorSnapshot snapshot,
         MonitorEventDraft draft,
-        Date occurredAt) {
-        String fingerprint = MonitorFingerprint.of(watch.getId(), draft);
+        Date occurredAt,
+        String episodeKey) {
+        String fingerprint = MonitorFingerprint.of(watch.getId(), draft, episodeKey);
         MonitorEvent event = new MonitorEvent();
         initialize(event, occurredAt);
         event.setWatchId(watch.getId());
@@ -234,6 +237,12 @@ public class MonitorEventPublisher {
         }
     }
 
+    private static String episodeKey(MonitorSnapshot previousSnapshot, Date checkedAt) {
+        return previousSnapshot != null && StringUtils.isNotBlank(previousSnapshot.getId())
+            ? "after:" + previousSnapshot.getId()
+            : "initial:" + checkedAt.toInstant();
+    }
+
     private void publishNotification(
         DomainWatch watch,
         MonitorEvent event,
@@ -245,7 +254,7 @@ public class MonitorEventPublisher {
         notification.setEventId(event.getId());
         notification.setTitle(title(draft.type()));
         notification.setContent(content(draft));
-        notification.setTargetPath(internalDomainTarget(watch.getDomainName()));
+        notification.setTargetPath(internalDomainTarget(watch.getDomainName(), draft.type()));
         notification.setEmailState(UserNotification.EMAIL_STATE_QUEUED);
 
         UserNotification persisted;
@@ -267,7 +276,19 @@ public class MonitorEventPublisher {
         }
 
         if (needsDispatch && dispatcher != null) {
-            dispatcher.dispatch(event, persisted);
+            dispatcher.dispatch(event, persisted, watch, domainExpiryThresholdDays(draft));
+        }
+    }
+
+    private static Integer domainExpiryThresholdDays(MonitorEventDraft draft) {
+        if (draft.type() != MonitorEventType.DOMAIN_EXPIRING
+                || !draft.field().startsWith("domainExpiry:")) {
+            return null;
+        }
+        try {
+            return Integer.valueOf(draft.field().substring("domainExpiry:".length()));
+        } catch (NumberFormatException invalidThreshold) {
+            return null;
         }
     }
 
@@ -295,9 +316,14 @@ public class MonitorEventPublisher {
         entity.setCreateTime(createdAt);
     }
 
-    private static String internalDomainTarget(String domainName) {
+    private static String internalDomainTarget(String domainName, MonitorEventType type) {
         String domain = domainName == null ? "" : domainName.trim();
-        return "/domain/" + UriUtils.encodePathSegment(domain, StandardCharsets.UTF_8);
+        String anchor = switch (type) {
+            case DOMAIN_EXPIRING, DOMAIN_STATUS_CHANGED -> "#domain-information";
+            case DNS_CHANGED -> "#dns-records";
+            case SSL_EXPIRING, WEBSITE_DOWN, WEBSITE_RECOVERED -> "#domain-monitoring-actions";
+        };
+        return "/domain/" + UriUtils.encodePathSegment(domain, StandardCharsets.UTF_8) + anchor;
     }
 
     private static String title(MonitorEventType type) {

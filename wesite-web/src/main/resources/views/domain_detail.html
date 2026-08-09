@@ -34,7 +34,7 @@
 	            </div>
 
 	            <!-- Quick Action Buttons -->
-	            <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:15px;">
+	            <div id="domain-monitoring-actions" style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:15px;">
 	                <a href="#" id="exportReportBtn" th:data-domain="${domain.name}" class="search-again" style="text-decoration:none; font-size:13px; padding:6px 14px;">
 	                    <i class="fas fa-download"></i> Export Report
 	                </a>
@@ -90,7 +90,7 @@
 	            </div>
 	            
 	            <div class="results-grid">
-	                <div class="result-card">
+	                <div class="result-card" id="domain-information">
 	                    <h3><i class="fas fa-info-circle"></i> Domain Information</h3>
 	                    <div class="info-row">
 	                        <span class="info-label"><i class="fas fa-fingerprint"></i> Registry Domain ID</span>
@@ -183,7 +183,7 @@
 	            </div>
 	            
 	            <div class="results-flex">
-	                <div class="result-card">
+	                <div class="result-card" id="dns-records">
 	                    <h3><i class="fa-solid fa-globe"></i> DNS</h3>
 	                    <div class="info-row" th:each="dns:${dnsList}">
 	                        <span class="info-label"><i class="fa-solid fa-clipboard"></i> [[${dns.type}]]</span>
@@ -270,6 +270,14 @@
 	        google_expired: {target: 'google', text: 'This Google sign-in attempt has expired. Please try again.'}
 	    };
 	    document.getElementById('monitorDomainName').textContent = domain;
+
+	    function trackMonitorEvent(eventName, parameters) {
+	        try {
+	            if (window.WhoseRetentionAnalytics && typeof window.WhoseRetentionAnalytics.track === 'function') {
+	                window.WhoseRetentionAnalytics.track(eventName, parameters);
+	            }
+	        } catch (error) {}
+	    }
 
 	    function monitorReturnTo() {
 	        var params = new URLSearchParams(location.search);
@@ -408,6 +416,9 @@
 	                var data = result.data || {};
 	                if (result.ok && data.code === 0) {
 	                    setMonitoringState();
+	                    trackMonitorEvent('watch_created', {
+	                        type: 'watch_created', category: 'watchlist', source: 'domain_detail'
+	                    });
 	                    return 'added';
 	                }
 	                if (isAuthenticationFailure(result)) {
@@ -467,6 +478,9 @@
 	        }
 	    }
 	    button.addEventListener('click', function(){
+	        trackMonitorEvent('domain_detail_cta_clicked', {
+	            type: 'monitor_domain', category: 'watchlist', source: 'domain_detail'
+	        });
 	        startWatchFlow(monitorContinuationStarted, null);
 	    });
 	    closeButton.addEventListener('click', closeMonitorModal);

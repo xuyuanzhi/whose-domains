@@ -15,7 +15,7 @@ public interface DomainWatchSummaryMapper {
 
     @Select({
         "<script>",
-        "SELECT WATCH_ID AS watchId, RISK AS latestRisk, EVENT_TYPE AS latestEventType, NEW_VALUE AS latestEventValue",
+        "SELECT WATCH_ID AS watchId, RISK AS latestEventRisk, EVENT_TYPE AS latestEventType, NEW_VALUE AS latestEventValue",
         "FROM (",
         "  SELECT E.WATCH_ID, E.RISK, E.EVENT_TYPE, E.NEW_VALUE,",
         "    ROW_NUMBER() OVER (PARTITION BY E.WATCH_ID ORDER BY E.OCCURRED_AT DESC,",

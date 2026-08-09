@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.lang.reflect.Method;
@@ -18,8 +19,12 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.ui.Model;
 import org.springframework.web.method.HandlerMethod;
 
+import info.wesite.core.entity.User;
+import info.wesite.core.mapper.AuthenticatedActivityDailyMapper;
 import info.wesite.core.service.ApiKeyService;
 import info.wesite.core.utils.ApiTokenUtils;
+import info.wesite.core.utils.Constants;
+import info.wesite.core.utils.TokenUtils;
 import info.wesite.core.view.ResponseJson;
 import info.wesite.web.config.GoogleLoginProperties;
 import info.wesite.web.controller.ApiKeyController;
@@ -35,6 +40,8 @@ class ProtectedPageLoginRedirectTest {
         ApiTokenUtils apiTokenUtils = new ApiTokenUtils(mock(Environment.class));
         ReflectionTestUtils.setField(apiTokenUtils, "jwtSecret", "test-secret");
         apiTokenUtils.init();
+        ReflectionTestUtils.setField(TokenUtils.class, "secret", "web-interceptor-test-secret");
+        ReflectionTestUtils.setField(TokenUtils.class, "issuer", "web-interceptor-test-issuer");
     }
 
     @Test
@@ -86,6 +93,25 @@ class ProtectedPageLoginRedirectTest {
         assertNull(response.getRedirectedUrl());
         assertEquals("application/json;charset=utf-8", response.getContentType());
         assertTrue(response.getContentAsString().contains("\"code\":" + ResponseJson.CODE_NOAUTH));
+    }
+
+    @Test
+    void authenticatedRequestPersistsOnlyTheDailyUserActivityFact() throws Exception {
+        User user = new User();
+        user.setId("user-1");
+        user.setName("Test User");
+        AuthenticatedActivityDailyMapper activities = mock(AuthenticatedActivityDailyMapper.class);
+        WebInterceptor interceptor = interceptor();
+        ReflectionTestUtils.setField(interceptor, "authenticatedActivityMapper", activities);
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/notifications");
+        request.addHeader(Constants.TOKEN_KEY, TokenUtils.createToken(user, 5));
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        assertTrue(interceptor.preHandle(request, response, notificationListHandler()));
+
+        verify(activities).recordDaily(org.mockito.ArgumentMatchers.eq("user-1"),
+                org.mockito.ArgumentMatchers.any(java.time.LocalDate.class));
+        interceptor.afterCompletion(request, response, notificationListHandler(), null);
     }
 
     private WebInterceptor interceptor() {

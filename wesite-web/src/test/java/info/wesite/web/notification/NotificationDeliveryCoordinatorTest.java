@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -123,6 +124,9 @@ class NotificationDeliveryCoordinatorTest {
         DeliveryAttemptDetails details = new DeliveryAttemptDetails(
             "notification-1", "event-1", "watch-1", "person@example.com", "example.com", 7,
             "subject", "lookup failed");
+        NotificationDeliveryBatch owned = batch(1, NotificationDeliveryBatch.STATE_CLAIMED);
+        owned.setClaimToken("claim-1");
+        when(batchMapper.selectByIdForUpdate("batch-1")).thenReturn(owned);
         when(logMapper.finishPendingAttempt(
             eq("batch-1"), eq(1), eq(DomainWatchNotifyLog.SEND_STATUS_FAIL),
             any(Date.class), eq("lookup failed"), eq("notification-1"), eq("event-1"),
@@ -135,12 +139,59 @@ class NotificationDeliveryCoordinatorTest {
         verify(batchMapper, never()).completeClaim(any(), any(), any(), any(), any(), any());
     }
 
+    @Test
+    void inFlightPreferenceCancellationLetsSuccessFinishButSuppressesAFailedRetry() {
+        DeliveryBatchClaim claim = new DeliveryBatchClaim(
+            "batch-1", "user-1", "IMMEDIATE_EMAIL", "notification-1", 1, "claim-1",
+            "watch@example.com");
+        NotificationDeliveryBatch owned = batch(1, NotificationDeliveryBatch.STATE_CLAIMED);
+        owned.setClaimToken("claim-1");
+        owned.setCancellationRequested(true);
+        when(batchMapper.selectByIdForUpdate("batch-1")).thenReturn(owned);
+        when(logMapper.finishPendingAttempt(any(), anyInt(), anyInt(), any(), any(),
+            any(), any(), any(), any(), any(), any(), any())).thenReturn(1);
+        when(batchMapper.completeClaim(eq("batch-1"), eq("claim-1"),
+            eq(NotificationDeliveryBatch.STATE_CANCELLED), any(Date.class), eq(null), any(Date.class)))
+            .thenReturn(1);
+        when(notificationMapper.completeBatchNotifications(
+            eq("batch-1"), eq("claim-1"), eq(UserNotification.EMAIL_STATE_IN_APP_ONLY),
+            eq(null), any(Date.class))).thenReturn(1);
+
+        coordinator.complete(
+            claim, false,
+            new DeliveryAttemptDetails(null, null, null, "watch@example.com", null, null, "subject", "smtp"),
+            NOW, NOW.plusSeconds(300));
+
+        verify(batchMapper).completeClaim(eq("batch-1"), eq("claim-1"),
+            eq(NotificationDeliveryBatch.STATE_CANCELLED), any(Date.class), eq(null), any(Date.class));
+    }
+
+    @Test
+    void expiredPreferenceCancellationBecomesTerminalWithoutRetryingSmtp() {
+        NotificationDeliveryBatch cancelled = batch(1, NotificationDeliveryBatch.STATE_CLAIMED);
+        cancelled.setCancellationRequested(true);
+        when(batchMapper.selectExpiredCancellationRequestedForUpdate(
+            "IMMEDIATE_EMAIL", Date.from(NOW), 100)).thenReturn(List.of(cancelled));
+        when(logMapper.finishPendingAttempt(
+            eq("batch-1"), eq(1), eq(DomainWatchNotifyLog.SEND_STATUS_FAIL),
+            eq(Date.from(NOW)), eq("delivery cancelled after preference change"),
+            eq(null), eq(null), eq(null), eq(null), eq(null), eq(null), eq(null)))
+            .thenReturn(1);
+        when(batchMapper.finalizeCancelledClaim("batch-1", Date.from(NOW))).thenReturn(1);
+
+        coordinator.finalizeExpiredCancelled("IMMEDIATE_EMAIL", NOW);
+
+        verify(notificationMapper).cancelClaimedBatch("batch-1", Date.from(NOW));
+        verify(batchMapper, never()).claimRetry(eq("batch-1"), anyInt(), any(), any(), any());
+    }
+
     private void stubNewImmediate() {
         UserNotification notification = new UserNotification();
         notification.setId("notification-1");
         notification.setUserId("user-1");
         notification.setEventId("event-1");
         notification.setEmailMode("IMMEDIATE_EMAIL");
+        notification.setRecipientEmail("watch@example.com");
         when(notificationMapper.selectImmediateForUpdate("notification-1")).thenReturn(notification);
         when(batchMapper.insert(any(NotificationDeliveryBatch.class))).thenReturn(1);
         when(notificationMapper.assignImmediateToBatch(eq("notification-1"), any(String.class), eq(Date.from(NOW))))

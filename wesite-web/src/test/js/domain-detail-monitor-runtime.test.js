@@ -137,6 +137,7 @@ function createHarness({
     const closeButton = document.register('closeMonitorModal');
     const fetchCalls = [];
     const historyCalls = [];
+    const analyticsCalls = [];
     const context = vm.createContext({
         document,
         fetch(url, options) {
@@ -160,7 +161,10 @@ function createHarness({
         },
         window: {
             setInterval() { return 1; },
-            clearInterval() {}
+            clearInterval() {},
+            WhoseRetentionAnalytics: {
+                track(eventName, parameters) { analyticsCalls.push({ eventName, parameters }); }
+            }
         },
         JSON,
         URLSearchParams,
@@ -180,6 +184,7 @@ function createHarness({
         button: monitorButton,
         fetchCalls,
         historyCalls,
+        analyticsCalls,
         get historyUrls() {
             return historyCalls.map((call) => call.url);
         },
@@ -190,6 +195,23 @@ function createHarness({
         flushPromises
     };
 }
+
+test('monitor detail CTA emits only its allowlisted placement semantics', async () => {
+    const harness = createHarness({
+        responses: {
+            '/api/domain-watch/check/example.com': response(200, {code: 0, data: false}),
+            '/user/session': response(401, {code: 401})
+        }
+    }).run();
+    await harness.flushPromises();
+
+    harness.button.dispatch('click');
+
+    assert.deepEqual(JSON.parse(JSON.stringify(harness.analyticsCalls)), [{
+        eventName: 'domain_detail_cta_clicked',
+        parameters: {type: 'monitor_domain', category: 'watchlist', source: 'domain_detail'}
+    }]);
+});
 
 async function flushPromises() {
     await new Promise((resolve) => setImmediate(resolve));

@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -18,6 +19,8 @@ import info.wesite.core.config.AccessControl.Level;
 import info.wesite.core.config.UserHolder;
 import info.wesite.core.entity.NotificationPreference;
 import info.wesite.core.service.NotificationPreferenceService;
+import info.wesite.core.mapper.UserNotificationMapper;
+import info.wesite.core.mapper.NotificationDeliveryBatchMapper;
 import info.wesite.core.view.ResponseJson;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -37,6 +40,12 @@ public class NotificationPreferenceController {
     @Autowired
     private NotificationPreferenceService preferenceService;
 
+    @Autowired
+    private UserNotificationMapper notificationMapper;
+
+    @Autowired
+    private NotificationDeliveryBatchMapper batchMapper;
+
     @Operation(summary = "Get current user's notification preference")
     @GetMapping
     public ResponseJson<LinkedHashMap<String, Object>> get() {
@@ -45,6 +54,7 @@ public class NotificationPreferenceController {
 
     @Operation(summary = "Update current user's notification preference")
     @PutMapping
+    @Transactional
     public ResponseJson<LinkedHashMap<String, Object>> update(@RequestBody PreferenceRequest request) {
         if (request.emailMode != null && !EMAIL_MODES.contains(request.emailMode)) {
             return ResponseJson.failure("Invalid email notification mode.");
@@ -59,6 +69,12 @@ public class NotificationPreferenceController {
         apply(request, preference);
         preference.setUserId(userId);
         boolean saved = existing ? preferenceService.updateById(preference) : preferenceService.save(preference);
+        if (saved && NotificationPreference.MODE_IN_APP_ONLY.equals(preference.getEmailMode())) {
+            java.util.Date now = new java.util.Date();
+            notificationMapper.cancelUnclaimedForUser(userId, now);
+            batchMapper.cancelFailedForUser(userId, now);
+            batchMapper.requestCancellationForClaimedUser(userId, now);
+        }
         return saved
                 ? ResponseJson.success(toDto(preference))
                 : ResponseJson.failure("Failed to save notification preferences.");

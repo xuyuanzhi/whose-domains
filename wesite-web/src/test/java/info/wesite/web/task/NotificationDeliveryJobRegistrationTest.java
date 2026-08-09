@@ -89,14 +89,17 @@ class NotificationDeliveryJobRegistrationTest {
                 assertThat(context).hasSingleBean(DigestNotificationDeliveryJob.class);
 
                 DigestNotificationDeliveryJob job = context.getBean(DigestNotificationDeliveryJob.class);
+                job.recover();
                 job.runDaily();
                 job.runWeekly();
 
+                verify(deliveryTask).recoverDigestDeliveries();
                 verify(deliveryTask).deliverDailyDigest();
                 verify(deliveryTask).deliverWeeklyDigest();
             });
         assertEquals("0 0 8 * * ?", cron(DigestNotificationDeliveryJob.class, "runDaily"));
         assertEquals("0 0 8 * * MON", cron(DigestNotificationDeliveryJob.class, "runWeekly"));
+        assertEquals("0 */5 * * * ?", cron(DigestNotificationDeliveryJob.class, "recover"));
     }
 
     private static ApplicationContextRunner runner(NotificationDeliveryTask deliveryTask) {

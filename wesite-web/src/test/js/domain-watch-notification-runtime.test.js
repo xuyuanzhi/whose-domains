@@ -23,14 +23,14 @@ function summaryMarkup(summary) {
 
 test('watch monitoring summary renders the latest persisted risk, last successful check, and a domain-filtered notification link', () => {
     const markup = summaryMarkup({
-        latestRisk: 'LOW',
+        latestEventRisk: 'LOW',
         unreadCount: 2,
         lastSuccessfulCheck: '2026-08-09T12:30:00Z',
         latestEventSummary: 'WEBSITE_DOWN: offline',
         watch: { domainName: 'example.com' }
     });
 
-    assert.match(markup, /Low risk/);
+    assert.match(markup, /Latest event risk: Low/);
     assert.match(markup, /Last successful check: 2026-08-09T12:30:00Z/);
     assert.match(markup, /2 unread events/);
     assert.match(markup, /href="\/user\/notifications\?domain=example.com"/);
@@ -38,7 +38,7 @@ test('watch monitoring summary renders the latest persisted risk, last successfu
 
 test('watch monitoring summary keeps zero-event watches quiet and does not create a notification link', () => {
     const markup = summaryMarkup({
-        latestRisk: 'UNKNOWN',
+        latestEventRisk: 'UNKNOWN',
         unreadCount: 0,
         lastSuccessfulCheck: null,
         latestEventSummary: 'No monitoring events yet',

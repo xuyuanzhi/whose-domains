@@ -51,7 +51,8 @@ public class NotificationDeliveryCoordinator {
         }
 
         NotificationDeliveryBatch batch = newBatch(
-            notification.getUserId(), notification.getEmailMode(), notificationId, now, leaseUntil);
+            notification.getUserId(), notification.getEmailMode(), notificationId,
+            notification.getRecipientEmail(), now, leaseUntil);
         requireOne(batchMapper.insert(batch), "delivery batch insert");
         requireOne(notificationMapper.assignImmediateToBatch(notificationId, batch.getId(), startedAt),
             "immediate batch assignment");
@@ -67,11 +68,13 @@ public class NotificationDeliveryCoordinator {
         String userId,
         String mode,
         String windowKey,
+        String recipientEmail,
         Instant cutoff,
         Instant now,
         Instant leaseUntil) {
         Date startedAt = Date.from(now);
-        NotificationDeliveryBatch batch = newBatch(userId, mode, windowKey, now, leaseUntil);
+        NotificationDeliveryBatch batch = newBatch(
+            userId, mode, windowKey, recipientEmail, now, leaseUntil);
         try {
             requireOne(batchMapper.insert(batch), "digest batch insert");
         } catch (DuplicateKeyException concurrentWinner) {
@@ -79,7 +82,7 @@ public class NotificationDeliveryCoordinator {
         }
 
         int assigned = notificationMapper.assignDigestToBatch(
-            userId, mode, batch.getId(), Date.from(cutoff), startedAt);
+            userId, mode, recipientEmail, batch.getId(), Date.from(cutoff), startedAt);
         if (assigned == 0) {
             batchMapper.deleteById(batch.getId());
             return Optional.empty();
@@ -111,9 +114,13 @@ public class NotificationDeliveryCoordinator {
         requireOne(batchMapper.claimRetry(
             batch.getId(), attempt, claimToken, Date.from(leaseUntil), startedAt),
             "retry batch claim");
-        requirePositive(notificationMapper.claimBatchForAttempt(
-            batch.getId(), attempt, claimToken, Date.from(leaseUntil), startedAt),
-            "retry notification claim");
+        int members = notificationMapper.claimBatchForAttempt(
+            batch.getId(), attempt, claimToken, Date.from(leaseUntil), startedAt);
+        if (members == 0) {
+            requireOne(batchMapper.cancelWithoutMembers(batch.getId(), startedAt),
+                "empty retry batch cancellation");
+            return Optional.empty();
+        }
         batch.setAttemptCount(attempt);
         batch.setClaimToken(claimToken);
         batch.setClaimUntil(Date.from(leaseUntil));
@@ -132,6 +139,11 @@ public class NotificationDeliveryCoordinator {
         Objects.requireNonNull(claim, "claim");
         Objects.requireNonNull(details, "details");
         Date completed = Date.from(completedAt);
+        NotificationDeliveryBatch batch = batchMapper.selectByIdForUpdate(claim.batchId());
+        if (batch == null || !NotificationDeliveryBatch.STATE_CLAIMED.equals(batch.getState())
+            || !Objects.equals(claim.claimToken(), batch.getClaimToken())) {
+            throw new IllegalStateException("Delivery claim is no longer owned by this worker");
+        }
         int logState = success
             ? DomainWatchNotifyLog.SEND_STATUS_SUCCESS
             : DomainWatchNotifyLog.SEND_STATUS_FAIL;
@@ -141,17 +153,24 @@ public class NotificationDeliveryCoordinator {
             details.watchId(), details.toEmail(), details.domainName(), details.daysLeft(), details.subject()),
             "attempt log completion");
 
-        String state = success ? NotificationDeliveryBatch.STATE_SENT : NotificationDeliveryBatch.STATE_FAILED;
-        Date next = success || claim.attempt() >= MAX_ATTEMPTS || nextAttemptAt == null
+        boolean cancelledAfterFailure = !success && Boolean.TRUE.equals(batch.getCancellationRequested());
+        String state = success
+            ? NotificationDeliveryBatch.STATE_SENT
+            : cancelledAfterFailure ? NotificationDeliveryBatch.STATE_CANCELLED : NotificationDeliveryBatch.STATE_FAILED;
+        Date next = success || cancelledAfterFailure || claim.attempt() >= MAX_ATTEMPTS || nextAttemptAt == null
             ? null
             : Date.from(nextAttemptAt);
-        Date batchCompletedAt = success || claim.attempt() >= MAX_ATTEMPTS ? completed : null;
+        Date batchCompletedAt = success || cancelledAfterFailure || claim.attempt() >= MAX_ATTEMPTS
+            ? completed
+            : null;
         requireOne(batchMapper.completeClaim(
             claim.batchId(), claim.claimToken(), state, batchCompletedAt, next, completed),
             "batch completion");
         requirePositive(notificationMapper.completeBatchNotifications(
             claim.batchId(), claim.claimToken(),
-            success ? UserNotification.EMAIL_STATE_SENT : UserNotification.EMAIL_STATE_FAILED,
+            success ? UserNotification.EMAIL_STATE_SENT
+                : cancelledAfterFailure ? UserNotification.EMAIL_STATE_IN_APP_ONLY
+                    : UserNotification.EMAIL_STATE_FAILED,
             success ? completed : null,
             completed),
             "notification completion");
@@ -177,6 +196,30 @@ public class NotificationDeliveryCoordinator {
             requireOne(batchMapper.finalizeExpired(batch.getId(), completedAt), "expired batch finalization");
             requirePositive(notificationMapper.finalizeExpiredBatch(batch.getId(), completedAt),
                 "expired notification finalization");
+        }
+    }
+
+    @Transactional
+    public void finalizeExpiredCancelled(String mode, Instant now) {
+        Date completedAt = Date.from(now);
+        List<NotificationDeliveryBatch> batches =
+            batchMapper.selectExpiredCancellationRequestedForUpdate(
+                mode, completedAt, EXHAUSTED_PAGE_SIZE);
+        if (batches == null) {
+            return;
+        }
+        for (NotificationDeliveryBatch batch : batches) {
+            requireOne(finishPendingLog(
+                batch,
+                batch.getAttemptCount(),
+                false,
+                completedAt,
+                "delivery cancelled after preference change",
+                null),
+                "cancelled pending attempt log");
+            requireOne(batchMapper.finalizeCancelledClaim(batch.getId(), completedAt),
+                "cancelled batch finalization");
+            notificationMapper.cancelClaimedBatch(batch.getId(), completedAt);
         }
     }
 
@@ -225,9 +268,12 @@ public class NotificationDeliveryCoordinator {
         String userId,
         String mode,
         String windowKey,
+        String recipientEmail,
         Instant now,
         Instant leaseUntil) {
         Date createdAt = Date.from(now);
+        String validatedRecipient = NotificationEmailAddress.normalize(recipientEmail)
+            .orElseThrow(() -> new IllegalArgumentException("validated recipient email is required"));
         NotificationDeliveryBatch batch = new NotificationDeliveryBatch();
         batch.setId(RandomUtils.generateId());
         batch.setStatus(BaseEntity.STATUS_ACTIVE);
@@ -237,17 +283,19 @@ public class NotificationDeliveryCoordinator {
         batch.setUserId(userId);
         batch.setEmailMode(mode);
         batch.setWindowKey(windowKey);
+        batch.setRecipientEmail(validatedRecipient);
         batch.setState(NotificationDeliveryBatch.STATE_CLAIMED);
         batch.setAttemptCount(1);
         batch.setClaimToken(RandomUtils.generateId());
         batch.setClaimUntil(Date.from(leaseUntil));
+        batch.setCancellationRequested(false);
         return batch;
     }
 
     private static DeliveryBatchClaim claim(NotificationDeliveryBatch batch) {
         return new DeliveryBatchClaim(
             batch.getId(), batch.getUserId(), batch.getEmailMode(), batch.getWindowKey(),
-            batch.getAttemptCount(), batch.getClaimToken());
+            batch.getAttemptCount(), batch.getClaimToken(), batch.getRecipientEmail());
     }
 
     private static void requireOne(int affected, String operation) {

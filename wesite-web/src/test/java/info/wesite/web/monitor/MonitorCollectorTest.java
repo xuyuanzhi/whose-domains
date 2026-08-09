@@ -210,25 +210,100 @@ class MonitorCollectorTest {
     }
 
     @Test
-    void websiteTimeoutDoesNotAdvanceFailureCount() {
+    void websiteTimeoutIsAnAvailabilityObservationAndAdvancesFailureCount() {
         WebsiteMonitorCollector collector = new WebsiteMonitorCollector(domain -> {
             throw new HttpTimeoutException("request timed out");
         });
 
         MonitorCollectorResult result = collector.collect("example.com", 1);
 
-        assertFalse(result.successful());
-        assertNull(result.state());
-        assertEquals(MonitorCollectorResult.FailureKind.TIMEOUT, result.failureKind());
+        assertTrue(result.successful());
+        assertFalse(result.state().websiteAvailable());
+        assertEquals(2, result.state().websiteFailureCount());
     }
 
     @Test
-    void networkTargetPolicyRejectsPrivateAndSpecialPurposeAddresses() throws Exception {
-        assertFalse(MonitorTargetPolicy.isPublic(InetAddress.getByName("127.0.0.1")));
-        assertFalse(MonitorTargetPolicy.isPublic(InetAddress.getByName("10.0.0.1")));
-        assertFalse(MonitorTargetPolicy.isPublic(InetAddress.getByName("100.64.0.1")));
-        assertFalse(MonitorTargetPolicy.isPublic(InetAddress.getByName("fc00::1")));
-        assertTrue(MonitorTargetPolicy.isPublic(InetAddress.getByName("8.8.8.8")));
+    void websiteDnsAndConnectionFailuresAreAvailabilityObservationsButInternalFaultsAreNot() {
+        for (Exception networkFailure : List.of(
+            new java.net.UnknownHostException("missing"),
+            new java.net.ConnectException("refused"),
+            new java.net.NoRouteToHostException("unreachable"))) {
+            MonitorCollectorResult result = new WebsiteMonitorCollector(domain -> {
+                throw networkFailure;
+            }).collect("example.com", 3);
+            assertTrue(result.successful(), networkFailure.toString());
+            assertFalse(result.state().websiteAvailable());
+            assertEquals(4, result.state().websiteFailureCount());
+        }
+
+        MonitorCollectorResult internal = new WebsiteMonitorCollector(domain -> {
+            throw new IllegalStateException("resolver invariant failed");
+        }).collect("example.com", 3);
+        assertFalse(internal.successful());
+        assertEquals(MonitorCollectorResult.FailureKind.LOOKUP_ERROR, internal.failureKind());
+
+        MonitorCollectorResult resolverInfrastructure = new WebsiteMonitorCollector(domain -> {
+            throw new MonitorAddressResolver.ResolverFailureException("resolver pool rejected the lookup");
+        }).collect("example.com", 3);
+        assertFalse(resolverInfrastructure.successful());
+        assertEquals(MonitorCollectorResult.FailureKind.LOOKUP_ERROR,
+            resolverInfrastructure.failureKind());
+    }
+
+    @Test
+    void headMethodNotSupportedFallsBackToOneBoundedGet() throws Exception {
+        List<String> methods = new java.util.ArrayList<>();
+
+        int status = WebsiteMonitorCollector.probeScheme(
+            URI.create("https://example.com"),
+            MonitorDeadline.after(Duration.ofSeconds(1)),
+            (uri, method, deadline) -> {
+                methods.add(method);
+                return "HEAD".equals(method) ? 405 : 204;
+            });
+
+        assertEquals(204, status);
+        assertEquals(List.of("HEAD", "GET"), methods);
+    }
+
+    @Test
+    void networkTargetPolicyClassifiesGlobalReachabilityIncludingTransitionRanges() throws Exception {
+        Map<String, Boolean> cases = new java.util.LinkedHashMap<>();
+        cases.put("127.0.0.1", false);
+        cases.put("10.0.0.1", false);
+        cases.put("100.64.0.1", false);
+        cases.put("192.0.0.8", false);
+        cases.put("192.0.0.9", true);
+        cases.put("192.0.0.10", true);
+        cases.put("192.88.99.1", false);
+        cases.put("8.8.8.8", true);
+        cases.put("fc00::1", false);
+        cases.put("2001:4860:4860::8888", true);
+        cases.put("2001:db8::1", false);
+        cases.put("2002:0808:0808::1", true);
+        cases.put("2002:7f00:0001::1", false);
+        cases.put("64:ff9b::808:808", true);
+        cases.put("64:ff9b::7f00:1", false);
+        cases.put("64:ff9b:1::1", false);
+        cases.put("2001:0000::1", false);
+        cases.put("2001:0002::1", false);
+        cases.put("2001:0010::1", false);
+        cases.put("2001:0001::1", true);
+        cases.put("2001:0001::4", false);
+        cases.put("2001:0003::1", true);
+        cases.put("2001:0004:0112::1", true);
+        cases.put("2001:0020::1", true);
+        cases.put("2001:0030::1", true);
+        cases.put("2400::1", true);
+        cases.put("2d00::1", false);
+        cases.put("3000::1", false);
+        cases.put("3fff::1", false);
+        cases.put("4000::1", false);
+
+        for (Map.Entry<String, Boolean> entry : cases.entrySet()) {
+            assertEquals(entry.getValue(), MonitorTargetPolicy.isPublic(InetAddress.getByName(entry.getKey())),
+                entry.getKey());
+        }
     }
 
     @Test
@@ -378,7 +453,9 @@ class MonitorCollectorTest {
         MonitorCollectorResult websiteResult = websiteCollector.collect(
             "example.com", 0,
             MonitorDeadline.forTest(Duration.ofMillis(100), websiteNow::get));
-        assertEquals(MonitorCollectorResult.FailureKind.TIMEOUT, websiteResult.failureKind());
+        assertTrue(websiteResult.successful());
+        assertFalse(websiteResult.state().websiteAvailable());
+        assertEquals(1, websiteResult.state().websiteFailureCount());
     }
 
     private static DnsMonitorCollector.Answer answer(org.xbill.DNS.Record record) {

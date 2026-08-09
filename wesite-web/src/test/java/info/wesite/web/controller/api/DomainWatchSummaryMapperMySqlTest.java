@@ -84,7 +84,7 @@ class DomainWatchSummaryMapperMySqlTest {
         List<DomainWatchLatestEventRow> rows = mapper.selectLatestEvents(List.of("watch-1"));
 
         assertEquals(1, rows.size());
-        assertEquals("CRITICAL", rows.get(0).getLatestRisk());
+        assertEquals("CRITICAL", rows.get(0).getLatestEventRisk());
         assertEquals("critical signal", rows.get(0).getLatestEventValue());
     }
 }

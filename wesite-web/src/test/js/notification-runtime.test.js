@@ -73,7 +73,7 @@ function ok(data) {
     return Promise.resolve({ ok: true, json: () => Promise.resolve({ code: 0, data }) });
 }
 
-function createHarness(fetchImpl = () => ok(null), readyState = 'complete', retentionAnalytics, gtag) {
+function createHarness(fetchImpl = () => ok(null), readyState = 'complete', retentionAnalytics, gtag, configure) {
     const document = new FakeDocument();
     document.readyState = readyState;
     const requests = [];
@@ -98,6 +98,7 @@ function createHarness(fetchImpl = () => ok(null), readyState = 'complete', rete
             }
         };
     }
+    if (typeof configure === 'function') configure({ window, document });
     const context = vm.createContext({
         document,
         console,
@@ -163,6 +164,22 @@ test('notification rows allow only same-origin internal paths', () => {
     assert.equal(safe.parts.target.getAttribute('href'), '/domain/example.com');
     assert.equal(protocolRelative.parts.target.hidden, true);
     assert.equal(backslash.parts.target.hidden, true);
+});
+
+test('the evidence CTA keeps its module anchor and emits a privacy-safe action event', () => {
+    const harness = createHarness();
+    const row = harness.api.createNotificationRow({
+        id: 'notice-cta', title: 'DNS changed', content: 'A record changed',
+        targetPath: '/domain/example.com#dns-records', risk: 'HIGH'
+    }, harness.document);
+
+    row.parts.target.listeners.get('click')();
+
+    assert.equal(row.parts.target.getAttribute('href'), '/domain/example.com#dns-records');
+    assert.deepEqual(harness.analyticsCalls, [{
+        eventName: 'notification_action_clicked',
+        parameters: { type: 'open_evidence', category: 'all', risk: 'HIGH', source: 'notification_center' }
+    }]);
 });
 
 test('legacy unknown risk is rendered as a quiet unrated signal', () => {
@@ -355,6 +372,27 @@ test('concurrent unread refresh requests share one in-flight fetch', async () =>
     resolveResponse({ ok: true, json: () => Promise.resolve({ code: 0, data: { unreadCount: 4 } }) });
     await Promise.all([first, second]);
     assert.equal(harness.requests.length, 1);
+});
+
+test('a late-loaded notification script starts the bell from persisted authentication state', async () => {
+    const harness = createHarness(() => ok({ unreadCount: 2 }), 'complete', undefined, undefined,
+        ({ window, document }) => {
+            window.WhoseAuthState = { authenticated: true, user: { name: 'Ada' } };
+            document.register('notificationNav');
+            document.register('notificationCount');
+            document.register('notificationCountBadge');
+        });
+
+    await flush();
+
+    assert.equal(harness.document.getElementById('notificationNav').hidden, false);
+    assert.equal(harness.requests[0].url, '/api/notifications/unread-count');
+});
+
+test('the shared header persists authentication state before dispatching its compatibility event', () => {
+    const template = fs.readFileSync(path.resolve(__dirname, '../../main/resources/views/template.html'), 'utf8');
+    assert.match(template, /WhoseAuthState\s*=\s*\{authenticated:false/);
+    assert.match(template, /WhoseAuthState\s*=\s*\{authenticated:true,user:d\.data\}/);
 });
 
 test('loading an earlier page appends rows instead of replacing the current log', async () => {

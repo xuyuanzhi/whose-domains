@@ -20,7 +20,7 @@ class MonitorFingerprintTest {
             "example.com", "A", List.of("1.1.1.1", "2.2.2.2"), List.of("3.3.3.3"));
 
         assertEquals(MonitorFingerprint.of("w1", a), MonitorFingerprint.of("w1", b));
-        assertEquals("1d92013999a6b62563d92c01bbaf10dbddf803382a5ace45466552320d2b6e6d",
+        assertEquals("723bd8e52e9f6e4c782e87f3709a2f7129cb3f4a8fb87665022dc667cbe576f3",
             MonitorFingerprint.of("w1", a));
     }
 
@@ -72,5 +72,33 @@ class MonitorFingerprintTest {
             "example.com", "A", List.of("1.1.1.1"), List.of("3.3.3.3"));
 
         assertNotEquals(MonitorFingerprint.of("w1", before), MonitorFingerprint.of("w1", after));
+    }
+
+    @Test
+    void lengthPrefixedCanonicalFormCannotBeConfusedByPipeCharacters() {
+        MonitorEventDraft first = new MonitorEventDraft(
+            MonitorEventType.DOMAIN_STATUS_CHANGED, MonitorRisk.HIGH,
+            "example.com", "a|b", "c", "d");
+        MonitorEventDraft second = new MonitorEventDraft(
+            MonitorEventType.DOMAIN_STATUS_CHANGED, MonitorRisk.HIGH,
+            "example.com", "a", "b|c", "d");
+
+        assertNotEquals(
+            MonitorFingerprint.of("w1", first, "snapshot-1"),
+            MonitorFingerprint.of("w1", second, "snapshot-1"));
+    }
+
+    @Test
+    void episodeBoundaryChangesFingerprintButReplayWithinEpisodeDoesNot() {
+        MonitorEventDraft down = new MonitorEventDraft(
+            MonitorEventType.WEBSITE_DOWN, MonitorRisk.CRITICAL,
+            "example.com", "websiteAvailable", "true", "false");
+
+        assertEquals(
+            MonitorFingerprint.of("w1", down, "snapshot-before-down-1"),
+            MonitorFingerprint.of("w1", down, "snapshot-before-down-1"));
+        assertNotEquals(
+            MonitorFingerprint.of("w1", down, "snapshot-before-down-1"),
+            MonitorFingerprint.of("w1", down, "snapshot-before-down-2"));
     }
 }

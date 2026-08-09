@@ -1,7 +1,6 @@
 package info.wesite.web.monitor;
 
 import java.io.IOException;
-import java.io.InterruptedIOException;
 import java.net.InetAddress;
 import java.net.SocketTimeoutException;
 import java.util.Objects;
@@ -43,7 +42,7 @@ public final class MonitorAddressResolver implements MonitorTargetPolicy.HostRes
         try {
             future = executor.submit(() -> lookup.resolve(host));
         } catch (TaskRejectedException rejected) {
-            throw new IOException("Monitor resolver capacity exhausted", rejected);
+            throw new ResolverFailureException("Monitor resolver capacity exhausted", rejected);
         }
 
         long remainingNanos;
@@ -66,18 +65,28 @@ public final class MonitorAddressResolver implements MonitorTargetPolicy.HostRes
         } catch (InterruptedException interrupted) {
             future.cancel(true);
             Thread.currentThread().interrupt();
-            InterruptedIOException failure = new InterruptedIOException(
+            ResolverFailureException failure = new ResolverFailureException(
                 "Monitoring address resolution interrupted");
             failure.initCause(interrupted);
             throw failure;
         } catch (CancellationException cancelled) {
-            throw new IOException("Monitoring address resolution was cancelled", cancelled);
+            throw new ResolverFailureException("Monitoring address resolution was cancelled", cancelled);
         } catch (ExecutionException failed) {
             Throwable cause = failed.getCause();
             if (cause instanceof IOException ioFailure) {
                 throw ioFailure;
             }
-            throw new IOException("Monitoring address resolution failed", cause);
+            throw new ResolverFailureException("Monitoring address resolution failed", cause);
+        }
+    }
+
+    static final class ResolverFailureException extends IOException {
+        ResolverFailureException(String message) {
+            super(message);
+        }
+
+        ResolverFailureException(String message, Throwable cause) {
+            super(message, cause);
         }
     }
 

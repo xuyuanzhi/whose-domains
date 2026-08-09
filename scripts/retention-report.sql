@@ -4,29 +4,20 @@
 -- that exports the temporary-table contents.
 --
 -- IMPORTANT: use the same fixed offset as the production JVM default time zone.
--- API usage currently uses LocalDate.now() without an explicit ZoneId, and query
--- history uses application/database local timestamps. Do not substitute UTC unless
--- the production JVM and database both use UTC. Update this value for the deployed
+-- Authenticated activity uses LocalDate.now() without an explicit ZoneId. Do not
+-- substitute UTC unless the production JVM and database both use UTC. Update this value for the deployed
 -- production offset (for example, +08:00) before execution.
 
 SET time_zone = '+08:00';
+SET @minimum_cohort_size = 5;
 SET @cohort_end_exclusive = DATE_SUB(CURDATE(), INTERVAL 30 DAY);
 SET @cohort_start = DATE_SUB(@cohort_end_exclusive, INTERVAL 90 DAY);
 
 DROP TEMPORARY TABLE IF EXISTS retention_activity_days;
 CREATE TEMPORARY TABLE retention_activity_days AS
-SELECT USER_ID, DATE(CREATE_TIME) AS activity_date
-FROM WEB_USER_QUERY_HISTORY
-WHERE USER_ID IS NOT NULL AND DELETED = 0 AND CREATE_TIME IS NOT NULL
-UNION
-SELECT USER_ID, DATE(READ_AT) AS activity_date
-FROM WEB_USER_NOTIFICATION
-WHERE USER_ID IS NOT NULL AND READ_AT IS NOT NULL
-UNION
-SELECT USER_ID, STR_TO_DATE(USAGE_DATE, '%Y-%m-%d') AS activity_date
-FROM WEB_API_USAGE_DAILY
-WHERE USER_ID IS NOT NULL AND DELETED = 0 AND REQUEST_COUNT > 0
-  AND STR_TO_DATE(USAGE_DATE, '%Y-%m-%d') IS NOT NULL;
+SELECT USER_ID, ACTIVITY_DATE AS activity_date
+FROM WEB_AUTHENTICATED_ACTIVITY_DAILY
+WHERE USER_ID IS NOT NULL AND ACTIVITY_DATE IS NOT NULL;
 ALTER TABLE retention_activity_days ADD PRIMARY KEY (USER_ID, activity_date);
 
 DROP TEMPORARY TABLE IF EXISTS retention_first_watch;
@@ -77,7 +68,8 @@ LEFT JOIN retention_activity_days A
  AND A.activity_date <= DATE_ADD(C.cohort_date, INTERVAL 30 DAY)
 GROUP BY C.cohort_type, C.cohort_date;
 
--- Daily closed cohorts, suitable for a trend chart. No user-level fields are selected.
+-- Daily closed cohorts, suitable for a trend chart. Cohorts smaller than k=5 are
+-- suppressed rather than emitted; no user-level fields are selected.
 SELECT
   cohort_type,
   cohort_date,
@@ -87,6 +79,7 @@ SELECT
   returned_users_30d,
   ROUND(100.0 * returned_users_30d / NULLIF(cohort_users, 0), 2) AS return_rate_30d_pct
 FROM retention_results
+WHERE cohort_users >= @minimum_cohort_size
 ORDER BY cohort_date, cohort_type;
 
 -- Aggregate comparison for the selected 90 closed cohort days. No user-level fields are selected.
@@ -99,6 +92,7 @@ SELECT
   ROUND(100.0 * SUM(returned_users_30d) / NULLIF(SUM(cohort_users), 0), 2) AS return_rate_30d_pct
 FROM retention_results
 GROUP BY cohort_type
+HAVING SUM(cohort_users) >= @minimum_cohort_size
 ORDER BY cohort_type;
 
 DROP TEMPORARY TABLE retention_results;

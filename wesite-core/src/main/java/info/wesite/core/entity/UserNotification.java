@@ -42,5 +42,8 @@ public class UserNotification extends BaseEntity {
 
     private String deliveryBatchId;
 
+    /** Validated recipient frozen when the notification is routed. */
+    private String recipientEmail;
+
     private Date emailedAt;
 }

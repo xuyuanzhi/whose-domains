@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -28,11 +29,15 @@ import info.wesite.core.config.UserHolder;
 import info.wesite.core.entity.NotificationPreference;
 import info.wesite.core.entity.User;
 import info.wesite.core.service.NotificationPreferenceService;
+import info.wesite.core.mapper.UserNotificationMapper;
+import info.wesite.core.mapper.NotificationDeliveryBatchMapper;
 
 @SuppressWarnings({ "rawtypes", "unchecked" })
 class NotificationPreferenceControllerTest {
 
     private NotificationPreferenceService preferences;
+    private UserNotificationMapper notifications;
+    private NotificationDeliveryBatchMapper batches;
     private MockMvc mvc;
 
     @BeforeEach
@@ -42,8 +47,12 @@ class NotificationPreferenceControllerTest {
                         new com.baomidou.mybatisplus.core.MybatisConfiguration(), "NotificationPreferenceControllerTest"),
                 NotificationPreference.class);
         preferences = mock(NotificationPreferenceService.class);
+        notifications = mock(UserNotificationMapper.class);
+        batches = mock(NotificationDeliveryBatchMapper.class);
         NotificationPreferenceController controller = new NotificationPreferenceController();
         ReflectionTestUtils.setField(controller, "preferenceService", preferences);
+        ReflectionTestUtils.setField(controller, "notificationMapper", notifications);
+        ReflectionTestUtils.setField(controller, "batchMapper", batches);
         mvc = MockMvcBuilders.standaloneSetup(controller).build();
 
         User user = new User();
@@ -110,5 +119,12 @@ class NotificationPreferenceControllerTest {
         assertEquals("user-1", saved.getValue().getUserId());
         assertEquals(emailMode, saved.getValue().getEmailMode());
         assertEquals(Boolean.FALSE, saved.getValue().getDnsChangeEnabled());
+        if (NotificationPreference.MODE_IN_APP_ONLY.equals(emailMode)) {
+            verify(notifications).cancelUnclaimedForUser(org.mockito.ArgumentMatchers.eq("user-1"), any());
+            verify(batches).cancelFailedForUser(org.mockito.ArgumentMatchers.eq("user-1"), any());
+            verify(batches).requestCancellationForClaimedUser(org.mockito.ArgumentMatchers.eq("user-1"), any());
+        } else {
+            verify(notifications, never()).cancelUnclaimedForUser(any(), any());
+        }
     }
 }

@@ -28,7 +28,7 @@
                         <span><i class="fas fa-check" aria-hidden="true"></i> Expiry alerts</span>
                         <span><i class="fas fa-check" aria-hidden="true"></i> Up to 50 domains</span>
                     </div>
-                    <button type="button" onclick="openAuthModal(this)" class="watch-btn-primary">Sign In</button>
+                    <button id="watchSignInButton" type="button" class="watch-btn-primary">Sign In</button>
                     <small>New domains can be added after signing in.</small>
                 </div>
             </div>
@@ -63,11 +63,15 @@
                                    style="width:100%; padding:10px 14px; border:1px solid var(--glass-border); border-radius:8px; font-size:14px; background:rgba(255,255,255,0.06); color:#e2e8f0; outline:none; box-sizing:border-box;">
                         </div>
                         <div>
-                            <button id="addWatchBtn" onclick="addWatch()" class="watch-btn-primary">
+                            <button id="addWatchBtn" type="button" class="watch-btn-primary">
                                 <i class="fas fa-bell"></i> Watch
                             </button>
                         </div>
                     </div>
+                    <p style="margin-top:12px; font-size:12px; color:var(--gray);">
+                        Watch-level thresholds and this validated address are applied first. “No notification” never sends email;
+                        your global “In-app only” setting overrides every watch.
+                    </p>
                     <div id="addMsg" style="margin-top:12px; font-size:13px; display:none;"></div>
                 </div>
 
@@ -86,8 +90,8 @@
                         <div class="stat-label">Within 30 Days</div>
                     </div>
                     <div class="stat-card" style="border-color:rgba(76,175,80,0.3);">
-                        <div class="stat-num" id="statSafe" style="color:#4caf50;">0</div>
-                        <div class="stat-label">Safe (&gt;30 Days)</div>
+                        <div class="stat-num" id="statAfter30" style="color:#4caf50;">0</div>
+                        <div class="stat-label">Expires After 30 Days</div>
                     </div>
                 </div>
 
@@ -139,8 +143,8 @@
                        style="width:100%; padding:10px 14px; border:1px solid var(--glass-border); border-radius:8px; font-size:14px; background:rgba(255,255,255,0.06); color:#e2e8f0; outline:none; box-sizing:border-box;">
             </div>
             <div style="display:flex; gap:10px; justify-content:flex-end;">
-                <button onclick="closeEditModal()" class="watch-btn-secondary">Cancel</button>
-                <button onclick="saveEdit()" class="watch-btn-primary">Save Changes</button>
+                <button id="editCancelButton" type="button" class="watch-btn-secondary">Cancel</button>
+                <button id="editSaveButton" type="button" class="watch-btn-primary">Save Changes</button>
             </div>
         </div>
     </div>
@@ -207,7 +211,7 @@
         }
         .badge-danger  { background: rgba(255,82,82,0.15); color: #ff5252; border:1px solid rgba(255,82,82,0.3); }
         .badge-warning { background: rgba(255,193,7,0.15); color: #ffc107; border:1px solid rgba(255,193,7,0.3); }
-        .badge-safe    { background: rgba(76,175,80,0.15); color: #4caf50; border:1px solid rgba(76,175,80,0.3); }
+        .badge-after30 { background: rgba(76,175,80,0.15); color: #4caf50; border:1px solid rgba(76,175,80,0.3); }
         .badge-unknown { background: rgba(150,150,150,0.15); color: #999; border:1px solid rgba(150,150,150,0.3); }
         .watch-monitoring-summary { width:100%; display:flex; align-items:center; gap:9px; flex-wrap:wrap; font-size:12px; color:var(--gray); }
         .watch-risk { border-radius:999px; padding:3px 8px; font-weight:700; }
@@ -224,8 +228,16 @@
     var isLoggedIn = false;
 
     document.addEventListener('DOMContentLoaded', function () {
+        bindWatchActions();
         checkLoginAndLoad();
     });
+
+    function bindWatchActions() {
+        document.getElementById('watchSignInButton').addEventListener('click', function() { openAuthModal(this); });
+        document.getElementById('addWatchBtn').addEventListener('click', addWatch);
+        document.getElementById('editCancelButton').addEventListener('click', closeEditModal);
+        document.getElementById('editSaveButton').addEventListener('click', saveEdit);
+    }
 
     function checkLoginAndLoad() {
         // Check session via API - if we can access the watch list endpoint we are logged in
@@ -278,22 +290,22 @@
         var now = new Date();
         var d7  = new Date(now.getTime() + 7  * 86400000);
         var d30 = new Date(now.getTime() + 30 * 86400000);
-        var expiring = 0, month = 0, safe = 0;
+        var expiring = 0, month = 0, after30 = 0;
         list.forEach(function(summary) {
             var w = summary.watch || summary;
             if (!w.expiryDate) { return; }
             var exp = new Date(w.expiryDate);
             if (exp < d7)       expiring++;
             else if (exp < d30) month++;
-            else                safe++;
+            else                after30++;
         });
         document.getElementById('statTotal').textContent    = list.length;
         document.getElementById('statExpiring').textContent = expiring;
         document.getElementById('statMonth').textContent    = month;
-        document.getElementById('statSafe').textContent     = safe;
+        document.getElementById('statAfter30').textContent  = after30;
 
         var container = document.getElementById('watchList');
-        container.innerHTML = '';
+        container.replaceChildren();
 
         if (!list.length) {
             document.getElementById('emptyState').style.display = 'block';
@@ -303,52 +315,79 @@
 
         list.forEach(function(summary) {
             var w = summary.watch || summary;
-            var expiryText = w.expiryDateText || 'Unknown';
-            var badge = '<span class="expiry-badge badge-unknown">Expiry Unknown</span>';
+            var badgeClass = 'expiry-badge badge-unknown';
+            var badgeText = 'Expiry Unknown';
             if (w.expiryDate) {
                 var exp = new Date(w.expiryDate);
                 var daysLeft = Math.ceil((exp - now) / 86400000);
                 if (daysLeft < 0) {
-                    badge = '<span class="expiry-badge badge-danger">Expired</span>';
+                    badgeClass = 'expiry-badge badge-danger';
+                    badgeText = 'Expired';
                 } else if (daysLeft <= 7) {
-                    badge = '<span class="expiry-badge badge-danger">Expires in ' + daysLeft + 'd</span>';
+                    badgeClass = 'expiry-badge badge-danger';
+                    badgeText = 'Expires in ' + daysLeft + 'd';
                 } else if (daysLeft <= 30) {
-                    badge = '<span class="expiry-badge badge-warning">Expires in ' + daysLeft + 'd</span>';
+                    badgeClass = 'expiry-badge badge-warning';
+                    badgeText = 'Expires in ' + daysLeft + 'd';
                 } else {
-                    badge = '<span class="expiry-badge badge-safe">Expires in ' + daysLeft + 'd</span>';
+                    badgeClass = 'expiry-badge badge-after30';
+                    badgeText = 'Expires in ' + daysLeft + 'd';
                 }
             }
 
-            var notifyLabel = ['No alert','7 days','30 days','7 &amp; 30 days'][w.notifyType || 0];
-            var registrar   = w.registrar ? ('<span style="color:var(--gray);font-size:13px;"><i class="fas fa-building" style="margin-right:4px;"></i>' + escHtml(w.registrar) + '</span>') : '';
-
+            var notifyLabel = ['No alert','7 days','30 days','7 & 30 days'][w.notifyType || 0];
             var row = document.createElement('div');
             row.className = 'domain-row';
-            row.innerHTML =
-                '<div style="flex:1; min-width:180px;">' +
-                    '<a href="/domain/' + escHtml(w.domainName) + '" target="_blank" ' +
-                       'style="font-weight:700; font-size:16px; color:var(--primary); text-decoration:none;">' +
-                        escHtml(w.domainName) + '</a>' +
-                    '<div style="margin-top:4px; font-size:13px; color:var(--gray);">' +
-                        (w.expiryDateText ? '<i class="fas fa-calendar-alt" style="margin-right:4px;"></i>Expires: ' + escHtml(w.expiryDateText) : '') +
-                    '</div>' +
-                '</div>' +
-                '<div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">' +
-                    badge +
-                    registrar +
-                    '<span style="color:var(--gray);font-size:13px;"><i class="fas fa-bell" style="margin-right:4px;"></i>' + notifyLabel + '</span>' +
-                '</div>' +
-                monitoringSummary(summary) +
-                '<div style="display:flex; gap:8px; margin-left:auto;">' +
-                    '<button class="watch-btn-edit" onclick="openEditModal(\'' + w.id + '\',\'' + escHtml(w.domainName) + '\',' + (w.notifyType||0) + ',\'' + (w.notifyEmail||'') + '\')">' +
-                        '<i class="fas fa-cog"></i> Settings' +
-                    '</button>' +
-                    '<button class="watch-btn-danger" onclick="removeWatch(\'' + w.id + '\',this)">' +
-                        '<i class="fas fa-times"></i> Remove' +
-                    '</button>' +
-                '</div>';
+            var identity = createWatchElement('div', '', '');
+            identity.style.flex = '1';
+            identity.style.minWidth = '180px';
+            var domainLink = createWatchElement('a', '', w.domainName || 'Unknown domain');
+            domainLink.setAttribute('href', '/domain/' + encodeURIComponent(w.domainName || ''));
+            domainLink.setAttribute('target', '_blank');
+            domainLink.setAttribute('rel', 'noopener');
+            domainLink.style.fontWeight = '700';
+            domainLink.style.fontSize = '16px';
+            domainLink.style.color = 'var(--primary)';
+            domainLink.style.textDecoration = 'none';
+            var expiry = createWatchElement('div', '', w.expiryDateText ? 'Expires: ' + w.expiryDateText : 'Expiry date unavailable');
+            expiry.style.marginTop = '4px';
+            expiry.style.fontSize = '13px';
+            expiry.style.color = 'var(--gray)';
+            identity.append(domainLink, expiry);
+
+            var facts = createWatchElement('div', '', '');
+            facts.style.display = 'flex';
+            facts.style.alignItems = 'center';
+            facts.style.gap = '12px';
+            facts.style.flexWrap = 'wrap';
+            facts.append(createWatchElement('span', badgeClass, badgeText));
+            if (w.registrar) facts.append(createWatchElement('span', 'watch-registrar', 'Registrar: ' + w.registrar));
+            facts.append(createWatchElement('span', 'watch-alert-setting', 'Expiry email: ' + notifyLabel));
+
+            var actions = createWatchElement('div', '', '');
+            actions.style.display = 'flex';
+            actions.style.gap = '8px';
+            actions.style.marginLeft = 'auto';
+            var settings = createWatchElement('button', 'watch-btn-edit', 'Settings');
+            settings.type = 'button';
+            settings.addEventListener('click', function() {
+                openEditModal(w.id, w.domainName || '', w.notifyType || 0, w.notifyEmail || '');
+            });
+            var remove = createWatchElement('button', 'watch-btn-danger', 'Remove');
+            remove.type = 'button';
+            remove.addEventListener('click', function() { removeWatch(w.id, remove); });
+            actions.append(settings, remove);
+            row.append(identity, facts, createMonitoringSummary(summary), actions);
+            row.parts = { settings: settings, remove: remove, domain: domainLink };
             container.appendChild(row);
         });
+    }
+
+    function createWatchElement(tagName, className, text) {
+        var element = document.createElement(tagName);
+        if (className) element.className = className;
+        element.textContent = text || '';
+        return element;
     }
 
     function addWatch() {
@@ -358,6 +397,10 @@
         var msgEl      = document.getElementById('addMsg');
 
         if (!domain) { showAddMsg('Please enter a domain name.', 'error'); return; }
+        if (email && !isValidNotificationEmail(email)) {
+            showAddMsg('Enter a valid alert email address.', 'error');
+            return;
+        }
 
         var btn = document.getElementById('addWatchBtn');
         btn.disabled = true;
@@ -369,7 +412,7 @@
             body: JSON.stringify({ domainName: domain, notifyType: notifyType, notifyEmail: email || null })
         }).then(readWatchResponse).then(function(data) {
             btn.disabled = false;
-            btn.innerHTML = '<i class="fas fa-bell"></i> Watch';
+            btn.textContent = 'Watch';
             if (!data) return;
             if (data.code === 0) {
                 document.getElementById('addDomainInput').value = '';
@@ -386,7 +429,7 @@
             }
         }).catch(function() {
             btn.disabled = false;
-            btn.innerHTML = '<i class="fas fa-bell"></i> Watch';
+            btn.textContent = 'Watch';
             showAddMsg('Network error. Please try again.', 'error');
         });
     }
@@ -429,6 +472,11 @@
         var notifyType = parseInt(document.getElementById('editNotifyType').value);
         var email      = document.getElementById('editNotifyEmail').value.trim();
 
+        if (email && !isValidNotificationEmail(email)) {
+            alert('Enter a valid alert email address.');
+            return;
+        }
+
         fetch('/api/domain-watch/update/' + id, {
             method: 'PUT', credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
@@ -442,7 +490,7 @@
 
     function reloadList() {
         document.getElementById('listLoader').style.display = 'block';
-        document.getElementById('watchList').innerHTML = '';
+        document.getElementById('watchList').replaceChildren();
         fetch('/api/domain-watch/list', { credentials: 'include' })
             .then(readWatchResponse)
             .then(function(data) {
@@ -460,6 +508,12 @@
         return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
 
+    function isValidNotificationEmail(value) {
+        return value.length <= 254
+            && !/[\r\n]/.test(value)
+            && /^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$/.test(value);
+    }
+
     function trackRetentionEvent(eventName, parameters) {
         try {
             if (typeof window !== 'undefined' && window.WhoseRetentionAnalytics && typeof window.WhoseRetentionAnalytics.track === 'function') {
@@ -470,8 +524,8 @@
 
     function monitoringSummary(summary) {
         var latestEvent = summary.latestEventSummary || 'No monitoring events yet';
-        var risk = summary.latestRisk || 'UNKNOWN';
-        var riskLabels = { CRITICAL: 'Critical risk', HIGH: 'High risk', MEDIUM: 'Medium risk', LOW: 'Low risk', UNKNOWN: 'Unrated' };
+        var risk = summary.latestEventRisk || 'UNKNOWN';
+        var riskLabels = { CRITICAL: 'Critical', HIGH: 'High', MEDIUM: 'Medium', LOW: 'Low', UNKNOWN: 'Unrated' };
         var riskLabel = riskLabels[risk] || 'Unrated';
         var successfulCheck = summary.lastSuccessfulCheck
             ? escHtml(String(summary.lastSuccessfulCheck))
@@ -486,10 +540,31 @@
                 encodeURIComponent(domain || '') + '">' + escHtml(eventLabel) + '</a>';
         }
         return '<div class="watch-monitoring-summary" aria-label="Monitoring activity">' +
-            '<span class="watch-risk watch-risk-' + escHtml(risk.toLowerCase()) + '">' + escHtml(riskLabel) + '</span>' +
+            '<span class="watch-risk watch-risk-' + escHtml(risk.toLowerCase()) + '">Latest event risk: ' + escHtml(riskLabel) + '</span>' +
             '<span>Last successful check: ' + successfulCheck + '</span>' +
             '<span>' + escHtml(latestEvent) + '</span>' + eventLink +
             '</div>';
+    }
+
+    function createMonitoringSummary(summary) {
+        var latestEvent = summary.latestEventSummary || 'No monitoring events yet';
+        var risk = summary.latestEventRisk || 'UNKNOWN';
+        var riskLabels = { CRITICAL: 'Critical', HIGH: 'High', MEDIUM: 'Medium', LOW: 'Low', UNKNOWN: 'Unrated' };
+        var container = createWatchElement('div', 'watch-monitoring-summary', '');
+        container.setAttribute('aria-label', 'Monitoring activity');
+        container.append(createWatchElement('span', 'watch-risk watch-risk-' + risk.toLowerCase(),
+            'Latest event risk: ' + (riskLabels[risk] || 'Unrated')));
+        container.append(createWatchElement('span', '', 'Last successful check: ' +
+            (summary.lastSuccessfulCheck ? String(summary.lastSuccessfulCheck) : 'No successful checks yet')));
+        container.append(createWatchElement('span', '', latestEvent));
+        if (latestEvent !== 'No monitoring events yet') {
+            var eventLink = createWatchElement('a', 'watch-event-link', Number(summary.unreadCount || 0) > 0
+                ? Number(summary.unreadCount) + ' unread events' : 'View event history');
+            var domain = summary.watch && summary.watch.domainName;
+            eventLink.setAttribute('href', '/user/notifications?domain=' + encodeURIComponent(domain || ''));
+            container.append(eventLink);
+        }
+        return container;
     }
 
     if (typeof window !== 'undefined') {

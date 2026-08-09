@@ -19,7 +19,7 @@ CREATE TABLE `WEB_MONITOR_SNAPSHOT` (
   `SCHEMA_VERSION` smallint NULL COMMENT '2=source-aware MonitorState; NULL=legacy DOMAIN-only provenance',
   `OBSERVED_SOURCES` varchar(128) NULL COMMENT 'Sorted collector source names represented by STATE_JSON',
   PRIMARY KEY (`ID`),
-  KEY `IDX_MONITOR_SNAPSHOT_WATCH_CHECKED` (`WATCH_ID`, `CHECKED_AT`)
+  KEY `IDX_MONITOR_SNAPSHOT_WATCH_CHECKED` (`WATCH_ID`, `CHECKED_AT`, `ID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 CREATE TABLE `WEB_MONITOR_EVENT` (
@@ -57,6 +57,7 @@ CREATE TABLE `WEB_USER_NOTIFICATION` (
   `TITLE` varchar(255) NOT NULL,
   `CONTENT` text,
   `TARGET_PATH` varchar(500) NOT NULL,
+  `RECIPIENT_EMAIL` varchar(254) NULL COMMENT 'Frozen validated watch recipient; never inferred from SYS_USER',
   `READ_AT` datetime,
   `EMAIL_MODE` varchar(32) NULL,
   `EMAIL_STATE` varchar(32) NOT NULL DEFAULT 'QUEUED',
@@ -81,6 +82,7 @@ CREATE TABLE `WEB_NOTIFICATION_DELIVERY_BATCH` (
   `UPDATE_BY` varchar(50),
   `UPDATE_TIME` datetime,
   `USER_ID` varchar(32) NOT NULL,
+  `RECIPIENT_EMAIL` varchar(254) NOT NULL COMMENT 'Validated recipient frozen when the batch is created',
   `EMAIL_MODE` varchar(32) NOT NULL,
   `WINDOW_KEY` varchar(64) NOT NULL,
   `STATE` varchar(32) NOT NULL,
@@ -89,10 +91,55 @@ CREATE TABLE `WEB_NOTIFICATION_DELIVERY_BATCH` (
   `CLAIM_UNTIL` datetime NULL,
   `NEXT_ATTEMPT_AT` datetime NULL,
   `COMPLETED_AT` datetime NULL,
+  `CANCELLATION_REQUESTED` smallint(1) NOT NULL DEFAULT '0',
   PRIMARY KEY (`ID`),
-  UNIQUE KEY `UK_NOTIFICATION_BATCH_USER_MODE_WINDOW` (`USER_ID`, `EMAIL_MODE`, `WINDOW_KEY`),
+  UNIQUE KEY `UK_NOTIFICATION_BATCH_USER_MODE_WINDOW` (`USER_ID`, `EMAIL_MODE`, `RECIPIENT_EMAIL`, `WINDOW_KEY`),
   KEY `IDX_NOTIFICATION_BATCH_DELIVERY` (`EMAIL_MODE`, `STATE`, `NEXT_ATTEMPT_AT`, `CLAIM_UNTIL`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
+CREATE TABLE `WEB_AUTHENTICATED_ACTIVITY_DAILY` (
+  `ID` varchar(32) NOT NULL,
+  `USER_ID` varchar(32) NOT NULL,
+  `ACTIVITY_DATE` date NOT NULL,
+  `CREATE_TIME` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`ID`),
+  UNIQUE KEY `UK_AUTH_ACTIVITY_USER_DATE` (`USER_ID`, `ACTIVITY_DATE`),
+  KEY `IDX_AUTH_ACTIVITY_DATE` (`ACTIVITY_DATE`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin
+  COMMENT='Minimal authenticated activity fact; retain for at least 30 days';
+
+-- Clean installs lack NOTIFY_EMAIL, while a few older operational databases
+-- added the legacy field independently. Preserve both preflight-approved shapes.
+SET @watch_notify_email_exists = (
+  SELECT COUNT(*) FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'WEB_DOMAIN_WATCH'
+    AND COLUMN_NAME = 'NOTIFY_EMAIL'
+);
+SET @watch_notify_email_ddl = IF(
+  @watch_notify_email_exists = 0,
+  'ALTER TABLE `WEB_DOMAIN_WATCH` ADD COLUMN `NOTIFY_EMAIL` varchar(254) NULL COMMENT ''Validated watch-level recipient; NULL means no email'' AFTER `LAST_CHECK_TIME`',
+  'ALTER TABLE `WEB_DOMAIN_WATCH` MODIFY COLUMN `NOTIFY_EMAIL` varchar(254) NULL COMMENT ''Validated watch-level recipient; NULL means no email'''
+);
+PREPARE watch_notify_email_statement FROM @watch_notify_email_ddl;
+EXECUTE watch_notify_email_statement;
+DEALLOCATE PREPARE watch_notify_email_statement;
+
+ALTER TABLE `WEB_DOMAIN_WATCH`
+  ADD COLUMN `SCAN_CLAIM_TOKEN` varchar(64) NULL AFTER `REMARK`,
+  ADD COLUMN `SCAN_CLAIM_UNTIL` datetime NULL AFTER `SCAN_CLAIM_TOKEN`,
+  ADD KEY `IDX_DOMAIN_WATCH_SCAN_CLAIM` (`STATUS`, `DELETED`, `SCAN_CLAIM_UNTIL`, `ID`);
+
+UPDATE `WEB_DOMAIN_WATCH`
+SET `NOTIFY_EMAIL` = NULL
+WHERE `NOTIFY_EMAIL` IS NOT NULL
+  AND (CHAR_LENGTH(TRIM(`NOTIFY_EMAIL`)) > 254
+    OR TRIM(`NOTIFY_EMAIL`) NOT REGEXP '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+[.][A-Za-z]{2,}$');
+UPDATE `WEB_DOMAIN_WATCH`
+SET `NOTIFY_EMAIL` = NULLIF(TRIM(`NOTIFY_EMAIL`), '');
+UPDATE `WEB_DOMAIN_WATCH`
+SET `NOTIFY_TYPE` = 0
+WHERE `NOTIFY_TYPE` IS NULL OR `NOTIFY_TYPE` NOT IN (0, 1, 2, 3);
 
 CREATE TABLE `WEB_NOTIFICATION_PREFERENCE` (
   `ID` varchar(32) NOT NULL,

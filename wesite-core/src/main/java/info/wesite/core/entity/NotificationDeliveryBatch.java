@@ -16,12 +16,16 @@ public class NotificationDeliveryBatch extends BaseEntity {
     public static final String STATE_CLAIMED = "CLAIMED";
     public static final String STATE_SENT = "SENT";
     public static final String STATE_FAILED = "FAILED";
+    public static final String STATE_CANCELLED = "CANCELLED";
 
     private String userId;
 
     private String emailMode;
 
     private String windowKey;
+
+    /** Validated recipient frozen before the first SMTP attempt. */
+    private String recipientEmail;
 
     private String state;
 
@@ -34,4 +38,7 @@ public class NotificationDeliveryBatch extends BaseEntity {
     private Date nextAttemptAt;
 
     private Date completedAt;
+
+    /** Preference changes cannot revoke an in-flight SMTP call, but suppress retries. */
+    private Boolean cancellationRequested;
 }

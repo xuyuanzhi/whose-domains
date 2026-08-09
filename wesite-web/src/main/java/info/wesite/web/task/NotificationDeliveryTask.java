@@ -24,14 +24,13 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 import info.wesite.core.entity.MonitorEvent;
-import info.wesite.core.entity.User;
 import info.wesite.core.entity.UserNotification;
 import info.wesite.core.mail.Mail;
 import info.wesite.core.mail.MailSendResult;
 import info.wesite.core.mail.MailSender;
 import info.wesite.core.mapper.UserNotificationMapper;
+import info.wesite.core.mapper.model.NotificationDigestRecipientRow;
 import info.wesite.core.service.MonitorEventService;
-import info.wesite.core.service.UserService;
 import info.wesite.web.notification.DeliveryAttemptDetails;
 import info.wesite.web.notification.DeliveryBatchClaim;
 import info.wesite.web.notification.NotificationDeliveryCoordinator;
@@ -45,7 +44,7 @@ public class NotificationDeliveryTask {
     private static final Logger log = LoggerFactory.getLogger(NotificationDeliveryTask.class);
     private static final int IMMEDIATE_PAGE_SIZE = 500;
     private static final int DIGEST_USER_PAGE_SIZE = 100;
-    private static final long LEASE_SECONDS = 10 * 60;
+    private static final long LEASE_SECONDS = 30 * 60;
     private static final String BASE_URL = "https://whose.domains";
     private static final DateTimeFormatter OCCURRED_AT_FORMAT = DateTimeFormatter
         .ofPattern("yyyy-MM-dd HH:mm 'UTC'")
@@ -53,7 +52,6 @@ public class NotificationDeliveryTask {
 
     private final UserNotificationMapper notificationMapper;
     private final MonitorEventService eventService;
-    private final UserService userService;
     private final NotificationDeliveryCoordinator coordinator;
     private final MailSender mailSender;
     private final Clock clock;
@@ -62,13 +60,11 @@ public class NotificationDeliveryTask {
     public NotificationDeliveryTask(
         UserNotificationMapper notificationMapper,
         MonitorEventService eventService,
-        UserService userService,
         NotificationDeliveryCoordinator coordinator,
         Optional<MailSender> mailSender) {
         this(
             notificationMapper,
             eventService,
-            userService,
             coordinator,
             mailSender.orElse(null),
             Clock.systemUTC());
@@ -77,13 +73,11 @@ public class NotificationDeliveryTask {
     NotificationDeliveryTask(
         UserNotificationMapper notificationMapper,
         MonitorEventService eventService,
-        UserService userService,
         NotificationDeliveryCoordinator coordinator,
         MailSender mailSender,
         Clock clock) {
         this.notificationMapper = Objects.requireNonNull(notificationMapper, "notificationMapper");
         this.eventService = Objects.requireNonNull(eventService, "eventService");
-        this.userService = Objects.requireNonNull(userService, "userService");
         this.coordinator = Objects.requireNonNull(coordinator, "coordinator");
         this.mailSender = mailSender;
         this.clock = Objects.requireNonNull(clock, "clock");
@@ -99,6 +93,15 @@ public class NotificationDeliveryTask {
 
     public void deliverWeeklyDigest() {
         deliver(NotificationDispatchDecision.WEEKLY_DIGEST, true, "Weekly");
+    }
+
+    /** Recovers digest leases and retries durable failures without claiming a new digest window. */
+    public void recoverDigestDeliveries() {
+        if (mailSender == null) {
+            return;
+        }
+        recoverAndRetry(NotificationDispatchDecision.DAILY_DIGEST, true, "Daily");
+        recoverAndRetry(NotificationDispatchDecision.WEEKLY_DIGEST, true, "Weekly");
     }
 
     private void deliver(NotificationDispatchDecision mode, boolean digest, String period) {
@@ -117,6 +120,7 @@ public class NotificationDeliveryTask {
 
     private void recoverAndRetry(NotificationDispatchDecision mode, boolean digest, String period) {
         try {
+            coordinator.finalizeExpiredCancelled(mode.name(), clock.instant());
             coordinator.finalizeExpiredExhausted(mode.name(), clock.instant());
         } catch (RuntimeException failure) {
             log.error("Failed to finalize exhausted {} notification leases", mode, failure);
@@ -166,24 +170,29 @@ public class NotificationDeliveryTask {
         Instant cutoff = clock.instant();
         String windowKey = windowKey(mode, cutoff);
         String afterUserId = "";
+        String afterRecipientEmail = "";
         while (true) {
-            List<String> userIds = notificationMapper.selectDigestCandidateUserIds(
-                mode.name(), Date.from(cutoff), afterUserId, DIGEST_USER_PAGE_SIZE);
-            if (userIds == null || userIds.isEmpty()) {
+            List<NotificationDigestRecipientRow> candidates = notificationMapper.selectDigestCandidates(
+                mode.name(), Date.from(cutoff), afterUserId, afterRecipientEmail, DIGEST_USER_PAGE_SIZE);
+            if (candidates == null || candidates.isEmpty()) {
                 return;
             }
-            for (String userId : userIds) {
+            for (NotificationDigestRecipientRow candidate : candidates) {
                 Instant now = clock.instant();
                 try {
                     coordinator.startDigest(
-                        userId, mode.name(), windowKey, cutoff, now, leaseUntil(now))
+                        candidate.getUserId(), mode.name(), windowKey, candidate.getRecipientEmail(),
+                        cutoff, now, leaseUntil(now))
                         .ifPresent(claim -> deliverClaimSafely(claim, true, period));
                 } catch (RuntimeException failure) {
-                    log.error("Failed to durably start {} digest for user {}", period, userId, failure);
+                    log.error("Failed to durably start {} digest for user {}", period,
+                        candidate.getUserId(), failure);
                 }
             }
-            afterUserId = userIds.get(userIds.size() - 1);
-            if (userIds.size() < DIGEST_USER_PAGE_SIZE) {
+            NotificationDigestRecipientRow last = candidates.get(candidates.size() - 1);
+            afterUserId = last.getUserId();
+            afterRecipientEmail = last.getRecipientEmail();
+            if (candidates.size() < DIGEST_USER_PAGE_SIZE) {
                 return;
             }
         }
@@ -217,17 +226,26 @@ public class NotificationDeliveryTask {
             throw new IllegalStateException("delivery batch has no notification members");
         }
 
+        List<String> eventIds = notifications.stream()
+            .map(UserNotification::getEventId)
+            .filter(StringUtils::isNotBlank)
+            .distinct()
+            .toList();
+        List<MonitorEvent> loaded = eventIds.isEmpty() ? List.of() : eventService.listByIds(eventIds);
+        Map<String, MonitorEvent> eventsById = loaded == null
+            ? Map.of()
+            : loaded.stream().collect(java.util.stream.Collectors.toMap(
+                MonitorEvent::getId, java.util.function.Function.identity(), (first, ignored) -> first));
         List<DeliveryItem> items = new ArrayList<>(notifications.size());
         for (UserNotification notification : notifications) {
-            MonitorEvent event = eventService.getById(notification.getEventId());
+            MonitorEvent event = eventsById.get(notification.getEventId());
             if (event == null) {
                 throw new IllegalStateException("monitor event is missing: " + notification.getEventId());
             }
             items.add(new DeliveryItem(notification, event));
         }
 
-        User user = userService.getById(claim.userId());
-        String email = user == null ? null : user.getEmail();
+        String email = claim.recipientEmail();
         if (StringUtils.isBlank(email)) {
             return DeliveryOutcome.failed("recipient email unavailable");
         }

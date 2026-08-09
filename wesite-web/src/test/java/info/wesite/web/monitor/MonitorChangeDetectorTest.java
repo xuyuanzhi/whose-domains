@@ -77,6 +77,51 @@ class MonitorChangeDetectorTest {
     }
 
     @Test
+    void expiryDateShorteningUsesEachSnapshotsOwnExpiryAndCheckDate() {
+        List<MonitorEventDraft> events = detector.detect(
+            state().domainExpiry(LocalDate.of(2026, 9, 30)).build(),
+            state().domainExpiry(LocalDate.of(2026, 8, 16)).build(),
+            Instant.parse("2026-08-01T10:15:30Z"),
+            CLOCK.instant());
+
+        assertEquals(
+            Set.of("domainExpiry:30", "domainExpiry:7"),
+            events.stream()
+                .filter(event -> event.type() == MonitorEventType.DOMAIN_EXPIRING)
+                .map(MonitorEventDraft::field)
+                .collect(java.util.stream.Collectors.toSet()));
+    }
+
+    @Test
+    void expiryDateExtensionDoesNotInventAThresholdCrossing() {
+        List<MonitorEventDraft> events = detector.detect(
+            state().sslExpiry(LocalDate.of(2026, 8, 8)).build(),
+            state().sslExpiry(LocalDate.of(2026, 9, 8)).build(),
+            Instant.parse("2026-08-01T10:15:30Z"),
+            CLOCK.instant());
+
+        assertFalse(events.stream().anyMatch(event -> event.type() == MonitorEventType.SSL_EXPIRING));
+    }
+
+    @Test
+    void newlyObservedExpiryOnlyEmitsWhenCurrentlyOnAThresholdAndNullCurrentIsQuiet() {
+        List<MonitorEventDraft> newlyObserved = detector.detect(
+            state().domainExpiry(null).build(),
+            state().domainExpiry(today().plusDays(7)).build(),
+            Instant.parse("2026-08-01T10:15:30Z"),
+            CLOCK.instant());
+        List<MonitorEventDraft> disappeared = detector.detect(
+            state().domainExpiry(today().plusDays(7)).build(),
+            state().domainExpiry(null).build(),
+            Instant.parse("2026-08-08T10:15:30Z"),
+            CLOCK.instant());
+
+        assertEquals("domainExpiry:7",
+            onlyEventOfType(newlyObserved, MonitorEventType.DOMAIN_EXPIRING).field());
+        assertFalse(disappeared.stream().anyMatch(event -> event.type() == MonitorEventType.DOMAIN_EXPIRING));
+    }
+
+    @Test
     void sslExpiryThresholdsProduceHighRiskEvents() {
         for (int daysRemaining : List.of(30, 7, 1)) {
             LocalDate expiry = today().plusDays(daysRemaining);

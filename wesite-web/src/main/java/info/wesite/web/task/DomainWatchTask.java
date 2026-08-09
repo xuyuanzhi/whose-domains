@@ -34,9 +34,11 @@ import info.wesite.core.entity.BaseEntity;
 import info.wesite.core.entity.Domain;
 import info.wesite.core.entity.DomainWatch;
 import info.wesite.core.entity.MonitorSnapshot;
+import info.wesite.core.mapper.DomainWatchMapper;
 import info.wesite.core.service.DomainService;
 import info.wesite.core.service.DomainWatchService;
 import info.wesite.core.service.MonitorSnapshotService;
+import info.wesite.core.utils.RandomUtils;
 import info.wesite.web.monitor.DnsMonitorCollector;
 import info.wesite.web.monitor.DomainMonitorCollector;
 import info.wesite.web.monitor.MonitorCollectorResult;
@@ -59,9 +61,11 @@ public class DomainWatchTask {
     private static final Logger log = LoggerFactory.getLogger(DomainWatchTask.class);
     private static final Duration WATCH_TIMEOUT = Duration.ofSeconds(25);
     private static final Duration COLLECTOR_TIMEOUT = Duration.ofSeconds(8);
+    private static final Duration SCAN_LEASE = Duration.ofMinutes(5);
 
     private final DomainWatchService domainWatchService;
     private final DomainService domainService;
+    private final DomainWatchMapper domainWatchMapper;
     private final MonitorSnapshotService monitorSnapshotService;
     private final MonitorEventPublisher eventPublisher;
     private final DomainMonitorCollector domainCollector;
@@ -73,6 +77,7 @@ public class DomainWatchTask {
     public DomainWatchTask(
         DomainWatchService domainWatchService,
         DomainService domainService,
+        DomainWatchMapper domainWatchMapper,
         MonitorSnapshotService monitorSnapshotService,
         MonitorEventPublisher eventPublisher,
         DomainMonitorCollector domainCollector,
@@ -81,12 +86,26 @@ public class DomainWatchTask {
         WebsiteMonitorCollector websiteCollector) {
         this.domainWatchService = domainWatchService;
         this.domainService = domainService;
+        this.domainWatchMapper = domainWatchMapper;
         this.monitorSnapshotService = monitorSnapshotService;
         this.eventPublisher = eventPublisher;
         this.domainCollector = domainCollector;
         this.dnsCollector = dnsCollector;
         this.sslCollector = sslCollector;
         this.websiteCollector = websiteCollector;
+    }
+
+    DomainWatchTask(
+        DomainWatchService domainWatchService,
+        DomainService domainService,
+        MonitorSnapshotService monitorSnapshotService,
+        MonitorEventPublisher eventPublisher,
+        DomainMonitorCollector domainCollector,
+        DnsMonitorCollector dnsCollector,
+        SslMonitorCollector sslCollector,
+        WebsiteMonitorCollector websiteCollector) {
+        this(domainWatchService, domainService, null, monitorSnapshotService, eventPublisher,
+            domainCollector, dnsCollector, sslCollector, websiteCollector);
     }
 
     @Scheduled(cron = "0 0 3 * * ?")
@@ -109,25 +128,36 @@ public class DomainWatchTask {
             lastId = watches.get(watches.size() - 1).getId();
 
             for (DomainWatch watch : watches) {
+                String claimToken = claimScan(watch);
+                if (claimToken == null) {
+                    continue;
+                }
                 try {
-                    RefreshResult result = refreshWatchInfo(watch, probeCache);
+                    DomainWatch claimedWatch = reloadClaimedWatch(watch);
+                    if (claimedWatch == null) {
+                        releaseScan(watch, claimToken);
+                        continue;
+                    }
+                    RefreshResult result = refreshWatchInfo(claimedWatch, probeCache);
                     if (!result.checked()) {
+                        releaseScan(claimedWatch, claimToken);
                         continue;
                     }
 
                     eventPublisher.publish(
-                        watch, result.state(), result.succeeded(), result.observedSources());
+                        claimedWatch, result.state(), result.succeeded(), result.observedSources());
                     Date checkedAt = new Date();
-                    watch.setLastCheckTime(checkedAt);
-                    watch.setUpdateTime(checkedAt);
-                    if (!domainWatchService.updateById(watch)) {
+                    claimedWatch.setLastCheckTime(checkedAt);
+                    claimedWatch.setUpdateTime(checkedAt);
+                    if (!completeScan(claimedWatch, claimToken)) {
                         throw new IllegalStateException(
-                            "Failed to persist refreshed domain watch " + watch.getId());
+                            "Failed to persist refreshed domain watch " + claimedWatch.getId());
                     }
                     if (result.changed()) {
                         updated++;
                     }
                 } catch (RuntimeException failure) {
+                    releaseScan(watch, claimToken);
                     log.error("Failed to refresh monitored domain {}", watch.getDomainName(), failure);
                 }
             }
@@ -137,6 +167,40 @@ public class DomainWatchTask {
             }
         }
         log.info("Domain monitoring refresh completed; updated={}", updated);
+    }
+
+    private String claimScan(DomainWatch watch) {
+        if (domainWatchMapper == null) {
+            return "test-no-db-lease";
+        }
+        Date now = new Date();
+        String token = RandomUtils.generateId();
+        return domainWatchMapper.claimScan(
+            watch.getId(), token, Date.from(now.toInstant().plus(SCAN_LEASE)), now) == 1
+            ? token
+            : null;
+    }
+
+    private DomainWatch reloadClaimedWatch(DomainWatch pageValue) {
+        if (domainWatchMapper == null) {
+            return pageValue;
+        }
+        DomainWatch current = domainWatchService.getById(pageValue.getId());
+        return current != null && Integer.valueOf(DomainWatch.STATUS_ACTIVE).equals(current.getStatus())
+            ? current
+            : null;
+    }
+
+    private boolean completeScan(DomainWatch watch, String claimToken) {
+        return domainWatchMapper == null
+            ? domainWatchService.updateById(watch)
+            : domainWatchMapper.completeScan(watch, claimToken) == 1;
+    }
+
+    private void releaseScan(DomainWatch watch, String claimToken) {
+        if (domainWatchMapper != null) {
+            domainWatchMapper.releaseScan(watch.getId(), claimToken);
+        }
     }
 
     private RefreshResult refreshWatchInfo(
@@ -173,11 +237,10 @@ public class DomainWatchTask {
 
         MonitorState base = previous == null ? fallbackState(watch, domain) : previous;
         MonitorState merged = merge(base, domainResult, dnsResult, sslResult, websiteResult);
-        boolean allSucceeded = results.stream().allMatch(MonitorCollectorResult::successful);
         boolean anySucceeded = results.stream().anyMatch(MonitorCollectorResult::successful);
-        boolean succeeded = previous == null ? allSucceeded : anySucceeded;
+        boolean succeeded = anySucceeded;
         boolean changed = domainResult.successful() && applyDomainResult(watch, domain, merged);
-        Set<MonitorCollectorResult.Source> observedSources = observedSources(prior, results);
+        Set<MonitorCollectorResult.Source> observedSources = observedSources(results);
         return new RefreshResult(true, succeeded, changed, merged, observedSources);
     }
 
@@ -253,6 +316,7 @@ public class DomainWatchTask {
                 .eq(MonitorSnapshot::getWatchId, watchId)
                 .eq(MonitorSnapshot::getStatus, BaseEntity.STATUS_ACTIVE)
                 .orderByDesc(MonitorSnapshot::getCheckedAt)
+                .orderByDesc(MonitorSnapshot::getId)
                 .last("LIMIT 1"));
         if (snapshot == null || StringUtils.isBlank(snapshot.getStateJson())) {
             return null;
@@ -309,13 +373,9 @@ public class DomainWatchTask {
     }
 
     private static Set<MonitorCollectorResult.Source> observedSources(
-        PriorSnapshot prior,
         List<MonitorCollectorResult> results) {
         EnumSet<MonitorCollectorResult.Source> observed = EnumSet.noneOf(
             MonitorCollectorResult.Source.class);
-        if (prior != null) {
-            observed.addAll(prior.observedSources());
-        }
         results.stream()
             .filter(MonitorCollectorResult::successful)
             .map(MonitorCollectorResult::source)

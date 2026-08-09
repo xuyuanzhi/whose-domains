@@ -72,4 +72,9 @@ public class DomainWatch extends BaseEntity {
      * 澶囨敞
      */
     private String remark;
+
+    /** Database lease used by the multi-instance monitoring scheduler. */
+    private String scanClaimToken;
+
+    private Date scanClaimUntil;
 }

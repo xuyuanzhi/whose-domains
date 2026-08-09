@@ -27,6 +27,7 @@ import info.wesite.core.config.UserHolder;
 import info.wesite.core.entity.Domain;
 import info.wesite.core.entity.DomainWatch;
 import info.wesite.core.mapper.DomainWatchSummaryMapper;
+import info.wesite.core.mapper.UserNotificationMapper;
 import info.wesite.core.mapper.model.DomainWatchLatestCheckRow;
 import info.wesite.core.mapper.model.DomainWatchLatestEventRow;
 import info.wesite.core.mapper.model.DomainWatchUnreadCountRow;
@@ -35,6 +36,7 @@ import info.wesite.core.service.DomainWatchService;
 import info.wesite.core.utils.RandomUtils;
 import info.wesite.core.view.ResponseJson;
 import info.wesite.web.monitor.MonitorRisk;
+import info.wesite.web.notification.NotificationEmailAddress;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
@@ -57,6 +59,9 @@ public class DomainWatchController {
 
     @Autowired
     private DomainWatchSummaryMapper domainWatchSummaryMapper;
+
+    @Autowired
+    private UserNotificationMapper notificationMapper;
 
     @Operation(summary = "获取用户的域名监控列表")
     @GetMapping("/list")
@@ -120,7 +125,7 @@ public class DomainWatchController {
 
     private static String persistedRisk(DomainWatchLatestEventRow event) {
         try {
-            return MonitorRisk.valueOf(event.getLatestRisk()).name();
+            return MonitorRisk.valueOf(event.getLatestEventRisk()).name();
         } catch (IllegalArgumentException | NullPointerException ignored) {
             return "UNKNOWN";
         }
@@ -139,6 +144,14 @@ public class DomainWatchController {
     @PostMapping("/watch")
     public ResponseJson<DomainWatch> watchDomain(@RequestBody DomainWatch param) {
         String userId = UserHolder.get().getId();
+
+        if (!validNotifyType(param.getNotifyType())) {
+            return ResponseJson.failure("Invalid notification threshold selection.");
+        }
+        if (StringUtils.isNotBlank(param.getNotifyEmail())
+                && !NotificationEmailAddress.isValid(param.getNotifyEmail())) {
+            return ResponseJson.failure("Invalid notification email address.");
+        }
 
         // 验证域名
         if (StringUtils.isBlank(param.getDomainName())) {
@@ -162,6 +175,7 @@ public class DomainWatchController {
                 // 重新激活
                 existing.setStatus(DomainWatch.STATUS_ACTIVE);
                 existing.setNotifyType(param.getNotifyType() != null ? param.getNotifyType() : DomainWatch.NOTIFY_BOTH);
+                existing.setNotifyEmail(NotificationEmailAddress.normalize(param.getNotifyEmail()).orElse(null));
                 existing.setRemark(param.getRemark());
                 existing.setUpdateBy(userId);
                 existing.setUpdateTime(new Date());
@@ -188,7 +202,7 @@ public class DomainWatchController {
         watch.setUserId(userId);
         watch.setDomainName(domainName);
         watch.setNotifyType(param.getNotifyType() != null ? param.getNotifyType() : DomainWatch.NOTIFY_BOTH);
-        watch.setNotifyEmail(StringUtils.trimToNull(param.getNotifyEmail()));
+        watch.setNotifyEmail(NotificationEmailAddress.normalize(param.getNotifyEmail()).orElse(null));
         watch.setRemark(param.getRemark());
         watch.setCreateBy(userId);
         watch.setCreateTime(new Date());
@@ -238,6 +252,7 @@ public class DomainWatchController {
         watch.setUpdateTime(new Date());
 
         if (domainWatchService.updateById(watch)) {
+            notificationMapper.cancelUnclaimedForWatch(userId, watch.getId(), new Date());
             return ResponseJson.success("Domain watch removed.", null);
         } else {
             return ResponseJson.failure("Failed to remove domain watch.");
@@ -248,6 +263,14 @@ public class DomainWatchController {
     @PutMapping("/update/{id}")
     public ResponseJson<DomainWatch> updateWatch(@PathVariable("id") String id, @RequestBody DomainWatch param) {
         String userId = UserHolder.get().getId();
+
+        if (!validNotifyType(param.getNotifyType())) {
+            return ResponseJson.failure("Invalid notification threshold selection.");
+        }
+        if (StringUtils.isNotBlank(param.getNotifyEmail())
+                && !NotificationEmailAddress.isValid(param.getNotifyEmail())) {
+            return ResponseJson.failure("Invalid notification email address.");
+        }
 
         DomainWatch watch = domainWatchService.getOne(
                 Wrappers.<DomainWatch>lambdaQuery()
@@ -262,6 +285,7 @@ public class DomainWatchController {
         if (param.getNotifyType() != null) {
             watch.setNotifyType(param.getNotifyType());
         }
+        watch.setNotifyEmail(NotificationEmailAddress.normalize(param.getNotifyEmail()).orElse(null));
         if (param.getRemark() != null) {
             watch.setRemark(param.getRemark());
         }
@@ -269,6 +293,9 @@ public class DomainWatchController {
         watch.setUpdateTime(new Date());
 
         if (domainWatchService.updateById(watch)) {
+            // A route or recipient edit is a delivery-policy boundary. Existing
+            // unclaimed work keeps its in-app record but must not use stale settings.
+            notificationMapper.cancelUnclaimedForWatch(userId, watch.getId(), new Date());
             return ResponseJson.success("Domain watch updated.", watch);
         } else {
             return ResponseJson.failure("Failed to update domain watch.");
@@ -288,5 +315,12 @@ public class DomainWatchController {
                         .eq(DomainWatch::getStatus, DomainWatch.STATUS_ACTIVE));
 
         return ResponseJson.success(watch != null);
+    }
+
+    private static boolean validNotifyType(Integer notifyType) {
+        return notifyType == null || notifyType == DomainWatch.NOTIFY_NONE
+                || notifyType == DomainWatch.NOTIFY_7_DAYS
+                || notifyType == DomainWatch.NOTIFY_30_DAYS
+                || notifyType == DomainWatch.NOTIFY_BOTH;
     }
 }

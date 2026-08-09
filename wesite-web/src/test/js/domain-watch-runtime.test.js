@@ -14,13 +14,17 @@ const domainWatchScript = Array.from(template.matchAll(/<script(?:\s[^>]*)?>([\s
 assert.ok(domainWatchScript, 'domain-watch production script should be present in domain-watch.html');
 
 class FakeElement {
-    constructor() {
+    constructor(tagName = 'div') {
+        this.tagName = tagName.toUpperCase();
         this.style = {};
         this.listeners = new Map();
         this.innerHTML = '';
         this.textContent = '';
         this.value = '';
         this.disabled = false;
+        this.children = [];
+        this.className = '';
+        this.attributes = new Map();
     }
 
     addEventListener(type, listener) {
@@ -28,7 +32,11 @@ class FakeElement {
         this.listeners.get(type).push(listener);
     }
 
-    appendChild() {}
+    append(...children) { children.forEach(child => this.appendChild(child)); }
+    appendChild(child) { this.children.push(child); child.parentNode = this; return child; }
+    replaceChildren(...children) { this.children = []; this.append(...children); }
+    setAttribute(name, value) { this.attributes.set(name, String(value)); }
+    getAttribute(name) { return this.attributes.get(name) || null; }
 }
 
 class FakeDocument {
@@ -52,10 +60,34 @@ class FakeDocument {
         this.listeners.get(type).push(listener);
     }
 
-    createElement() {
-        return new FakeElement();
+    createElement(tagName) {
+        return new FakeElement(tagName);
     }
 }
+
+test('watchlist uses bound handlers and keeps a malicious watch email out of HTML', () => {
+    assert.doesNotMatch(template, /\sonclick\s*=/i);
+    assert.doesNotMatch(domainWatchScript, /row\.innerHTML\s*=/);
+    const harness = createHarness(() => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ code: 0 }) }));
+    const maliciousEmail = "x@example.com');alert(1);//";
+
+    harness.context.renderList([{
+        watch: {
+            id: 'watch-1',
+            domainName: 'example.com',
+            notifyType: 3,
+            notifyEmail: maliciousEmail,
+            expiryDateText: '2027-08-09'
+        },
+        latestEventRisk: 'LOW',
+        latestEventSummary: 'No monitoring events yet'
+    }]);
+
+    const row = harness.context.document.getElementById('watchList').children[0];
+    assert.equal(row.parts.settings.getAttribute('onclick'), null);
+    row.parts.settings.listeners.get('click')[0]();
+    assert.equal(harness.editNotifyEmail.value, maliciousEmail);
+});
 
 function createHarness(fetch, retentionAnalytics, gtag) {
     const document = new FakeDocument();
@@ -66,7 +98,7 @@ function createHarness(fetch, retentionAnalytics, gtag) {
     document.register('statTotal');
     document.register('statExpiring');
     document.register('statMonth');
-    document.register('statSafe');
+    document.register('statAfter30');
     document.register('watchList');
     document.register('emptyState');
     const addDomainInput = document.register('addDomainInput');
@@ -75,6 +107,7 @@ function createHarness(fetch, retentionAnalytics, gtag) {
     const addWatchBtn = document.register('addWatchBtn');
     document.register('addMsg');
     const editWatchId = document.register('editWatchId');
+    document.register('editDomainName');
     const editNotifyType = document.register('editNotifyType');
     const editNotifyEmail = document.register('editNotifyEmail');
     const alerts = [];

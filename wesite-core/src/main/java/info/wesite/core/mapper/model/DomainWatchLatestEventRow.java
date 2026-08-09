@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class DomainWatchLatestEventRow {
     private String watchId;
-    private String latestRisk;
+    private String latestEventRisk;
     private String latestEventType;
     private String latestEventValue;
 }

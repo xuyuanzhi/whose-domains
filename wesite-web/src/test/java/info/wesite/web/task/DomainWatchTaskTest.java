@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -17,6 +18,8 @@ import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 
 import com.alibaba.fastjson2.JSON;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
@@ -26,6 +29,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import info.wesite.core.entity.Domain;
 import info.wesite.core.entity.DomainWatch;
 import info.wesite.core.entity.MonitorSnapshot;
+import info.wesite.core.mapper.DomainWatchMapper;
 import info.wesite.core.service.DomainService;
 import info.wesite.core.service.DomainWatchService;
 import info.wesite.core.service.MonitorSnapshotService;
@@ -41,6 +45,60 @@ import info.wesite.web.monitor.WebsiteMonitorCollector;
 class DomainWatchTaskTest {
 
     @Test
+    void scanLeaseSqlUsesExpiredClaimRecoveryAndCompletionCas() throws Exception {
+        String claim = sql(DomainWatchMapper.class.getMethod(
+            "claimScan", String.class, String.class, java.util.Date.class, java.util.Date.class)
+            .getAnnotation(Update.class).value());
+        String complete = sql(DomainWatchMapper.class.getMethod(
+            "completeScan", DomainWatch.class, String.class)
+            .getAnnotation(Update.class).value());
+        String settingsLock = sql(DomainWatchMapper.class.getMethod(
+            "selectByIdForUpdate", String.class)
+            .getAnnotation(Select.class).value());
+
+        assertTrue(claim.contains("SCAN_CLAIM_TOKEN IS NULL OR SCAN_CLAIM_UNTIL < #{NOW}"));
+        assertTrue(complete.contains("SCAN_CLAIM_TOKEN = #{CLAIMTOKEN}"));
+        assertTrue(complete.contains("SCAN_CLAIM_TOKEN = NULL"));
+        assertTrue(settingsLock.endsWith("FOR UPDATE"));
+    }
+
+    @Test
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    void successfulClaimReloadsTheWatchBeforeDecidingWhetherItIsStillDue() {
+        DomainWatchService watchService = mock(DomainWatchService.class);
+        DomainService domainService = mock(DomainService.class);
+        DomainWatchMapper watchMapper = mock(DomainWatchMapper.class);
+        MonitorSnapshotService snapshotService = mock(MonitorSnapshotService.class);
+        MonitorEventPublisher publisher = mock(MonitorEventPublisher.class);
+        DomainMonitorCollector domainCollector = mock(DomainMonitorCollector.class);
+        DnsMonitorCollector dnsCollector = mock(DnsMonitorCollector.class);
+        SslMonitorCollector sslCollector = mock(SslMonitorCollector.class);
+        WebsiteMonitorCollector websiteCollector = mock(WebsiteMonitorCollector.class);
+
+        DomainWatch stale = watch("watch-1", "user-1");
+        DomainWatch current = watch("watch-1", "user-1");
+        current.setLastCheckTime(new java.util.Date());
+        Page<DomainWatch> page = new Page<>(1, 100);
+        page.setRecords(List.of(stale));
+        when(watchService.page(any(IPage.class), any(Wrapper.class))).thenReturn(page);
+        when(watchMapper.claimScan(eq("watch-1"), any(String.class), any(java.util.Date.class), any(java.util.Date.class)))
+            .thenReturn(1);
+        when(watchService.getById("watch-1")).thenReturn(current);
+        when(snapshotService.count(any(Wrapper.class))).thenReturn(1L);
+
+        DomainWatchTask task = new DomainWatchTask(
+            watchService, domainService, watchMapper, snapshotService, publisher,
+            domainCollector, dnsCollector, sslCollector, websiteCollector);
+
+        task.checkDomainExpiry();
+
+        verify(watchService).getById("watch-1");
+        verify(watchMapper).releaseScan(eq("watch-1"), any(String.class));
+        verify(publisher, never()).publish(
+            any(DomainWatch.class), any(MonitorState.class), eq(true), any(Set.class));
+    }
+
+    @Test
     @SuppressWarnings({"rawtypes", "unchecked"})
     void partialFailurePreservesLastSuccessfulSourceAndPublishesOnce() {
         Fixture fixture = fixture();
@@ -52,7 +110,10 @@ class DomainWatchTaskTest {
             Map.of("A", Set.of("203.0.113.1")),
             false,
             1);
-        when(fixture.snapshotService.getOne(any(Wrapper.class))).thenReturn(snapshot(previous));
+        MonitorSnapshot previousSnapshot = snapshot(previous);
+        previousSnapshot.setSchemaVersion(2);
+        previousSnapshot.setObservedSources("DNS,DOMAIN,SSL,WEBSITE");
+        when(fixture.snapshotService.getOne(any(Wrapper.class))).thenReturn(previousSnapshot);
         when(fixture.domainCollector.collect(eq(fixture.domain), any(MonitorDeadline.class))).thenReturn(success(
             MonitorCollectorResult.Source.DOMAIN,
             new MonitorState("example.com", Set.of("ok"), LocalDate.of(2027, 1, 3),
@@ -90,7 +151,7 @@ class DomainWatchTaskTest {
 
     @Test
     @SuppressWarnings({"rawtypes", "unchecked"})
-    void firstPartialCheckCreatesOneFailedDiagnosticInsteadOfAnUnknownBaseline() {
+    void firstPartialCheckCreatesAnActiveSourceAwareBaseline() {
         Fixture fixture = fixture();
         when(fixture.snapshotService.getOne(any(Wrapper.class))).thenReturn(null);
         when(fixture.domainCollector.collect(eq(fixture.domain), any(MonitorDeadline.class))).thenReturn(success(
@@ -116,7 +177,7 @@ class DomainWatchTaskTest {
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Set<MonitorCollectorResult.Source>> observed = ArgumentCaptor.forClass(Set.class);
         verify(fixture.publisher, times(1)).publish(
-            eq(fixture.watch), state.capture(), eq(false), observed.capture());
+            eq(fixture.watch), state.capture(), eq(true), observed.capture());
         assertEquals(Set.of("ok"), state.getValue().domainStatuses());
         assertEquals(Map.of("A", Set.of("203.0.113.8")), state.getValue().dnsRecords());
         assertTrue(state.getValue().websiteAvailable());
@@ -294,5 +355,10 @@ class DomainWatchTaskTest {
         WebsiteMonitorCollector websiteCollector,
         DomainWatch watch,
         Domain domain) {
+    }
+
+    private static String sql(String[] statements) {
+        return String.join(" ", statements).replaceAll("\\s+", " ")
+            .trim().toUpperCase(java.util.Locale.ROOT);
     }
 }

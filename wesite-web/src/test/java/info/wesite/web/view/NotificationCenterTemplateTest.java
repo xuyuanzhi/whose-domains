@@ -62,6 +62,8 @@ class NotificationCenterTemplateTest {
         assertNotNull(page.selectFirst("#settingsLoading[role=status]"));
         assertNotNull(page.selectFirst("#settingsError[role=alert]"));
         assertNotNull(page.selectFirst("#settingsStatus[role=status][aria-live=polite]"));
+        assertNotNull(page.selectFirst("fieldset.cadence-fieldset > legend"));
+        assertEquals(4, page.select("fieldset.cadence-fieldset input[type=radio][name=emailMode]").size());
     }
 
     @Test

@@ -75,7 +75,7 @@ class DomainWatchSummaryTest {
         DomainWatchSummary summary = summaries(response).get(0);
         assertEquals(ResponseJson.CODE_SUCCESS, response.getCode());
         assertEquals(watch, summary.getWatch());
-        assertEquals("UNKNOWN", summary.getLatestRisk());
+        assertEquals("UNKNOWN", summary.getLatestEventRisk());
         assertEquals(0L, summary.getUnreadCount());
         assertNull(summary.getLastSuccessfulCheck());
         assertEquals("No monitoring events yet", summary.getLatestEventSummary());
@@ -99,7 +99,7 @@ class DomainWatchSummaryTest {
 
         DomainWatchSummary first = summaries(response).get(0);
         DomainWatchSummary secondSummary = summaries(response).get(1);
-        assertEquals("LOW", first.getLatestRisk(), "The persisted event risk must not be reinterpreted from event text.");
+        assertEquals("LOW", first.getLatestEventRisk(), "The persisted event risk must not be reinterpreted from event text.");
         assertEquals("WEBSITE_DOWN: offline", first.getLatestEventSummary());
         assertEquals(1L, first.getUnreadCount());
         assertEquals(new Date(4_000L), first.getLastSuccessfulCheck());

@@ -1,6 +1,8 @@
 package info.wesite.web.monitor;
 
 import java.io.IOException;
+import java.net.ConnectException;
+import java.net.NoRouteToHostException;
 import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.net.UnknownHostException;
@@ -56,10 +58,14 @@ public class WebsiteMonitorCollector {
                 new MonitorState(domain, Set.of(), null, null, Map.of(), available, failureCount));
         } catch (MonitorTargetPolicy.BlockedTargetException blocked) {
             return failure(MonitorCollectorResult.FailureKind.BLOCKED_TARGET, message(blocked));
+        } catch (MonitorAddressResolver.ResolverFailureException resolverFailure) {
+            return failure(MonitorCollectorResult.FailureKind.LOOKUP_ERROR, message(resolverFailure));
         } catch (SocketTimeoutException | HttpTimeoutException timeout) {
-            return failure(MonitorCollectorResult.FailureKind.TIMEOUT, message(timeout));
-        } catch (UnknownHostException notFound) {
-            return failure(MonitorCollectorResult.FailureKind.NOT_FOUND, message(notFound));
+            return unavailable(domain, previousFailureCount);
+        } catch (UnknownHostException | ConnectException | NoRouteToHostException unreachable) {
+            return unavailable(domain, previousFailureCount);
+        } catch (IOException unreachable) {
+            return unavailable(domain, previousFailureCount);
         } catch (Exception lookupFailure) {
             return failure(MonitorCollectorResult.FailureKind.LOOKUP_ERROR, message(lookupFailure));
         }
@@ -71,18 +77,36 @@ public class WebsiteMonitorCollector {
         BoundHttpClient httpClient) throws Exception {
         IOException httpsFailure;
         try {
-            return httpClient.execute(
-                URI.create("https://" + domain), "HEAD", deadline).status();
+            return probeScheme(
+                URI.create("https://" + domain), deadline,
+                (uri, method, bounded) -> httpClient.execute(uri, method, bounded).status());
         } catch (IOException failure) {
             httpsFailure = failure;
         }
         try {
-            return httpClient.execute(
-                URI.create("http://" + domain), "HEAD", deadline).status();
+            return probeScheme(
+                URI.create("http://" + domain), deadline,
+                (uri, method, bounded) -> httpClient.execute(uri, method, bounded).status());
         } catch (IOException httpFailure) {
             httpFailure.addSuppressed(httpsFailure);
             throw httpFailure;
         }
+    }
+
+    static int probeScheme(URI uri, MonitorDeadline deadline, RequestExecutor executor) throws IOException {
+        int status = executor.execute(uri, "HEAD", deadline);
+        if (status == 405 || status == 501) {
+            deadline.throwIfExpired();
+            return executor.execute(uri, "GET", deadline);
+        }
+        return status;
+    }
+
+    private static MonitorCollectorResult unavailable(String domain, int previousFailureCount) {
+        return MonitorCollectorResult.success(
+            MonitorCollectorResult.Source.WEBSITE,
+            new MonitorState(
+                domain, Set.of(), null, null, Map.of(), false, increment(previousFailureCount)));
     }
 
     private static int increment(int previousFailureCount) {
@@ -108,5 +132,10 @@ public class WebsiteMonitorCollector {
     @FunctionalInterface
     private interface TimedHttpProbe {
         int status(String domain, MonitorDeadline deadline) throws Exception;
+    }
+
+    @FunctionalInterface
+    interface RequestExecutor {
+        int execute(URI uri, String method, MonitorDeadline deadline) throws IOException;
     }
 }

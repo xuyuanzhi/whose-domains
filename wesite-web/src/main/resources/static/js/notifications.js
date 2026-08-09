@@ -131,6 +131,10 @@
         target.textContent = 'Open domain evidence';
         target.hidden = !targetPath;
         if (targetPath) target.setAttribute('href', targetPath);
+        target.addEventListener('click', function () {
+            if (targetPath) trackRetentionEvent('notification_action_clicked',
+                notificationActionParameters('open_evidence', item));
+        });
         read.type = 'button';
         read.setAttribute('data-action', 'read');
         read.textContent = item && item.readAt ? 'Read' : 'Mark read';
@@ -435,6 +439,7 @@
     };
     root.WhoseNotifications = api;
     root.addEventListener('whose:authenticated', startBell);
+    if (root.WhoseAuthState && root.WhoseAuthState.authenticated === true) startBell();
     function initPages() {
         initCenter();
         initSettings();

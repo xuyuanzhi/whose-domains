@@ -1,6 +1,7 @@
 package info.wesite.web.monitor;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -110,17 +111,48 @@ class MonitorEventPublisherTest {
             .thenThrow(new DuplicateKeyException("UK_MONITOR_EVENT_WATCH_FINGERPRINT"));
         MonitorEvent winner = new MonitorEvent();
         winner.setId("winning-event");
-        when(eventMapper.selectByIdentityForUpdate("watch-1", MonitorFingerprint.of("watch-1", draft)))
+        when(eventMapper.selectByIdentityForUpdate(
+            "watch-1", MonitorFingerprint.of("watch-1", draft, "after:previous")))
             .thenReturn(winner);
 
         List<MonitorEvent> published = publisher.publish(watch, current, true);
 
         assertEquals(1, published.size());
         assertSame(winner, published.get(0));
-        verify(eventMapper).selectByIdentityForUpdate("watch-1", MonitorFingerprint.of("watch-1", draft));
+        verify(eventMapper).selectByIdentityForUpdate(
+            "watch-1", MonitorFingerprint.of("watch-1", draft, "after:previous"));
         ArgumentCaptor<UserNotification> notification = ArgumentCaptor.forClass(UserNotification.class);
         verify(notificationService).save(notification.capture());
         assertEquals("winning-event", notification.getValue().getEventId());
+    }
+
+    @Test
+    void repeatedTransitionAfterRecoveryBelongsToANewEpisode() {
+        DomainWatch watch = watch();
+        MonitorState up = state(Set.of("ok"));
+        MonitorState down = state(Set.of("serverHold"));
+        MonitorEventDraft entered = new MonitorEventDraft(
+            MonitorEventType.DOMAIN_STATUS_CHANGED, MonitorRisk.CRITICAL,
+            "example.com", "domainStatuses", "ok", "serverHold");
+        MonitorEventDraft recovered = new MonitorEventDraft(
+            MonitorEventType.DOMAIN_STATUS_CHANGED, MonitorRisk.MEDIUM,
+            "example.com", "domainStatuses", "serverHold", "ok");
+        when(snapshotService.getOne(any())).thenReturn(
+            snapshot("up-1", up), snapshot("down-1", down), snapshot("up-2", up));
+        when(detector.detect(eq(up), eq(down), nullable(Instant.class), nullable(Instant.class)))
+            .thenReturn(List.of(entered));
+        when(detector.detect(eq(down), eq(up), nullable(Instant.class), nullable(Instant.class)))
+            .thenReturn(List.of(recovered));
+
+        publisher.publish(watch, down, true);
+        publisher.publish(watch, up, true);
+        publisher.publish(watch, down, true);
+
+        ArgumentCaptor<MonitorEvent> events = ArgumentCaptor.forClass(MonitorEvent.class);
+        verify(eventService, times(3)).save(events.capture());
+        assertNotEquals(
+            events.getAllValues().get(0).getFingerprint(),
+            events.getAllValues().get(2).getFingerprint());
     }
 
     @Test
@@ -143,7 +175,7 @@ class MonitorEventPublisherTest {
             .map(UserNotification::getEventId)
             .distinct()
             .count());
-        assertEquals(List.of("/domain/example.com", "/domain/example.com"), notifications.getAllValues().stream()
+        assertEquals(List.of("/domain/example.com#domain-information", "/domain/example.com#dns-records"), notifications.getAllValues().stream()
             .map(UserNotification::getTargetPath)
             .toList());
 
@@ -152,10 +184,12 @@ class MonitorEventPublisherTest {
         order.verify(detector).detect(eq(previous), eq(current), nullable(Instant.class), nullable(Instant.class));
         order.verify(eventService).save(any(MonitorEvent.class));
         order.verify(notificationService).save(any(UserNotification.class));
-        order.verify(dispatcher).dispatch(any(MonitorEvent.class), any(UserNotification.class));
+        order.verify(dispatcher).dispatch(
+            any(MonitorEvent.class), any(UserNotification.class), eq(watch), nullable(Integer.class));
         order.verify(eventService).save(any(MonitorEvent.class));
         order.verify(notificationService).save(any(UserNotification.class));
-        order.verify(dispatcher).dispatch(any(MonitorEvent.class), any(UserNotification.class));
+        order.verify(dispatcher).dispatch(
+            any(MonitorEvent.class), any(UserNotification.class), eq(watch), nullable(Integer.class));
         order.verify(snapshotService).save(any(MonitorSnapshot.class));
     }
 
@@ -180,7 +214,7 @@ class MonitorEventPublisherTest {
         assertEquals(1, published.size());
         verify(notificationService).save(any(UserNotification.class));
         verify(notificationMapper).selectByIdentityForUpdate("user-1", published.get(0).getId());
-        verify(dispatcher).dispatch(published.get(0), winner);
+        verify(dispatcher).dispatch(published.get(0), winner, watch, null);
         verify(snapshotService).save(any(MonitorSnapshot.class));
     }
 
@@ -321,7 +355,8 @@ class MonitorEventPublisherTest {
         assertSame(first.get(0), replay.get(0));
         assertEquals("DOMAIN_EXPIRING", first.get(0).getEventType());
         assertTrue(first.get(0).getFingerprint() != null && !first.get(0).getFingerprint().isBlank());
-        verify(dispatcher, times(1)).dispatch(any(MonitorEvent.class), any(UserNotification.class));
+        verify(dispatcher, times(1)).dispatch(
+            any(MonitorEvent.class), any(UserNotification.class), any(DomainWatch.class), eq(7));
     }
 
     @Test

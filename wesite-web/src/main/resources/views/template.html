@@ -274,13 +274,21 @@
     </div>
     <script>
     (function() {
+        window.WhoseAuthState={authenticated:false,user:null};
         fetch('/user/session',{credentials:'include'}).then(function(r){return r.json();}).then(function(d){
             if(d.code===0&&d.data){
+                window.WhoseAuthState={authenticated:true,user:d.data};
                 document.getElementById('navUserMenu').style.display='list-item';
                 document.getElementById('navUserName').textContent=d.data.name||'Account';
                 window.dispatchEvent(new CustomEvent('whose:authenticated'));
-            } else { document.getElementById('navLoginBtn').style.display='list-item'; }
-        }).catch(function(){document.getElementById('navLoginBtn').style.display='list-item';});
+            } else {
+                window.WhoseAuthState={authenticated:false,user:null};
+                document.getElementById('navLoginBtn').style.display='list-item';
+            }
+        }).catch(function(){
+            window.WhoseAuthState={authenticated:false,user:null};
+            document.getElementById('navLoginBtn').style.display='list-item';
+        });
     })();
     var authModal=document.getElementById('authModal');
     var authModalDialog=authModal.querySelector('[role="dialog"]');
@@ -416,6 +424,7 @@
             return response.json();
         }).then(function(result){
             if(!result||result.code!==0)throw new Error('Logout failed');
+            window.WhoseAuthState={authenticated:false,user:null};
             location.reload();
         }).catch(function(){
             setLogoutLoading(false);

@@ -120,15 +120,8 @@ class NotificationControllerTest {
 
     @Test
     void listScopesADomainFilterToTheCurrentUsersWatch() throws Exception {
-        DomainWatch watch = new DomainWatch();
-        watch.setId("watch-1");
-        watch.setUserId("user-1");
-        watch.setDomainName("example.com");
-        MonitorEvent event = event("event-1", "watch-1", "DNS_CHANGED", "ns2.example", new Date());
         Page<UserNotification> page = new Page<>(1, 20, 0);
         page.setRecords(List.of());
-        when(watches.getOne(any(Wrapper.class))).thenReturn(watch);
-        when(events.list(any(Wrapper.class))).thenReturn(List.of(event));
         when(notifications.page(any(Page.class), any(Wrapper.class))).thenReturn(page);
 
         mvc.perform(get("/api/notifications").param("domain", "Example.COM"))
@@ -136,16 +129,14 @@ class NotificationControllerTest {
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data.total").value(0));
 
-        ArgumentCaptor<Wrapper<DomainWatch>> watchQuery = ArgumentCaptor.forClass((Class) Wrapper.class);
-        ArgumentCaptor<Wrapper<MonitorEvent>> eventQuery = ArgumentCaptor.forClass((Class) Wrapper.class);
         ArgumentCaptor<Wrapper<UserNotification>> notificationQuery = ArgumentCaptor.forClass((Class) Wrapper.class);
-        verify(watches).getOne(watchQuery.capture());
-        verify(events).list(eventQuery.capture());
         verify(notifications).page(any(Page.class), notificationQuery.capture());
-        assertTrue(watchQuery.getValue().getSqlSegment().contains("user_id")
-                && watchQuery.getValue().getSqlSegment().contains("domain_name"));
-        assertTrue(eventQuery.getValue().getSqlSegment().contains("watch_id"));
-        assertTrue(notificationQuery.getValue().getSqlSegment().contains("event_id"));
+        String sql = notificationQuery.getValue().getSqlSegment().toUpperCase(java.util.Locale.ROOT);
+        assertTrue(sql.contains("EXISTS") && sql.contains("WEB_MONITOR_EVENT")
+                && sql.contains("WEB_DOMAIN_WATCH") && sql.contains("DOMAIN_NAME")
+                && sql.contains("USER_ID") && sql.contains("STATUS"), sql);
+        verify(watches, never()).getOne(any(Wrapper.class));
+        verify(events, never()).list(any(Wrapper.class));
     }
 
     @Test

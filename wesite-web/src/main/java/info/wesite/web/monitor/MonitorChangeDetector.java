@@ -112,10 +112,10 @@ public final class MonitorChangeDetector {
         LocalDate previousExpiry = previous == null
             ? null
             : domainExpiry ? previous.domainExpiry() : previous.sslExpiry();
-        Long previousDaysRemaining = previousCheckedAt == null
+        Long previousDaysRemaining = previousCheckedAt == null || previousExpiry == null
             ? null
             : ChronoUnit.DAYS.between(
-                previousCheckedAt.atZone(clock.getZone()).toLocalDate(), currentExpiry);
+                previousCheckedAt.atZone(clock.getZone()).toLocalDate(), previousExpiry);
 
         for (long threshold : EXPIRY_THRESHOLDS.stream().sorted(java.util.Comparator.reverseOrder()).toList()) {
             boolean crossed = previousDaysRemaining == null

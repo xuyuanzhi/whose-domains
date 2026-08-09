@@ -18,27 +18,25 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 
 import info.wesite.core.entity.MonitorEvent;
+import info.wesite.core.entity.DomainWatch;
 import info.wesite.core.entity.NotificationPreference;
-import info.wesite.core.entity.User;
 import info.wesite.core.entity.UserNotification;
+import info.wesite.core.mapper.DomainWatchMapper;
 import info.wesite.core.service.NotificationPreferenceService;
 import info.wesite.core.service.UserNotificationService;
-import info.wesite.core.service.UserService;
 
 class NotificationDispatcherTest {
 
     private NotificationPreferenceService preferenceService;
-    private UserService userService;
     private UserNotificationService notificationService;
     private NotificationDispatcher dispatcher;
 
     @BeforeEach
     void setUp() {
         preferenceService = mock(NotificationPreferenceService.class);
-        userService = mock(UserService.class);
         notificationService = mock(UserNotificationService.class);
         when(notificationService.updateById(any(UserNotification.class))).thenReturn(true);
-        dispatcher = new NotificationDispatcher(preferenceService, userService, notificationService);
+        dispatcher = new NotificationDispatcher(preferenceService, notificationService);
     }
 
     @ParameterizedTest
@@ -47,9 +45,8 @@ class NotificationDispatcherTest {
         MonitorEvent event = event("DNS_CHANGED", "2026-09-08");
         UserNotification notification = notification();
         when(preferenceService.getOne(any())).thenReturn(preference(mode));
-        when(userService.getById("user-1")).thenReturn(user("person@example.com"));
-
-        NotificationDispatchDecision decision = dispatcher.dispatch(event, notification);
+        NotificationDispatchDecision decision = dispatcher.dispatch(
+            event, notification, watch(DomainWatch.NOTIFY_BOTH, "watch@example.com"), null);
 
         assertEquals(expected, decision);
         assertEquals(expected.name(), notification.getEmailMode());
@@ -59,6 +56,8 @@ class NotificationDispatcherTest {
         assertEquals(null, notification.getEmailClaimToken());
         assertEquals(null, notification.getEmailClaimUntil());
         assertEquals(null, notification.getDeliveryBatchId());
+        assertEquals(expected == NotificationDispatchDecision.IN_APP_ONLY ? null : "watch@example.com",
+            notification.getRecipientEmail());
         ArgumentCaptor<UserNotification> persisted = ArgumentCaptor.forClass(UserNotification.class);
         verify(notificationService).updateById(persisted.capture());
         assertEquals(expected.name(), persisted.getValue().getEmailMode());
@@ -79,9 +78,8 @@ class NotificationDispatcherTest {
         NotificationPreference preference = preference(NotificationPreference.MODE_IMMEDIATE);
         preference.setDnsChangeEnabled(false);
         when(preferenceService.getOne(any())).thenReturn(preference);
-        when(userService.getById("user-1")).thenReturn(user("person@example.com"));
-
-        NotificationDispatchDecision decision = dispatcher.dispatch(event, notification);
+        NotificationDispatchDecision decision = dispatcher.dispatch(
+            event, notification, watch(DomainWatch.NOTIFY_BOTH, "watch@example.com"), null);
 
         assertEquals(NotificationDispatchDecision.IN_APP_ONLY, decision);
         assertEquals("IN_APP_ONLY", notification.getEmailState());
@@ -93,9 +91,8 @@ class NotificationDispatcherTest {
         MonitorEvent event = event("DNS_CHANGED", "192.0.2.2");
         UserNotification notification = notification();
         when(preferenceService.getOne(any())).thenReturn(null);
-        when(userService.getById("user-1")).thenReturn(user("person@example.com"));
-
-        NotificationDispatchDecision decision = dispatcher.dispatch(event, notification);
+        NotificationDispatchDecision decision = dispatcher.dispatch(
+            event, notification, watch(DomainWatch.NOTIFY_BOTH, "watch@example.com"), null);
 
         assertEquals(NotificationDispatchDecision.DAILY_DIGEST, decision);
         assertEquals("DAILY_DIGEST", notification.getEmailMode());
@@ -107,9 +104,8 @@ class NotificationDispatcherTest {
         MonitorEvent event = event("WEBSITE_DOWN", "false");
         UserNotification notification = notification();
         when(preferenceService.getOne(any())).thenReturn(preference(NotificationPreference.MODE_IMMEDIATE));
-        when(userService.getById("user-1")).thenReturn(user("  "));
-
-        NotificationDispatchDecision decision = dispatcher.dispatch(event, notification);
+        NotificationDispatchDecision decision = dispatcher.dispatch(
+            event, notification, watch(DomainWatch.NOTIFY_BOTH, null), null);
 
         assertEquals(NotificationDispatchDecision.IN_APP_ONLY, decision);
         assertEquals("IN_APP_ONLY", notification.getEmailState());
@@ -117,17 +113,75 @@ class NotificationDispatcherTest {
     }
 
     @Test
-    void missingPreferenceUsesImmediateEmailForHighRiskEvent() {
+    void missingPreferenceUsesTheDailyRoutineDefaultButEscalatesCanonicalCriticalRisk() {
         MonitorEvent event = event("WEBSITE_DOWN", "false");
         UserNotification notification = notification();
         when(preferenceService.getOne(any())).thenReturn(null);
-        when(userService.getById("user-1")).thenReturn(user("person@example.com"));
-
-        NotificationDispatchDecision decision = dispatcher.dispatch(event, notification);
+        NotificationDispatchDecision decision = dispatcher.dispatch(
+            event, notification, watch(DomainWatch.NOTIFY_BOTH, "watch@example.com"), null);
 
         assertEquals(NotificationDispatchDecision.IMMEDIATE_EMAIL, decision);
         assertEquals("IMMEDIATE_EMAIL", notification.getEmailMode());
         assertEquals("QUEUED", notification.getEmailState());
+    }
+
+    @Test
+    void notifyNoneAndInvalidWatchEmailNeverFallBackToTheAccountEmail() {
+        when(preferenceService.getOne(any())).thenReturn(preference(NotificationPreference.MODE_IMMEDIATE));
+        UserNotification none = notification();
+        UserNotification invalid = notification();
+        assertEquals(NotificationDispatchDecision.IN_APP_ONLY,
+            dispatcher.dispatch(event("DNS_CHANGED", "192.0.2.2"), none,
+                watch(DomainWatch.NOTIFY_NONE, "watch@example.com"), null));
+        assertEquals(NotificationDispatchDecision.IN_APP_ONLY,
+            dispatcher.dispatch(event("DNS_CHANGED", "192.0.2.2"), invalid,
+                watch(DomainWatch.NOTIFY_BOTH, "bad\r\nBcc: attacker@example.com"), null));
+        assertEquals(null, none.getRecipientEmail());
+        assertEquals(null, invalid.getRecipientEmail());
+    }
+
+    @Test
+    void dispatchLocksAndUsesTheCurrentWatchSettingsInsteadOfAStaleScanCopy() {
+        DomainWatchMapper watchMapper = mock(DomainWatchMapper.class);
+        DomainWatch current = watch(DomainWatch.NOTIFY_NONE, "current@example.com");
+        current.setStatus(DomainWatch.STATUS_ACTIVE);
+        current.setDeleted(0);
+        when(watchMapper.selectByIdForUpdate("watch-1")).thenReturn(current);
+        when(preferenceService.getOne(any())).thenReturn(preference(NotificationPreference.MODE_IMMEDIATE));
+        NotificationDispatcher lockedDispatcher = new NotificationDispatcher(
+            preferenceService, notificationService, watchMapper, new NotificationPreferenceResolver());
+
+        UserNotification notification = notification();
+        NotificationDispatchDecision decision = lockedDispatcher.dispatch(
+            event("DNS_CHANGED", "192.0.2.2"), notification,
+            watch(DomainWatch.NOTIFY_BOTH, "stale@example.com"), null);
+
+        assertEquals(NotificationDispatchDecision.IN_APP_ONLY, decision);
+        assertEquals(null, notification.getRecipientEmail());
+        verify(watchMapper).selectByIdForUpdate("watch-1");
+    }
+
+    @Test
+    void legacyExpiryThresholdSelectionIsAppliedBeforeGlobalCadence() {
+        when(preferenceService.getOne(any())).thenReturn(preference(NotificationPreference.MODE_IMMEDIATE));
+        MonitorEvent lateSevenDayCrossing = event("DOMAIN_EXPIRING", "2026-09-07");
+        MonitorEvent lateThirtyDayCrossing = event("DOMAIN_EXPIRING", "2026-09-29");
+
+        assertEquals(NotificationDispatchDecision.IMMEDIATE_EMAIL,
+            dispatcher.dispatch(lateSevenDayCrossing, notification(),
+                watch(DomainWatch.NOTIFY_7_DAYS, "watch@example.com"), 7));
+        assertEquals(NotificationDispatchDecision.IN_APP_ONLY,
+            dispatcher.dispatch(lateThirtyDayCrossing, notification(),
+                watch(DomainWatch.NOTIFY_7_DAYS, "watch@example.com"), 30));
+        assertEquals(NotificationDispatchDecision.IN_APP_ONLY,
+            dispatcher.dispatch(lateSevenDayCrossing, notification(),
+                watch(DomainWatch.NOTIFY_30_DAYS, "watch@example.com"), 7));
+        assertEquals(NotificationDispatchDecision.IMMEDIATE_EMAIL,
+            dispatcher.dispatch(lateThirtyDayCrossing, notification(),
+                watch(DomainWatch.NOTIFY_30_DAYS, "watch@example.com"), 30));
+        assertEquals(NotificationDispatchDecision.IN_APP_ONLY,
+            dispatcher.dispatch(lateSevenDayCrossing, notification(),
+                watch(DomainWatch.NOTIFY_BOTH, "watch@example.com"), 1));
     }
 
     private static MonitorEvent event(String eventType, String newValue) {
@@ -146,15 +200,17 @@ class NotificationDispatcherTest {
         return notification;
     }
 
-    private static User user(String email) {
-        User user = new User();
-        user.setEmail(email);
-        return user;
-    }
-
     private static NotificationPreference preference(String mode) {
         NotificationPreference preference = NotificationPreference.defaultsFor("user-1");
         preference.setEmailMode(mode);
         return preference;
+    }
+
+    private static DomainWatch watch(int notifyType, String notifyEmail) {
+        DomainWatch watch = new DomainWatch();
+        watch.setId("watch-1");
+        watch.setNotifyType(notifyType);
+        watch.setNotifyEmail(notifyEmail);
+        return watch;
     }
 }

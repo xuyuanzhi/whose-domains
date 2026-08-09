@@ -96,12 +96,12 @@ class NotificationDeliveryCoordinatorMySqlConcurrencyTest {
             statement.executeUpdate("""
                 INSERT INTO WEB_USER_NOTIFICATION
                   (ID, STATUS, DELETED, CREATE_TIME, USER_ID, EVENT_ID, TITLE, TARGET_PATH,
-                   EMAIL_MODE, EMAIL_STATE, EMAIL_ATTEMPT_COUNT)
+                   EMAIL_MODE, EMAIL_STATE, EMAIL_ATTEMPT_COUNT, RECIPIENT_EMAIL)
                 VALUES
                   ('n1', 1, 0, '2026-08-09 06:00:00', 'user-1', 'e1', 'one', '/domain/one',
-                   'DAILY_DIGEST', 'QUEUED', 0),
+                   'DAILY_DIGEST', 'QUEUED', 0, 'person@example.com'),
                   ('n2', 1, 0, '2026-08-09 07:00:00', 'user-1', 'e2', 'two', '/domain/two',
-                   'DAILY_DIGEST', 'QUEUED', 0)
+                   'DAILY_DIGEST', 'QUEUED', 0, 'person@example.com')
                 """);
         }
     }
@@ -146,7 +146,8 @@ class NotificationDeliveryCoordinatorMySqlConcurrencyTest {
 
         assertThrows(IllegalStateException.class, () -> transaction.execute(status ->
             failingCoordinator.startDigest(
-                "user-1", "DAILY_DIGEST", "2026-08-09", NOW, NOW, NOW.plusSeconds(600))));
+                "user-1", "DAILY_DIGEST", "2026-08-09", "person@example.com",
+                NOW, NOW, NOW.plusSeconds(600))));
 
         assertEquals(0, count("WEB_NOTIFICATION_DELIVERY_BATCH"));
         assertEquals(0, count("WEB_DOMAIN_WATCH_NOTIFY_LOG"));
@@ -158,7 +159,8 @@ class NotificationDeliveryCoordinatorMySqlConcurrencyTest {
     void successfulCompletionUpdatesTheExactPendingAttemptAndWholeDigestBatch() throws Exception {
         TransactionTemplate transaction = new TransactionTemplate(transactionManager);
         DeliveryBatchClaim claim = transaction.execute(status -> coordinator.startDigest(
-            "user-1", "DAILY_DIGEST", "2026-08-09", NOW, NOW, NOW.plusSeconds(600)).orElseThrow());
+            "user-1", "DAILY_DIGEST", "2026-08-09", "person@example.com",
+            NOW, NOW, NOW.plusSeconds(600)).orElseThrow());
 
         transaction.executeWithoutResult(status -> coordinator.complete(
             claim,
@@ -173,13 +175,91 @@ class NotificationDeliveryCoordinatorMySqlConcurrencyTest {
             + "WHERE SEND_STATUS = 1 AND RETRY_COUNT = 1"));
     }
 
+    @Test
+    void deletingEveryInAppRowDoesNotBreakFrozenMembersOrBatchTerminalization() throws Exception {
+        TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+        DeliveryBatchClaim claim = transaction.execute(status -> coordinator.startDigest(
+            "user-1", "DAILY_DIGEST", "2026-08-09", "person@example.com",
+            NOW, NOW, NOW.plusSeconds(600)).orElseThrow());
+
+        execute("UPDATE WEB_USER_NOTIFICATION SET DELETED = 1 WHERE USER_ID = 'user-1'");
+        assertEquals(2, notificationMapper.selectBatchMembers(claim.batchId()).size());
+        transaction.executeWithoutResult(status -> coordinator.complete(
+            claim, true,
+            new DeliveryAttemptDetails(null, null, null, "person@example.com", null, null, "subject", null),
+            NOW.plusSeconds(10), NOW.plusSeconds(300)));
+
+        assertEquals(1, scalar("SELECT COUNT(*) FROM WEB_NOTIFICATION_DELIVERY_BATCH WHERE STATE = 'SENT'"));
+        assertEquals(2, scalar("SELECT COUNT(*) FROM WEB_USER_NOTIFICATION "
+            + "WHERE DELETED = 1 AND EMAIL_STATE = 'SENT'"));
+    }
+
+    @Test
+    void failedBatchCanRetryAfterEveryInAppRowWasDeleted() throws Exception {
+        TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+        DeliveryBatchClaim first = transaction.execute(status -> coordinator.startDigest(
+            "user-1", "DAILY_DIGEST", "2026-08-09", "person@example.com",
+            NOW, NOW, NOW.plusSeconds(600)).orElseThrow());
+        transaction.executeWithoutResult(status -> coordinator.complete(
+            first, false,
+            new DeliveryAttemptDetails(null, null, null, "person@example.com", null, null, "subject", "smtp"),
+            NOW.plusSeconds(10), NOW.plusSeconds(300)));
+        execute("UPDATE WEB_USER_NOTIFICATION SET DELETED = 1 WHERE USER_ID = 'user-1'");
+
+        DeliveryBatchClaim retry = transaction.execute(status -> coordinator.retryNext(
+            "DAILY_DIGEST", NOW.plusSeconds(301), NOW.plusSeconds(901)).orElseThrow());
+        assertEquals(2, retry.attempt());
+        assertEquals(2, notificationMapper.selectBatchMembers(retry.batchId()).size());
+        transaction.executeWithoutResult(status -> coordinator.complete(
+            retry, true,
+            new DeliveryAttemptDetails(null, null, null, "person@example.com", null, null, "subject", null),
+            NOW.plusSeconds(302), NOW.plusSeconds(600)));
+        assertEquals(1, scalar("SELECT COUNT(*) FROM WEB_NOTIFICATION_DELIVERY_BATCH WHERE STATE = 'SENT'"));
+    }
+
+    @Test
+    void oneDigestWindowCreatesSeparateFrozenBatchesForSeparateWatchRecipients() throws Exception {
+        execute("UPDATE WEB_USER_NOTIFICATION SET RECIPIENT_EMAIL = 'other@example.com' WHERE ID = 'n2'");
+        TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+
+        DeliveryBatchClaim first = transaction.execute(status -> coordinator.startDigest(
+            "user-1", "DAILY_DIGEST", "2026-08-09", "person@example.com",
+            NOW, NOW, NOW.plusSeconds(600)).orElseThrow());
+        DeliveryBatchClaim second = transaction.execute(status -> coordinator.startDigest(
+            "user-1", "DAILY_DIGEST", "2026-08-09", "other@example.com",
+            NOW, NOW, NOW.plusSeconds(600)).orElseThrow());
+
+        assertEquals("person@example.com", first.recipientEmail());
+        assertEquals("other@example.com", second.recipientEmail());
+        assertEquals(2, count("WEB_NOTIFICATION_DELIVERY_BATCH"));
+        assertEquals(2, scalar("SELECT COUNT(DISTINCT DELIVERY_BATCH_ID) FROM WEB_USER_NOTIFICATION"));
+    }
+
+    @Test
+    void expiredClaimedPreferenceCancellationEndsInAppOnlyWithoutARetry() throws Exception {
+        TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+        transaction.execute(status -> coordinator.startDigest(
+            "user-1", "DAILY_DIGEST", "2026-08-09", "person@example.com",
+            NOW, NOW, NOW.plusSeconds(600)).orElseThrow());
+        execute("UPDATE WEB_NOTIFICATION_DELIVERY_BATCH SET CANCELLATION_REQUESTED = 1");
+
+        transaction.executeWithoutResult(status -> coordinator.finalizeExpiredCancelled(
+            "DAILY_DIGEST", NOW.plusSeconds(601)));
+
+        assertEquals(1, scalar("SELECT COUNT(*) FROM WEB_NOTIFICATION_DELIVERY_BATCH WHERE STATE = 'CANCELLED'"));
+        assertEquals(2, scalar("SELECT COUNT(*) FROM WEB_USER_NOTIFICATION WHERE EMAIL_STATE = 'IN_APP_ONLY'"));
+        assertEquals(1, scalar("SELECT COUNT(*) FROM WEB_DOMAIN_WATCH_NOTIFY_LOG WHERE SEND_STATUS = 2"));
+        assertEquals(0, scalar("SELECT COUNT(*) FROM WEB_NOTIFICATION_DELIVERY_BATCH WHERE STATE IN ('CLAIMED','FAILED')"));
+    }
+
     private Attempt startDigestInTransaction(CountDownLatch start) {
         TransactionTemplate transaction = new TransactionTemplate(transactionManager);
         transaction.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
         try {
             start.await(10, TimeUnit.SECONDS);
             Optional<DeliveryBatchClaim> claim = transaction.execute(status -> coordinator.startDigest(
-                "user-1", "DAILY_DIGEST", "2026-08-09", NOW, NOW, NOW.plusSeconds(600)));
+                "user-1", "DAILY_DIGEST", "2026-08-09", "person@example.com",
+                NOW, NOW, NOW.plusSeconds(600)));
             return new Attempt(claim, null);
         } catch (Exception error) {
             return new Attempt(Optional.empty(), error);
@@ -195,6 +275,12 @@ class NotificationDeliveryCoordinatorMySqlConcurrencyTest {
                 ResultSet result = statement.executeQuery(sql)) {
             result.next();
             return result.getInt(1);
+        }
+    }
+
+    private static void execute(String sql) throws SQLException {
+        try (Connection connection = dataSource.getConnection(); Statement statement = connection.createStatement()) {
+            statement.executeUpdate(sql);
         }
     }
 
@@ -220,9 +306,11 @@ class NotificationDeliveryCoordinatorMySqlConcurrencyTest {
                   ID varchar(32) NOT NULL PRIMARY KEY, STATUS smallint DEFAULT 1, DELETED smallint DEFAULT 0,
                   CREATE_BY varchar(50), CREATE_TIME datetime, UPDATE_BY varchar(50), UPDATE_TIME datetime,
                   USER_ID varchar(32) NOT NULL, EMAIL_MODE varchar(32) NOT NULL, WINDOW_KEY varchar(64) NOT NULL,
+                  RECIPIENT_EMAIL varchar(254) NOT NULL, CANCELLATION_REQUESTED smallint NOT NULL DEFAULT 0,
                   STATE varchar(32) NOT NULL, ATTEMPT_COUNT int NOT NULL DEFAULT 0,
                   CLAIM_TOKEN varchar(64), CLAIM_UNTIL datetime, NEXT_ATTEMPT_AT datetime, COMPLETED_AT datetime,
-                  UNIQUE KEY UK_NOTIFICATION_BATCH_USER_MODE_WINDOW (USER_ID, EMAIL_MODE, WINDOW_KEY)
+                  UNIQUE KEY UK_NOTIFICATION_BATCH_USER_MODE_WINDOW
+                    (USER_ID, EMAIL_MODE, RECIPIENT_EMAIL, WINDOW_KEY)
                 ) ENGINE=InnoDB
                 """);
             statement.execute("""
@@ -233,7 +321,8 @@ class NotificationDeliveryCoordinatorMySqlConcurrencyTest {
                   CONTENT text, TARGET_PATH varchar(500) NOT NULL, READ_AT datetime,
                   EMAIL_MODE varchar(32), EMAIL_STATE varchar(32) NOT NULL, EMAIL_ATTEMPT_COUNT int NOT NULL,
                   EMAIL_CLAIM_TOKEN varchar(64), EMAIL_CLAIM_UNTIL datetime, DELIVERY_BATCH_ID varchar(32),
-                  EMAILED_AT datetime, UNIQUE KEY UK_USER_NOTIFICATION_USER_EVENT (USER_ID, EVENT_ID)
+                  RECIPIENT_EMAIL varchar(254), EMAILED_AT datetime,
+                  UNIQUE KEY UK_USER_NOTIFICATION_USER_EVENT (USER_ID, EVENT_ID)
                 ) ENGINE=InnoDB
                 """);
             statement.execute("""

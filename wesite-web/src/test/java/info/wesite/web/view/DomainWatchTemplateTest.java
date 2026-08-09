@@ -16,7 +16,9 @@ class DomainWatchTemplateTest {
         assertTrue(template.contains("Sign in to view your Watchlist"));
         assertTrue(template.contains("Expiry alerts"));
         assertTrue(template.contains("Up to 50 domains"));
-        assertTrue(template.contains("onclick=\"openAuthModal(this)\""));
+        assertTrue(template.contains("id=\"watchSignInButton\""));
+        assertTrue(template.contains("getElementById('watchSignInButton').addEventListener('click'"));
+        assertFalse(template.contains("onclick="));
         assertFalse(template.contains("id=\"quickWatchDomain\""));
         assertFalse(template.contains("id=\"quickWatchEmail\""));
         assertFalse(template.contains("requestQuickWatch"));

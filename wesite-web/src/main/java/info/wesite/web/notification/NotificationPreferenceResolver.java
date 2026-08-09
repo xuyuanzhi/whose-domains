@@ -26,17 +26,36 @@ public class NotificationPreferenceResolver {
             return NotificationDispatchDecision.IN_APP_ONLY;
         }
 
-        if (preference == null || StringUtils.isBlank(preference.getEmailMode())) {
-            return defaultDecision(event);
+        String mode = preference == null ? null : preference.getEmailMode();
+        if (StringUtils.isBlank(mode)) {
+            return isHighRisk(event)
+                    ? NotificationDispatchDecision.IMMEDIATE_EMAIL
+                    : NotificationDispatchDecision.DAILY_DIGEST;
         }
 
-        return switch (preference.getEmailMode()) {
+        if (NotificationPreference.MODE_IN_APP_ONLY.equals(mode)) {
+            return NotificationDispatchDecision.IN_APP_ONLY;
+        }
+        if (!NotificationPreference.MODE_IMMEDIATE.equals(mode)
+                && !NotificationPreference.MODE_DAILY.equals(mode)
+                && !NotificationPreference.MODE_WEEKLY.equals(mode)) {
+            return NotificationDispatchDecision.IN_APP_ONLY;
+        }
+        if (isHighRisk(event)) {
+            return NotificationDispatchDecision.IMMEDIATE_EMAIL;
+        }
+
+        return switch (mode) {
             case NotificationPreference.MODE_IMMEDIATE -> NotificationDispatchDecision.IMMEDIATE_EMAIL;
             case NotificationPreference.MODE_DAILY -> NotificationDispatchDecision.DAILY_DIGEST;
             case NotificationPreference.MODE_WEEKLY -> NotificationDispatchDecision.WEEKLY_DIGEST;
-            case NotificationPreference.MODE_IN_APP_ONLY -> NotificationDispatchDecision.IN_APP_ONLY;
             default -> NotificationDispatchDecision.IN_APP_ONLY;
         };
+    }
+
+    private static boolean isHighRisk(MonitorEvent event) {
+        MonitorRisk risk = NotificationEventMetadataMapper.canonicalRisk(event);
+        return risk == MonitorRisk.HIGH || risk == MonitorRisk.CRITICAL;
     }
 
     private static MonitorEventType eventType(MonitorEvent event) {
@@ -60,14 +79,4 @@ public class NotificationPreferenceResolver {
         };
     }
 
-    private static NotificationDispatchDecision defaultDecision(MonitorEvent event) {
-        return isHighRisk(event)
-            ? NotificationDispatchDecision.IMMEDIATE_EMAIL
-            : NotificationDispatchDecision.DAILY_DIGEST;
-    }
-
-    private static boolean isHighRisk(MonitorEvent event) {
-        MonitorRisk risk = NotificationEventMetadataMapper.canonicalRisk(event);
-        return risk == MonitorRisk.HIGH || risk == MonitorRisk.CRITICAL;
-    }
 }

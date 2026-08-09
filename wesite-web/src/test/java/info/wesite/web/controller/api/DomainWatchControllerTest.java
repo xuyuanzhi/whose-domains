@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -22,6 +23,7 @@ import info.wesite.core.entity.DomainWatch;
 import info.wesite.core.entity.User;
 import info.wesite.core.service.DomainService;
 import info.wesite.core.service.DomainWatchService;
+import info.wesite.core.mapper.UserNotificationMapper;
 import info.wesite.core.view.ResponseJson;
 
 @SuppressWarnings({ "rawtypes", "unchecked" })
@@ -29,6 +31,7 @@ class DomainWatchControllerTest {
 
     private DomainWatchService watches;
     private DomainWatchController controller;
+    private UserNotificationMapper notifications;
 
     @BeforeEach
     void setUp() {
@@ -36,6 +39,8 @@ class DomainWatchControllerTest {
         controller = new DomainWatchController();
         ReflectionTestUtils.setField(controller, "domainWatchService", watches);
         ReflectionTestUtils.setField(controller, "domainService", mock(DomainService.class));
+        notifications = mock(UserNotificationMapper.class);
+        ReflectionTestUtils.setField(controller, "notificationMapper", notifications);
 
         User user = new User();
         user.setId("user-1");
@@ -92,5 +97,71 @@ class DomainWatchControllerTest {
         assertEquals(ResponseJson.CODE_SUCCESS, response.getCode());
         assertSame(winner, response.getData());
         verify(watches).save(any(DomainWatch.class));
+    }
+
+    @Test
+    void updatePersistsTheValidatedTrimmedNotificationEmailAndCanClearIt() {
+        DomainWatch existing = new DomainWatch();
+        existing.setId("watch-1");
+        existing.setUserId("user-1");
+        existing.setDomainName("example.com");
+        existing.setStatus(BaseEntity.STATUS_ACTIVE);
+        existing.setNotifyEmail("old@example.com");
+        when(watches.getOne(any(Wrapper.class))).thenReturn(existing);
+        when(watches.updateById(existing)).thenReturn(true);
+
+        DomainWatch update = new DomainWatch();
+        update.setNotifyType(DomainWatch.NOTIFY_7_DAYS);
+        update.setNotifyEmail("  alerts@example.com  ");
+        ResponseJson<DomainWatch> saved = controller.updateWatch("watch-1", update);
+
+        assertEquals(ResponseJson.CODE_SUCCESS, saved.getCode());
+        assertEquals("alerts@example.com", existing.getNotifyEmail());
+        assertEquals(DomainWatch.NOTIFY_7_DAYS, existing.getNotifyType());
+
+        DomainWatch clear = new DomainWatch();
+        clear.setNotifyType(DomainWatch.NOTIFY_NONE);
+        clear.setNotifyEmail(null);
+        controller.updateWatch("watch-1", clear);
+        assertEquals(null, existing.getNotifyEmail());
+        verify(notifications, times(2)).cancelUnclaimedForWatch(
+            org.mockito.ArgumentMatchers.eq("user-1"),
+            org.mockito.ArgumentMatchers.eq("watch-1"), any());
+    }
+
+    @Test
+    void createAndUpdateRejectHeaderInjectionOrMalformedRecipientAddresses() {
+        DomainWatch create = new DomainWatch();
+        create.setDomainName("example.com");
+        create.setNotifyType(DomainWatch.NOTIFY_BOTH);
+        create.setNotifyEmail("victim@example.com\r\nBcc: attacker@example.com");
+        assertEquals(ResponseJson.CODE_FAILURE, controller.watchDomain(create).getCode());
+
+        DomainWatch existing = new DomainWatch();
+        existing.setId("watch-1");
+        existing.setUserId("user-1");
+        existing.setStatus(BaseEntity.STATUS_ACTIVE);
+        when(watches.getOne(any(Wrapper.class))).thenReturn(existing);
+        DomainWatch update = new DomainWatch();
+        update.setNotifyEmail("not-an-email");
+        assertEquals(ResponseJson.CODE_FAILURE, controller.updateWatch("watch-1", update).getCode());
+        verify(watches, never()).updateById(existing);
+    }
+
+    @Test
+    void unwatchCancelsOnlyUnclaimedEmailForThatWatch() {
+        DomainWatch existing = new DomainWatch();
+        existing.setId("watch-1");
+        existing.setUserId("user-1");
+        existing.setStatus(BaseEntity.STATUS_ACTIVE);
+        when(watches.getOne(any(Wrapper.class))).thenReturn(existing);
+        when(watches.updateById(existing)).thenReturn(true);
+
+        ResponseJson<String> response = controller.unwatchDomain("watch-1");
+
+        assertEquals(ResponseJson.CODE_SUCCESS, response.getCode());
+        verify(notifications).cancelUnclaimedForWatch(
+                org.mockito.ArgumentMatchers.eq("user-1"),
+                org.mockito.ArgumentMatchers.eq("watch-1"), any());
     }
 }

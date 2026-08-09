@@ -33,14 +33,13 @@ import org.thymeleaf.spring6.SpringTemplateEngine;
 import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver;
 
 import info.wesite.core.entity.MonitorEvent;
-import info.wesite.core.entity.User;
 import info.wesite.core.entity.UserNotification;
 import info.wesite.core.mail.Mail;
 import info.wesite.core.mail.MailSendResult;
 import info.wesite.core.mail.MailSender;
 import info.wesite.core.mapper.UserNotificationMapper;
+import info.wesite.core.mapper.model.NotificationDigestRecipientRow;
 import info.wesite.core.service.MonitorEventService;
-import info.wesite.core.service.UserService;
 import info.wesite.web.notification.DeliveryAttemptDetails;
 import info.wesite.web.notification.DeliveryBatchClaim;
 import info.wesite.web.notification.NotificationDeliveryCoordinator;
@@ -52,7 +51,6 @@ class NotificationDeliveryTaskTest {
 
     private UserNotificationMapper notificationMapper;
     private MonitorEventService eventService;
-    private UserService userService;
     private NotificationDeliveryCoordinator coordinator;
     private MailSender mailSender;
     private NotificationDeliveryTask task;
@@ -61,17 +59,20 @@ class NotificationDeliveryTaskTest {
     void setUp() {
         notificationMapper = mock(UserNotificationMapper.class);
         eventService = mock(MonitorEventService.class);
-        userService = mock(UserService.class);
         coordinator = mock(NotificationDeliveryCoordinator.class);
         mailSender = mock(MailSender.class);
         when(coordinator.retryNext(anyString(), any(Instant.class), any(Instant.class)))
             .thenReturn(Optional.empty());
         when(notificationMapper.selectImmediateCandidateIds(anyString(), eq(500))).thenReturn(List.of());
-        when(notificationMapper.selectDigestCandidateUserIds(
-            anyString(), any(Date.class), anyString(), eq(100))).thenReturn(List.of());
+        when(notificationMapper.selectDigestCandidates(
+            anyString(), any(Date.class), anyString(), anyString(), eq(100))).thenReturn(List.of());
+        when(eventService.listByIds(any())).thenAnswer(invocation -> {
+            java.util.Collection<String> ids = invocation.getArgument(0);
+            return ids.stream().map(NotificationDeliveryTaskTest::event).toList();
+        });
         when(mailSender.send(any(Mail.class))).thenReturn(MailSendResult.ok());
         task = new NotificationDeliveryTask(
-            notificationMapper, eventService, userService, coordinator, mailSender, CLOCK);
+            notificationMapper, eventService, coordinator, mailSender, CLOCK);
     }
 
     @Test
@@ -83,9 +84,6 @@ class NotificationDeliveryTaskTest {
             .thenReturn(Optional.of(claim));
         when(notificationMapper.selectBatchMembers("batch-1"))
             .thenReturn(List.of(notification("notification-1", "event-1")));
-        when(eventService.getById("event-1")).thenReturn(event("event-1"));
-        when(userService.getById("user-1")).thenReturn(user("person@example.com"));
-
         task.deliverImmediate();
 
         InOrder order = inOrder(coordinator, mailSender);
@@ -93,6 +91,9 @@ class NotificationDeliveryTaskTest {
         order.verify(mailSender).send(any(Mail.class));
         order.verify(coordinator).complete(eq(claim), eq(true), any(DeliveryAttemptDetails.class),
             any(Instant.class), any(Instant.class));
+        ArgumentCaptor<Mail> frozen = ArgumentCaptor.forClass(Mail.class);
+        verify(mailSender).send(frozen.capture());
+        assertEquals(List.of("watch@example.com"), frozen.getValue().getTo());
     }
 
     @Test
@@ -129,24 +130,24 @@ class NotificationDeliveryTaskTest {
     @Test
     void dailyDigestContainsAll501AtomicallyAssignedEvents() {
         DeliveryBatchClaim claim = new DeliveryBatchClaim(
-            "batch-1", "user-1", "DAILY_DIGEST", "2026-08-09", 1, "claim-1");
+            "batch-1", "user-1", "DAILY_DIGEST", "2026-08-09", 1, "claim-1",
+            "digest@example.com");
         List<UserNotification> notifications = IntStream.rangeClosed(1, 501)
             .mapToObj(index -> notification("notification-" + index, "event-" + index))
             .toList();
-        when(notificationMapper.selectDigestCandidateUserIds(
-            eq("DAILY_DIGEST"), any(Date.class), eq(""), eq(100)))
-            .thenReturn(List.of("user-1"));
+        when(notificationMapper.selectDigestCandidates(
+            eq("DAILY_DIGEST"), any(Date.class), eq(""), eq(""), eq(100)))
+            .thenReturn(List.of(recipient("user-1", "digest@example.com")));
         when(coordinator.startDigest(eq("user-1"), eq("DAILY_DIGEST"), eq("2026-08-09"),
-            any(Instant.class), any(Instant.class), any(Instant.class))).thenReturn(Optional.of(claim));
+            eq("digest@example.com"), any(Instant.class), any(Instant.class), any(Instant.class)))
+            .thenReturn(Optional.of(claim));
         when(notificationMapper.selectBatchMembers("batch-1")).thenReturn(notifications);
-        when(eventService.getById(anyString())).thenAnswer(invocation -> event(invocation.getArgument(0)));
-        when(userService.getById("user-1")).thenReturn(user("person@example.com"));
-
         task.deliverDailyDigest();
 
         ArgumentCaptor<Mail> mail = ArgumentCaptor.forClass(Mail.class);
         verify(mailSender).send(mail.capture());
         assertEquals(501, events(mail.getValue()).size());
+        verify(eventService, times(1)).listByIds(any());
     }
 
     @Test
@@ -164,9 +165,6 @@ class NotificationDeliveryTaskTest {
             String id = batchId.substring("batch-".length());
             return List.of(notification(id, "event-" + id));
         });
-        when(eventService.getById(anyString())).thenAnswer(invocation -> event(invocation.getArgument(0)));
-        when(userService.getById("user-1")).thenReturn(user("person@example.com"));
-
         task.deliverImmediate();
 
         verify(notificationMapper).selectImmediateCandidateIds("", 500);
@@ -181,9 +179,6 @@ class NotificationDeliveryTaskTest {
             .thenReturn(Optional.of(third), Optional.empty());
         when(notificationMapper.selectBatchMembers("batch-1"))
             .thenReturn(List.of(notification("notification-1", "event-1")));
-        when(eventService.getById("event-1")).thenReturn(event("event-1"));
-        when(userService.getById("user-1")).thenReturn(user("person@example.com"));
-
         task.deliverImmediate();
 
         verify(mailSender).send(any(Mail.class));
@@ -195,10 +190,12 @@ class NotificationDeliveryTaskTest {
     @Test
     void digestSqlClaimsOneUserWindowWithoutALimitOrImmediateItems() throws Exception {
         String assignment = sql(UserNotificationMapper.class.getMethod(
-            "assignDigestToBatch", String.class, String.class, String.class, Date.class, Date.class)
+            "assignDigestToBatch", String.class, String.class, String.class, String.class,
+            Date.class, Date.class)
             .getAnnotation(Update.class).value());
         assertTrue(assignment.contains("USER_ID = #{USERID}"));
         assertTrue(assignment.contains("EMAIL_MODE = #{EMAILMODE}"));
+        assertTrue(assignment.contains("RECIPIENT_EMAIL = #{RECIPIENTEMAIL}"));
         assertTrue(assignment.contains("EMAIL_STATE = 'QUEUED'"));
         assertTrue(assignment.contains("DELIVERY_BATCH_ID IS NULL"));
         assertFalse(assignment.contains("LIMIT"));
@@ -208,9 +205,9 @@ class NotificationDeliveryTaskTest {
         assertFalse(members.contains("LIMIT"));
 
         String users = sql(UserNotificationMapper.class.getMethod(
-            "selectDigestCandidateUserIds", String.class, Date.class, String.class, int.class)
+            "selectDigestCandidates", String.class, Date.class, String.class, String.class, int.class)
             .getAnnotation(Select.class).value());
-        assertTrue(users.contains("SELECT DISTINCT USER_ID"));
+        assertTrue(users.contains("GROUP BY USER_ID, RECIPIENT_EMAIL"));
         assertTrue(users.contains("USER_ID > #{AFTERUSERID}"));
     }
 
@@ -253,7 +250,15 @@ class NotificationDeliveryTaskTest {
 
     private static DeliveryBatchClaim claim(String batchId, String notificationId, int attempt) {
         return new DeliveryBatchClaim(
-            batchId, "user-1", "IMMEDIATE_EMAIL", notificationId, attempt, "claim-" + attempt);
+            batchId, "user-1", "IMMEDIATE_EMAIL", notificationId, attempt, "claim-" + attempt,
+            "watch@example.com");
+    }
+
+    private static NotificationDigestRecipientRow recipient(String userId, String email) {
+        NotificationDigestRecipientRow row = new NotificationDigestRecipientRow();
+        row.setUserId(userId);
+        row.setRecipientEmail(email);
+        return row;
     }
 
     private static UserNotification notification(String id, String eventId) {
@@ -279,12 +284,6 @@ class NotificationDeliveryTaskTest {
         event.setNewValue("<new>");
         event.setOccurredAt(Date.from(Instant.parse("2026-08-09T00:00:00Z")));
         return event;
-    }
-
-    private static User user(String email) {
-        User user = new User();
-        user.setEmail(email);
-        return user;
     }
 
     private static SpringTemplateEngine templateEngine() {

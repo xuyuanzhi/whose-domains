@@ -142,13 +142,16 @@ mysql -u root -p wesitedb -e "
 SELECT TABLE_NAME
 FROM information_schema.TABLES
 WHERE TABLE_SCHEMA = DATABASE()
-  AND TABLE_NAME IN ('WEB_DOMAIN_WATCH','WEB_DOMAIN_SNAPSHOT','WEB_DOMAIN_WATCH_NOTIFY_LOG','WEB_MONITOR_SNAPSHOT','WEB_MONITOR_EVENT','WEB_USER_NOTIFICATION','WEB_NOTIFICATION_DELIVERY_BATCH','WEB_USER_QUERY_HISTORY','WEB_API_USAGE_DAILY')
+  AND TABLE_NAME IN ('WEB_DOMAIN_WATCH','WEB_DOMAIN_SNAPSHOT','WEB_DOMAIN_WATCH_NOTIFY_LOG','WEB_MONITOR_SNAPSHOT','WEB_MONITOR_EVENT','WEB_USER_NOTIFICATION','WEB_NOTIFICATION_DELIVERY_BATCH','WEB_NOTIFICATION_PREFERENCE','WEB_AUTHENTICATED_ACTIVITY_DAILY')
 ORDER BY TABLE_NAME;
 SELECT TABLE_NAME, COLUMN_NAME
 FROM information_schema.COLUMNS
 WHERE TABLE_SCHEMA = DATABASE()
   AND ((TABLE_NAME = 'WEB_MONITOR_SNAPSHOT' AND COLUMN_NAME IN ('SCHEMA_VERSION','OBSERVED_SOURCES'))
-    OR (TABLE_NAME = 'WEB_MONITOR_EVENT' AND COLUMN_NAME IN ('RISK','SOURCE')))
+    OR (TABLE_NAME = 'WEB_MONITOR_EVENT' AND COLUMN_NAME IN ('RISK','SOURCE'))
+    OR (TABLE_NAME = 'WEB_USER_NOTIFICATION' AND COLUMN_NAME IN ('RECIPIENT_EMAIL','EMAIL_MODE','EMAIL_ATTEMPT_COUNT','EMAIL_CLAIM_TOKEN','DELIVERY_BATCH_ID'))
+    OR (TABLE_NAME = 'WEB_NOTIFICATION_DELIVERY_BATCH' AND COLUMN_NAME IN ('RECIPIENT_EMAIL','CANCELLATION_REQUESTED'))
+    OR (TABLE_NAME = 'WEB_DOMAIN_WATCH' AND COLUMN_NAME IN ('NOTIFY_EMAIL','SCAN_CLAIM_TOKEN','SCAN_CLAIM_UNTIL')))
 ORDER BY TABLE_NAME, COLUMN_NAME;"
 ```
 
@@ -168,7 +171,7 @@ Do **not** run `doc/alter_domain_watch_snapshot.sql` on Path A: its unguarded `C
    mysql -u root -p wesitedb < doc/alter_domain_watch_snapshot.sql
    ```
 
-2. Confirm `WEB_DOMAIN_WATCH_NOTIFY_LOG` exists, and that all four retention tables (`WEB_MONITOR_SNAPSHOT`, `WEB_MONITOR_EVENT`, `WEB_USER_NOTIFICATION`, and `WEB_NOTIFICATION_DELIVERY_BATCH`) are absent. Then apply the current retention baseline exactly once:
+2. Confirm `WEB_DOMAIN_WATCH_NOTIFY_LOG` exists, and that all five retention tables (`WEB_MONITOR_SNAPSHOT`, `WEB_MONITOR_EVENT`, `WEB_USER_NOTIFICATION`, `WEB_NOTIFICATION_DELIVERY_BATCH`, and `WEB_NOTIFICATION_PREFERENCE`) plus `WEB_AUTHENTICATED_ACTIVITY_DAILY` are absent. Then apply the current retention baseline exactly once:
 
    ```bash
    mysql -u root -p wesitedb < doc/alter_retention_notification_center.sql
@@ -176,14 +179,23 @@ Do **not** run `doc/alter_domain_watch_snapshot.sql` on Path A: its unguarded `C
 
    If only some retention tables exist, stop and reconcile that partial migration from backup/change records; the baseline uses unguarded `CREATE TABLE` statements and must not be retried blindly.
 
-3. If the retention baseline was applied by an **older release** and preflight confirms the two columns in each group are absent, apply the subsequent incremental migrations exactly once and only in this order:
+The Path B order is therefore: legacy watch/snapshot script only when both tables are absent → current retention baseline once. Never re-run a `CREATE TABLE` or `ADD COLUMN` migration against a schema that already contains its objects. Record the applied script name, deploy version, operator, and UTC time in the production change record.
+
+**Legacy e73ff4d upgrade — old notification baseline already present.** If preflight shows the four e73ff4d notification tables (`WEB_MONITOR_SNAPSHOT`, `WEB_MONITOR_EVENT`, `WEB_USER_NOTIFICATION`, and `WEB_NOTIFICATION_PREFERENCE`) but no delivery-batch/activity table or new claim/recipient columns, do not run the current baseline or the two historical two-column increments. The checked-in e73ff4d schema has no `WEB_DOMAIN_WATCH.NOTIFY_EMAIL`; the same increment also accepts operational installations that independently added that one legacy field. Back up the tables, stop workers, and apply the single complete increment:
 
 ```bash
-mysql -u root -p wesitedb < doc/alter_monitor_snapshot_observation_sources.sql
-mysql -u root -p wesitedb < doc/alter_monitor_event_canonical_risk.sql
+mysql -u root -p wesitedb < doc/alter_retention_notification_center_from_e73ff4d.sql
 ```
 
-The retention order is therefore: legacy watch/snapshot script only when both tables are absent → retention baseline once → snapshot-provenance increment only when both columns are absent → event-risk increment only when both columns are absent. Verify `WEB_USER_QUERY_HISTORY` and `WEB_API_USAGE_DAILY` before running the retention report; current `create.sql` provides both. Never re-run a `CREATE TABLE` or `ADD COLUMN` migration against a schema that already contains its objects. Record the applied script name, deploy version, operator, and UTC time in the production change record.
+This increment adds every schema change through the current release. On the exact e73ff4d shape it adds an empty watch recipient field and safely converts every old email route to in-app only. On the operational legacy-field shape it validates and preserves watch recipients, freezes them onto still-compatible queued notifications, and cancels ambiguous, malformed, or opted-out routes. It never derives a recipient from `SYS_USER.EMAIL`. Apart from the explicitly supported presence or absence of that one watch field, if the preflight does not match the old baseline, stop and reconcile the partial migration rather than guessing which statements to skip.
+
+The rollout verifier exercises the three deployment paths in disposable MySQL 8.4 containers; `LegacyUpgrade` runs both the exact e73ff4d schema and its operational watch-email variant:
+
+```powershell
+powershell.exe -NoProfile -File scripts/verify-retention-rollout.ps1 -Fixture PathA
+powershell.exe -NoProfile -File scripts/verify-retention-rollout.ps1 -Fixture PathB
+powershell.exe -NoProfile -File scripts/verify-retention-rollout.ps1 -Fixture LegacyUpgrade
+```
 
 #### Worker schedule and SMTP dependency
 
@@ -193,8 +205,9 @@ The monitoring worker is active only in the `prod` and `mac` Spring profiles. Ea
 | --- | --- | --- | --- |
 | Domain monitor | `prod`/`mac` profile | `0 0 3 * * ?` | Runs daily at 03:00; records successful snapshots and publishes deduplicated monitoring events. |
 | Immediate delivery | `wesite.notification-delivery.immediate-enabled=true` and `wesite.mail.enabled=true` | `0 */5 * * * ?` | Every five minutes; claims queued immediate notifications in pages of 500. |
-| Daily digest | `wesite.notification-delivery.digest-enabled=true` and `wesite.mail.enabled=true` | `0 0 8 * * ?` | Daily at 08:00; one UTC-date batch per user. |
-| Weekly digest | `wesite.notification-delivery.digest-enabled=true` and `wesite.mail.enabled=true` | `0 0 8 * * MON` | Mondays at 08:00; one ISO-week batch per user. |
+| Daily digest | `wesite.notification-delivery.digest-enabled=true` and `wesite.mail.enabled=true` | `0 0 8 * * ?` | Daily at 08:00; one UTC-date batch per user and frozen watch recipient. |
+| Weekly digest | `wesite.notification-delivery.digest-enabled=true` and `wesite.mail.enabled=true` | `0 0 8 * * MON` | Mondays at 08:00; one ISO-week batch per user and frozen watch recipient. |
+| Digest recovery | Same digest properties | `0 */5 * * * ?` | Every five minutes; terminalizes expired cancellations and retries only already-created durable digest batches. |
 
 Email dispatch requires a configured `spring.mail.host` so that `MailSender` is available. For the bundled Resend SMTP example, set `RESEND_API_KEY`, `WESITE_MAIL_FROM`, and (when needed) `WESITE_MAIL_REPLY_TO`, then configure the host/port/TLS/auth values in the external `application-prod.properties` from the example. `wesite.mail.enabled=false` is a hard registration gate: neither delivery job exists even if its rollout property is true, and a direct disabled-sender call returns failure. Operators should still turn both delivery properties `false` first because they are the explicit phase controls; this keeps the in-app-only phase independent of SMTP configuration and guarantees that no job can claim or mutate queued notifications.
 
@@ -206,7 +219,7 @@ The migration preserves historical `WEB_DOMAIN_WATCH_NOTIFY_LOG` rows. Legacy fa
 mysqldump -u root -p wesitedb WEB_DOMAIN_WATCH_NOTIFY_LOG WEB_USER_NOTIFICATION > retention-pre-migration.sql
 ```
 
-There is no destructive automatic down migration. To roll back an application release, stop the new instances/workers, deploy the previous application binary, and leave the additive tables and columns in place. To reverse the legacy-row data updates as well, restore the pre-migration backup during the rollback window; do not guess prior delivery state or replay archived logs. A delivery attempt is at-least-once: a process failure after SMTP accepts a message but before completion is persisted can result in a duplicate email after the lease expires.
+There is no destructive automatic down migration. To roll back an application release, stop the new instances/workers, deploy the previous application binary, and leave the additive tables and columns in place. To reverse the legacy-row data updates as well, restore the pre-migration backup during the rollback window; do not guess prior delivery state or replay archived logs. A delivery attempt is at-least-once: a process failure after SMTP accepts a message but before completion is persisted can result in a duplicate email after the lease expires. Changing the global preference to in-app only immediately cancels queued/failed work. A batch whose SMTP attempt is already claimed is the safety boundary: an accepted success is recorded as sent, while failure or lease expiry terminalizes it as cancelled and it is never retried.
 
 #### Phased enablement and production checklist
 
@@ -222,11 +235,11 @@ Before each phase, verify the application health check, migration record, profil
 
 #### Retention measurement (7-day and 30-day)
 
-Use GA4 only with the privacy-safe custom events `watch_created`, `watchlist_return_visit`, `notification_opened`, `notification_action_clicked`, and `notification_preferences_saved`. The client sends only allowlisted `type`, `category`, `risk`, and UI `source` values after successful API responses. It never sends a domain, email, user ID, event ID, notification text, or any free-form UI value; missing `gtag` is a no-op.
+Use GA4 only with the privacy-safe custom events `watch_created`, `watchlist_return_visit`, `notification_opened`, `notification_action_clicked`, `notification_preferences_saved`, and `domain_detail_cta_clicked`. The client sends only allowlisted `type`, `category`, `risk`, and UI `source` values. It never sends a domain, email, user ID, event ID, notification text, or any free-form UI value; missing `gtag` is a no-op. `notification_opened` means the in-app center loaded successfully; email-open tracking is not implemented and must not be inferred from it.
 
 The account-level source of record is the local MySQL aggregate report, not GA4. Run it with a database account allowed to create temporary tables; it selects only daily/overall aggregates and never emits a user ID:
 
-Before running it, edit the first `SET time_zone = '+08:00'` line to the production JVM's fixed default offset, and require the MySQL reporting session to use that same offset. This is deliberate: API usage currently uses `LocalDate.now()` with the JVM default zone, while query history uses local application/database timestamps. Do not switch this report to UTC unless the production JVM and database are both configured for UTC. The production deployment checklist therefore requires a single documented JVM/database/reporting offset (and a planned offset update for DST regions).
+Before running it, edit the first `SET time_zone = '+08:00'` line to the production JVM's fixed default offset, and require the MySQL reporting session to use that same offset. This is deliberate: the authenticated daily fact uses `LocalDate.now()` with the JVM default zone. Do not switch this report to UTC unless the production JVM and database are both configured for UTC. The production deployment checklist therefore requires a single documented JVM/database/reporting offset (and a planned offset update for DST regions).
 
 ```bash
 mysql -u retention_reporter -p wesitedb < scripts/retention-report.sql
@@ -237,9 +250,7 @@ The script uses these persisted fields, deduplicated by `(USER_ID, activity_date
 | Purpose | Persisted source |
 | --- | --- |
 | Monitored cohort | `WEB_DOMAIN_WATCH.CREATE_TIME`; cohort date is each user's first watch creation date, including a watch later soft-deleted. |
-| Authenticated activity | `WEB_USER_QUERY_HISTORY.CREATE_TIME` where `USER_ID` is present; the request thread captures the authenticated ID before asynchronous persistence, so the worker never depends on `UserHolder` thread-local context. |
-| Notification interaction | `WEB_USER_NOTIFICATION.READ_AT`; this is a durable successful read action. A notification-link click is not currently persisted and is intentionally not inferred. |
-| API activity | `WEB_API_USAGE_DAILY.USAGE_DATE` where `REQUEST_COUNT > 0`. |
+| Authenticated activity | `WEB_AUTHENTICATED_ACTIVITY_DAILY.ACTIVITY_DATE`; the interceptor writes at most one minimal `(USER_ID, ACTIVITY_DATE)` fact per authenticated user/day and stores no path, domain, email, or request payload. Keep these facts for at least 30 days. |
 
 The monitored cohort contains every user whose first watch was created on the cohort day. The non-monitored control contains users on their first observed authenticated-activity day who do not create a watch through the following 30 days. This prevents a control user who soon becomes monitored from contaminating the 30-day comparison. Both cohorts are closed at least 30 days in the configured reporting offset before execution, so their 7-day and 30-day outcomes are complete. A return is any later persisted activity above on days 1–7 or 1–30, counted at most once per user per window before the script aggregates it.
 
@@ -249,7 +260,7 @@ The monitored cohort contains every user whose first watch was created on the co
 lift                = monitored return rate - comparison return rate
 ```
 
-The first result set is a daily closed-cohort trend; the second is the 90-day aggregate comparison. `cohort_users` is the denominator, `returned_users_7d`/`returned_users_30d` are unique returning users, and `return_rate_*_pct` is their percentage. Compute monitored-minus-control lift from the two aggregate rows. GA4 may still show an anonymous privacy-safe funnel trend, but it must not be used for an account-level cohort comparison because no user ID is sent. This is an observational comparison, not a causal claim; repeat it weekly and inspect both absolute lift and confidence intervals before changing notification policy.
+The first result set is a daily closed-cohort trend; the second is the 90-day aggregate comparison. Both suppress any emitted cohort with fewer than five users (`@minimum_cohort_size = 5`) so the report never exposes tiny groups. `cohort_users` is the denominator, `returned_users_7d`/`returned_users_30d` are unique returning users, and `return_rate_*_pct` is their percentage. Compute monitored-minus-control lift from the two aggregate rows. GA4 may still show an anonymous privacy-safe funnel trend, but it must not be used for an account-level cohort comparison because no user ID is sent. This is an observational comparison, not a causal claim; repeat it weekly and inspect both absolute lift and confidence intervals before changing notification policy.
 
 ## Contributing
 

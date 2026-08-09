@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('Static', 'PathA', 'PathB', 'All')]
+    [ValidateSet('Static', 'PathA', 'PathB', 'LegacyUpgrade', 'All')]
     [string]$Fixture = 'All',
 
     [string]$DockerImage = 'mysql:8.4.0',
@@ -39,6 +39,10 @@ function Test-StaticRolloutContract {
     $baseline = Read-RepositoryText 'doc/alter_retention_notification_center.sql'
     $snapshotIncrement = Read-RepositoryText 'doc/alter_monitor_snapshot_observation_sources.sql'
     $eventIncrement = Read-RepositoryText 'doc/alter_monitor_event_canonical_risk.sql'
+    $completeIncrement = Read-RepositoryText 'doc/alter_retention_notification_center_from_e73ff4d.sql'
+    $legacyFixture = Read-RepositoryText 'doc/fixtures/e73ff4d_notification_baseline.sql'
+    $legacyWatchEmailFixture = Read-RepositoryText 'doc/fixtures/e73ff4d_notification_baseline_with_watch_email.sql'
+    $retentionReport = Read-RepositoryText 'scripts/retention-report.sql'
     $readme = Read-RepositoryText 'README.md'
     $application = Read-RepositoryText 'wesite-web/src/main/resources/application.properties'
     $productionExample = Read-RepositoryText 'wesite-web/src/main/resources/application-prod.properties.example'
@@ -65,12 +69,45 @@ function Test-StaticRolloutContract {
             'WEB_MONITOR_SNAPSHOT',
             'WEB_MONITOR_EVENT',
             'WEB_USER_NOTIFICATION',
-            'WEB_NOTIFICATION_DELIVERY_BATCH')) {
+            'WEB_NOTIFICATION_DELIVERY_BATCH',
+            'WEB_NOTIFICATION_PREFERENCE')) {
         Assert-Contains $baseline "CREATE TABLE ``$table``" "retention baseline missing $table"
     }
-    foreach ($column in @('SCHEMA_VERSION', 'OBSERVED_SOURCES', 'RISK', 'SOURCE')) {
+    foreach ($column in @(
+            'SCHEMA_VERSION', 'OBSERVED_SOURCES', 'RISK', 'SOURCE',
+            'RECIPIENT_EMAIL', 'EMAIL_ATTEMPT_COUNT', 'EMAIL_CLAIM_TOKEN',
+            'DELIVERY_BATCH_ID', 'CANCELLATION_REQUESTED', 'SCAN_CLAIM_TOKEN',
+            'SCAN_CLAIM_UNTIL')) {
         Assert-Contains $baseline "``$column``" "retention baseline missing $column"
     }
+    Assert-Contains $baseline 'CREATE TABLE `WEB_AUTHENTICATED_ACTIVITY_DAILY`' 'baseline missing daily authenticated activity fact'
+    Assert-Contains $baseline '(`USER_ID`, `EMAIL_MODE`, `RECIPIENT_EMAIL`, `WINDOW_KEY`)' 'baseline batch identity must include the frozen recipient'
+
+    Assert-Contains $completeIncrement 'git e73ff4d' 'complete increment must identify its exact old baseline'
+    foreach ($table in @('WEB_NOTIFICATION_DELIVERY_BATCH', 'WEB_AUTHENTICATED_ACTIVITY_DAILY')) {
+        Assert-Contains $completeIncrement "CREATE TABLE ``$table``" "complete increment missing $table"
+    }
+    foreach ($column in @(
+            'RECIPIENT_EMAIL', 'EMAIL_ATTEMPT_COUNT', 'EMAIL_CLAIM_TOKEN',
+            'CANCELLATION_REQUESTED', 'SCAN_CLAIM_TOKEN', 'SCAN_CLAIM_UNTIL')) {
+        Assert-Contains $completeIncrement "``$column``" "complete increment missing $column"
+    }
+    Assert-Contains $completeIncrement 'W.`NOTIFY_TYPE` = 0' 'legacy queued routes must honor watch-level opt-out'
+    Assert-Contains $completeIncrement 'W.`NOTIFY_EMAIL` IS NULL' 'legacy upgrade must not infer account recipients'
+    Assert-Contains $legacyFixture "'n-seven'" 'legacy fixture must include upgrade data, not only empty DDL'
+    Assert-RolloutContract (
+        -not $legacyFixture.Contains('`NOTIFY_EMAIL` varchar')
+    ) 'exact e73ff4d fixture must not invent a watch email column'
+    Assert-Contains $legacyWatchEmailFixture 'SOURCE /sql/doc/fixtures/e73ff4d_notification_baseline.sql' 'watch-email compatibility fixture must extend the exact e73ff4d fixture'
+    Assert-Contains $completeIncrement '@watch_notify_email_exists' 'complete increment must handle the exact e73ff4d schema without NOTIFY_EMAIL'
+    Assert-Contains $completeIncrement 'ADD COLUMN `NOTIFY_EMAIL`' 'complete increment must add the missing e73ff4d watch email field'
+    Assert-Contains $completeIncrement 'MODIFY COLUMN `NOTIFY_EMAIL`' 'complete increment must preserve operational legacy watch recipients'
+    Assert-Contains $completeIncrement '(`USER_ID`, `EMAIL_MODE`, `RECIPIENT_EMAIL`, `WINDOW_KEY`)' 'complete increment batch identity must include the frozen recipient'
+
+    Assert-Contains $retentionReport 'FROM WEB_AUTHENTICATED_ACTIVITY_DAILY' 'retention report must use daily authenticated activity facts'
+    Assert-RolloutContract (-not $retentionReport.Contains('WEB_USER_QUERY_HISTORY')) 'retention report must not rely on capped query history'
+    Assert-Contains $retentionReport 'SET @minimum_cohort_size = 5' 'retention report must define k-anonymity threshold'
+    Assert-Contains $retentionReport 'cohort_users >= @minimum_cohort_size' 'daily cohorts below k must be suppressed'
 
     Assert-RolloutContract (
         [regex]::Matches($snapshotIncrement, '(?im)^ALTER TABLE `WEB_MONITOR_SNAPSHOT`').Count -eq 1 -and
@@ -86,16 +123,17 @@ function Test-StaticRolloutContract {
     $pathB = $readme.Substring($pathBStart)
     $legacyPosition = $pathB.IndexOf('alter_domain_watch_snapshot.sql')
     $baselinePosition = $pathB.IndexOf('alter_retention_notification_center.sql')
-    $snapshotPosition = $pathB.IndexOf('alter_monitor_snapshot_observation_sources.sql')
-    $eventPosition = $pathB.IndexOf('alter_monitor_event_canonical_risk.sql')
     Assert-RolloutContract (
         $legacyPosition -ge 0 -and
-        $legacyPosition -lt $baselinePosition -and
-        $baselinePosition -lt $snapshotPosition -and
-        $snapshotPosition -lt $eventPosition
-    ) 'README Path B migration order is not legacy -> baseline -> snapshot -> event'
+        $legacyPosition -lt $baselinePosition
+    ) 'README Path B migration order is not legacy -> baseline'
+    $legacyUpgradeStart = $readme.IndexOf('**Legacy e73ff4d upgrade')
+    Assert-RolloutContract ($legacyUpgradeStart -ge 0) 'README Legacy e73ff4d upgrade section is missing'
+    $legacyUpgrade = $readme.Substring($legacyUpgradeStart)
+    Assert-Contains $legacyUpgrade 'alter_retention_notification_center_from_e73ff4d.sql' 'README must prescribe the complete e73ff4d increment'
     Assert-Contains $readme 'If exactly one is present, stop' 'README missing partial legacy stop guard'
     Assert-Contains $readme 'If only some retention tables exist, stop' 'README missing partial baseline stop guard'
+    Assert-Contains $readme '-Fixture LegacyUpgrade' 'README must document the real legacy-upgrade verifier'
 
     $immediateLine = 'wesite.notification-delivery.immediate-enabled=${WESITE_NOTIFICATION_DELIVERY_IMMEDIATE_ENABLED:false}'
     $digestLine = 'wesite.notification-delivery.digest-enabled=${WESITE_NOTIFICATION_DELIVERY_DIGEST_ENABLED:false}'
@@ -246,7 +284,7 @@ function Assert-RetentionSchema(
 SELECT COUNT(*)
 FROM information_schema.TABLES
 WHERE TABLE_SCHEMA = 'wesitedb'
-  AND TABLE_NAME IN ('WEB_MONITOR_SNAPSHOT','WEB_MONITOR_EVENT','WEB_USER_NOTIFICATION','WEB_NOTIFICATION_DELIVERY_BATCH')
+  AND TABLE_NAME IN ('WEB_MONITOR_SNAPSHOT','WEB_MONITOR_EVENT','WEB_USER_NOTIFICATION','WEB_NOTIFICATION_DELIVERY_BATCH','WEB_NOTIFICATION_PREFERENCE')
 '@
     $canonicalColumns = Get-FixtureCount $ContainerName $Password @'
 SELECT COUNT(*)
@@ -255,6 +293,30 @@ WHERE TABLE_SCHEMA = 'wesitedb'
   AND ((TABLE_NAME = 'WEB_MONITOR_SNAPSHOT' AND COLUMN_NAME IN ('SCHEMA_VERSION','OBSERVED_SOURCES'))
     OR (TABLE_NAME = 'WEB_MONITOR_EVENT' AND COLUMN_NAME IN ('RISK','SOURCE')))
 '@
+    $pipelineColumns = Get-FixtureCount $ContainerName $Password @'
+SELECT COUNT(*)
+FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA = 'wesitedb'
+  AND ((TABLE_NAME = 'WEB_MONITOR_SNAPSHOT' AND COLUMN_NAME IN ('SCHEMA_VERSION','OBSERVED_SOURCES'))
+    OR (TABLE_NAME = 'WEB_MONITOR_EVENT' AND COLUMN_NAME IN ('RISK','SOURCE'))
+    OR (TABLE_NAME = 'WEB_USER_NOTIFICATION' AND COLUMN_NAME IN ('RECIPIENT_EMAIL','EMAIL_MODE','EMAIL_STATE','EMAIL_ATTEMPT_COUNT','EMAIL_CLAIM_TOKEN','EMAIL_CLAIM_UNTIL','DELIVERY_BATCH_ID'))
+    OR (TABLE_NAME = 'WEB_NOTIFICATION_DELIVERY_BATCH' AND COLUMN_NAME IN ('RECIPIENT_EMAIL','STATE','CLAIM_TOKEN','CLAIM_UNTIL','CANCELLATION_REQUESTED'))
+    OR (TABLE_NAME = 'WEB_NOTIFICATION_PREFERENCE' AND COLUMN_NAME IN ('EMAIL_MODE','DOMAIN_EXPIRY_ENABLED','SSL_EXPIRY_ENABLED','DOMAIN_STATUS_ENABLED','DNS_CHANGE_ENABLED','WEBSITE_AVAILABILITY_ENABLED')))
+'@
+    $watchColumns = Get-FixtureCount $ContainerName $Password @'
+SELECT COUNT(*)
+FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA = 'wesitedb'
+  AND TABLE_NAME = 'WEB_DOMAIN_WATCH'
+  AND COLUMN_NAME IN ('NOTIFY_EMAIL','SCAN_CLAIM_TOKEN','SCAN_CLAIM_UNTIL')
+'@
+    $activityColumns = Get-FixtureCount $ContainerName $Password @'
+SELECT COUNT(*)
+FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA = 'wesitedb'
+  AND TABLE_NAME = 'WEB_AUTHENTICATED_ACTIVITY_DAILY'
+  AND COLUMN_NAME IN ('USER_ID','ACTIVITY_DATE')
+'@
     $auditColumns = Get-FixtureCount $ContainerName $Password @'
 SELECT COUNT(*)
 FROM information_schema.COLUMNS
@@ -262,14 +324,77 @@ WHERE TABLE_SCHEMA = 'wesitedb'
   AND TABLE_NAME = 'WEB_DOMAIN_WATCH_NOTIFY_LOG'
   AND COLUMN_NAME IN ('NOTIFICATION_ID','BATCH_ID','EVENT_ID','DELIVERY_MODE')
 '@
+    $batchIdentityColumns = Get-FixtureCount $ContainerName $Password @'
+SELECT COUNT(*)
+FROM (
+  SELECT INDEX_NAME
+  FROM information_schema.STATISTICS
+  WHERE TABLE_SCHEMA = 'wesitedb'
+    AND TABLE_NAME = 'WEB_NOTIFICATION_DELIVERY_BATCH'
+    AND INDEX_NAME = 'UK_NOTIFICATION_BATCH_USER_MODE_WINDOW'
+    AND NON_UNIQUE = 0
+  GROUP BY INDEX_NAME
+  HAVING GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX SEPARATOR ',') =
+    'USER_ID,EMAIL_MODE,RECIPIENT_EMAIL,WINDOW_KEY'
+) exact_batch_identity
+'@
+    $batchRecipientRequired = Get-FixtureCount $ContainerName $Password @'
+SELECT COUNT(*)
+FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA = 'wesitedb'
+  AND TABLE_NAME = 'WEB_NOTIFICATION_DELIVERY_BATCH'
+  AND COLUMN_NAME = 'RECIPIENT_EMAIL'
+  AND IS_NULLABLE = 'NO'
+'@
 
-    Assert-RolloutContract ($tables -eq 4) "$Label expected four retention tables, found $tables"
+    Assert-RolloutContract ($tables -eq 5) "$Label expected five retention tables, found $tables"
     Assert-RolloutContract ($canonicalColumns -eq 4) "$Label expected four canonical columns, found $canonicalColumns"
+    Assert-RolloutContract ($pipelineColumns -eq 22) "$Label expected 22 key pipeline columns, found $pipelineColumns"
+    Assert-RolloutContract ($watchColumns -eq 3) "$Label expected three watch compatibility/lease columns, found $watchColumns"
+    Assert-RolloutContract ($activityColumns -eq 2) "$Label expected the daily activity fact columns, found $activityColumns"
     Assert-RolloutContract ($auditColumns -eq 4) "$Label expected four delivery audit columns, found $auditColumns"
-    Write-Host "RETENTION_ROLLOUT_FIXTURE|PASS|PATH=$Label|TABLES=$tables|CANONICAL_COLUMNS=$canonicalColumns|AUDIT_COLUMNS=$auditColumns"
+    Assert-RolloutContract ($batchIdentityColumns -eq 1) "$Label batch identity is not the exact frozen-recipient unique key"
+    Assert-RolloutContract ($batchRecipientRequired -eq 1) "$Label batch recipient must be required"
+    Write-Host "RETENTION_ROLLOUT_FIXTURE|PASS|PATH=$Label|TABLES=$tables|PIPELINE_COLUMNS=$pipelineColumns|WATCH_COLUMNS=$watchColumns|ACTIVITY_COLUMNS=$activityColumns|AUDIT_COLUMNS=$auditColumns"
 }
 
-function Invoke-MySqlFixture([ValidateSet('PathA', 'PathB')][string]$Path) {
+function Assert-LegacyUpgradeData(
+        [string]$ContainerName,
+        [string]$Password,
+        [bool]$HasLegacyWatchEmail) {
+    $allowed = Get-FixtureCount $ContainerName $Password @'
+SELECT COUNT(*) FROM WEB_USER_NOTIFICATION
+WHERE ID = 'n-seven' AND EMAIL_STATE = 'QUEUED'
+  AND EMAIL_MODE = 'IMMEDIATE_EMAIL' AND RECIPIENT_EMAIL = 'seven@example.com'
+'@
+    $cancelled = Get-FixtureCount $ContainerName $Password @'
+SELECT COUNT(*) FROM WEB_USER_NOTIFICATION
+WHERE ID IN ('n-none','n-seven','n-thirty','n-no-email')
+  AND EMAIL_STATE = 'IN_APP_ONLY' AND EMAIL_MODE = 'IN_APP_ONLY'
+  AND RECIPIENT_EMAIL IS NULL
+'@
+    $expectedAllowed = if ($HasLegacyWatchEmail) { 1 } else { 0 }
+    $expectedCancelled = if ($HasLegacyWatchEmail) { 3 } else { 4 }
+    Assert-RolloutContract ($allowed -eq $expectedAllowed) "Legacy upgrade expected $expectedAllowed compatible frozen recipients, found $allowed"
+    Assert-RolloutContract ($cancelled -eq $expectedCancelled) "Legacy upgrade expected $expectedCancelled incompatible routes cancelled, found $cancelled"
+    Write-Host "RETENTION_LEGACY_DATA|PASS|WATCH_EMAIL=$HasLegacyWatchEmail|ALLOWED=$allowed|CANCELLED=$cancelled"
+}
+
+function Assert-PathBWatchCompatibilityData([string]$ContainerName, [string]$Password) {
+    $preserved = Get-FixtureCount $ContainerName $Password @'
+SELECT COUNT(*) FROM WEB_DOMAIN_WATCH
+WHERE ID = 'pathb-valid' AND NOTIFY_TYPE = 1 AND NOTIFY_EMAIL = 'pathb@example.com'
+'@
+    $rejected = Get-FixtureCount $ContainerName $Password @'
+SELECT COUNT(*) FROM WEB_DOMAIN_WATCH
+WHERE ID = 'pathb-invalid' AND NOTIFY_TYPE = 0 AND NOTIFY_EMAIL IS NULL
+'@
+    Assert-RolloutContract ($preserved -eq 1) 'PathB did not preserve and normalize its valid legacy watch recipient'
+    Assert-RolloutContract ($rejected -eq 1) 'PathB did not fail closed for malformed legacy watch settings'
+    Write-Host "RETENTION_PATHB_WATCH_DATA|PASS|PRESERVED=$preserved|REJECTED=$rejected"
+}
+
+function Invoke-MySqlFixture([ValidateSet('PathA', 'PathB', 'LegacyUpgrade', 'LegacyWatchEmail')][string]$Path) {
     Assert-RolloutContract ($null -ne (Get-Command docker -ErrorAction SilentlyContinue)) 'docker is required for MySQL fixtures'
     Invoke-DockerCommand -Arguments @('version', '--format', '{{.Server.Version}}')
 
@@ -295,20 +420,43 @@ function Invoke-MySqlFixture([ValidateSet('PathA', 'PathB')][string]$Path) {
         $started = $true
         Wait-MySqlFixture $containerName $password
 
-        Invoke-FixtureSqlFile $containerName $password 'doc/create.sql'
-        if ($Path -eq 'PathB') {
-            [void](Invoke-FixtureQuery $containerName $password 'DROP TABLE WEB_DOMAIN_WATCH, WEB_DOMAIN_SNAPSHOT')
-            Invoke-FixtureSqlFile $containerName $password 'doc/alter_domain_watch_snapshot.sql'
-            $legacyTables = Get-FixtureCount $containerName $password @'
+        if ($Path -eq 'LegacyUpgrade' -or $Path -eq 'LegacyWatchEmail') {
+            $legacyFixturePath = if ($Path -eq 'LegacyWatchEmail') {
+                'doc/fixtures/e73ff4d_notification_baseline_with_watch_email.sql'
+            } else {
+                'doc/fixtures/e73ff4d_notification_baseline.sql'
+            }
+            Invoke-FixtureSqlFile $containerName $password $legacyFixturePath
+            Invoke-FixtureSqlFile $containerName $password 'doc/alter_retention_notification_center_from_e73ff4d.sql'
+            Assert-RetentionSchema $containerName $password $Path
+            Assert-LegacyUpgradeData $containerName $password ($Path -eq 'LegacyWatchEmail')
+        } else {
+            Invoke-FixtureSqlFile $containerName $password 'doc/create.sql'
+            if ($Path -eq 'PathB') {
+                [void](Invoke-FixtureQuery $containerName $password 'DROP TABLE WEB_DOMAIN_WATCH, WEB_DOMAIN_SNAPSHOT')
+                Invoke-FixtureSqlFile $containerName $password 'doc/alter_domain_watch_snapshot.sql'
+                [void](Invoke-FixtureQuery $containerName $password @'
+ALTER TABLE WEB_DOMAIN_WATCH ADD COLUMN NOTIFY_EMAIL varchar(256) NULL AFTER REMARK;
+INSERT INTO WEB_DOMAIN_WATCH
+  (ID, STATUS, DELETED, USER_ID, DOMAIN_NAME, NOTIFY_TYPE, NOTIFY_EMAIL, CREATE_TIME)
+VALUES
+  ('pathb-valid', 1, 0, 'pathb-user-1', 'valid.example', 1, ' pathb@example.com ', NOW()),
+  ('pathb-invalid', 1, 0, 'pathb-user-2', 'invalid.example', 9, 'bad recipient', NOW());
+'@)
+                $legacyTables = Get-FixtureCount $containerName $password @'
 SELECT COUNT(*)
 FROM information_schema.TABLES
 WHERE TABLE_SCHEMA = 'wesitedb'
   AND TABLE_NAME IN ('WEB_DOMAIN_WATCH','WEB_DOMAIN_SNAPSHOT')
 '@
-            Assert-RolloutContract ($legacyTables -eq 2) "PathB legacy migration recreated $legacyTables of two tables"
+                Assert-RolloutContract ($legacyTables -eq 2) "PathB legacy migration recreated $legacyTables of two tables"
+            }
+            Invoke-FixtureSqlFile $containerName $password 'doc/alter_retention_notification_center.sql'
+            Assert-RetentionSchema $containerName $password $Path
+            if ($Path -eq 'PathB') {
+                Assert-PathBWatchCompatibilityData $containerName $password
+            }
         }
-        Invoke-FixtureSqlFile $containerName $password 'doc/alter_retention_notification_center.sql'
-        Assert-RetentionSchema $containerName $password $Path
     } catch {
         $bodyError = $_
     } finally {
@@ -346,6 +494,10 @@ if ($Fixture -eq 'PathA' -or $Fixture -eq 'All') {
 }
 if ($Fixture -eq 'PathB' -or $Fixture -eq 'All') {
     Invoke-MySqlFixture 'PathB'
+}
+if ($Fixture -eq 'LegacyUpgrade' -or $Fixture -eq 'All') {
+    Invoke-MySqlFixture 'LegacyUpgrade'
+    Invoke-MySqlFixture 'LegacyWatchEmail'
 }
 
 Write-Host "RETENTION_ROLLOUT_VERIFY|PASS|FIXTURE=$Fixture"

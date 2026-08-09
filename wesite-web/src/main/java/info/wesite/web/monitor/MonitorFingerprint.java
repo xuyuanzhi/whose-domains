@@ -15,16 +15,30 @@ public final class MonitorFingerprint {
     }
 
     public static String of(String watchId, MonitorEventDraft draft) {
+        return of(watchId, draft, "");
+    }
+
+    public static String of(String watchId, MonitorEventDraft draft, String episodeKey) {
         Objects.requireNonNull(watchId, "watchId");
         Objects.requireNonNull(draft, "draft");
 
-        String canonical = String.join("|",
+        String canonical = canonical(
             watchId,
+            Objects.requireNonNullElse(episodeKey, ""),
             draft.type().name(),
             draft.field(),
             draft.oldValue(),
             draft.newValue());
         return sha256(canonical);
+    }
+
+    private static String canonical(String... fields) {
+        StringBuilder value = new StringBuilder();
+        for (String field : fields) {
+            String normalized = Objects.requireNonNullElse(field, "");
+            value.append(normalized.length()).append(':').append(normalized);
+        }
+        return value.toString();
     }
 
     private static String sha256(String value) {

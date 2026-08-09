@@ -4315,6 +4315,8 @@ ul.tld-list li {list-style: none; font-size: 1.1rem;}
 .settings-workspace { display: grid; max-width: 940px; gap: 16px; margin: 0 auto; }
 .settings-panel { display: grid; grid-template-columns: 270px minmax(0, 1fr); gap: 30px; padding: 28px; }
 .settings-panel__intro > p:last-child { margin: 9px 0 0; color: #7e93a8; font-size: 13px; line-height: 1.58; }
+.cadence-fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
+.cadence-fieldset > legend { margin-bottom: 10px; color: #9fb4c8; font-size: 12px; font-weight: 800; }
 .cadence-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
 .cadence-grid label { cursor: pointer; }
 .cadence-grid input { position: absolute; opacity: 0; pointer-events: none; }
