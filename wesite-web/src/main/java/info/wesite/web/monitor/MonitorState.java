@@ -41,7 +41,7 @@ public record MonitorState(
         value.forEach((recordType, records) -> {
             String normalizedType = canonicalString(recordType).toUpperCase(Locale.ROOT);
             if (!normalizedType.isEmpty()) {
-                normalized.put(normalizedType, canonicalSet(records));
+                normalized.merge(normalizedType, canonicalSet(records), MonitorState::union);
             }
         });
         return Collections.unmodifiableMap(normalized);
@@ -60,6 +60,12 @@ public record MonitorState(
             }
         }
         return Collections.unmodifiableSet(normalized);
+    }
+
+    private static Set<String> union(Set<String> first, Set<String> second) {
+        Set<String> combined = new TreeSet<>(first);
+        combined.addAll(second);
+        return Collections.unmodifiableSet(combined);
     }
 
     private static String canonicalString(String value) {

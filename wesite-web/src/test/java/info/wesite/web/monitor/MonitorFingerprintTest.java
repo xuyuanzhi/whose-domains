@@ -41,6 +41,20 @@ class MonitorFingerprintTest {
     }
 
     @Test
+    void mergesDnsValuesWhenRecordTypesNormalizeToTheSameKey() {
+        MonitorState state = new MonitorState(
+            "example.com",
+            Set.of(),
+            null,
+            null,
+            Map.of("a", Set.of("1.1.1.1"), " A ", Set.of("2.2.2.2", "1.1.1.1")),
+            true,
+            0);
+
+        assertEquals(Map.of("A", Set.of("1.1.1.1", "2.2.2.2")), state.dnsRecords());
+    }
+
+    @Test
     void missingValuesMatchTheirEmptyCanonicalRepresentation() {
         MonitorEventDraft missing = new MonitorEventDraft(
             MonitorEventType.DOMAIN_STATUS_CHANGED, MonitorRisk.HIGH, "EXAMPLE.COM", " status ", null, null);
