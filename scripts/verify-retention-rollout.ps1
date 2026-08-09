@@ -83,7 +83,9 @@ function Test-StaticRolloutContract {
         Assert-Contains $baseline "CREATE TABLE ``$table``" "retention baseline missing $table"
     }
     foreach ($column in @(
-            'SCHEMA_VERSION', 'OBSERVED_SOURCES', 'RISK', 'SOURCE',
+            'SCHEMA_VERSION', 'OBSERVED_SOURCES', 'CURRENT_OBSERVED_SOURCES',
+            'DOMAIN_LAST_SUCCESS_AT', 'DNS_LAST_SUCCESS_AT',
+            'SSL_LAST_SUCCESS_AT', 'WEBSITE_LAST_SUCCESS_AT', 'RISK', 'SOURCE',
             'RECIPIENT_EMAIL', 'EMAIL_ATTEMPT_COUNT', 'EMAIL_CLAIM_TOKEN',
             'DELIVERY_BATCH_ID', 'CANCELLATION_REQUESTED', 'SCAN_CLAIM_TOKEN',
             'SCAN_CLAIM_UNTIL', 'WATCH_CREATED_ON')) {
@@ -107,7 +109,9 @@ function Test-StaticRolloutContract {
     foreach ($column in @(
             'RECIPIENT_EMAIL', 'EMAIL_ATTEMPT_COUNT', 'EMAIL_CLAIM_TOKEN',
             'CANCELLATION_REQUESTED', 'SCAN_CLAIM_TOKEN', 'SCAN_CLAIM_UNTIL',
-            'WATCH_CREATED_ON')) {
+            'WATCH_CREATED_ON', 'CURRENT_OBSERVED_SOURCES',
+            'DOMAIN_LAST_SUCCESS_AT', 'DNS_LAST_SUCCESS_AT',
+            'SSL_LAST_SUCCESS_AT', 'WEBSITE_LAST_SUCCESS_AT')) {
         Assert-Contains $completeIncrement "``$column``" "complete increment missing $column"
     }
     foreach ($migration in @($baseline, $completeIncrement)) {
@@ -153,8 +157,8 @@ function Test-StaticRolloutContract {
 
     Assert-RolloutContract (
         [regex]::Matches($snapshotIncrement, '(?im)^ALTER TABLE `WEB_MONITOR_SNAPSHOT`').Count -eq 1 -and
-        [regex]::Matches($snapshotIncrement, '(?im)^\s*ADD COLUMN').Count -eq 2
-    ) 'snapshot increment must add exactly two columns to WEB_MONITOR_SNAPSHOT'
+        [regex]::Matches($snapshotIncrement, '(?im)^\s*ADD COLUMN').Count -eq 7
+    ) 'snapshot increment must add exactly seven provenance/freshness columns to WEB_MONITOR_SNAPSHOT'
     Assert-RolloutContract (
         [regex]::Matches($eventIncrement, '(?im)^ALTER TABLE `WEB_MONITOR_EVENT`').Count -eq 1 -and
         [regex]::Matches($eventIncrement, '(?im)^\s*ADD COLUMN').Count -eq 2
@@ -383,7 +387,9 @@ WHERE TABLE_SCHEMA = 'wesitedb'
 SELECT COUNT(*)
 FROM information_schema.COLUMNS
 WHERE TABLE_SCHEMA = 'wesitedb'
-  AND ((TABLE_NAME = 'WEB_MONITOR_SNAPSHOT' AND COLUMN_NAME IN ('SCHEMA_VERSION','OBSERVED_SOURCES'))
+  AND ((TABLE_NAME = 'WEB_MONITOR_SNAPSHOT' AND COLUMN_NAME IN (
+        'SCHEMA_VERSION','OBSERVED_SOURCES','CURRENT_OBSERVED_SOURCES',
+        'DOMAIN_LAST_SUCCESS_AT','DNS_LAST_SUCCESS_AT','SSL_LAST_SUCCESS_AT','WEBSITE_LAST_SUCCESS_AT'))
     OR (TABLE_NAME = 'WEB_MONITOR_EVENT' AND COLUMN_NAME IN ('RISK','SOURCE')))
 '@
     $establishedSourceComment = Get-FixtureCount $ContainerName $Password @'
@@ -394,11 +400,25 @@ WHERE TABLE_SCHEMA = 'wesitedb'
   AND COLUMN_NAME = 'OBSERVED_SOURCES'
   AND COLUMN_COMMENT = 'Sorted collector sources with an established reliable baseline (observed-ever)'
 '@
+    $sourceFreshnessColumns = Get-FixtureCount $ContainerName $Password @'
+SELECT COUNT(*)
+FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA = 'wesitedb'
+  AND TABLE_NAME = 'WEB_MONITOR_SNAPSHOT'
+  AND IS_NULLABLE = 'YES'
+  AND ((COLUMN_NAME = 'CURRENT_OBSERVED_SOURCES'
+        AND DATA_TYPE = 'varchar'
+        AND COLUMN_COMMENT = 'Collector sources that succeeded in this scan only')
+    OR (COLUMN_NAME IN ('DOMAIN_LAST_SUCCESS_AT','DNS_LAST_SUCCESS_AT','SSL_LAST_SUCCESS_AT','WEBSITE_LAST_SUCCESS_AT')
+        AND DATA_TYPE = 'datetime'))
+'@
     $pipelineColumns = Get-FixtureCount $ContainerName $Password @'
 SELECT COUNT(*)
 FROM information_schema.COLUMNS
 WHERE TABLE_SCHEMA = 'wesitedb'
-  AND ((TABLE_NAME = 'WEB_MONITOR_SNAPSHOT' AND COLUMN_NAME IN ('SCHEMA_VERSION','OBSERVED_SOURCES'))
+  AND ((TABLE_NAME = 'WEB_MONITOR_SNAPSHOT' AND COLUMN_NAME IN (
+        'SCHEMA_VERSION','OBSERVED_SOURCES','CURRENT_OBSERVED_SOURCES',
+        'DOMAIN_LAST_SUCCESS_AT','DNS_LAST_SUCCESS_AT','SSL_LAST_SUCCESS_AT','WEBSITE_LAST_SUCCESS_AT'))
     OR (TABLE_NAME = 'WEB_MONITOR_EVENT' AND COLUMN_NAME IN ('RISK','SOURCE'))
     OR (TABLE_NAME = 'WEB_USER_NOTIFICATION' AND COLUMN_NAME IN ('RECIPIENT_EMAIL','EMAIL_MODE','EMAIL_STATE','EMAIL_ATTEMPT_COUNT','EMAIL_CLAIM_TOKEN','EMAIL_CLAIM_UNTIL','DELIVERY_BATCH_ID'))
     OR (TABLE_NAME = 'WEB_NOTIFICATION_DELIVERY_BATCH' AND COLUMN_NAME IN ('RECIPIENT_EMAIL','STATE','CLAIM_TOKEN','CLAIM_UNTIL','CANCELLATION_REQUESTED'))
@@ -472,9 +492,10 @@ WHERE TABLE_SCHEMA = 'wesitedb'
 '@
 
     Assert-RolloutContract ($tables -eq 7) "$Label expected seven retention tables, found $tables"
-    Assert-RolloutContract ($canonicalColumns -eq 4) "$Label expected four canonical columns, found $canonicalColumns"
+    Assert-RolloutContract ($canonicalColumns -eq 9) "$Label expected nine canonical provenance/freshness/event columns, found $canonicalColumns"
     Assert-RolloutContract ($establishedSourceComment -eq 1) "$Label OBSERVED_SOURCES must document cumulative established/observed-ever provenance"
-    Assert-RolloutContract ($pipelineColumns -eq 22) "$Label expected 22 key pipeline columns, found $pipelineColumns"
+    Assert-RolloutContract ($sourceFreshnessColumns -eq 5) "$Label expected nullable current-source and four per-source last-success columns, found $sourceFreshnessColumns"
+    Assert-RolloutContract ($pipelineColumns -eq 27) "$Label expected 27 key pipeline columns, found $pipelineColumns"
     Assert-RolloutContract ($watchColumns -eq 4) "$Label expected four watch compatibility/lease/calendar columns, found $watchColumns"
     Assert-RolloutContract ($watchCreatedDateColumn -eq 1) "$Label WATCH_CREATED_ON must be a nullable DATE for conservative legacy exclusion"
     Assert-RolloutContract ($activityColumns -eq 2) "$Label expected the daily activity fact columns, found $activityColumns"
@@ -483,7 +504,7 @@ WHERE TABLE_SCHEMA = 'wesitedb'
     Assert-RolloutContract ($auditColumns -eq 4) "$Label expected four delivery audit columns, found $auditColumns"
     Assert-RolloutContract ($batchIdentityColumns -eq 1) "$Label batch identity is not the exact frozen-recipient unique key"
     Assert-RolloutContract ($batchRecipientRequired -eq 1) "$Label batch recipient must be required"
-    Write-Host "RETENTION_ROLLOUT_FIXTURE|PASS|PATH=$Label|TABLES=$tables|PIPELINE_COLUMNS=$pipelineColumns|WATCH_COLUMNS=$watchColumns|ACTIVITY_COLUMNS=$activityColumns|COLLECTION_COLUMNS=$collectionColumns|AUDIT_COLUMNS=$auditColumns"
+    Write-Host "RETENTION_ROLLOUT_FIXTURE|PASS|PATH=$Label|TABLES=$tables|PIPELINE_COLUMNS=$pipelineColumns|SOURCE_FRESHNESS_COLUMNS=$sourceFreshnessColumns|WATCH_COLUMNS=$watchColumns|ACTIVITY_COLUMNS=$activityColumns|COLLECTION_COLUMNS=$collectionColumns|AUDIT_COLUMNS=$auditColumns"
 }
 
 function Assert-RetentionReportData(
@@ -743,6 +764,16 @@ WHERE ID IN ('n-none','n-seven','n-thirty','n-no-email')
     $expectedCancelled = if ($HasLegacyWatchEmail) { 3 } else { 4 }
     Assert-RolloutContract ($allowed -eq $expectedAllowed) "Legacy upgrade expected $expectedAllowed compatible frozen recipients, found $allowed"
     Assert-RolloutContract ($cancelled -eq $expectedCancelled) "Legacy upgrade expected $expectedCancelled incompatible routes cancelled, found $cancelled"
+    $unknownSourceFreshness = Get-FixtureCount $ContainerName $Password @'
+SELECT COUNT(*) FROM WEB_MONITOR_SNAPSHOT
+WHERE ID = 'legacy-source-freshness'
+  AND CURRENT_OBSERVED_SOURCES IS NULL
+  AND DOMAIN_LAST_SUCCESS_AT IS NULL
+  AND DNS_LAST_SUCCESS_AT IS NULL
+  AND SSL_LAST_SUCCESS_AT IS NULL
+  AND WEBSITE_LAST_SUCCESS_AT IS NULL
+'@
+    Assert-RolloutContract ($unknownSourceFreshness -eq 1) 'legacy per-source freshness must remain NULL instead of guessing from CHECKED_AT'
     if ($HasLegacyWatchEmail) {
         $backfilled = Get-FixtureCount $ContainerName $Password @'
 SELECT COUNT(*) FROM WEB_DOMAIN_WATCH
@@ -759,7 +790,7 @@ WHERE ID IN ('w-none','w-seven','w-no-email') AND WATCH_CREATED_ON IS NULL
         Assert-RolloutContract ($excluded -eq 3) 'legacy watch dates without an explicit source zone must remain NULL'
         $watchDateState = 'NULL_EXCLUDED=3'
     }
-    Write-Host "RETENTION_LEGACY_DATA|PASS|WATCH_EMAIL=$HasLegacyWatchEmail|ALLOWED=$allowed|CANCELLED=$cancelled|$watchDateState"
+    Write-Host "RETENTION_LEGACY_DATA|PASS|WATCH_EMAIL=$HasLegacyWatchEmail|ALLOWED=$allowed|CANCELLED=$cancelled|$watchDateState|SOURCE_FRESHNESS_NULL=1"
 }
 
 function Assert-PathBWatchCompatibilityData([string]$ContainerName, [string]$Password) {

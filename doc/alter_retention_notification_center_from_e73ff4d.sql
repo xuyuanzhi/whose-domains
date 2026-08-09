@@ -95,12 +95,24 @@ UPDATE `WEB_DOMAIN_WATCH`
 SET `NOTIFY_TYPE` = 0
 WHERE `NOTIFY_TYPE` IS NULL OR `NOTIFY_TYPE` NOT IN (0, 1, 2, 3);
 
+-- Existing snapshots deliberately retain NULL in all source-freshness fields below.
+-- CHECKED_AT is a scan time, not proof that every individual collector succeeded.
 ALTER TABLE `WEB_MONITOR_SNAPSHOT`
   DROP INDEX `IDX_MONITOR_SNAPSHOT_WATCH_CHECKED`,
   ADD COLUMN `SCHEMA_VERSION` smallint NULL
-    COMMENT '2=cumulative established-source MonitorState; NULL=legacy DOMAIN-only provenance' AFTER `STATE_JSON`,
+    COMMENT '3=per-source freshness; 2=cumulative provenance; NULL=legacy DOMAIN-only' AFTER `STATE_JSON`,
   ADD COLUMN `OBSERVED_SOURCES` varchar(128) NULL
     COMMENT 'Sorted collector sources with an established reliable baseline (observed-ever)' AFTER `SCHEMA_VERSION`,
+  ADD COLUMN `CURRENT_OBSERVED_SOURCES` varchar(128) NULL
+    COMMENT 'Collector sources that succeeded in this scan only' AFTER `OBSERVED_SOURCES`,
+  ADD COLUMN `DOMAIN_LAST_SUCCESS_AT` datetime NULL
+    COMMENT 'Last successful DOMAIN collector time; NULL=unknown' AFTER `CURRENT_OBSERVED_SOURCES`,
+  ADD COLUMN `DNS_LAST_SUCCESS_AT` datetime NULL
+    COMMENT 'Last successful DNS collector time; NULL=unknown' AFTER `DOMAIN_LAST_SUCCESS_AT`,
+  ADD COLUMN `SSL_LAST_SUCCESS_AT` datetime NULL
+    COMMENT 'Last successful SSL collector time; NULL=unknown' AFTER `DNS_LAST_SUCCESS_AT`,
+  ADD COLUMN `WEBSITE_LAST_SUCCESS_AT` datetime NULL
+    COMMENT 'Last successful WEBSITE collector time; NULL=unknown' AFTER `SSL_LAST_SUCCESS_AT`,
   ADD KEY `IDX_MONITOR_SNAPSHOT_WATCH_CHECKED` (`WATCH_ID`, `CHECKED_AT`, `ID`);
 
 ALTER TABLE `WEB_MONITOR_EVENT`

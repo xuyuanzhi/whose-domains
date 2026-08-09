@@ -66,6 +66,11 @@ INSERT INTO `WEB_DOMAIN_WATCH`
   ('w-seven',1,0,'u-seven','seven.example',1,'2026-08-01 16:30:00'),
   ('w-no-email',1,0,'u-no-email','no-email.example',3,'2026-08-01 00:00:00');
 
+INSERT INTO `WEB_MONITOR_SNAPSHOT`
+  (`ID`,`STATUS`,`DELETED`,`WATCH_ID`,`CHECKED_AT`,`STATE_JSON`) VALUES
+  ('legacy-source-freshness',1,0,'w-seven','2026-08-08 03:00:00',
+   '{"domain":"seven.example","domainStatuses":[],"dnsRecords":{},"websiteAvailable":true,"websiteFailureCount":0}');
+
 INSERT INTO `WEB_MONITOR_EVENT`
   (`ID`,`STATUS`,`DELETED`,`WATCH_ID`,`FINGERPRINT`,`EVENT_TYPE`,`NEW_VALUE`,`OCCURRED_AT`) VALUES
   ('e-none',1,0,'w-none','fp-none','DNS_CHANGED','203.0.113.8','2026-08-09 00:00:00'),

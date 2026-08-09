@@ -148,7 +148,7 @@ ORDER BY TABLE_NAME;
 SELECT TABLE_NAME, COLUMN_NAME
 FROM information_schema.COLUMNS
 WHERE TABLE_SCHEMA = DATABASE()
-  AND ((TABLE_NAME = 'WEB_MONITOR_SNAPSHOT' AND COLUMN_NAME IN ('SCHEMA_VERSION','OBSERVED_SOURCES'))
+  AND ((TABLE_NAME = 'WEB_MONITOR_SNAPSHOT' AND COLUMN_NAME IN ('SCHEMA_VERSION','OBSERVED_SOURCES','CURRENT_OBSERVED_SOURCES','DOMAIN_LAST_SUCCESS_AT','DNS_LAST_SUCCESS_AT','SSL_LAST_SUCCESS_AT','WEBSITE_LAST_SUCCESS_AT'))
     OR (TABLE_NAME = 'WEB_MONITOR_EVENT' AND COLUMN_NAME IN ('RISK','SOURCE'))
     OR (TABLE_NAME = 'WEB_USER_NOTIFICATION' AND COLUMN_NAME IN ('RECIPIENT_EMAIL','EMAIL_MODE','EMAIL_ATTEMPT_COUNT','EMAIL_CLAIM_TOKEN','DELIVERY_BATCH_ID'))
     OR (TABLE_NAME = 'WEB_NOTIFICATION_DELIVERY_BATCH' AND COLUMN_NAME IN ('RECIPIENT_EMAIL','CANCELLATION_REQUESTED'))
@@ -162,9 +162,11 @@ ORDER BY TABLE_NAME, COLUMN_NAME;"
 mysql -u root -p wesitedb < doc/alter_retention_notification_center.sql
 ```
 
-Do **not** run `doc/alter_domain_watch_snapshot.sql` on Path A: its unguarded `CREATE TABLE WEB_DOMAIN_WATCH` duplicates an object that `create.sql` already created. The current retention script already creates `WEB_MONITOR_SNAPSHOT` with `SCHEMA_VERSION` and `OBSERVED_SOURCES`, and `WEB_MONITOR_EVENT` with `RISK` and `SOURCE`; do **not** run either later `ADD COLUMN` script after Path A.
+Do **not** run `doc/alter_domain_watch_snapshot.sql` on Path A: its unguarded `CREATE TABLE WEB_DOMAIN_WATCH` duplicates an object that `create.sql` already created. The current retention script already creates `WEB_MONITOR_SNAPSHOT` with schema version 3, cumulative `OBSERVED_SOURCES`, scan-local `CURRENT_OBSERVED_SOURCES`, and all four source-specific `*_LAST_SUCCESS_AT` fields; it also creates `WEB_MONITOR_EVENT` with `RISK` and `SOURCE`. Do **not** run any later `ADD COLUMN` script after Path A.
 
 `WEB_MONITOR_SNAPSHOT.OBSERVED_SOURCES` is a compatibility name for cumulative established-baseline provenance, not a list of collectors that succeeded only on the current scan. Once a source has produced a reliable value, successful snapshots retain both that value and its source membership across later collector failures; a source that has never succeeded is absent until its first successful observation. This observed-ever distinction prevents recovery from restarting an expiry-threshold episode while still allowing a genuinely new DOMAIN or SSL source to emit its single most urgent applicable reminder.
+
+Current-scan freshness is deliberately separate. `CURRENT_OBSERVED_SOURCES` contains only collectors that succeeded in that scan, while `DOMAIN_LAST_SUCCESS_AT`, `DNS_LAST_SUCCESS_AT`, `SSL_LAST_SUCCESS_AT`, and `WEBSITE_LAST_SUCCESS_AT` retain each source's own last successful collection time. A partial scan updates only successful sources and carries the other source timestamps forward. The detail page therefore labels retained values as stale/last known after a collector failure instead of presenting the snapshot-wide `CHECKED_AT` as their observation time. Legacy snapshots are upgraded with all five freshness fields left `NULL`: their per-source freshness cannot be reconstructed reliably, so operators and the application must not infer it from `CHECKED_AT`.
 
 **Path B — old installation upgrade.** Use this path only after the preflight above:
 
@@ -184,7 +186,7 @@ Do **not** run `doc/alter_domain_watch_snapshot.sql` on Path A: its unguarded `C
 
 The Path B order is therefore: legacy watch/snapshot script only when both tables are absent → current retention baseline once. Never re-run a `CREATE TABLE` or `ADD COLUMN` migration against a schema that already contains its objects. Record the applied script name, deploy version, operator, and UTC time in the production change record.
 
-**Legacy e73ff4d upgrade — old notification baseline already present.** If preflight shows the four e73ff4d notification tables (`WEB_MONITOR_SNAPSHOT`, `WEB_MONITOR_EVENT`, `WEB_USER_NOTIFICATION`, and `WEB_NOTIFICATION_PREFERENCE`) but `WEB_NOTIFICATION_DELIVERY_BATCH`, `WEB_AUTHENTICATED_ACTIVITY_DAILY`, `WEB_RETENTION_FACT_COLLECTION`, and `WEB_RETENTION_FACT_HEALTH` are all absent, and the new claim/recipient columns are also absent, do not run the current baseline or the two historical two-column increments. The checked-in e73ff4d schema has no `WEB_DOMAIN_WATCH.NOTIFY_EMAIL`; the same increment also accepts operational installations that independently added that one legacy field. Back up the tables, stop workers, and apply the single complete increment:
+**Legacy e73ff4d upgrade — old notification baseline already present.** If preflight shows the four e73ff4d notification tables (`WEB_MONITOR_SNAPSHOT`, `WEB_MONITOR_EVENT`, `WEB_USER_NOTIFICATION`, and `WEB_NOTIFICATION_PREFERENCE`) but `WEB_NOTIFICATION_DELIVERY_BATCH`, `WEB_AUTHENTICATED_ACTIVITY_DAILY`, `WEB_RETENTION_FACT_COLLECTION`, and `WEB_RETENTION_FACT_HEALTH` are all absent, and the new claim/recipient columns are also absent, do not run the current baseline or the historical incremental scripts. The checked-in e73ff4d schema has no `WEB_DOMAIN_WATCH.NOTIFY_EMAIL`; the same increment also accepts operational installations that independently added that one legacy field. Back up the tables, stop workers, and apply the single complete increment:
 
 ```bash
 mysql -u root -p wesitedb < doc/alter_retention_notification_center_from_e73ff4d.sql

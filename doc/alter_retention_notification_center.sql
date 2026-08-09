@@ -3,7 +3,9 @@
 -- doc/alter_domain_watch_snapshot.sql because create.sql already creates WEB_DOMAIN_WATCH.
 -- On an older install missing BOTH WEB_DOMAIN_WATCH and WEB_DOMAIN_SNAPSHOT, run
 -- doc/alter_domain_watch_snapshot.sql first, then this file. See README for preflight checks.
--- This current baseline already includes SCHEMA_VERSION/OBSERVED_SOURCES and RISK/SOURCE.
+-- This current baseline already includes snapshot schema v3: cumulative established
+-- OBSERVED_SOURCES, scan-local CURRENT_OBSERVED_SOURCES, and per-source last-success
+-- timestamps. It also includes event RISK/SOURCE.
 -- Do not also run the later incremental column migrations on a fresh application of this file.
 CREATE TABLE `WEB_MONITOR_SNAPSHOT` (
   `ID` varchar(32) NOT NULL,
@@ -16,8 +18,13 @@ CREATE TABLE `WEB_MONITOR_SNAPSHOT` (
   `WATCH_ID` varchar(32) NOT NULL,
   `CHECKED_AT` datetime NOT NULL,
   `STATE_JSON` mediumtext NOT NULL,
-  `SCHEMA_VERSION` smallint NULL COMMENT '2=cumulative established-source MonitorState; NULL=legacy DOMAIN-only provenance',
+  `SCHEMA_VERSION` smallint NULL COMMENT '3=per-source freshness; 2=cumulative provenance; NULL=legacy DOMAIN-only',
   `OBSERVED_SOURCES` varchar(128) NULL COMMENT 'Sorted collector sources with an established reliable baseline (observed-ever)',
+  `CURRENT_OBSERVED_SOURCES` varchar(128) NULL COMMENT 'Collector sources that succeeded in this scan only',
+  `DOMAIN_LAST_SUCCESS_AT` datetime NULL COMMENT 'Last successful DOMAIN collector time; NULL=unknown',
+  `DNS_LAST_SUCCESS_AT` datetime NULL COMMENT 'Last successful DNS collector time; NULL=unknown',
+  `SSL_LAST_SUCCESS_AT` datetime NULL COMMENT 'Last successful SSL collector time; NULL=unknown',
+  `WEBSITE_LAST_SUCCESS_AT` datetime NULL COMMENT 'Last successful WEBSITE collector time; NULL=unknown',
   PRIMARY KEY (`ID`),
   KEY `IDX_MONITOR_SNAPSHOT_WATCH_CHECKED` (`WATCH_ID`, `CHECKED_AT`, `ID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;

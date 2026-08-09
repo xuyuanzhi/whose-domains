@@ -63,6 +63,29 @@ class NotificationModelContractTest {
     }
 
     @Test
+    void monitorSnapshotsExposeCurrentSourcesAndPerSourceLastSuccessTimes() throws Exception {
+        var properties = Arrays.asList(
+            Introspector.getBeanInfo(MonitorSnapshot.class).getPropertyDescriptors());
+
+        var currentSources = properties.stream()
+            .filter(property -> "currentObservedSources".equals(property.getName()))
+            .findFirst();
+        assertTrue(currentSources.isPresent(), "missing currentObservedSources");
+        assertEquals(String.class, currentSources.orElseThrow().getPropertyType());
+        for (String name : Arrays.asList(
+                "domainLastSuccessAt",
+                "dnsLastSuccessAt",
+                "sslLastSuccessAt",
+                "websiteLastSuccessAt")) {
+            var timestamp = properties.stream()
+                .filter(property -> name.equals(property.getName()))
+                .findFirst();
+            assertTrue(timestamp.isPresent(), "missing " + name);
+            assertEquals(Date.class, timestamp.orElseThrow().getPropertyType(), name);
+        }
+    }
+
+    @Test
     void domainWatchExposesAnExplicitReportingCalendarCreationDate() throws Exception {
         var property = Arrays.stream(Introspector.getBeanInfo(DomainWatch.class).getPropertyDescriptors())
             .filter(candidate -> "watchCreatedOn".equals(candidate.getName()))

@@ -12,13 +12,16 @@ import org.apache.commons.lang3.StringUtils;
 import info.wesite.core.entity.MonitorSnapshot;
 
 /**
- * Versioned cumulative baseline provenance stored beside a monitoring state snapshot.
- * The database column retains its compatibility name {@code OBSERVED_SOURCES}, but
- * represents sources that have ever established a reliable successful baseline.
+ * Versioned source provenance and freshness stored beside a monitoring state snapshot.
+ * The compatibility column {@code OBSERVED_SOURCES} is cumulative and means that a
+ * source has ever established a reliable baseline. {@code CURRENT_OBSERVED_SOURCES}
+ * is intentionally scan-local and contains only sources successful in that scan.
  */
 public final class MonitorSnapshotObservation {
 
-    public static final int CURRENT_SCHEMA_VERSION = 2;
+    public static final int ESTABLISHED_SOURCES_SCHEMA_VERSION = 2;
+    public static final int SOURCE_FRESHNESS_SCHEMA_VERSION = 3;
+    public static final int CURRENT_SCHEMA_VERSION = SOURCE_FRESHNESS_SCHEMA_VERSION;
 
     private MonitorSnapshotObservation() {
     }
@@ -28,18 +31,32 @@ public final class MonitorSnapshotObservation {
             return Set.of();
         }
         if (snapshot.getSchemaVersion() == null
-            || snapshot.getSchemaVersion() < CURRENT_SCHEMA_VERSION) {
+            || snapshot.getSchemaVersion() < ESTABLISHED_SOURCES_SCHEMA_VERSION) {
             // Legacy DomainWatchTask populated DOMAIN facts and synthetic placeholders
             // for every other source.
             return Set.of(MonitorCollectorResult.Source.DOMAIN);
         }
-        if (StringUtils.isBlank(snapshot.getObservedSources())) {
+        return deserialize(snapshot.getObservedSources());
+    }
+
+    public static Set<MonitorCollectorResult.Source> currentSuccessfulSources(
+        MonitorSnapshot snapshot) {
+        if (snapshot == null
+            || snapshot.getSchemaVersion() == null
+            || snapshot.getSchemaVersion() < SOURCE_FRESHNESS_SCHEMA_VERSION) {
+            return Set.of();
+        }
+        return deserialize(snapshot.getCurrentObservedSources());
+    }
+
+    private static Set<MonitorCollectorResult.Source> deserialize(String serializedSources) {
+        if (StringUtils.isBlank(serializedSources)) {
             return Set.of();
         }
 
         EnumSet<MonitorCollectorResult.Source> result = EnumSet.noneOf(
             MonitorCollectorResult.Source.class);
-        for (String value : snapshot.getObservedSources().split(",")) {
+        for (String value : serializedSources.split(",")) {
             try {
                 result.add(MonitorCollectorResult.Source.valueOf(
                     value.trim().toUpperCase(Locale.ROOT)));
@@ -50,11 +67,11 @@ public final class MonitorSnapshotObservation {
         return Collections.unmodifiableSet(result);
     }
 
-    public static String serialize(Set<MonitorCollectorResult.Source> establishedSources) {
-        if (establishedSources == null || establishedSources.isEmpty()) {
+    public static String serialize(Set<MonitorCollectorResult.Source> sources) {
+        if (sources == null || sources.isEmpty()) {
             return "";
         }
-        return establishedSources.stream()
+        return sources.stream()
             .map(Enum::name)
             .collect(Collectors.toCollection(TreeSet::new))
             .stream()

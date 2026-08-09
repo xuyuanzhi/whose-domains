@@ -1,10 +1,29 @@
 package info.wesite.web.view;
 
+import com.alibaba.fastjson2.JSON;
+import info.wesite.core.entity.MonitorSnapshot;
+import info.wesite.web.monitor.DomainMonitorEvidence;
+import info.wesite.web.monitor.MonitorSnapshotObservation;
+import info.wesite.web.monitor.MonitorState;
 import org.junit.jupiter.api.Test;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.mock.web.MockServletContext;
+import org.thymeleaf.context.WebContext;
+import org.thymeleaf.spring6.SpringTemplateEngine;
+import org.thymeleaf.templatemode.TemplateMode;
+import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver;
+import org.thymeleaf.web.servlet.JakartaServletWebApplication;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.Date;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -90,7 +109,107 @@ class DomainDetailMonitorUiTest {
         assertTrue(template.contains("SSL certificate evidence"));
         assertTrue(template.contains("id=\"website-availability-evidence\""));
         assertTrue(template.contains("Website availability evidence"));
-        assertTrue(template.contains("Latest successful monitor observation"));
+        assertTrue(template.contains("Current SSL observation"));
+        assertTrue(template.contains("Current website observation"));
+        assertTrue(template.contains("sslLastSuccessAt"));
+        assertTrue(template.contains("websiteLastSuccessAt"));
+    }
+
+    @Test
+    void staleEvidenceRendersOldSourceTimesWithoutClaimingTodayWasObserved() {
+        MonitorSnapshot snapshot = snapshot(
+            "DNS,DOMAIN,SSL,WEBSITE",
+            "DNS",
+            Instant.parse("2026-08-08T03:00:00Z"),
+            Instant.parse("2026-08-08T04:00:00Z"));
+
+        String html = renderEvidence(DomainMonitorEvidence.from(snapshot));
+
+        assertTrue(html.contains("Stale - latest SSL check failed"), html);
+        assertTrue(html.contains("Stale - latest website check failed"), html);
+        assertTrue(html.contains("Last known certificate expiry"), html);
+        assertTrue(html.contains("Last known HTTP reachability"), html);
+        assertTrue(html.contains("2026-08-08T03:00:00Z"), html);
+        assertTrue(html.contains("2026-08-08T04:00:00Z"), html);
+        assertFalse(html.contains("2026-08-09T08:00:00Z"), html);
+        assertFalse(html.contains(">Observed at<"), html);
+    }
+
+    @Test
+    void currentEvidenceRendersObservedAtWithoutAStaleWarning() {
+        MonitorSnapshot snapshot = snapshot(
+            "SSL,WEBSITE",
+            "SSL,WEBSITE",
+            Instant.parse("2026-08-09T08:00:00Z"),
+            Instant.parse("2026-08-09T08:00:00Z"));
+
+        String html = renderEvidence(DomainMonitorEvidence.from(snapshot));
+
+        assertTrue(html.contains("Current SSL observation"), html);
+        assertTrue(html.contains("Current website observation"), html);
+        assertTrue(html.contains(">Observed at<"), html);
+        assertTrue(html.contains("2026-08-09T08:00:00Z"), html);
+        assertFalse(html.contains("Stale -"), html);
+    }
+
+    @Test
+    void neverObservedSourcesRenderUnavailableInsteadOfRetainedState() {
+        MonitorSnapshot snapshot = snapshot("DNS,DOMAIN", "DNS", null, null);
+
+        String html = renderEvidence(DomainMonitorEvidence.from(snapshot));
+
+        assertTrue(html.contains("SSL evidence unavailable"), html);
+        assertTrue(html.contains("Website evidence unavailable"), html);
+        assertFalse(html.contains("2026-08-16"), html);
+        assertFalse(html.contains("Reachable"), html);
+    }
+
+    private static MonitorSnapshot snapshot(
+            String establishedSources,
+            String currentSources,
+            Instant sslLastSuccess,
+            Instant websiteLastSuccess) {
+        MonitorSnapshot snapshot = new MonitorSnapshot();
+        snapshot.setCheckedAt(Date.from(Instant.parse("2026-08-09T08:00:00Z")));
+        snapshot.setSchemaVersion(MonitorSnapshotObservation.CURRENT_SCHEMA_VERSION);
+        snapshot.setObservedSources(establishedSources);
+        snapshot.setCurrentObservedSources(currentSources);
+        snapshot.setSslLastSuccessAt(sslLastSuccess == null ? null : Date.from(sslLastSuccess));
+        snapshot.setWebsiteLastSuccessAt(
+            websiteLastSuccess == null ? null : Date.from(websiteLastSuccess));
+        snapshot.setStateJson(JSON.toJSONString(new MonitorState(
+            "example.com",
+            Set.of("ok"),
+            LocalDate.of(2027, 1, 1),
+            LocalDate.of(2026, 8, 16),
+            Map.of(),
+            true,
+            0)));
+        return snapshot;
+    }
+
+    private static String renderEvidence(DomainMonitorEvidence evidence) {
+        ClassLoaderTemplateResolver resolver = new ClassLoaderTemplateResolver();
+        resolver.setPrefix("/views/");
+        resolver.setSuffix(".html");
+        resolver.setTemplateMode(TemplateMode.HTML);
+        resolver.setCharacterEncoding(StandardCharsets.UTF_8.name());
+        SpringTemplateEngine engine = new SpringTemplateEngine();
+        engine.setTemplateResolver(resolver);
+
+        MockServletContext servletContext = new MockServletContext();
+        MockHttpServletRequest request = new MockHttpServletRequest(servletContext);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        WebContext context = new WebContext(
+            JakartaServletWebApplication.buildApplication(servletContext)
+                .buildExchange(request, response),
+            Locale.ROOT);
+        context.setVariable("monitorEvidence", evidence);
+        context.setVariable("domain", Map.of("name", "example.com"));
+        return engine.process(
+            "domain_detail",
+            Set.of("#ssl-evidence", "#website-availability-evidence"),
+            context);
     }
 
     private String template() throws IOException {

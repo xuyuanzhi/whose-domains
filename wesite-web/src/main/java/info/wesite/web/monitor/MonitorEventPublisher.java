@@ -172,7 +172,8 @@ public class MonitorEventPublisher {
         java.util.Set<MonitorCollectorResult.Source> successfulSources,
         boolean sourceScopedDetection) {
         Objects.requireNonNull(watch, "watch");
-        java.util.Set<MonitorCollectorResult.Source> currentSuccessful = successfulSources == null
+        java.util.Set<MonitorCollectorResult.Source> currentSuccessful = !checkSucceeded
+            || successfulSources == null
             ? java.util.Set.of()
             : java.util.Set.copyOf(successfulSources);
         Date checkedAt = Date.from(clock.instant());
@@ -180,7 +181,8 @@ public class MonitorEventPublisher {
         if (!checkSucceeded) {
             requireSaved(
                 snapshotService.save(snapshot(
-                    watch.getId(), current, checkedAt, BaseEntity.STATUS_INACTIVE, currentSuccessful)),
+                    watch.getId(), current, checkedAt, BaseEntity.STATUS_INACTIVE,
+                    currentSuccessful, currentSuccessful, null)),
                 "failed-check diagnostic snapshot");
             return List.of();
         }
@@ -198,7 +200,8 @@ public class MonitorEventPublisher {
         Set<MonitorCollectorResult.Source> establishedSources =
             establishedSources(previousEstablished, currentSuccessful);
         MonitorSnapshot currentSnapshot = snapshot(
-            watch.getId(), current, checkedAt, BaseEntity.STATUS_ACTIVE, establishedSources);
+            watch.getId(), current, checkedAt, BaseEntity.STATUS_ACTIVE,
+            establishedSources, currentSuccessful, previousSnapshot);
 
         List<MonitorEvent> published = new ArrayList<>();
         java.util.List<MonitorEventDraft> drafts;
@@ -338,7 +341,9 @@ public class MonitorEventPublisher {
         MonitorState state,
         Date checkedAt,
         int status,
-        java.util.Set<MonitorCollectorResult.Source> establishedSources) {
+        java.util.Set<MonitorCollectorResult.Source> establishedSources,
+        java.util.Set<MonitorCollectorResult.Source> currentSuccessful,
+        MonitorSnapshot previousSnapshot) {
         MonitorSnapshot snapshot = new MonitorSnapshot();
         initialize(snapshot, checkedAt);
         snapshot.setStatus(status);
@@ -347,7 +352,36 @@ public class MonitorEventPublisher {
         snapshot.setStateJson(JSON.toJSONString(state));
         snapshot.setSchemaVersion(MonitorSnapshotObservation.CURRENT_SCHEMA_VERSION);
         snapshot.setObservedSources(MonitorSnapshotObservation.serialize(establishedSources));
+        snapshot.setCurrentObservedSources(MonitorSnapshotObservation.serialize(currentSuccessful));
+        snapshot.setDomainLastSuccessAt(lastSuccessAt(
+            previousSnapshot, MonitorCollectorResult.Source.DOMAIN, currentSuccessful, checkedAt));
+        snapshot.setDnsLastSuccessAt(lastSuccessAt(
+            previousSnapshot, MonitorCollectorResult.Source.DNS, currentSuccessful, checkedAt));
+        snapshot.setSslLastSuccessAt(lastSuccessAt(
+            previousSnapshot, MonitorCollectorResult.Source.SSL, currentSuccessful, checkedAt));
+        snapshot.setWebsiteLastSuccessAt(lastSuccessAt(
+            previousSnapshot, MonitorCollectorResult.Source.WEBSITE, currentSuccessful, checkedAt));
         return snapshot;
+    }
+
+    private static Date lastSuccessAt(
+        MonitorSnapshot previousSnapshot,
+        MonitorCollectorResult.Source source,
+        Set<MonitorCollectorResult.Source> currentSuccessful,
+        Date checkedAt) {
+        if (currentSuccessful.contains(source)) {
+            return new Date(checkedAt.getTime());
+        }
+        if (previousSnapshot == null) {
+            return null;
+        }
+        Date previous = switch (source) {
+            case DOMAIN -> previousSnapshot.getDomainLastSuccessAt();
+            case DNS -> previousSnapshot.getDnsLastSuccessAt();
+            case SSL -> previousSnapshot.getSslLastSuccessAt();
+            case WEBSITE -> previousSnapshot.getWebsiteLastSuccessAt();
+        };
+        return previous == null ? null : new Date(previous.getTime());
     }
 
     private static void initialize(BaseEntity entity, Date createdAt) {

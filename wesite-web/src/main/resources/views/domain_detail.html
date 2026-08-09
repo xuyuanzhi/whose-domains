@@ -204,39 +204,45 @@
 	            <div class="results-flex" aria-label="Monitoring evidence">
 	                <section class="result-card" id="ssl-evidence" tabindex="-1" style="scroll-margin-top:90px;">
 	                    <h3><i class="fas fa-lock"></i> SSL certificate evidence</h3>
-	                    <p><strong>Latest successful monitor observation</strong></p>
-	                    <div th:if="${monitorEvidence != null and monitorEvidence.sslObserved}">
+	                    <div th:if="${monitorEvidence != null and monitorEvidence.sslHasHistory}">
+	                        <p><strong th:text="${monitorEvidence.sslObserved ? 'Current SSL observation' : 'Last known SSL observation'}"></strong></p>
+	                        <p th:if="${not monitorEvidence.sslObserved and monitorEvidence.sslLastSuccessAt != null}">Stale - latest SSL check failed.</p>
+	                        <p th:if="${not monitorEvidence.sslObserved and monitorEvidence.sslLastSuccessAt == null}">Freshness unavailable - this legacy observation has no recorded source timestamp.</p>
 	                        <div class="info-row">
-	                            <span class="info-label">Observed at</span>
-	                            <time class="info-value" th:datetime="${monitorEvidence.checkedAt}" th:text="${monitorEvidence.checkedAt}"></time>
+	                            <span class="info-label" th:text="${monitorEvidence.sslObserved ? 'Observed at' : 'Last successful at'}"></span>
+	                            <time class="info-value" th:if="${monitorEvidence.sslLastSuccessAt != null}" th:datetime="${monitorEvidence.sslLastSuccessAt.toInstant()}" th:text="${monitorEvidence.sslLastSuccessAt.toInstant()}"></time>
+	                            <span class="info-value" th:unless="${monitorEvidence.sslLastSuccessAt != null}">Unknown</span>
 	                        </div>
 	                        <div class="info-row">
-	                            <span class="info-label">Certificate expiry</span>
+	                            <span class="info-label" th:text="${monitorEvidence.sslObserved ? 'Certificate expiry' : 'Last known certificate expiry'}"></span>
 	                            <time class="info-value" th:datetime="${monitorEvidence.sslExpiry}" th:text="${monitorEvidence.sslExpiry != null ? monitorEvidence.sslExpiry : 'Unknown'}"></time>
 	                        </div>
 	                    </div>
-	                    <p th:unless="${monitorEvidence != null and monitorEvidence.sslObserved}">No successful SSL observation is available for this watch yet.</p>
+	                    <p th:unless="${monitorEvidence != null and monitorEvidence.sslHasHistory}">SSL evidence unavailable - this source has never completed successfully for this watch.</p>
 	                    <a class="search-again" th:href="@{/tools/ssl-checker(d=${domain.name})}" style="display:inline-block;text-decoration:none;font-size:13px;padding:6px 14px;">Run a live SSL check</a>
 	                </section>
 
 	                <section class="result-card" id="website-availability-evidence" tabindex="-1" style="scroll-margin-top:90px;">
 	                    <h3><i class="fas fa-heart-pulse"></i> Website availability evidence</h3>
-	                    <p><strong>Latest successful monitor observation</strong></p>
-	                    <div th:if="${monitorEvidence != null and monitorEvidence.websiteObserved}">
+	                    <div th:if="${monitorEvidence != null and monitorEvidence.websiteHasHistory}">
+	                        <p><strong th:text="${monitorEvidence.websiteObserved ? 'Current website observation' : 'Last known website observation'}"></strong></p>
+	                        <p th:if="${not monitorEvidence.websiteObserved and monitorEvidence.websiteLastSuccessAt != null}">Stale - latest website check failed.</p>
+	                        <p th:if="${not monitorEvidence.websiteObserved and monitorEvidence.websiteLastSuccessAt == null}">Freshness unavailable - this legacy observation has no recorded source timestamp.</p>
 	                        <div class="info-row">
-	                            <span class="info-label">Observed at</span>
-	                            <time class="info-value" th:datetime="${monitorEvidence.checkedAt}" th:text="${monitorEvidence.checkedAt}"></time>
+	                            <span class="info-label" th:text="${monitorEvidence.websiteObserved ? 'Observed at' : 'Last successful at'}"></span>
+	                            <time class="info-value" th:if="${monitorEvidence.websiteLastSuccessAt != null}" th:datetime="${monitorEvidence.websiteLastSuccessAt.toInstant()}" th:text="${monitorEvidence.websiteLastSuccessAt.toInstant()}"></time>
+	                            <span class="info-value" th:unless="${monitorEvidence.websiteLastSuccessAt != null}">Unknown</span>
 	                        </div>
 	                        <div class="info-row">
-	                            <span class="info-label">HTTP reachability</span>
-	                            <span class="info-value" th:text="${monitorEvidence.websiteAvailable ? 'Reachable' : 'Unavailable'}"></span>
+	                            <span class="info-label" th:text="${monitorEvidence.websiteObserved ? 'HTTP reachability' : 'Last known HTTP reachability'}"></span>
+	                            <span class="info-value" th:text="${monitorEvidence.websiteAvailable == null ? 'Unknown' : (monitorEvidence.websiteAvailable ? 'Reachable' : 'Unavailable')}"></span>
 	                        </div>
 	                        <div class="info-row">
 	                            <span class="info-label">Consecutive failed observations</span>
-	                            <span class="info-value" th:text="${monitorEvidence.websiteFailureCount}"></span>
+	                            <span class="info-value" th:text="${monitorEvidence.websiteFailureCount != null ? monitorEvidence.websiteFailureCount : 'Unknown'}"></span>
 	                        </div>
 	                    </div>
-	                    <p th:unless="${monitorEvidence != null and monitorEvidence.websiteObserved}">No successful website-availability observation is available for this watch yet.</p>
+	                    <p th:unless="${monitorEvidence != null and monitorEvidence.websiteHasHistory}">Website evidence unavailable - this source has never completed successfully for this watch.</p>
 	                    <a class="search-again" th:href="@{/tools/domain-score(d=${domain.name})}" style="display:inline-block;text-decoration:none;font-size:13px;padding:6px 14px;">Run a live HTTPS availability check</a>
 	                </section>
 	            </div>

@@ -118,6 +118,39 @@ class MonitorEventPublisherTest {
     }
 
     @Test
+    void partialSuccessPersistsCurrentSourcesAndCarriesEachFailedSourcesLastSuccess() {
+        MonitorState previous = state(Set.of("ok"));
+        MonitorState current = state(Set.of("ok"));
+        MonitorSnapshot baseline = snapshot("source-freshness", previous);
+        baseline.setSchemaVersion(MonitorSnapshotObservation.CURRENT_SCHEMA_VERSION);
+        baseline.setObservedSources("DNS,DOMAIN,SSL,WEBSITE");
+        baseline.setCurrentObservedSources("DNS,DOMAIN,SSL,WEBSITE");
+        baseline.setDomainLastSuccessAt(Date.from(Instant.parse("2026-08-08T01:00:00Z")));
+        baseline.setDnsLastSuccessAt(Date.from(Instant.parse("2026-08-08T02:00:00Z")));
+        baseline.setSslLastSuccessAt(Date.from(Instant.parse("2026-08-08T03:00:00Z")));
+        baseline.setWebsiteLastSuccessAt(Date.from(Instant.parse("2026-08-08T04:00:00Z")));
+        when(snapshotService.getOne(any())).thenReturn(baseline);
+
+        publisher.publish(
+            watch(), current, true, Set.of(MonitorCollectorResult.Source.DNS));
+
+        ArgumentCaptor<MonitorSnapshot> saved = ArgumentCaptor.forClass(MonitorSnapshot.class);
+        verify(snapshotService).save(saved.capture());
+        assertEquals("DNS,DOMAIN,SSL,WEBSITE", saved.getValue().getObservedSources());
+        assertEquals("DNS", saved.getValue().getCurrentObservedSources());
+        assertEquals(
+            Date.from(Instant.parse("2026-08-08T01:00:00Z")),
+            saved.getValue().getDomainLastSuccessAt());
+        assertEquals(Date.from(CLOCK.instant()), saved.getValue().getDnsLastSuccessAt());
+        assertEquals(
+            Date.from(Instant.parse("2026-08-08T03:00:00Z")),
+            saved.getValue().getSslLastSuccessAt());
+        assertEquals(
+            Date.from(Instant.parse("2026-08-08T04:00:00Z")),
+            saved.getValue().getWebsiteLastSuccessAt());
+    }
+
+    @Test
     void duplicateEventReloadsWinnerAndUsesItForTheNotification() {
         DomainWatch watch = watch();
         MonitorState previous = state(Set.of("ok"));
@@ -502,7 +535,8 @@ class MonitorEventPublisherTest {
             eq(events.get(0)), any(UserNotification.class), any(DomainWatch.class), eq(null));
         ArgumentCaptor<MonitorSnapshot> saved = ArgumentCaptor.forClass(MonitorSnapshot.class);
         verify(snapshotService).save(saved.capture());
-        assertEquals(2, saved.getValue().getSchemaVersion());
+        assertEquals(MonitorSnapshotObservation.CURRENT_SCHEMA_VERSION,
+            saved.getValue().getSchemaVersion());
         assertEquals("DNS,DOMAIN,SSL,WEBSITE", saved.getValue().getObservedSources());
     }
 
