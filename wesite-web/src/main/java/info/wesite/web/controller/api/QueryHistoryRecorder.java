@@ -29,16 +29,19 @@ public class QueryHistoryRecorder {
     @Autowired
     private UserQueryHistoryService historyService;
 
+    /** Captures the current request's authenticated user before async dispatch. */
+    public static String currentUserId() {
+        User user = UserHolder.get();
+        return user == null ? null : user.getId();
+    }
+
     /**
-     * 异步写入查询历史，只在用户已登录时记录
+     * 异步写入查询历史。调用方必须在请求线程捕获 userId；异步线程不读取 UserHolder。
      */
     @Async
-    public void recordAsync(String queryType, String queryValue, String resultSummary) {
+    public void recordAsync(String userId, String queryType, String queryValue, String resultSummary) {
         try {
-            User user = UserHolder.get();
-            if (user == null) return;   // 未登录不记录
-
-            String userId = user.getId();
+            if (StringUtils.isBlank(userId)) return;   // 未登录不记录
 
             // 防重：同一用户同类型同值 10 分钟内不重复写入
             long recentCount = historyService.count(

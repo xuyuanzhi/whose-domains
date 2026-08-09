@@ -223,6 +223,8 @@ Use GA4 only with the privacy-safe custom events `watch_created`, `watchlist_ret
 
 The account-level source of record is the local MySQL aggregate report, not GA4. Run it with a database account allowed to create temporary tables; it selects only daily/overall aggregates and never emits a user ID:
 
+Before running it, edit the first `SET time_zone = '+08:00'` line to the production JVM's fixed default offset, and require the MySQL reporting session to use that same offset. This is deliberate: API usage currently uses `LocalDate.now()` with the JVM default zone, while query history uses local application/database timestamps. Do not switch this report to UTC unless the production JVM and database are both configured for UTC. The production deployment checklist therefore requires a single documented JVM/database/reporting offset (and a planned offset update for DST regions).
+
 ```bash
 mysql -u retention_reporter -p wesitedb < scripts/retention-report.sql
 ```
@@ -232,11 +234,11 @@ The script uses these persisted fields, deduplicated by `(USER_ID, activity_date
 | Purpose | Persisted source |
 | --- | --- |
 | Monitored cohort | `WEB_DOMAIN_WATCH.CREATE_TIME`; cohort date is each user's first watch creation date, including a watch later soft-deleted. |
-| Authenticated activity | `WEB_USER_QUERY_HISTORY.CREATE_TIME` where `USER_ID` is present; the recorder writes only for authenticated users. |
+| Authenticated activity | `WEB_USER_QUERY_HISTORY.CREATE_TIME` where `USER_ID` is present; the request thread captures the authenticated ID before asynchronous persistence, so the worker never depends on `UserHolder` thread-local context. |
 | Notification interaction | `WEB_USER_NOTIFICATION.READ_AT`; this is a durable successful read action. A notification-link click is not currently persisted and is intentionally not inferred. |
 | API activity | `WEB_API_USAGE_DAILY.USAGE_DATE` where `REQUEST_COUNT > 0`. |
 
-The monitored cohort contains every user whose first watch was created on the cohort day. The non-monitored control contains users on their first observed authenticated-activity day who do not create a watch through the following 30 days. This prevents a control user who soon becomes monitored from contaminating the 30-day comparison. Both cohorts are closed at least 30 UTC days before execution, so their 7-day and 30-day outcomes are complete. A return is any later persisted activity above on days 1–7 or 1–30, counted at most once per user per window before the script aggregates it.
+The monitored cohort contains every user whose first watch was created on the cohort day. The non-monitored control contains users on their first observed authenticated-activity day who do not create a watch through the following 30 days. This prevents a control user who soon becomes monitored from contaminating the 30-day comparison. Both cohorts are closed at least 30 days in the configured reporting offset before execution, so their 7-day and 30-day outcomes are complete. A return is any later persisted activity above on days 1–7 or 1–30, counted at most once per user per window before the script aggregates it.
 
 ```text
 7-day return rate  = returning cohort users on days 1-7  / eligible cohort users

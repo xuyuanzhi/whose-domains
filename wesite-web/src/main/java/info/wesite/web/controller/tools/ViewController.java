@@ -304,6 +304,7 @@ public class ViewController {
 
         RateLimitUtils.incrementRequestCount(ip);
         queryHistoryRecorder.recordAsync(
+            info.wesite.web.controller.api.QueryHistoryRecorder.currentUserId(),
             info.wesite.core.entity.UserQueryHistory.TYPE_AVAILABILITY, primaryDomain,
             primaryTaken ? "Taken" : "Available");
         return ResponseJson.success(data);
@@ -519,6 +520,7 @@ public class ViewController {
             String registrar = domainEntity.getRegistrar();
             String expiry = domainEntity.getRegistExpiryDateText();
             queryHistoryRecorder.recordAsync(
+                info.wesite.web.controller.api.QueryHistoryRecorder.currentUserId(),
                 info.wesite.core.entity.UserQueryHistory.TYPE_WHOIS, domain,
                 (registrar != null ? registrar : "Unknown") + (expiry != null ? ", expires " + expiry : ""));
             return ResponseJson.success(data);

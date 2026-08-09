@@ -149,7 +149,7 @@ public class PingTestController {
         result.put("speed", speed);
 
         RateLimitUtils.incrementRequestCount(ip);
-        queryHistoryRecorder.recordAsync(UserQueryHistory.TYPE_PING, host,
+        queryHistoryRecorder.recordAsync(QueryHistoryRecorder.currentUserId(), UserQueryHistory.TYPE_PING, host,
             online ? "Online — " + (avgMs > 0 ? avgMs + "ms" : "N/A") : "Offline");
         return ResponseJson.success(result);
     }

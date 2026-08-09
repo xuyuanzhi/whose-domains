@@ -618,7 +618,7 @@ public class DomainValuationController {
             result.put("factors", factors);
 
             RateLimitUtils.incrementRequestCount(ip);
-            queryHistoryRecorder.recordAsync(UserQueryHistory.TYPE_VALUATION, domain,
+            queryHistoryRecorder.recordAsync(QueryHistoryRecorder.currentUserId(), UserQueryHistory.TYPE_VALUATION, domain,
                     grade + " — $" + low + "~$" + high);
             return ResponseJson.success(result);
 

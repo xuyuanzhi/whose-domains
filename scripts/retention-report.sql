@@ -2,9 +2,15 @@
 -- This script returns cohort aggregates only. It never SELECTs a user ID.
 -- Run with a database account that can create temporary tables, not with a client
 -- that exports the temporary-table contents.
+--
+-- IMPORTANT: use the same fixed offset as the production JVM default time zone.
+-- API usage currently uses LocalDate.now() without an explicit ZoneId, and query
+-- history uses application/database local timestamps. Do not substitute UTC unless
+-- the production JVM and database both use UTC. Update this value for the deployed
+-- production offset (for example, +08:00) before execution.
 
-SET time_zone = '+00:00';
-SET @cohort_end_exclusive = DATE_SUB(UTC_DATE(), INTERVAL 30 DAY);
+SET time_zone = '+08:00';
+SET @cohort_end_exclusive = DATE_SUB(CURDATE(), INTERVAL 30 DAY);
 SET @cohort_start = DATE_SUB(@cohort_end_exclusive, INTERVAL 90 DAY);
 
 DROP TEMPORARY TABLE IF EXISTS retention_activity_days;

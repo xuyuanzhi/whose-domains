@@ -114,7 +114,7 @@ public class PortCheckerController {
             data.put("closedCount", results.size() - openCount);
 
             RateLimitUtils.incrementRequestCount(ip);
-            queryHistoryRecorder.recordAsync(UserQueryHistory.TYPE_PORT, finalHost,
+            queryHistoryRecorder.recordAsync(QueryHistoryRecorder.currentUserId(), UserQueryHistory.TYPE_PORT, finalHost,
                 openCount + "/" + results.size() + " ports open");
             return ResponseJson.success(data);
 

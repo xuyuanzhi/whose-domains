@@ -168,7 +168,7 @@ public class EmailCheckerController {
         result.put("summary", summary);
 
         RateLimitUtils.incrementRequestCount(ip);
-        queryHistoryRecorder.recordAsync(UserQueryHistory.TYPE_EMAIL, email, summary);
+        queryHistoryRecorder.recordAsync(QueryHistoryRecorder.currentUserId(), UserQueryHistory.TYPE_EMAIL, email, summary);
         return ResponseJson.success(result);
     }
 
