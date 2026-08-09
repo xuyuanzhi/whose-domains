@@ -11,7 +11,11 @@ import org.apache.commons.lang3.StringUtils;
 
 import info.wesite.core.entity.MonitorSnapshot;
 
-/** Versioned source provenance stored beside a monitoring state snapshot. */
+/**
+ * Versioned cumulative baseline provenance stored beside a monitoring state snapshot.
+ * The database column retains its compatibility name {@code OBSERVED_SOURCES}, but
+ * represents sources that have ever established a reliable successful baseline.
+ */
 public final class MonitorSnapshotObservation {
 
     public static final int CURRENT_SCHEMA_VERSION = 2;
@@ -19,7 +23,7 @@ public final class MonitorSnapshotObservation {
     private MonitorSnapshotObservation() {
     }
 
-    public static Set<MonitorCollectorResult.Source> sources(MonitorSnapshot snapshot) {
+    public static Set<MonitorCollectorResult.Source> establishedSources(MonitorSnapshot snapshot) {
         if (snapshot == null) {
             return Set.of();
         }
@@ -46,11 +50,11 @@ public final class MonitorSnapshotObservation {
         return Collections.unmodifiableSet(result);
     }
 
-    public static String serialize(Set<MonitorCollectorResult.Source> sources) {
-        if (sources == null || sources.isEmpty()) {
+    public static String serialize(Set<MonitorCollectorResult.Source> establishedSources) {
+        if (establishedSources == null || establishedSources.isEmpty()) {
             return "";
         }
-        return sources.stream()
+        return establishedSources.stream()
             .map(Enum::name)
             .collect(Collectors.toCollection(TreeSet::new))
             .stream()

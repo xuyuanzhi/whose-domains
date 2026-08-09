@@ -164,6 +164,8 @@ mysql -u root -p wesitedb < doc/alter_retention_notification_center.sql
 
 Do **not** run `doc/alter_domain_watch_snapshot.sql` on Path A: its unguarded `CREATE TABLE WEB_DOMAIN_WATCH` duplicates an object that `create.sql` already created. The current retention script already creates `WEB_MONITOR_SNAPSHOT` with `SCHEMA_VERSION` and `OBSERVED_SOURCES`, and `WEB_MONITOR_EVENT` with `RISK` and `SOURCE`; do **not** run either later `ADD COLUMN` script after Path A.
 
+`WEB_MONITOR_SNAPSHOT.OBSERVED_SOURCES` is a compatibility name for cumulative established-baseline provenance, not a list of collectors that succeeded only on the current scan. Once a source has produced a reliable value, successful snapshots retain both that value and its source membership across later collector failures; a source that has never succeeded is absent until its first successful observation. This observed-ever distinction prevents recovery from restarting an expiry-threshold episode while still allowing a genuinely new DOMAIN or SSL source to emit its single most urgent applicable reminder.
+
 **Path B — old installation upgrade.** Use this path only after the preflight above:
 
 1. If **both** `WEB_DOMAIN_WATCH` and `WEB_DOMAIN_SNAPSHOT` are absent, run the legacy pair first. If exactly one is present, stop: `alter_domain_watch_snapshot.sql` contains two unguarded `CREATE TABLE` statements, so the partially provisioned schema must be reconciled manually rather than re-running it.

@@ -386,6 +386,14 @@ WHERE TABLE_SCHEMA = 'wesitedb'
   AND ((TABLE_NAME = 'WEB_MONITOR_SNAPSHOT' AND COLUMN_NAME IN ('SCHEMA_VERSION','OBSERVED_SOURCES'))
     OR (TABLE_NAME = 'WEB_MONITOR_EVENT' AND COLUMN_NAME IN ('RISK','SOURCE')))
 '@
+    $establishedSourceComment = Get-FixtureCount $ContainerName $Password @'
+SELECT COUNT(*)
+FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA = 'wesitedb'
+  AND TABLE_NAME = 'WEB_MONITOR_SNAPSHOT'
+  AND COLUMN_NAME = 'OBSERVED_SOURCES'
+  AND COLUMN_COMMENT = 'Sorted collector sources with an established reliable baseline (observed-ever)'
+'@
     $pipelineColumns = Get-FixtureCount $ContainerName $Password @'
 SELECT COUNT(*)
 FROM information_schema.COLUMNS
@@ -465,6 +473,7 @@ WHERE TABLE_SCHEMA = 'wesitedb'
 
     Assert-RolloutContract ($tables -eq 7) "$Label expected seven retention tables, found $tables"
     Assert-RolloutContract ($canonicalColumns -eq 4) "$Label expected four canonical columns, found $canonicalColumns"
+    Assert-RolloutContract ($establishedSourceComment -eq 1) "$Label OBSERVED_SOURCES must document cumulative established/observed-ever provenance"
     Assert-RolloutContract ($pipelineColumns -eq 22) "$Label expected 22 key pipeline columns, found $pipelineColumns"
     Assert-RolloutContract ($watchColumns -eq 4) "$Label expected four watch compatibility/lease/calendar columns, found $watchColumns"
     Assert-RolloutContract ($watchCreatedDateColumn -eq 1) "$Label WATCH_CREATED_ON must be a nullable DATE for conservative legacy exclusion"

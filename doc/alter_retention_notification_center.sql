@@ -16,8 +16,8 @@ CREATE TABLE `WEB_MONITOR_SNAPSHOT` (
   `WATCH_ID` varchar(32) NOT NULL,
   `CHECKED_AT` datetime NOT NULL,
   `STATE_JSON` mediumtext NOT NULL,
-  `SCHEMA_VERSION` smallint NULL COMMENT '2=source-aware MonitorState; NULL=legacy DOMAIN-only provenance',
-  `OBSERVED_SOURCES` varchar(128) NULL COMMENT 'Sorted collector source names represented by STATE_JSON',
+  `SCHEMA_VERSION` smallint NULL COMMENT '2=cumulative established-source MonitorState; NULL=legacy DOMAIN-only provenance',
+  `OBSERVED_SOURCES` varchar(128) NULL COMMENT 'Sorted collector sources with an established reliable baseline (observed-ever)',
   PRIMARY KEY (`ID`),
   KEY `IDX_MONITOR_SNAPSHOT_WATCH_CHECKED` (`WATCH_ID`, `CHECKED_AT`, `ID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;

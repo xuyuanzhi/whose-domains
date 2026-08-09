@@ -8,7 +8,7 @@ import com.alibaba.fastjson2.JSON;
 
 import info.wesite.core.entity.MonitorSnapshot;
 
-/** Source-aware evidence rendered on an authenticated domain detail page. */
+/** Established-baseline evidence rendered on an authenticated domain detail page. */
 public record DomainMonitorEvidence(
     Date checkedAt,
     boolean sslObserved,
@@ -25,9 +25,10 @@ public record DomainMonitorEvidence(
         if (state == null) {
             throw new IllegalArgumentException("snapshot state is required");
         }
-        Set<MonitorCollectorResult.Source> sources = MonitorSnapshotObservation.sources(snapshot);
-        boolean sslObserved = sources.contains(MonitorCollectorResult.Source.SSL);
-        boolean websiteObserved = sources.contains(MonitorCollectorResult.Source.WEBSITE);
+        Set<MonitorCollectorResult.Source> establishedSources =
+            MonitorSnapshotObservation.establishedSources(snapshot);
+        boolean sslObserved = establishedSources.contains(MonitorCollectorResult.Source.SSL);
+        boolean websiteObserved = establishedSources.contains(MonitorCollectorResult.Source.WEBSITE);
         return new DomainMonitorEvidence(
             snapshot.getCheckedAt(),
             sslObserved,

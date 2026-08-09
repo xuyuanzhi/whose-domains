@@ -5,8 +5,10 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
@@ -159,26 +161,26 @@ public class MonitorEventPublisher {
         DomainWatch watch,
         MonitorState current,
         boolean checkSucceeded,
-        java.util.Set<MonitorCollectorResult.Source> observedSources) {
-        return publishInternal(watch, current, checkSucceeded, observedSources, true);
+        java.util.Set<MonitorCollectorResult.Source> successfulSources) {
+        return publishInternal(watch, current, checkSucceeded, successfulSources, true);
     }
 
     private List<MonitorEvent> publishInternal(
         DomainWatch watch,
         MonitorState current,
         boolean checkSucceeded,
-        java.util.Set<MonitorCollectorResult.Source> observedSources,
+        java.util.Set<MonitorCollectorResult.Source> successfulSources,
         boolean sourceScopedDetection) {
         Objects.requireNonNull(watch, "watch");
-        java.util.Set<MonitorCollectorResult.Source> currentObserved = observedSources == null
+        java.util.Set<MonitorCollectorResult.Source> currentSuccessful = successfulSources == null
             ? java.util.Set.of()
-            : java.util.Set.copyOf(observedSources);
+            : java.util.Set.copyOf(successfulSources);
         Date checkedAt = Date.from(clock.instant());
 
         if (!checkSucceeded) {
             requireSaved(
                 snapshotService.save(snapshot(
-                    watch.getId(), current, checkedAt, BaseEntity.STATUS_INACTIVE, currentObserved)),
+                    watch.getId(), current, checkedAt, BaseEntity.STATUS_INACTIVE, currentSuccessful)),
                 "failed-check diagnostic snapshot");
             return List.of();
         }
@@ -191,8 +193,12 @@ public class MonitorEventPublisher {
         MonitorState previous = previousSnapshot == null
             ? null
             : JSON.parseObject(previousSnapshot.getStateJson(), MonitorState.class);
+        Set<MonitorCollectorResult.Source> previousEstablished =
+            MonitorSnapshotObservation.establishedSources(previousSnapshot);
+        Set<MonitorCollectorResult.Source> establishedSources =
+            establishedSources(previousEstablished, currentSuccessful);
         MonitorSnapshot currentSnapshot = snapshot(
-            watch.getId(), current, checkedAt, BaseEntity.STATUS_ACTIVE, currentObserved);
+            watch.getId(), current, checkedAt, BaseEntity.STATUS_ACTIVE, establishedSources);
 
         List<MonitorEvent> published = new ArrayList<>();
         java.util.List<MonitorEventDraft> drafts;
@@ -205,8 +211,8 @@ public class MonitorEventPublisher {
                 current,
                 previousCheckedAt,
                 checkedAt.toInstant(),
-                MonitorSnapshotObservation.sources(previousSnapshot),
-                currentObserved);
+                previousEstablished,
+                currentSuccessful);
         } else {
             drafts = detector.detect(previous, current, previousCheckedAt, checkedAt.toInstant());
         }
@@ -219,6 +225,16 @@ public class MonitorEventPublisher {
 
         requireSaved(snapshotService.save(currentSnapshot), "successful snapshot");
         return List.copyOf(published);
+    }
+
+    private static Set<MonitorCollectorResult.Source> establishedSources(
+        Set<MonitorCollectorResult.Source> previousEstablished,
+        Set<MonitorCollectorResult.Source> currentSuccessful) {
+        EnumSet<MonitorCollectorResult.Source> established = EnumSet.noneOf(
+            MonitorCollectorResult.Source.class);
+        established.addAll(previousEstablished);
+        established.addAll(currentSuccessful);
+        return Set.copyOf(established);
     }
 
     private MonitorSnapshot latestSuccessfulSnapshot(String watchId) {
@@ -322,7 +338,7 @@ public class MonitorEventPublisher {
         MonitorState state,
         Date checkedAt,
         int status,
-        java.util.Set<MonitorCollectorResult.Source> observedSources) {
+        java.util.Set<MonitorCollectorResult.Source> establishedSources) {
         MonitorSnapshot snapshot = new MonitorSnapshot();
         initialize(snapshot, checkedAt);
         snapshot.setStatus(status);
@@ -330,7 +346,7 @@ public class MonitorEventPublisher {
         snapshot.setCheckedAt(checkedAt);
         snapshot.setStateJson(JSON.toJSONString(state));
         snapshot.setSchemaVersion(MonitorSnapshotObservation.CURRENT_SCHEMA_VERSION);
-        snapshot.setObservedSources(MonitorSnapshotObservation.serialize(observedSources));
+        snapshot.setObservedSources(MonitorSnapshotObservation.serialize(establishedSources));
         return snapshot;
     }
 

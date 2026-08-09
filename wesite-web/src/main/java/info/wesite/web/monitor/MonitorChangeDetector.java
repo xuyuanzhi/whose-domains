@@ -46,30 +46,30 @@ public final class MonitorChangeDetector {
         MonitorState current,
         Instant previousCheckedAt,
         Instant currentCheckedAt,
-        Set<MonitorCollectorResult.Source> previousObservedSources,
-        Set<MonitorCollectorResult.Source> currentObservedSources) {
+        Set<MonitorCollectorResult.Source> previousEstablishedSources,
+        Set<MonitorCollectorResult.Source> currentSuccessfulSources) {
         Objects.requireNonNull(current, "current");
         Objects.requireNonNull(currentCheckedAt, "currentCheckedAt");
-        Set<MonitorCollectorResult.Source> previousObserved = previousObservedSources == null
+        Set<MonitorCollectorResult.Source> previousEstablished = previousEstablishedSources == null
             ? Set.of()
-            : previousObservedSources;
-        Set<MonitorCollectorResult.Source> currentObserved = currentObservedSources == null
+            : previousEstablishedSources;
+        Set<MonitorCollectorResult.Source> currentSuccessful = currentSuccessfulSources == null
             ? Set.of()
-            : currentObservedSources;
+            : currentSuccessfulSources;
         if (previous == null) {
             java.util.List<MonitorEventDraft> initialEvents = new ArrayList<>();
-            if (currentObserved.contains(MonitorCollectorResult.Source.DOMAIN)) {
+            if (currentSuccessful.contains(MonitorCollectorResult.Source.DOMAIN)) {
                 detectExpiry(initialEvents, null, current, null, currentCheckedAt, true);
             }
-            if (currentObserved.contains(MonitorCollectorResult.Source.SSL)) {
+            if (currentSuccessful.contains(MonitorCollectorResult.Source.SSL)) {
                 detectExpiry(initialEvents, null, current, null, currentCheckedAt, false);
             }
             return java.util.List.copyOf(initialEvents);
         }
 
         java.util.List<MonitorEventDraft> events = new ArrayList<>();
-        if (currentObserved.contains(MonitorCollectorResult.Source.DOMAIN)) {
-            boolean previouslyObserved = previousObserved.contains(MonitorCollectorResult.Source.DOMAIN);
+        if (currentSuccessful.contains(MonitorCollectorResult.Source.DOMAIN)) {
+            boolean previouslyObserved = previousEstablished.contains(MonitorCollectorResult.Source.DOMAIN);
             detectExpiry(
                 events,
                 previouslyObserved ? previous : null,
@@ -79,11 +79,11 @@ public final class MonitorChangeDetector {
                 true);
         }
         if (observedOnBoth(
-            MonitorCollectorResult.Source.DOMAIN, previousObserved, currentObserved)) {
+            MonitorCollectorResult.Source.DOMAIN, previousEstablished, currentSuccessful)) {
             detectStatus(events, previous, current);
         }
-        if (currentObserved.contains(MonitorCollectorResult.Source.SSL)) {
-            boolean previouslyObserved = previousObserved.contains(MonitorCollectorResult.Source.SSL);
+        if (currentSuccessful.contains(MonitorCollectorResult.Source.SSL)) {
+            boolean previouslyObserved = previousEstablished.contains(MonitorCollectorResult.Source.SSL);
             detectExpiry(
                 events,
                 previouslyObserved ? previous : null,
@@ -93,11 +93,11 @@ public final class MonitorChangeDetector {
                 false);
         }
         if (observedOnBoth(
-            MonitorCollectorResult.Source.DNS, previousObserved, currentObserved)) {
+            MonitorCollectorResult.Source.DNS, previousEstablished, currentSuccessful)) {
             detectDns(events, previous, current);
         }
         if (observedOnBoth(
-            MonitorCollectorResult.Source.WEBSITE, previousObserved, currentObserved)) {
+            MonitorCollectorResult.Source.WEBSITE, previousEstablished, currentSuccessful)) {
             detectWebsiteAvailability(events, previous, current);
         }
         return java.util.List.copyOf(events);

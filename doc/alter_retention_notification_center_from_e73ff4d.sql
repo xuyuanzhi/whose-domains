@@ -98,9 +98,9 @@ WHERE `NOTIFY_TYPE` IS NULL OR `NOTIFY_TYPE` NOT IN (0, 1, 2, 3);
 ALTER TABLE `WEB_MONITOR_SNAPSHOT`
   DROP INDEX `IDX_MONITOR_SNAPSHOT_WATCH_CHECKED`,
   ADD COLUMN `SCHEMA_VERSION` smallint NULL
-    COMMENT '2=source-aware MonitorState; NULL=legacy DOMAIN-only provenance' AFTER `STATE_JSON`,
+    COMMENT '2=cumulative established-source MonitorState; NULL=legacy DOMAIN-only provenance' AFTER `STATE_JSON`,
   ADD COLUMN `OBSERVED_SOURCES` varchar(128) NULL
-    COMMENT 'Sorted collector source names represented by STATE_JSON' AFTER `SCHEMA_VERSION`,
+    COMMENT 'Sorted collector sources with an established reliable baseline (observed-ever)' AFTER `SCHEMA_VERSION`,
   ADD KEY `IDX_MONITOR_SNAPSHOT_WATCH_CHECKED` (`WATCH_ID`, `CHECKED_AT`, `ID`);
 
 ALTER TABLE `WEB_MONITOR_EVENT`

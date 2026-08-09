@@ -145,7 +145,7 @@ public class DomainWatchTask {
                     }
 
                     eventPublisher.publish(
-                        claimedWatch, result.state(), result.succeeded(), result.observedSources());
+                        claimedWatch, result.state(), result.succeeded(), result.successfulSources());
                     Date checkedAt = new Date();
                     claimedWatch.setLastCheckTime(checkedAt);
                     claimedWatch.setUpdateTime(checkedAt);
@@ -240,8 +240,8 @@ public class DomainWatchTask {
         boolean anySucceeded = results.stream().anyMatch(MonitorCollectorResult::successful);
         boolean succeeded = anySucceeded;
         boolean changed = domainResult.successful() && applyDomainResult(watch, domain, merged);
-        Set<MonitorCollectorResult.Source> observedSources = observedSources(results);
-        return new RefreshResult(true, succeeded, changed, merged, observedSources);
+        Set<MonitorCollectorResult.Source> successfulSources = successfulSources(results);
+        return new RefreshResult(true, succeeded, changed, merged, successfulSources);
     }
 
     private ProbeBundle collectProbes(DomainWatch watch) {
@@ -323,7 +323,7 @@ public class DomainWatchTask {
         }
         return new PriorSnapshot(
             JSON.parseObject(snapshot.getStateJson(), MonitorState.class),
-            MonitorSnapshotObservation.sources(snapshot));
+            MonitorSnapshotObservation.establishedSources(snapshot));
     }
 
     private static MonitorState merge(
@@ -372,15 +372,15 @@ public class DomainWatchTask {
                 raw.state().domain(), Set.of(), null, null, Map.of(), available, count));
     }
 
-    private static Set<MonitorCollectorResult.Source> observedSources(
+    private static Set<MonitorCollectorResult.Source> successfulSources(
         List<MonitorCollectorResult> results) {
-        EnumSet<MonitorCollectorResult.Source> observed = EnumSet.noneOf(
+        EnumSet<MonitorCollectorResult.Source> successful = EnumSet.noneOf(
             MonitorCollectorResult.Source.class);
         results.stream()
             .filter(MonitorCollectorResult::successful)
             .map(MonitorCollectorResult::source)
-            .forEach(observed::add);
-        return Set.copyOf(observed);
+            .forEach(successful::add);
+        return Set.copyOf(successful);
     }
 
     private static String canonicalDomain(String value) {
@@ -471,7 +471,7 @@ public class DomainWatchTask {
 
     private record PriorSnapshot(
         MonitorState state,
-        Set<MonitorCollectorResult.Source> observedSources) {
+        Set<MonitorCollectorResult.Source> establishedSources) {
     }
 
     private record ProbeBundle(
@@ -487,7 +487,7 @@ public class DomainWatchTask {
         boolean succeeded,
         boolean changed,
         MonitorState state,
-        Set<MonitorCollectorResult.Source> observedSources) {
+        Set<MonitorCollectorResult.Source> successfulSources) {
         private static RefreshResult skipped() {
             return new RefreshResult(false, false, false, null, Set.of());
         }

@@ -543,6 +543,104 @@ class MonitorEventPublisherTest {
             any(MonitorEvent.class), any(UserNotification.class), any(DomainWatch.class), eq(7));
     }
 
+    @Test
+    void establishedDomainBaselineSurvivesAPartialFailureWithoutARecoveryReminder() {
+        detector = new MonitorChangeDetector(CLOCK);
+        publisher = new MonitorEventPublisher(
+            snapshotService,
+            eventService,
+            notificationService,
+            eventMapper,
+            notificationMapper,
+            dispatcher,
+            detector,
+            CLOCK);
+        MonitorSnapshot neverObservedDomain = snapshot(
+            "never-observed-domain", expiryState(LocalDate.of(2026, 11, 1)));
+        neverObservedDomain.setSchemaVersion(MonitorSnapshotObservation.CURRENT_SCHEMA_VERSION);
+        neverObservedDomain.setObservedSources("DNS,SSL,WEBSITE");
+        AtomicReference<MonitorSnapshot> latest = new AtomicReference<>(neverObservedDomain);
+        when(snapshotService.getOne(any())).thenAnswer(invocation -> latest.get());
+        when(snapshotService.save(any(MonitorSnapshot.class))).thenAnswer(invocation -> {
+            latest.set(invocation.getArgument(0));
+            return true;
+        });
+
+        MonitorState fiveDays = expiryState(LocalDate.of(2026, 8, 14));
+        List<MonitorEvent> first = publisher.publish(
+            watch(), fiveDays, true, Set.of(MonitorCollectorResult.Source.DOMAIN));
+        List<MonitorEvent> failure = publisher.publish(
+            watch(), fiveDays, true, Set.of(MonitorCollectorResult.Source.DNS));
+        MonitorSnapshot afterFailure = latest.get();
+        List<MonitorEvent> recovery = publisher.publish(
+            watch(), expiryState(LocalDate.of(2026, 8, 12)), true,
+            Set.of(MonitorCollectorResult.Source.DOMAIN));
+
+        assertEquals(1, first.size());
+        assertEquals("DOMAIN_EXPIRING", first.get(0).getEventType());
+        assertTrue(failure.isEmpty());
+        assertTrue(recovery.isEmpty(), "recovery must not restart the established 7-day episode");
+        assertEquals(BaseEntity.STATUS_ACTIVE, afterFailure.getStatus());
+        assertEquals("DNS,DOMAIN,SSL,WEBSITE", afterFailure.getObservedSources());
+        assertEquals(
+            LocalDate.of(2026, 8, 14),
+            JSON.parseObject(afterFailure.getStateJson(), MonitorState.class).domainExpiry());
+        verify(eventService, times(1)).save(any(MonitorEvent.class));
+        verify(notificationService, times(1)).save(any(UserNotification.class));
+        verify(dispatcher, times(1)).dispatch(
+            any(MonitorEvent.class), any(UserNotification.class), any(DomainWatch.class), eq(7));
+    }
+
+    @Test
+    void establishedSslBaselineSurvivesRepeatedPartialFailuresWithoutARecoveryReminder() {
+        detector = new MonitorChangeDetector(CLOCK);
+        publisher = new MonitorEventPublisher(
+            snapshotService,
+            eventService,
+            notificationService,
+            eventMapper,
+            notificationMapper,
+            dispatcher,
+            detector,
+            CLOCK);
+        MonitorSnapshot neverObservedSsl = snapshot(
+            "never-observed-ssl", sslExpiryState(LocalDate.of(2026, 11, 1)));
+        neverObservedSsl.setSchemaVersion(MonitorSnapshotObservation.CURRENT_SCHEMA_VERSION);
+        neverObservedSsl.setObservedSources("DNS,DOMAIN,WEBSITE");
+        AtomicReference<MonitorSnapshot> latest = new AtomicReference<>(neverObservedSsl);
+        when(snapshotService.getOne(any())).thenAnswer(invocation -> latest.get());
+        when(snapshotService.save(any(MonitorSnapshot.class))).thenAnswer(invocation -> {
+            latest.set(invocation.getArgument(0));
+            return true;
+        });
+
+        MonitorState fiveDays = sslExpiryState(LocalDate.of(2026, 8, 14));
+        List<MonitorEvent> first = publisher.publish(
+            watch(), fiveDays, true, Set.of(MonitorCollectorResult.Source.SSL));
+        List<MonitorEvent> firstFailure = publisher.publish(
+            watch(), fiveDays, true, Set.of(MonitorCollectorResult.Source.DNS));
+        List<MonitorEvent> secondFailure = publisher.publish(
+            watch(), fiveDays, true, Set.of(MonitorCollectorResult.Source.WEBSITE));
+        MonitorSnapshot afterRepeatedFailures = latest.get();
+        List<MonitorEvent> recovery = publisher.publish(
+            watch(), sslExpiryState(LocalDate.of(2026, 8, 12)), true,
+            Set.of(MonitorCollectorResult.Source.SSL));
+
+        assertEquals(1, first.size());
+        assertEquals("SSL_EXPIRING", first.get(0).getEventType());
+        assertTrue(firstFailure.isEmpty());
+        assertTrue(secondFailure.isEmpty());
+        assertTrue(recovery.isEmpty(), "recovery must not restart the established 7-day episode");
+        assertEquals("DNS,DOMAIN,SSL,WEBSITE", afterRepeatedFailures.getObservedSources());
+        assertEquals(
+            LocalDate.of(2026, 8, 14),
+            JSON.parseObject(afterRepeatedFailures.getStateJson(), MonitorState.class).sslExpiry());
+        verify(eventService, times(1)).save(any(MonitorEvent.class));
+        verify(notificationService, times(1)).save(any(UserNotification.class));
+        verify(dispatcher, times(1)).dispatch(
+            any(MonitorEvent.class), any(UserNotification.class), any(DomainWatch.class), eq(null));
+    }
+
     private static DomainWatch watch() {
         DomainWatch watch = new DomainWatch();
         watch.setId("watch-1");
@@ -568,6 +666,17 @@ class MonitorEventPublisherTest {
             Set.of("ok"),
             domainExpiry,
             LocalDate.of(2027, 8, 9),
+            Map.of(),
+            true,
+            0);
+    }
+
+    private static MonitorState sslExpiryState(LocalDate sslExpiry) {
+        return new MonitorState(
+            "example.com",
+            Set.of("ok"),
+            LocalDate.of(2027, 8, 9),
+            sslExpiry,
             Map.of(),
             true,
             0);

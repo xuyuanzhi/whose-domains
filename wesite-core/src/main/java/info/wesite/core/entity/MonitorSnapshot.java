@@ -20,5 +20,6 @@ public class MonitorSnapshot extends BaseEntity {
 
     private Integer schemaVersion;
 
+    /** Compatibility field containing cumulative established/observed-ever source names. */
     private String observedSources;
 }
