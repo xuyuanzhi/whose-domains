@@ -181,6 +181,21 @@ test('category loading normalizes unrecognized filters to all', async () => {
     assert.equal(harness.requests[0].url, '/api/notifications?page=1&category=all');
 });
 
+test('notification loading retains the watched-domain filter from the link', async () => {
+    const harness = createHarness(() => ok({ items: [], total: 0, page: 1, size: 20 }));
+    harness.context.window.location.search = '?domain=example.com';
+    harness.document.register('notificationList');
+    harness.document.register('notificationLoading');
+    harness.document.register('notificationError');
+    harness.document.register('notificationEmpty');
+    harness.document.register('notificationPagination');
+    harness.document.register('notificationStatus');
+
+    await harness.api.loadNotifications('all', 1);
+
+    assert.equal(harness.requests[0].url, '/api/notifications?page=1&category=all&domain=example.com');
+});
+
 test('marking a row read refreshes and announces the unread count', async () => {
     const responses = [ok(null), ok({ unreadCount: 2 })];
     const harness = createHarness(() => responses.shift());

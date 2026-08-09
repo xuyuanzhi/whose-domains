@@ -31,6 +31,15 @@
         return ALLOWED_CATEGORIES.indexOf(value) >= 0 ? value : 'all';
     }
 
+    function currentDomainFilter() {
+        try {
+            var search = (root.location && root.location.search) || '';
+            return new URLSearchParams(search).get('domain') || '';
+        } catch (error) {
+            return '';
+        }
+    }
+
     function safeInternalTarget(target) {
         if (typeof target !== 'string' || target.charAt(0) !== '/' || target.indexOf('//') === 0 || target.indexOf('/\\') === 0) return null;
         try {
@@ -152,7 +161,10 @@
         var pagination = document.getElementById('notificationPagination');
         if (list && !shouldAppend) list.replaceChildren();
         if (pagination) pagination.hidden = true;
-        return requestJson('/api/notifications?page=' + requestedPage + '&category=' + encodeURIComponent(requestedCategory), {
+        var domain = currentDomainFilter();
+        var requestUrl = '/api/notifications?page=' + requestedPage + '&category=' + encodeURIComponent(requestedCategory);
+        if (domain) requestUrl += '&domain=' + encodeURIComponent(domain);
+        return requestJson(requestUrl, {
             signal: controller.signal
         })
             .then(function (data) {

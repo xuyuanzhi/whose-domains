@@ -209,6 +209,15 @@
         .badge-warning { background: rgba(255,193,7,0.15); color: #ffc107; border:1px solid rgba(255,193,7,0.3); }
         .badge-safe    { background: rgba(76,175,80,0.15); color: #4caf50; border:1px solid rgba(76,175,80,0.3); }
         .badge-unknown { background: rgba(150,150,150,0.15); color: #999; border:1px solid rgba(150,150,150,0.3); }
+        .watch-monitoring-summary { width:100%; display:flex; align-items:center; gap:9px; flex-wrap:wrap; font-size:12px; color:var(--gray); }
+        .watch-risk { border-radius:999px; padding:3px 8px; font-weight:700; }
+        .watch-risk-critical { color:#ff5252; background:rgba(255,82,82,.14); }
+        .watch-risk-high { color:#ffab00; background:rgba(255,171,0,.14); }
+        .watch-risk-medium { color:#ffd166; background:rgba(255,209,102,.12); }
+        .watch-risk-low { color:#64ffda; background:rgba(100,255,218,.12); }
+        .watch-risk-unknown { color:#aeb8c8; background:rgba(174,184,200,.1); }
+        .watch-event-link { color:var(--primary); font-weight:600; text-decoration:none; }
+        .watch-event-link:hover, .watch-event-link:focus-visible { text-decoration:underline; }
     </style>
 
     <script>
@@ -267,7 +276,8 @@
         var d7  = new Date(now.getTime() + 7  * 86400000);
         var d30 = new Date(now.getTime() + 30 * 86400000);
         var expiring = 0, month = 0, safe = 0;
-        list.forEach(function(w) {
+        list.forEach(function(summary) {
+            var w = summary.watch || summary;
             if (!w.expiryDate) { return; }
             var exp = new Date(w.expiryDate);
             if (exp < d7)       expiring++;
@@ -288,7 +298,8 @@
         }
         document.getElementById('emptyState').style.display = 'none';
 
-        list.forEach(function(w) {
+        list.forEach(function(summary) {
+            var w = summary.watch || summary;
             var expiryText = w.expiryDateText || 'Unknown';
             var badge = '<span class="expiry-badge badge-unknown">Expiry Unknown</span>';
             if (w.expiryDate) {
@@ -324,6 +335,7 @@
                     registrar +
                     '<span style="color:var(--gray);font-size:13px;"><i class="fas fa-bell" style="margin-right:4px;"></i>' + notifyLabel + '</span>' +
                 '</div>' +
+                monitoringSummary(summary) +
                 '<div style="display:flex; gap:8px; margin-left:auto;">' +
                     '<button class="watch-btn-edit" onclick="openEditModal(\'' + w.id + '\',\'' + escHtml(w.domainName) + '\',' + (w.notifyType||0) + ',\'' + (w.notifyEmail||'') + '\')">' +
                         '<i class="fas fa-cog"></i> Settings' +
@@ -440,6 +452,34 @@
 
     function escHtml(str) {
         return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function monitoringSummary(summary) {
+        var latestEvent = summary.latestEventSummary || 'No monitoring events yet';
+        var risk = summary.latestRisk || 'UNKNOWN';
+        var riskLabels = { CRITICAL: 'Critical risk', HIGH: 'High risk', MEDIUM: 'Medium risk', LOW: 'Low risk', UNKNOWN: 'Unrated' };
+        var riskLabel = riskLabels[risk] || 'Unrated';
+        var successfulCheck = summary.lastSuccessfulCheck
+            ? escHtml(String(summary.lastSuccessfulCheck))
+            : 'No successful checks yet';
+        var hasEvents = latestEvent !== 'No monitoring events yet';
+        var unread = Number(summary.unreadCount || 0);
+        var eventLink = '';
+        if (hasEvents) {
+            var domain = summary.watch && summary.watch.domainName;
+            var eventLabel = unread > 0 ? unread + ' unread events' : 'View event history';
+            eventLink = '<a class="watch-event-link" href="/user/notifications?domain=' +
+                encodeURIComponent(domain || '') + '">' + escHtml(eventLabel) + '</a>';
+        }
+        return '<div class="watch-monitoring-summary" aria-label="Monitoring activity">' +
+            '<span class="watch-risk watch-risk-' + escHtml(risk.toLowerCase()) + '">' + escHtml(riskLabel) + '</span>' +
+            '<span>Last successful check: ' + successfulCheck + '</span>' +
+            '<span>' + escHtml(latestEvent) + '</span>' + eventLink +
+            '</div>';
+    }
+
+    if (typeof window !== 'undefined') {
+        window.DomainWatchNotifications = { monitoringSummary: monitoringSummary };
     }
 
     // Close modal on backdrop click

@@ -4,6 +4,7 @@ import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.apache.commons.lang3.StringUtils;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -58,7 +60,8 @@ public class NotificationController {
     @GetMapping
     public ResponseJson<Map<String, Object>> list(
             @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "all") String category) {
+            @RequestParam(defaultValue = "all") String category,
+            @RequestParam(required = false) String domain) {
         if (page < 1) {
             return ResponseJson.failure("Page must be positive.");
         }
@@ -69,17 +72,45 @@ public class NotificationController {
             return ResponseJson.success(pageData(List.of(), 0, page));
         }
 
+        String userId = UserHolder.get().getId();
         var query = Wrappers.<UserNotification>lambdaQuery()
-                .eq(UserNotification::getUserId, UserHolder.get().getId())
+                .eq(UserNotification::getUserId, userId)
                 .orderByDesc(UserNotification::getCreateTime);
         String eventTypes = eventTypesFor(category);
         if (eventTypes != null) {
             query.inSql(UserNotification::getEventId,
                     "SELECT ID FROM WEB_MONITOR_EVENT WHERE EVENT_TYPE IN (" + eventTypes + ")");
         }
+        if (StringUtils.isNotBlank(domain)) {
+            DomainWatch watch = domainWatchService.getOne(Wrappers.<DomainWatch>lambdaQuery()
+                    .eq(DomainWatch::getUserId, userId)
+                    .eq(DomainWatch::getDomainName, domain.trim().toLowerCase(Locale.ROOT))
+                    .eq(DomainWatch::getStatus, DomainWatch.STATUS_ACTIVE));
+            if (watch == null) {
+                return ResponseJson.success(pageData(List.of(), 0, page));
+            }
+            List<String> eventIds = monitorEventService.list(Wrappers.<MonitorEvent>lambdaQuery()
+                    .select(MonitorEvent::getId)
+                    .eq(MonitorEvent::getWatchId, watch.getId()))
+                    .stream()
+                    .map(MonitorEvent::getId)
+                    .filter(value -> value != null && !value.isBlank())
+                    .toList();
+            if (eventIds.isEmpty()) {
+                return ResponseJson.success(pageData(List.of(), 0, page));
+            }
+            query.in(UserNotification::getEventId, eventIds);
+        }
         Page<UserNotification> result = notificationService.page(new Page<>(page, PAGE_SIZE), query);
-        List<Map<String, Object>> items = toDtos(result.getRecords(), UserHolder.get().getId());
+        List<Map<String, Object>> items = toDtos(result.getRecords(), userId);
         return ResponseJson.success(pageData(items, result.getTotal(), page));
+    }
+
+    /**
+     * Retains the established handler signature used by access-control integrations.
+     */
+    public ResponseJson<Map<String, Object>> list(int page, String category) {
+        return list(page, category, null);
     }
 
     @Operation(summary = "Get current user's unread notification count")

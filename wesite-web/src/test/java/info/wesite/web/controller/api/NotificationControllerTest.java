@@ -54,6 +54,14 @@ class NotificationControllerTest {
                 new org.apache.ibatis.builder.MapperBuilderAssistant(
                         new com.baomidou.mybatisplus.core.MybatisConfiguration(), "NotificationControllerTest"),
                 UserNotification.class);
+        com.baomidou.mybatisplus.core.metadata.TableInfoHelper.initTableInfo(
+                new org.apache.ibatis.builder.MapperBuilderAssistant(
+                        new com.baomidou.mybatisplus.core.MybatisConfiguration(), "NotificationControllerTest"),
+                DomainWatch.class);
+        com.baomidou.mybatisplus.core.metadata.TableInfoHelper.initTableInfo(
+                new org.apache.ibatis.builder.MapperBuilderAssistant(
+                        new com.baomidou.mybatisplus.core.MybatisConfiguration(), "NotificationControllerTest"),
+                MonitorEvent.class);
         notifications = mock(UserNotificationService.class);
         events = mock(MonitorEventService.class);
         watches = mock(DomainWatchService.class);
@@ -108,6 +116,36 @@ class NotificationControllerTest {
                 .andExpect(jsonPath("$.code").value(400));
 
         verify(notifications, never()).page(any(Page.class), any(Wrapper.class));
+    }
+
+    @Test
+    void listScopesADomainFilterToTheCurrentUsersWatch() throws Exception {
+        DomainWatch watch = new DomainWatch();
+        watch.setId("watch-1");
+        watch.setUserId("user-1");
+        watch.setDomainName("example.com");
+        MonitorEvent event = event("event-1", "watch-1", "DNS_CHANGED", "ns2.example", new Date());
+        Page<UserNotification> page = new Page<>(1, 20, 0);
+        page.setRecords(List.of());
+        when(watches.getOne(any(Wrapper.class))).thenReturn(watch);
+        when(events.list(any(Wrapper.class))).thenReturn(List.of(event));
+        when(notifications.page(any(Page.class), any(Wrapper.class))).thenReturn(page);
+
+        mvc.perform(get("/api/notifications").param("domain", "Example.COM"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.total").value(0));
+
+        ArgumentCaptor<Wrapper<DomainWatch>> watchQuery = ArgumentCaptor.forClass((Class) Wrapper.class);
+        ArgumentCaptor<Wrapper<MonitorEvent>> eventQuery = ArgumentCaptor.forClass((Class) Wrapper.class);
+        ArgumentCaptor<Wrapper<UserNotification>> notificationQuery = ArgumentCaptor.forClass((Class) Wrapper.class);
+        verify(watches).getOne(watchQuery.capture());
+        verify(events).list(eventQuery.capture());
+        verify(notifications).page(any(Page.class), notificationQuery.capture());
+        assertTrue(watchQuery.getValue().getSqlSegment().contains("user_id")
+                && watchQuery.getValue().getSqlSegment().contains("domain_name"));
+        assertTrue(eventQuery.getValue().getSqlSegment().contains("watch_id"));
+        assertTrue(notificationQuery.getValue().getSqlSegment().contains("event_id"));
     }
 
     @Test
