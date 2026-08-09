@@ -103,6 +103,58 @@ class SafeNetworkProbeServiceTest {
     }
 
     @Test
+    void pingAndPortConnectionsUseOnlyPolicyApprovedAddresses() throws Exception {
+        InetAddress approved = InetAddress.getByName("93.184.216.34");
+        InetAddress privateAddress = InetAddress.getByName("10.0.0.1");
+        AtomicInteger resolverCalls = new AtomicInteger();
+        AtomicInteger pingLookups = new AtomicInteger();
+        AtomicInteger portLookups = new AtomicInteger();
+        List<InetAddress> icmpConnections = Collections.synchronizedList(new ArrayList<>());
+        List<InetAddress> httpConnections = Collections.synchronizedList(new ArrayList<>());
+        List<InetAddress> portConnections = Collections.synchronizedList(new ArrayList<>());
+        MonitorTargetPolicy.HostResolver requestResolver = (host, deadline) -> {
+            resolverCalls.incrementAndGet();
+            AtomicInteger lookups = switch (host) {
+                case "ping.example" -> pingLookups;
+                case "ports.example" -> portLookups;
+                default -> throw new IOException("unexpected host");
+            };
+            return new InetAddress[] {lookups.incrementAndGet() == 1 ? approved : privateAddress};
+        };
+        BoundHttpClient client = new BoundHttpClient(
+            (host, deadline) -> {
+                resolverCalls.incrementAndGet();
+                assertEquals("ping.example", host);
+                return new InetAddress[] {approved};
+            },
+            (uri, method, address, deadline) -> {
+                httpConnections.add(address);
+                return new BoundHttpClient.Response(200, java.util.Map.of(), new byte[0]);
+            });
+        SafeNetworkProbeService service = serviceWith(
+            requestResolver, executor(1), client,
+            (address, timeoutMillis) -> {
+                icmpConnections.add(address);
+                return true;
+            },
+            (address, port, timeoutMillis) -> {
+                portConnections.add(address);
+                return true;
+            },
+            MonitorDeadline::after);
+
+        SafeNetworkProbeService.PingProbeResult ping = service.ping("ping.example");
+        SafeNetworkProbeService.PortProbeResult ports = service.checkPorts("ports.example", List.of(443));
+
+        assertTrue(ping.online());
+        assertTrue(ports.ports().get(0).open());
+        assertEquals(3, resolverCalls.get(), "one policy lookup per probe boundary");
+        assertEquals(List.of(approved), icmpConnections);
+        assertEquals(List.of(approved), httpConnections);
+        assertEquals(List.of(approved), portConnections);
+    }
+
+    @Test
     void rejectsMixedPublicAndPrivateAnswersBeforeStartingConnectors() throws Exception {
         AtomicInteger connections = new AtomicInteger();
         SafeNetworkProbeService service = serviceWith(

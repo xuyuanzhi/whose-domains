@@ -308,6 +308,10 @@ lift                = monitored return rate - comparison return rate
 
 The first result set is a single readiness row, the second is a daily closed-cohort trend, and the third is the 90-day aggregate comparison. A 90-day window of cohorts whose 30-day outcomes are closed requires at least 120 days of retained facts. Until `DATEDIFF(CURDATE(), COLLECTION_STARTED_ON)` reaches the configured minimum, the readiness row is `INSUFFICIENT_HISTORY` and both cohort result sets are intentionally empty. Missing metadata similarly returns `MISSING_COLLECTION_METADATA`; neither state may be presented as zero retention. Once ready, both cohort result sets suppress any emitted cohort with fewer than five users (`@minimum_cohort_size = 5`) so the report never exposes tiny groups. `cohort_users` is the denominator, `returned_users_7d`/`returned_users_30d` are unique returning users, and `return_rate_*_pct` is their percentage. Compute monitored-minus-control lift from the two aggregate rows. GA4 may still show an anonymous privacy-safe funnel trend, but it must not be used for an account-level cohort comparison because no user ID is sent. This is an observational comparison, not a causal claim; repeat it weekly and inspect both absolute lift and confidence intervals before changing notification policy.
 
+## Network probe safety and capacity
+
+Ping and Port Checker connect only to public IP addresses approved by the target policy. Mixed DNS answers and redirects to unsafe targets fail closed. Each request has one 15-second total time budget; port checks accept 1–20 ports, each in the range `1..65535`, and run with at most 8 worker threads plus a 32-task queue. Rate limiting remains per application instance until a separate distributed-limiter change is made.
+
 ## Contributing
 
 Issues and PRs are welcome. Before submitting:
