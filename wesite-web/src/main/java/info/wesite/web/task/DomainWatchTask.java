@@ -23,10 +23,13 @@ import org.springframework.stereotype.Component;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 
+import info.wesite.core.entity.BaseEntity;
 import info.wesite.core.entity.Domain;
 import info.wesite.core.entity.DomainWatch;
+import info.wesite.core.entity.MonitorSnapshot;
 import info.wesite.core.service.DomainService;
 import info.wesite.core.service.DomainWatchService;
+import info.wesite.core.service.MonitorSnapshotService;
 import info.wesite.web.monitor.MonitorEventPublisher;
 import info.wesite.web.monitor.MonitorState;
 
@@ -43,15 +46,18 @@ public class DomainWatchTask {
 
     private final DomainWatchService domainWatchService;
     private final DomainService domainService;
+    private final MonitorSnapshotService monitorSnapshotService;
     private final MonitorEventPublisher eventPublisher;
 
     @Autowired
     public DomainWatchTask(
         DomainWatchService domainWatchService,
         DomainService domainService,
+        MonitorSnapshotService monitorSnapshotService,
         MonitorEventPublisher eventPublisher) {
         this.domainWatchService = domainWatchService;
         this.domainService = domainService;
+        this.monitorSnapshotService = monitorSnapshotService;
         this.eventPublisher = eventPublisher;
     }
 
@@ -102,7 +108,8 @@ public class DomainWatchTask {
 
     private RefreshResult refreshWatchInfo(DomainWatch watch) {
         if (watch.getLastCheckTime() != null
-            && watch.getLastCheckTime().after(DateUtils.addHours(new Date(), -24))) {
+            && watch.getLastCheckTime().after(DateUtils.addHours(new Date(), -24))
+            && hasSuccessfulSnapshot(watch.getId())) {
             return RefreshResult.skipped();
         }
 
@@ -136,6 +143,13 @@ public class DomainWatchTask {
             return new RefreshResult(true, false, changed, null);
         }
         return new RefreshResult(true, true, changed, monitorState(watch, domain));
+    }
+
+    private boolean hasSuccessfulSnapshot(String watchId) {
+        return monitorSnapshotService.count(
+            Wrappers.<MonitorSnapshot>lambdaQuery()
+                .eq(MonitorSnapshot::getWatchId, watchId)
+                .eq(MonitorSnapshot::getStatus, BaseEntity.STATUS_ACTIVE)) > 0;
     }
 
     private static MonitorState monitorState(DomainWatch watch, Domain domain) {

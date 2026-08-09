@@ -10,8 +10,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.Date;
@@ -30,7 +33,11 @@ import info.wesite.core.entity.DomainWatch;
 import info.wesite.core.mail.MailSender;
 import info.wesite.core.service.DomainService;
 import info.wesite.core.service.DomainWatchService;
+import info.wesite.core.service.MonitorSnapshotService;
+import info.wesite.web.monitor.MonitorChangeDetector;
+import info.wesite.web.monitor.MonitorEventDraft;
 import info.wesite.web.monitor.MonitorEventPublisher;
+import info.wesite.web.monitor.MonitorEventType;
 import info.wesite.web.monitor.MonitorState;
 
 class DomainWatchTaskEventMigrationTest {
@@ -40,6 +47,7 @@ class DomainWatchTaskEventMigrationTest {
     void expiryScanRoutesCurrentExpiryStateThroughTheEventPublisher() {
         DomainWatchService watchService = mock(DomainWatchService.class);
         DomainService domainService = mock(DomainService.class);
+        MonitorSnapshotService snapshotService = mock(MonitorSnapshotService.class);
         MonitorEventPublisher publisher = mock(MonitorEventPublisher.class);
         DomainWatch watch = watch();
         Page<DomainWatch> page = new Page<>(1, 100);
@@ -48,7 +56,7 @@ class DomainWatchTaskEventMigrationTest {
         when(watchService.updateById(any(DomainWatch.class))).thenReturn(true);
         when(domainService.getById("domain-1")).thenReturn(domain());
 
-        new DomainWatchTask(watchService, domainService, publisher).checkDomainExpiry();
+        new DomainWatchTask(watchService, domainService, snapshotService, publisher).checkDomainExpiry();
 
         ArgumentCaptor<MonitorState> state = ArgumentCaptor.forClass(MonitorState.class);
         verify(publisher).publish(eq(watch), state.capture(), eq(true));
@@ -64,6 +72,7 @@ class DomainWatchTaskEventMigrationTest {
     void publisherFailureDoesNotAdvanceTheSuccessfulScanCursor() {
         DomainWatchService watchService = mock(DomainWatchService.class);
         DomainService domainService = mock(DomainService.class);
+        MonitorSnapshotService snapshotService = mock(MonitorSnapshotService.class);
         MonitorEventPublisher publisher = mock(MonitorEventPublisher.class);
         DomainWatch watch = watch();
         Page<DomainWatch> page = new Page<>(1, 100);
@@ -73,9 +82,57 @@ class DomainWatchTaskEventMigrationTest {
         when(publisher.publish(eq(watch), any(MonitorState.class), eq(true)))
             .thenThrow(new IllegalStateException("publisher unavailable"));
 
-        new DomainWatchTask(watchService, domainService, publisher).checkDomainExpiry();
+        new DomainWatchTask(watchService, domainService, snapshotService, publisher).checkDomainExpiry();
 
         assertNull(watch.getLastCheckTime());
+        verify(watchService, never()).updateById(any(DomainWatch.class));
+    }
+
+    @Test
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    void recentLegacyCheckDoesNotSuppressFirstSuccessfulExpiryPublication() {
+        Clock clock = Clock.fixed(Instant.parse("2026-08-09T12:00:00Z"), ZoneOffset.UTC);
+        DomainWatchService watchService = mock(DomainWatchService.class);
+        DomainService domainService = mock(DomainService.class);
+        MonitorSnapshotService snapshotService = mock(MonitorSnapshotService.class);
+        MonitorEventPublisher publisher = mock(MonitorEventPublisher.class);
+        DomainWatch watch = watch();
+        watch.setLastCheckTime(new Date());
+        Page<DomainWatch> page = new Page<>(1, 100);
+        page.setRecords(List.of(watch));
+        when(watchService.page(any(IPage.class), any(Wrapper.class))).thenReturn(page);
+        when(watchService.updateById(any(DomainWatch.class))).thenReturn(true);
+        when(snapshotService.count(any(Wrapper.class))).thenReturn(0L);
+        when(domainService.getById("domain-1")).thenReturn(domain("2026-08-10"));
+
+        new DomainWatchTask(watchService, domainService, snapshotService, publisher).checkDomainExpiry();
+
+        ArgumentCaptor<MonitorState> state = ArgumentCaptor.forClass(MonitorState.class);
+        verify(publisher).publish(eq(watch), state.capture(), eq(true));
+        List<MonitorEventDraft> events = new MonitorChangeDetector(clock).detect(
+            null, state.getValue(), null, clock.instant());
+        assertTrue(events.stream().anyMatch(event ->
+            event.type() == MonitorEventType.DOMAIN_EXPIRING
+                && "domainExpiry:1".equals(event.field())));
+    }
+
+    @Test
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    void recentCheckStillSuppressesRefreshWhenASuccessfulSnapshotExists() {
+        DomainWatchService watchService = mock(DomainWatchService.class);
+        DomainService domainService = mock(DomainService.class);
+        MonitorSnapshotService snapshotService = mock(MonitorSnapshotService.class);
+        MonitorEventPublisher publisher = mock(MonitorEventPublisher.class);
+        DomainWatch watch = watch();
+        watch.setLastCheckTime(new Date());
+        Page<DomainWatch> page = new Page<>(1, 100);
+        page.setRecords(List.of(watch));
+        when(watchService.page(any(IPage.class), any(Wrapper.class))).thenReturn(page);
+        when(snapshotService.count(any(Wrapper.class))).thenReturn(1L);
+
+        new DomainWatchTask(watchService, domainService, snapshotService, publisher).checkDomainExpiry();
+
+        verifyNoInteractions(domainService, publisher);
         verify(watchService, never()).updateById(any(DomainWatch.class));
     }
 
@@ -100,10 +157,14 @@ class DomainWatchTaskEventMigrationTest {
     }
 
     private static Domain domain() {
+        return domain("2026-09-08");
+    }
+
+    private static Domain domain(String expiryDate) {
         Domain domain = new Domain();
         domain.setId("domain-1");
         domain.setName("example.com");
-        domain.setRegistExpiryDateText("2026-09-08");
+        domain.setRegistExpiryDateText(expiryDate);
         domain.setDomainStatus("ok");
         domain.setRegistrar("Example Registrar");
         domain.setUpdateTime(Date.from(
