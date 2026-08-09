@@ -17,6 +17,9 @@ import info.wesite.core.mapper.model.NotificationDigestRecipientRow;
 @Mapper
 public interface UserNotificationMapper extends BaseMapper<UserNotification> {
 
+    @Select("SELECT USER_ID FROM WEB_USER_NOTIFICATION WHERE ID = #{id}")
+    String selectUserId(@Param("id") String id);
+
     @Select("SELECT * FROM WEB_USER_NOTIFICATION "
         + "WHERE USER_ID = #{userId} AND EVENT_ID = #{eventId} FOR UPDATE")
     UserNotification selectByIdentityForUpdate(
@@ -85,7 +88,8 @@ public interface UserNotificationMapper extends BaseMapper<UserNotification> {
         + "AND EMAIL_STATE = 'CLAIMED' ORDER BY CREATE_TIME, ID")
     List<UserNotification> selectBatchMembers(@Param("batchId") String batchId);
 
-    @Update("UPDATE WEB_USER_NOTIFICATION SET EMAIL_STATE = #{state}, EMAILED_AT = #{emailedAt}, "
+    @Update("UPDATE WEB_USER_NOTIFICATION SET EMAIL_STATE = #{state}, "
+        + "EMAIL_MODE = CASE WHEN #{state} = 'IN_APP_ONLY' THEN 'IN_APP_ONLY' ELSE EMAIL_MODE END, EMAILED_AT = #{emailedAt}, "
         + "EMAIL_CLAIM_TOKEN = NULL, EMAIL_CLAIM_UNTIL = NULL, UPDATE_TIME = #{updatedAt} "
         + "WHERE DELIVERY_BATCH_ID = #{batchId} AND EMAIL_STATE = 'CLAIMED' "
         + "AND EMAIL_CLAIM_TOKEN = #{claimToken}")

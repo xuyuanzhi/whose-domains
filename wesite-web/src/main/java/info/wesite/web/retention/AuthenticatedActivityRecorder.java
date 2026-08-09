@@ -29,6 +29,5 @@ public class AuthenticatedActivityRecorder {
         LocalDate date = LocalDate.now(reportingZone);
         int inserted = activities.recordDaily(userId, date);
         health.recordSuccess(date, inserted);
-        health.activate(date);
     }
 }

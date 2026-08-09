@@ -65,9 +65,9 @@ class AuthenticatedActivityDailyMapperMySqlTest {
     void recordsAtMostOneMinimalFactPerUserAndLocalDate() throws Exception {
         LocalDate date = LocalDate.of(2026, 8, 9);
 
-        mapper.recordDaily("user-1", date);
-        mapper.recordDaily("user-1", date);
-        mapper.recordDaily("user-2", date);
+        assertEquals(1, mapper.recordDaily("user-1", date));
+        assertEquals(0, mapper.recordDaily("user-1", date));
+        assertEquals(1, mapper.recordDaily("user-2", date));
 
         assertEquals(2, scalar("SELECT COUNT(*) FROM WEB_AUTHENTICATED_ACTIVITY_DAILY"));
         assertEquals(1, scalar("SELECT COUNT(*) FROM WEB_AUTHENTICATED_ACTIVITY_DAILY "

@@ -7,6 +7,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,14 +30,25 @@ public class NotificationDeliveryCoordinator {
     private final NotificationDeliveryBatchMapper batchMapper;
     private final UserNotificationMapper notificationMapper;
     private final DomainWatchNotifyLogMapper logMapper;
+    private final NotificationPolicyLock policyLock;
 
     public NotificationDeliveryCoordinator(
         NotificationDeliveryBatchMapper batchMapper,
         UserNotificationMapper notificationMapper,
         DomainWatchNotifyLogMapper logMapper) {
+        this(batchMapper, notificationMapper, logMapper, null);
+    }
+
+    @Autowired
+    public NotificationDeliveryCoordinator(
+        NotificationDeliveryBatchMapper batchMapper,
+        UserNotificationMapper notificationMapper,
+        DomainWatchNotifyLogMapper logMapper,
+        NotificationPolicyLock policyLock) {
         this.batchMapper = Objects.requireNonNull(batchMapper, "batchMapper");
         this.notificationMapper = Objects.requireNonNull(notificationMapper, "notificationMapper");
         this.logMapper = Objects.requireNonNull(logMapper, "logMapper");
+        this.policyLock = policyLock;
     }
 
     @Transactional
@@ -45,6 +57,13 @@ public class NotificationDeliveryCoordinator {
         Instant now,
         Instant leaseUntil) {
         Date startedAt = Date.from(now);
+        if (policyLock != null) {
+            String userId = notificationMapper.selectUserId(notificationId);
+            if (userId == null) {
+                return Optional.empty();
+            }
+            policyLock.lockUser(userId);
+        }
         UserNotification notification = notificationMapper.selectImmediateForUpdate(notificationId);
         if (notification == null) {
             return Optional.empty();
@@ -73,6 +92,9 @@ public class NotificationDeliveryCoordinator {
         Instant now,
         Instant leaseUntil) {
         Date startedAt = Date.from(now);
+        if (policyLock != null) {
+            policyLock.lockUser(userId);
+        }
         NotificationDeliveryBatch batch = newBatch(
             userId, mode, windowKey, recipientEmail, now, leaseUntil);
         try {

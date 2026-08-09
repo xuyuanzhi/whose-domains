@@ -6,6 +6,8 @@
 -- IMPORTANT: +08:00 is the configured reporting zone used by the writer too.
 
 SET time_zone = '+08:00';
+SET @reporting_time_zone = '+08:00';
+SET time_zone = @reporting_time_zone;
 SET @minimum_cohort_size = 5;
 SET @minimum_report_days = 120;
 SET @fact_name = 'AUTHENTICATED_ACTIVITY_DAILY';
@@ -26,7 +28,7 @@ SET @health_start = DATE_SUB(CURDATE(), INTERVAL @required_fact_days DAY);
 SET @healthy_days = (
   SELECT COUNT(*) FROM WEB_RETENTION_FACT_HEALTH
   WHERE FACT_NAME = @fact_name AND FACT_DATE >= @health_start AND FACT_DATE < CURDATE()
-    AND FAILURE_COUNT = 0 AND SUCCESSFUL_WRITE_COUNT > 0
+    AND VERIFICATION_STATUS = 'VERIFIED' AND FAILURE_COUNT = 0 AND SUCCESSFUL_WRITE_COUNT > 0
 );
 SET @incomplete_days = (
   SELECT COUNT(*) FROM WEB_RETENTION_FACT_HEALTH H
