@@ -2,6 +2,8 @@ package info.wesite.web.monitor;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
@@ -23,6 +25,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
+import org.apache.ibatis.annotations.Select;
 import org.springframework.dao.DuplicateKeyException;
 
 import com.alibaba.fastjson2.JSON;
@@ -32,6 +35,8 @@ import info.wesite.core.entity.DomainWatch;
 import info.wesite.core.entity.MonitorEvent;
 import info.wesite.core.entity.MonitorSnapshot;
 import info.wesite.core.entity.UserNotification;
+import info.wesite.core.mapper.MonitorEventMapper;
+import info.wesite.core.mapper.UserNotificationMapper;
 import info.wesite.core.service.MonitorEventService;
 import info.wesite.core.service.MonitorSnapshotService;
 import info.wesite.core.service.UserNotificationService;
@@ -43,6 +48,8 @@ class MonitorEventPublisherTest {
     private MonitorSnapshotService snapshotService;
     private MonitorEventService eventService;
     private UserNotificationService notificationService;
+    private MonitorEventMapper eventMapper;
+    private UserNotificationMapper notificationMapper;
     private MonitorChangeDetector detector;
     private MonitorEventPublisher publisher;
 
@@ -51,9 +58,20 @@ class MonitorEventPublisherTest {
         snapshotService = mock(MonitorSnapshotService.class);
         eventService = mock(MonitorEventService.class);
         notificationService = mock(UserNotificationService.class);
+        eventMapper = mock(MonitorEventMapper.class);
+        notificationMapper = mock(UserNotificationMapper.class);
         detector = mock(MonitorChangeDetector.class);
+        when(snapshotService.save(any(MonitorSnapshot.class))).thenReturn(true);
+        when(eventService.save(any(MonitorEvent.class))).thenReturn(true);
+        when(notificationService.save(any(UserNotification.class))).thenReturn(true);
         publisher = new MonitorEventPublisher(
-            snapshotService, eventService, notificationService, detector, CLOCK);
+            snapshotService,
+            eventService,
+            notificationService,
+            eventMapper,
+            notificationMapper,
+            detector,
+            CLOCK);
     }
 
     @Test
@@ -83,13 +101,14 @@ class MonitorEventPublisherTest {
             .thenThrow(new DuplicateKeyException("UK_MONITOR_EVENT_WATCH_FINGERPRINT"));
         MonitorEvent winner = new MonitorEvent();
         winner.setId("winning-event");
-        when(eventService.getOne(any())).thenReturn(winner);
+        when(eventMapper.selectByIdentityForUpdate("watch-1", MonitorFingerprint.of("watch-1", draft)))
+            .thenReturn(winner);
 
         List<MonitorEvent> published = publisher.publish(watch, current, true);
 
         assertEquals(1, published.size());
         assertSame(winner, published.get(0));
-        verify(eventService).getOne(any());
+        verify(eventMapper).selectByIdentityForUpdate("watch-1", MonitorFingerprint.of("watch-1", draft));
         ArgumentCaptor<UserNotification> notification = ArgumentCaptor.forClass(UserNotification.class);
         verify(notificationService).save(notification.capture());
         assertEquals("winning-event", notification.getValue().getEventId());
@@ -139,14 +158,75 @@ class MonitorEventPublisherTest {
             .thenThrow(new DuplicateKeyException("UK_USER_NOTIFICATION_USER_EVENT"));
         UserNotification winner = new UserNotification();
         winner.setId("winning-notification");
-        when(notificationService.getOne(any())).thenReturn(winner);
+        when(notificationMapper.selectByIdentityForUpdate(org.mockito.ArgumentMatchers.eq("user-1"), any(String.class)))
+            .thenReturn(winner);
 
         List<MonitorEvent> published = publisher.publish(watch, current, true);
 
         assertEquals(1, published.size());
         verify(notificationService).save(any(UserNotification.class));
-        verify(notificationService).getOne(any());
+        verify(notificationMapper).selectByIdentityForUpdate("user-1", published.get(0).getId());
         verify(snapshotService).save(any(MonitorSnapshot.class));
+    }
+
+    @Test
+    void failedDiagnosticSnapshotSaveFalseAbortsPublication() {
+        when(snapshotService.save(any(MonitorSnapshot.class))).thenReturn(false);
+
+        assertThrows(IllegalStateException.class, () -> publisher.publish(watch(), state(Set.of("error")), false));
+
+        verifyNoInteractions(detector, eventService, notificationService);
+    }
+
+    @Test
+    void eventSaveFalseAbortsBeforeNotificationAndSnapshot() {
+        MonitorState previous = state(Set.of("ok"));
+        MonitorState current = state(Set.of("clientHold"));
+        when(snapshotService.getOne(any())).thenReturn(snapshot("previous", previous));
+        when(detector.detect(previous, current)).thenReturn(List.of(statusDraft()));
+        when(eventService.save(any(MonitorEvent.class))).thenReturn(false);
+
+        assertThrows(IllegalStateException.class, () -> publisher.publish(watch(), current, true));
+
+        verifyNoInteractions(notificationService);
+        verify(snapshotService, never()).save(any(MonitorSnapshot.class));
+    }
+
+    @Test
+    void notificationSaveFalseAbortsBeforeSnapshot() {
+        MonitorState previous = state(Set.of("ok"));
+        MonitorState current = state(Set.of("clientHold"));
+        when(snapshotService.getOne(any())).thenReturn(snapshot("previous", previous));
+        when(detector.detect(previous, current)).thenReturn(List.of(statusDraft()));
+        when(notificationService.save(any(UserNotification.class))).thenReturn(false);
+
+        assertThrows(IllegalStateException.class, () -> publisher.publish(watch(), current, true));
+
+        verify(snapshotService, never()).save(any(MonitorSnapshot.class));
+    }
+
+    @Test
+    void successfulSnapshotSaveFalseAbortsPublication() {
+        MonitorState current = state(Set.of("ok"));
+        when(detector.detect(null, current)).thenReturn(List.of());
+        when(snapshotService.save(any(MonitorSnapshot.class))).thenReturn(false);
+
+        assertThrows(IllegalStateException.class, () -> publisher.publish(watch(), current, true));
+    }
+
+    @Test
+    void duplicateWinnerQueriesAreLockingReadsOverTheCompleteUniqueKeys() throws Exception {
+        String eventSql = sql(MonitorEventMapper.class.getMethod(
+            "selectByIdentityForUpdate", String.class, String.class));
+        assertTrue(eventSql.contains("WATCH_ID = #{WATCHID}"));
+        assertTrue(eventSql.contains("FINGERPRINT = #{FINGERPRINT}"));
+        assertTrue(eventSql.endsWith("FOR UPDATE"));
+
+        String notificationSql = sql(UserNotificationMapper.class.getMethod(
+            "selectByIdentityForUpdate", String.class, String.class));
+        assertTrue(notificationSql.contains("USER_ID = #{USERID}"));
+        assertTrue(notificationSql.contains("EVENT_ID = #{EVENTID}"));
+        assertTrue(notificationSql.endsWith("FOR UPDATE"));
     }
 
     private static DomainWatch watch() {
@@ -184,5 +264,12 @@ class MonitorEventPublisherTest {
             "domainStatuses",
             "ok",
             "clientHold");
+    }
+
+    private static String sql(java.lang.reflect.Method method) {
+        return String.join(" ", method.getAnnotation(Select.class).value())
+            .replaceAll("\\s+", " ")
+            .trim()
+            .toUpperCase(java.util.Locale.ROOT);
     }
 }

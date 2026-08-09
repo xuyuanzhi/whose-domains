@@ -21,6 +21,8 @@ import info.wesite.core.entity.DomainWatch;
 import info.wesite.core.entity.MonitorEvent;
 import info.wesite.core.entity.MonitorSnapshot;
 import info.wesite.core.entity.UserNotification;
+import info.wesite.core.mapper.MonitorEventMapper;
+import info.wesite.core.mapper.UserNotificationMapper;
 import info.wesite.core.service.MonitorEventService;
 import info.wesite.core.service.MonitorSnapshotService;
 import info.wesite.core.service.UserNotificationService;
@@ -38,6 +40,8 @@ public class MonitorEventPublisher {
     private final MonitorSnapshotService snapshotService;
     private final MonitorEventService eventService;
     private final UserNotificationService notificationService;
+    private final MonitorEventMapper eventMapper;
+    private final UserNotificationMapper notificationMapper;
     private final MonitorChangeDetector detector;
     private final Clock clock;
 
@@ -45,27 +49,48 @@ public class MonitorEventPublisher {
     public MonitorEventPublisher(
         MonitorSnapshotService snapshotService,
         MonitorEventService eventService,
-        UserNotificationService notificationService) {
-        this(snapshotService, eventService, notificationService, Clock.systemUTC());
+        UserNotificationService notificationService,
+        MonitorEventMapper eventMapper,
+        UserNotificationMapper notificationMapper) {
+        this(
+            snapshotService,
+            eventService,
+            notificationService,
+            eventMapper,
+            notificationMapper,
+            Clock.systemUTC());
     }
 
     private MonitorEventPublisher(
         MonitorSnapshotService snapshotService,
         MonitorEventService eventService,
         UserNotificationService notificationService,
+        MonitorEventMapper eventMapper,
+        UserNotificationMapper notificationMapper,
         Clock clock) {
-        this(snapshotService, eventService, notificationService, new MonitorChangeDetector(clock), clock);
+        this(
+            snapshotService,
+            eventService,
+            notificationService,
+            eventMapper,
+            notificationMapper,
+            new MonitorChangeDetector(clock),
+            clock);
     }
 
     MonitorEventPublisher(
         MonitorSnapshotService snapshotService,
         MonitorEventService eventService,
         UserNotificationService notificationService,
+        MonitorEventMapper eventMapper,
+        UserNotificationMapper notificationMapper,
         MonitorChangeDetector detector,
         Clock clock) {
         this.snapshotService = Objects.requireNonNull(snapshotService, "snapshotService");
         this.eventService = Objects.requireNonNull(eventService, "eventService");
         this.notificationService = Objects.requireNonNull(notificationService, "notificationService");
+        this.eventMapper = Objects.requireNonNull(eventMapper, "eventMapper");
+        this.notificationMapper = Objects.requireNonNull(notificationMapper, "notificationMapper");
         this.detector = Objects.requireNonNull(detector, "detector");
         this.clock = Objects.requireNonNull(clock, "clock");
     }
@@ -76,7 +101,9 @@ public class MonitorEventPublisher {
         Date checkedAt = Date.from(clock.instant());
 
         if (!checkSucceeded) {
-            snapshotService.save(snapshot(watch.getId(), current, checkedAt, BaseEntity.STATUS_INACTIVE));
+            requireSaved(
+                snapshotService.save(snapshot(watch.getId(), current, checkedAt, BaseEntity.STATUS_INACTIVE)),
+                "failed-check diagnostic snapshot");
             return List.of();
         }
 
@@ -95,7 +122,7 @@ public class MonitorEventPublisher {
             published.add(event);
         }
 
-        snapshotService.save(currentSnapshot);
+        requireSaved(snapshotService.save(currentSnapshot), "successful snapshot");
         return List.copyOf(published);
     }
 
@@ -125,13 +152,10 @@ public class MonitorEventPublisher {
         event.setOccurredAt(occurredAt);
 
         try {
-            eventService.save(event);
+            requireSaved(eventService.save(event), "monitor event");
             return event;
         } catch (DuplicateKeyException duplicate) {
-            MonitorEvent winner = eventService.getOne(
-                Wrappers.<MonitorEvent>lambdaQuery()
-                    .eq(MonitorEvent::getWatchId, watch.getId())
-                    .eq(MonitorEvent::getFingerprint, fingerprint));
+            MonitorEvent winner = eventMapper.selectByIdentityForUpdate(watch.getId(), fingerprint);
             if (winner == null) {
                 throw duplicate;
             }
@@ -154,12 +178,10 @@ public class MonitorEventPublisher {
         notification.setEmailState(EMAIL_PENDING);
 
         try {
-            notificationService.save(notification);
+            requireSaved(notificationService.save(notification), "user notification");
         } catch (DuplicateKeyException duplicate) {
-            UserNotification winner = notificationService.getOne(
-                Wrappers.<UserNotification>lambdaQuery()
-                    .eq(UserNotification::getUserId, watch.getUserId())
-                    .eq(UserNotification::getEventId, event.getId()));
+            UserNotification winner = notificationMapper.selectByIdentityForUpdate(
+                watch.getUserId(), event.getId());
             if (winner == null) {
                 throw duplicate;
             }
@@ -205,5 +227,11 @@ public class MonitorEventPublisher {
 
     private static String content(MonitorEventDraft draft) {
         return draft.field() + ": " + draft.oldValue() + " -> " + draft.newValue();
+    }
+
+    private static void requireSaved(boolean saved, String recordType) {
+        if (!saved) {
+            throw new IllegalStateException("Failed to save " + recordType);
+        }
     }
 }
