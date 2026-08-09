@@ -27,6 +27,7 @@ import info.wesite.core.service.MonitorEventService;
 import info.wesite.core.service.MonitorSnapshotService;
 import info.wesite.core.service.UserNotificationService;
 import info.wesite.core.utils.RandomUtils;
+import info.wesite.web.notification.NotificationDispatcher;
 
 /**
  * Persists monitoring snapshots and turns changes between successful checks into
@@ -42,6 +43,7 @@ public class MonitorEventPublisher {
     private final UserNotificationService notificationService;
     private final MonitorEventMapper eventMapper;
     private final UserNotificationMapper notificationMapper;
+    private final NotificationDispatcher dispatcher;
     private final MonitorChangeDetector detector;
     private final Clock clock;
 
@@ -51,13 +53,15 @@ public class MonitorEventPublisher {
         MonitorEventService eventService,
         UserNotificationService notificationService,
         MonitorEventMapper eventMapper,
-        UserNotificationMapper notificationMapper) {
+        UserNotificationMapper notificationMapper,
+        NotificationDispatcher dispatcher) {
         this(
             snapshotService,
             eventService,
             notificationService,
             eventMapper,
             notificationMapper,
+            dispatcher,
             Clock.systemUTC());
     }
 
@@ -67,6 +71,7 @@ public class MonitorEventPublisher {
         UserNotificationService notificationService,
         MonitorEventMapper eventMapper,
         UserNotificationMapper notificationMapper,
+        NotificationDispatcher dispatcher,
         Clock clock) {
         this(
             snapshotService,
@@ -74,6 +79,7 @@ public class MonitorEventPublisher {
             notificationService,
             eventMapper,
             notificationMapper,
+            dispatcher,
             new MonitorChangeDetector(clock),
             clock);
     }
@@ -86,11 +92,32 @@ public class MonitorEventPublisher {
         UserNotificationMapper notificationMapper,
         MonitorChangeDetector detector,
         Clock clock) {
+        this(
+            snapshotService,
+            eventService,
+            notificationService,
+            eventMapper,
+            notificationMapper,
+            null,
+            detector,
+            clock);
+    }
+
+    MonitorEventPublisher(
+        MonitorSnapshotService snapshotService,
+        MonitorEventService eventService,
+        UserNotificationService notificationService,
+        MonitorEventMapper eventMapper,
+        UserNotificationMapper notificationMapper,
+        NotificationDispatcher dispatcher,
+        MonitorChangeDetector detector,
+        Clock clock) {
         this.snapshotService = Objects.requireNonNull(snapshotService, "snapshotService");
         this.eventService = Objects.requireNonNull(eventService, "eventService");
         this.notificationService = Objects.requireNonNull(notificationService, "notificationService");
         this.eventMapper = Objects.requireNonNull(eventMapper, "eventMapper");
         this.notificationMapper = Objects.requireNonNull(notificationMapper, "notificationMapper");
+        this.dispatcher = dispatcher;
         this.detector = Objects.requireNonNull(detector, "detector");
         this.clock = Objects.requireNonNull(clock, "clock");
     }
@@ -177,14 +204,24 @@ public class MonitorEventPublisher {
         notification.setTargetPath(internalDomainTarget(watch.getDomainName()));
         notification.setEmailState(EMAIL_PENDING);
 
+        UserNotification persisted;
+        boolean needsDispatch;
         try {
             requireSaved(notificationService.save(notification), "user notification");
+            persisted = notification;
+            needsDispatch = true;
         } catch (DuplicateKeyException duplicate) {
             UserNotification winner = notificationMapper.selectByIdentityForUpdate(
                 watch.getUserId(), event.getId());
             if (winner == null) {
                 throw duplicate;
             }
+            persisted = winner;
+            needsDispatch = EMAIL_PENDING.equalsIgnoreCase(winner.getEmailState());
+        }
+
+        if (needsDispatch && dispatcher != null) {
+            dispatcher.dispatch(event, persisted);
         }
     }
 

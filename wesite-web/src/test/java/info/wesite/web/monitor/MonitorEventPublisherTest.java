@@ -40,6 +40,7 @@ import info.wesite.core.mapper.UserNotificationMapper;
 import info.wesite.core.service.MonitorEventService;
 import info.wesite.core.service.MonitorSnapshotService;
 import info.wesite.core.service.UserNotificationService;
+import info.wesite.web.notification.NotificationDispatcher;
 
 class MonitorEventPublisherTest {
 
@@ -51,6 +52,7 @@ class MonitorEventPublisherTest {
     private MonitorEventMapper eventMapper;
     private UserNotificationMapper notificationMapper;
     private MonitorChangeDetector detector;
+    private NotificationDispatcher dispatcher;
     private MonitorEventPublisher publisher;
 
     @BeforeEach
@@ -61,6 +63,7 @@ class MonitorEventPublisherTest {
         eventMapper = mock(MonitorEventMapper.class);
         notificationMapper = mock(UserNotificationMapper.class);
         detector = mock(MonitorChangeDetector.class);
+        dispatcher = mock(NotificationDispatcher.class);
         when(snapshotService.save(any(MonitorSnapshot.class))).thenReturn(true);
         when(eventService.save(any(MonitorEvent.class))).thenReturn(true);
         when(notificationService.save(any(UserNotification.class))).thenReturn(true);
@@ -70,6 +73,7 @@ class MonitorEventPublisherTest {
             notificationService,
             eventMapper,
             notificationMapper,
+            dispatcher,
             detector,
             CLOCK);
     }
@@ -86,7 +90,7 @@ class MonitorEventPublisherTest {
         assertEquals(BaseEntity.STATUS_INACTIVE, snapshot.getValue().getStatus());
         assertEquals(JSON.toJSONString(failedState), snapshot.getValue().getStateJson());
         verify(snapshotService, never()).getOne(any());
-        verifyNoInteractions(detector, eventService, notificationService);
+        verifyNoInteractions(detector, eventService, notificationService, dispatcher);
     }
 
     @Test
@@ -137,13 +141,15 @@ class MonitorEventPublisherTest {
             .map(UserNotification::getTargetPath)
             .toList());
 
-        InOrder order = inOrder(detector, eventService, notificationService, snapshotService);
+        InOrder order = inOrder(detector, eventService, notificationService, dispatcher, snapshotService);
         order.verify(snapshotService).getOne(any());
         order.verify(detector).detect(previous, current);
         order.verify(eventService).save(any(MonitorEvent.class));
         order.verify(notificationService).save(any(UserNotification.class));
+        order.verify(dispatcher).dispatch(any(MonitorEvent.class), any(UserNotification.class));
         order.verify(eventService).save(any(MonitorEvent.class));
         order.verify(notificationService).save(any(UserNotification.class));
+        order.verify(dispatcher).dispatch(any(MonitorEvent.class), any(UserNotification.class));
         order.verify(snapshotService).save(any(MonitorSnapshot.class));
     }
 
@@ -158,6 +164,7 @@ class MonitorEventPublisherTest {
             .thenThrow(new DuplicateKeyException("UK_USER_NOTIFICATION_USER_EVENT"));
         UserNotification winner = new UserNotification();
         winner.setId("winning-notification");
+        winner.setEmailState("pending");
         when(notificationMapper.selectByIdentityForUpdate(org.mockito.ArgumentMatchers.eq("user-1"), any(String.class)))
             .thenReturn(winner);
 
@@ -166,7 +173,29 @@ class MonitorEventPublisherTest {
         assertEquals(1, published.size());
         verify(notificationService).save(any(UserNotification.class));
         verify(notificationMapper).selectByIdentityForUpdate("user-1", published.get(0).getId());
+        verify(dispatcher).dispatch(published.get(0), winner);
         verify(snapshotService).save(any(MonitorSnapshot.class));
+    }
+
+    @Test
+    void duplicateNotificationThatWasAlreadyRoutedIsNotDispatchedAgain() {
+        DomainWatch watch = watch();
+        MonitorState previous = state(Set.of("ok"));
+        MonitorState current = state(Set.of("clientHold"));
+        when(snapshotService.getOne(any())).thenReturn(snapshot("previous", previous));
+        when(detector.detect(previous, current)).thenReturn(List.of(statusDraft()));
+        when(notificationService.save(any(UserNotification.class)))
+            .thenThrow(new DuplicateKeyException("UK_USER_NOTIFICATION_USER_EVENT"));
+        UserNotification winner = new UserNotification();
+        winner.setId("already-routed-notification");
+        winner.setEmailState("SENT");
+        when(notificationMapper.selectByIdentityForUpdate(org.mockito.ArgumentMatchers.eq("user-1"), any(String.class)))
+            .thenReturn(winner);
+
+        publisher.publish(watch, current, true);
+
+        verify(notificationMapper).selectByIdentityForUpdate(any(String.class), any(String.class));
+        verifyNoInteractions(dispatcher);
     }
 
     @Test
@@ -189,6 +218,7 @@ class MonitorEventPublisherTest {
         assertThrows(IllegalStateException.class, () -> publisher.publish(watch(), current, true));
 
         verifyNoInteractions(notificationService);
+        verifyNoInteractions(dispatcher);
         verify(snapshotService, never()).save(any(MonitorSnapshot.class));
     }
 

@@ -18,6 +18,18 @@ public class DomainWatchNotifyLog extends BaseEntity {
     public static final int SEND_STATUS_SUCCESS = 1;
     public static final int SEND_STATUS_FAIL = 2;
 
+    /** Notification whose email delivery was attempted. */
+    private String notificationId;
+
+    /** Monitoring event included in this delivery attempt. */
+    private String eventId;
+
+    /** Original dispatcher route, retained while EMAIL_STATE is FAILED. */
+    private String deliveryMode;
+
+    /** Subject used for the outbound message. */
+    private String subject;
+
     /** 关联的 watch id */
     private String watchId;
 
