@@ -104,9 +104,13 @@ function Test-StaticRolloutContract {
         Assert-Contains $properties $digestLine 'digest delivery must have an environment-backed false default'
     }
 
-    Assert-Contains $immediateJob 'wesite.notification-delivery.immediate-enabled' 'immediate job property mismatch'
+    Assert-Contains $immediateJob 'prefix = "wesite"' 'immediate job must use the shared wesite property prefix'
+    Assert-Contains $immediateJob 'notification-delivery.immediate-enabled' 'immediate job property mismatch'
+    Assert-Contains $immediateJob '"mail.enabled"' 'immediate job must require enabled mail at registration'
     Assert-Contains $immediateJob 'matchIfMissing = false' 'immediate job must be absent when its property is missing'
-    Assert-Contains $digestJob 'wesite.notification-delivery.digest-enabled' 'digest job property mismatch'
+    Assert-Contains $digestJob 'prefix = "wesite"' 'digest job must use the shared wesite property prefix'
+    Assert-Contains $digestJob 'notification-delivery.digest-enabled' 'digest job property mismatch'
+    Assert-Contains $digestJob '"mail.enabled"' 'digest job must require enabled mail at registration'
     Assert-Contains $digestJob 'matchIfMissing = false' 'digest job must be absent when its property is missing'
     Assert-RolloutContract (-not $deliveryTask.Contains('@Scheduled')) 'delivery service must not own a schedule'
     Assert-Contains $smtpSender 'MailSendResult.fail("mail sending is disabled")' 'disabled SMTP must not report success'
@@ -125,6 +129,7 @@ function Test-StaticRolloutContract {
     Assert-RolloutContract (
         -not $readme.Contains('successful no-send result')
     ) 'README must not describe disabled mail as a successful send'
+    Assert-Contains $readme '`wesite.mail.enabled=false` is a hard registration gate' 'README must document the disabled-mail registration gate'
 
     $legacyMatches = @(
         Get-ChildItem -Path @(

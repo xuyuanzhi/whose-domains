@@ -9,7 +9,8 @@ import org.springframework.stereotype.Component;
 @Profile({"prod", "mac"})
 @Component
 @ConditionalOnProperty(
-    name = "wesite.notification-delivery.digest-enabled",
+    prefix = "wesite",
+    name = {"notification-delivery.digest-enabled", "mail.enabled"},
     havingValue = "true",
     matchIfMissing = false)
 public class DigestNotificationDeliveryJob {

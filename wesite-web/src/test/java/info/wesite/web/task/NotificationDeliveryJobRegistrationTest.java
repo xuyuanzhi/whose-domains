@@ -32,7 +32,24 @@ class NotificationDeliveryJobRegistrationTest {
         runner(deliveryTask)
             .withPropertyValues(
                 "wesite.notification-delivery.immediate-enabled=false",
-                "wesite.notification-delivery.digest-enabled=false")
+                "wesite.notification-delivery.digest-enabled=false",
+                "wesite.mail.enabled=true")
+            .run(context -> {
+                assertThat(context).doesNotHaveBean(ImmediateNotificationDeliveryJob.class);
+                assertThat(context).doesNotHaveBean(DigestNotificationDeliveryJob.class);
+                verifyNoInteractions(deliveryTask);
+            });
+    }
+
+    @Test
+    void mailDisabledPreventsBothJobsAndLeavesQueueBoundaryUntouched() {
+        NotificationDeliveryTask deliveryTask = mock(NotificationDeliveryTask.class);
+
+        runner(deliveryTask)
+            .withPropertyValues(
+                "wesite.notification-delivery.immediate-enabled=true",
+                "wesite.notification-delivery.digest-enabled=true",
+                "wesite.mail.enabled=false")
             .run(context -> {
                 assertThat(context).doesNotHaveBean(ImmediateNotificationDeliveryJob.class);
                 assertThat(context).doesNotHaveBean(DigestNotificationDeliveryJob.class);
@@ -45,7 +62,9 @@ class NotificationDeliveryJobRegistrationTest {
         NotificationDeliveryTask deliveryTask = mock(NotificationDeliveryTask.class);
 
         runner(deliveryTask)
-            .withPropertyValues("wesite.notification-delivery.immediate-enabled=true")
+            .withPropertyValues(
+                "wesite.notification-delivery.immediate-enabled=true",
+                "wesite.mail.enabled=true")
             .run(context -> {
                 assertThat(context).hasSingleBean(ImmediateNotificationDeliveryJob.class);
                 assertThat(context).doesNotHaveBean(DigestNotificationDeliveryJob.class);
@@ -62,7 +81,9 @@ class NotificationDeliveryJobRegistrationTest {
         NotificationDeliveryTask deliveryTask = mock(NotificationDeliveryTask.class);
 
         runner(deliveryTask)
-            .withPropertyValues("wesite.notification-delivery.digest-enabled=true")
+            .withPropertyValues(
+                "wesite.notification-delivery.digest-enabled=true",
+                "wesite.mail.enabled=true")
             .run(context -> {
                 assertThat(context).doesNotHaveBean(ImmediateNotificationDeliveryJob.class);
                 assertThat(context).hasSingleBean(DigestNotificationDeliveryJob.class);

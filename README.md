@@ -82,8 +82,8 @@ You can also override settings via environment variables without touching the co
 | `REDIS_PASSWORD` | Redis password (may be empty) |
 | `JWT_SECRET` | JWT signing secret |
 | `DEEPSEEK_API_KEY` | DeepSeek API key (required for AI features) |
-| `WESITE_NOTIFICATION_DELIVERY_IMMEDIATE_ENABLED` | Explicitly registers the immediate-mail job; defaults to `false` |
-| `WESITE_NOTIFICATION_DELIVERY_DIGEST_ENABLED` | Explicitly registers the daily/weekly digest jobs; defaults to `false` |
+| `WESITE_NOTIFICATION_DELIVERY_IMMEDIATE_ENABLED` | Allows the immediate-mail job when `wesite.mail.enabled=true`; defaults to `false` |
+| `WESITE_NOTIFICATION_DELIVERY_DIGEST_ENABLED` | Allows the daily/weekly digest jobs when `wesite.mail.enabled=true`; defaults to `false` |
 
 ### 3. Build and run
 
@@ -187,16 +187,16 @@ The retention order is therefore: legacy watch/snapshot script only when both ta
 
 #### Worker schedule and SMTP dependency
 
-The monitoring worker is active only in the `prod` and `mac` Spring profiles. Delivery workers additionally require their explicit rollout property; a missing property is `false`, so the job bean is not registered and cannot claim or consume a queued notification. All cron times are server-local except the digest window keys and rendered event timestamps, which use UTC.
+The monitoring worker is active only in the `prod` and `mac` Spring profiles. Each delivery worker additionally requires both its explicit rollout property and `wesite.mail.enabled=true`; a missing or false property means the job bean is not registered and cannot claim or consume a queued notification. All cron times are server-local except the digest window keys and rendered event timestamps, which use UTC.
 
 | Worker | Enable property | Spring cron | Behaviour |
 | --- | --- | --- | --- |
 | Domain monitor | `prod`/`mac` profile | `0 0 3 * * ?` | Runs daily at 03:00; records successful snapshots and publishes deduplicated monitoring events. |
-| Immediate delivery | `wesite.notification-delivery.immediate-enabled=true` | `0 */5 * * * ?` | Every five minutes; claims queued immediate notifications in pages of 500. |
-| Daily digest | `wesite.notification-delivery.digest-enabled=true` | `0 0 8 * * ?` | Daily at 08:00; one UTC-date batch per user. |
-| Weekly digest | `wesite.notification-delivery.digest-enabled=true` | `0 0 8 * * MON` | Mondays at 08:00; one ISO-week batch per user. |
+| Immediate delivery | `wesite.notification-delivery.immediate-enabled=true` and `wesite.mail.enabled=true` | `0 */5 * * * ?` | Every five minutes; claims queued immediate notifications in pages of 500. |
+| Daily digest | `wesite.notification-delivery.digest-enabled=true` and `wesite.mail.enabled=true` | `0 0 8 * * ?` | Daily at 08:00; one UTC-date batch per user. |
+| Weekly digest | `wesite.notification-delivery.digest-enabled=true` and `wesite.mail.enabled=true` | `0 0 8 * * MON` | Mondays at 08:00; one ISO-week batch per user. |
 
-Email dispatch requires a configured `spring.mail.host` so that `MailSender` is available. For the bundled Resend SMTP example, set `RESEND_API_KEY`, `WESITE_MAIL_FROM`, and (when needed) `WESITE_MAIL_REPLY_TO`, then configure the host/port/TLS/auth values in the external `application-prod.properties` from the example. `wesite.mail.enabled=false` means that SMTP is unavailable and returns a failed send result if called; it is not a delivery-job switch. Keep both delivery properties `false` for an in-app-only phase so no job can claim or mutate queued notifications. If no mail sender is configured, an enabled delivery job also leaves queued notifications untouched, but the rollout must not enable either job until SMTP has been validated.
+Email dispatch requires a configured `spring.mail.host` so that `MailSender` is available. For the bundled Resend SMTP example, set `RESEND_API_KEY`, `WESITE_MAIL_FROM`, and (when needed) `WESITE_MAIL_REPLY_TO`, then configure the host/port/TLS/auth values in the external `application-prod.properties` from the example. `wesite.mail.enabled=false` is a hard registration gate: neither delivery job exists even if its rollout property is true, and a direct disabled-sender call returns failure. Operators should still turn both delivery properties `false` first because they are the explicit phase controls; this keeps the in-app-only phase independent of SMTP configuration and guarantees that no job can claim or mutate queued notifications.
 
 #### Legacy log handling and rollback
 
@@ -212,8 +212,8 @@ There is no destructive automatic down migration. To roll back an application re
 
 Use the following controlled rollout, with a rollback checkpoint between phases:
 
-1. Apply and verify the SQL while application workers are stopped. Deploy with both `wesite.notification-delivery.immediate-enabled=false` and `wesite.notification-delivery.digest-enabled=false`; verify read paths first.
-2. Start `prod`/`mac` with both delivery properties still `false`. Run monitoring for one internal watch and verify snapshots, events, in-app notifications, unread counts, links, and user scoping. No delivery job is registered, so no queued notification is claimed.
+1. Apply and verify the SQL while application workers are stopped. First deploy with both `wesite.notification-delivery.immediate-enabled=false` and `wesite.notification-delivery.digest-enabled=false`; verify read paths before changing either mail setting or delivery flag.
+2. Start `prod`/`mac` with both delivery properties still `false`. Run monitoring for one internal watch and verify snapshots, events, in-app notifications, unread counts, links, and user scoping. No delivery job is registered, regardless of `wesite.mail.enabled`, so no queued notification is claimed.
 3. Configure SMTP credentials and sender identity with `wesite.mail.enabled=true`. Validate SMTP independently, then set only `wesite.notification-delivery.immediate-enabled=true` and verify one newly created internal immediate notification, delivery batch, and audit log.
 4. After immediate delivery is stable, set `wesite.notification-delivery.digest-enabled=true`. Verify newly created internal daily and weekly fixtures and confirm immediate-routed items are excluded from each digest.
 5. Expand to production traffic while monitoring failed attempts, expired claims, queue age, and duplicate-email reports; retain the backup until the first full digest cycle completes.
