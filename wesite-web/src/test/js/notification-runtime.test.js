@@ -6,6 +6,8 @@ const vm = require('node:vm');
 
 const scriptPath = path.resolve(__dirname, '../../main/resources/static/js/notifications.js');
 const script = fs.readFileSync(scriptPath, 'utf8');
+const retentionAnalyticsPath = path.resolve(__dirname, '../../main/resources/static/js/retention-analytics.js');
+const retentionAnalyticsScript = fs.readFileSync(retentionAnalyticsPath, 'utf8');
 
 class FakeClassList {
     constructor() { this.values = new Set(); }
@@ -71,7 +73,7 @@ function ok(data) {
     return Promise.resolve({ ok: true, json: () => Promise.resolve({ code: 0, data }) });
 }
 
-function createHarness(fetchImpl = () => ok(null), readyState = 'complete') {
+function createHarness(fetchImpl = () => ok(null), readyState = 'complete', retentionAnalytics, gtag) {
     const document = new FakeDocument();
     document.readyState = readyState;
     const requests = [];
@@ -81,6 +83,21 @@ function createHarness(fetchImpl = () => ok(null), readyState = 'complete') {
     const windowListeners = new Map();
     const setFakeTimeout = (callback, delay) => { const timer = { callback, due: now + delay, cleared: false }; timers.push(timer); return timer; };
     const clearFakeTimeout = timer => { if (timer) timer.cleared = true; };
+    const window = {
+        addEventListener(type, listener) { windowListeners.set(type, listener); },
+        dispatchEvent() {},
+        setTimeout: setFakeTimeout,
+        clearTimeout: clearFakeTimeout,
+        location: { origin: 'https://whose.domains', pathname: '/user/notifications' }
+    };
+    if (typeof gtag === 'function') window.gtag = gtag;
+    if (typeof gtag !== 'function') {
+        window.WhoseRetentionAnalytics = retentionAnalytics || {
+            track(eventName, parameters) {
+                analyticsCalls.push({ eventName, parameters: JSON.parse(JSON.stringify(parameters)) });
+            }
+        };
+    }
     const context = vm.createContext({
         document,
         console,
@@ -93,20 +110,10 @@ function createHarness(fetchImpl = () => ok(null), readyState = 'complete') {
         setTimeout: setFakeTimeout,
         clearTimeout: clearFakeTimeout,
         setTimeout,
-        window: {
-            addEventListener(type, listener) { windowListeners.set(type, listener); },
-            dispatchEvent() {},
-            setTimeout: setFakeTimeout,
-            clearTimeout: clearFakeTimeout,
-            location: { origin: 'https://whose.domains', pathname: '/user/notifications' },
-            WhoseRetentionAnalytics: {
-                track(eventName, parameters) {
-                    analyticsCalls.push({ eventName, parameters: JSON.parse(JSON.stringify(parameters)) });
-                }
-            }
-        }
+        window
     });
     context.globalThis = context;
+    if (typeof gtag === 'function') vm.runInContext(retentionAnalyticsScript, context, { filename: retentionAnalyticsPath });
     vm.runInContext(script, context, { filename: scriptPath });
     return {
         api: context.window.WhoseNotifications, context, document, requests, timers, windowListeners, analyticsCalls,
@@ -245,6 +252,42 @@ test('notification actions emit only after their API succeeds and never include 
     await flush();
 
     assert.deepEqual(failed.analyticsCalls, []);
+});
+
+test('a throwing gtag cannot turn a successful notification read into a failed business action', async () => {
+    const responses = [ok(null), ok({ unreadCount: 1 })];
+    const harness = createHarness(() => responses.shift(), 'complete', undefined, () => { throw new Error('analytics outage'); });
+    const count = harness.document.register('notificationCount');
+    const row = new FakeElement('article');
+
+    await harness.api.markRead('notice-5', row, undefined, {
+        type: 'mark_read', category: 'all', risk: 'HIGH', source: 'notification_center'
+    });
+
+    assert.equal(row.classList.contains('is-read'), true);
+    assert.equal(count.textContent, '1 unread notification');
+    assert.equal(harness.requests.length, 2);
+});
+
+test('a throwing gtag cannot turn a successful notification deletion into a failed business action', async () => {
+    const responses = [ok(null), ok({ unreadCount: 0 })];
+    const harness = createHarness(() => responses.shift(), 'complete', undefined, () => { throw new Error('analytics outage'); });
+    const list = harness.document.register('notificationList');
+    harness.document.register('notificationLoading');
+    harness.document.register('notificationError');
+    harness.document.register('notificationEmpty');
+    harness.document.register('notificationPagination');
+    harness.document.register('notificationStatus');
+    harness.document.register('notificationCount');
+    const row = harness.api.createNotificationRow({ id: 'notice-6', title: 'Delete', content: '', risk: 'LOW' }, harness.document);
+    list.append(row);
+
+    await harness.api.deleteNotification('notice-6', row, row.parts.remove, {
+        type: 'delete', category: 'all', risk: 'LOW', source: 'notification_center'
+    });
+
+    assert.equal(list.children.length, 0);
+    assert.equal(harness.requests.length, 2);
 });
 
 test('settings payload drops fields outside the preference API allowlist', () => {

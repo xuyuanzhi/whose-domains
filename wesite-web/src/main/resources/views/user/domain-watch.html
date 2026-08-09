@@ -461,9 +461,11 @@
     }
 
     function trackRetentionEvent(eventName, parameters) {
-        if (typeof window !== 'undefined' && window.WhoseRetentionAnalytics && typeof window.WhoseRetentionAnalytics.track === 'function') {
-            window.WhoseRetentionAnalytics.track(eventName, parameters);
-        }
+        try {
+            if (typeof window !== 'undefined' && window.WhoseRetentionAnalytics && typeof window.WhoseRetentionAnalytics.track === 'function') {
+                window.WhoseRetentionAnalytics.track(eventName, parameters);
+            }
+        } catch (error) {}
     }
 
     function monitoringSummary(summary) {

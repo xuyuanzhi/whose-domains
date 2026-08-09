@@ -60,9 +60,11 @@
     }
 
     function trackRetentionEvent(eventName, parameters) {
-        if (root.WhoseRetentionAnalytics && typeof root.WhoseRetentionAnalytics.track === 'function') {
-            root.WhoseRetentionAnalytics.track(eventName, parameters);
-        }
+        try {
+            if (root.WhoseRetentionAnalytics && typeof root.WhoseRetentionAnalytics.track === 'function') {
+                root.WhoseRetentionAnalytics.track(eventName, parameters);
+            }
+        } catch (error) {}
     }
 
     function notificationActionParameters(type, item) {

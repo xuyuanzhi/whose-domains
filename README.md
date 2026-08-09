@@ -131,23 +131,57 @@ Run `pwsh -File scripts/check-seo.ps1 -BaseUrl https://whose.domains` after each
 
 The watchlist, monitoring-event, in-app notification, and email-delivery pipeline is an additive production migration. Take a schema and data backup before starting, stop application instances that run scheduled workers, and apply the scripts with the same MySQL user that owns the application tables.
 
-**New or pre-retention installation — exact SQL order.** Run the regular bootstrap scripts above first. Then run these scripts once, in this order:
+#### SQL preflight and mutually exclusive migration paths
+
+Run this read-only preflight first. It lists the exact tables and retention columns that decide the path; it returns metadata only, never application data.
 
 ```bash
-mysql -u root -p wesitedb < doc/alter_domain_watch_snapshot.sql
+mysql -u root -p wesitedb -e "
+SELECT TABLE_NAME
+FROM information_schema.TABLES
+WHERE TABLE_SCHEMA = DATABASE()
+  AND TABLE_NAME IN ('WEB_DOMAIN_WATCH','WEB_DOMAIN_SNAPSHOT','WEB_DOMAIN_WATCH_NOTIFY_LOG','WEB_MONITOR_SNAPSHOT','WEB_MONITOR_EVENT','WEB_USER_NOTIFICATION','WEB_NOTIFICATION_DELIVERY_BATCH','WEB_USER_QUERY_HISTORY','WEB_API_USAGE_DAILY')
+ORDER BY TABLE_NAME;
+SELECT TABLE_NAME, COLUMN_NAME
+FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA = DATABASE()
+  AND ((TABLE_NAME = 'WEB_MONITOR_SNAPSHOT' AND COLUMN_NAME IN ('SCHEMA_VERSION','OBSERVED_SOURCES'))
+    OR (TABLE_NAME = 'WEB_MONITOR_EVENT' AND COLUMN_NAME IN ('RISK','SOURCE')))
+ORDER BY TABLE_NAME, COLUMN_NAME;"
+```
+
+**Path A — current clean installation.** `doc/create.sql` already creates `WEB_DOMAIN_WATCH`, `WEB_DOMAIN_WATCH_NOTIFY_LOG`, `WEB_USER_QUERY_HISTORY`, and `WEB_API_USAGE_DAILY`. After the normal bootstrap command `mysql -u root -p wesitedb < doc/create.sql`, run **only**:
+
+```bash
 mysql -u root -p wesitedb < doc/alter_retention_notification_center.sql
 ```
 
-`alter_retention_notification_center.sql` is the current baseline: it already creates `WEB_MONITOR_SNAPSHOT` with `SCHEMA_VERSION` and `OBSERVED_SOURCES`, and `WEB_MONITOR_EVENT` with `RISK` and `SOURCE`. Do **not** run either column migration after this current file, because MySQL will correctly reject duplicate columns.
+Do **not** run `doc/alter_domain_watch_snapshot.sql` on Path A: its unguarded `CREATE TABLE WEB_DOMAIN_WATCH` duplicates an object that `create.sql` already created. The current retention script already creates `WEB_MONITOR_SNAPSHOT` with `SCHEMA_VERSION` and `OBSERVED_SOURCES`, and `WEB_MONITOR_EVENT` with `RISK` and `SOURCE`; do **not** run either later `ADD COLUMN` script after Path A.
 
-**Upgrade from an earlier retention deployment.** If the retention script was applied before those four columns existed, first confirm the relevant columns are absent, then apply these later migrations in this exact order (each once):
+**Path B — old installation upgrade.** Use this path only after the preflight above:
+
+1. If **both** `WEB_DOMAIN_WATCH` and `WEB_DOMAIN_SNAPSHOT` are absent, run the legacy pair first. If exactly one is present, stop: `alter_domain_watch_snapshot.sql` contains two unguarded `CREATE TABLE` statements, so the partially provisioned schema must be reconciled manually rather than re-running it.
+
+   ```bash
+   mysql -u root -p wesitedb < doc/alter_domain_watch_snapshot.sql
+   ```
+
+2. Confirm `WEB_DOMAIN_WATCH_NOTIFY_LOG` exists, and that all four retention tables (`WEB_MONITOR_SNAPSHOT`, `WEB_MONITOR_EVENT`, `WEB_USER_NOTIFICATION`, and `WEB_NOTIFICATION_DELIVERY_BATCH`) are absent. Then apply the current retention baseline exactly once:
+
+   ```bash
+   mysql -u root -p wesitedb < doc/alter_retention_notification_center.sql
+   ```
+
+   If only some retention tables exist, stop and reconcile that partial migration from backup/change records; the baseline uses unguarded `CREATE TABLE` statements and must not be retried blindly.
+
+3. If the retention baseline was applied by an **older release** and preflight confirms the two columns in each group are absent, apply the subsequent incremental migrations exactly once and only in this order:
 
 ```bash
 mysql -u root -p wesitedb < doc/alter_monitor_snapshot_observation_sources.sql
 mysql -u root -p wesitedb < doc/alter_monitor_event_canonical_risk.sql
 ```
 
-Never re-run a `CREATE TABLE` or `ADD COLUMN` migration against a schema that already contains its objects. Record the applied script name, deploy version, operator, and UTC time in the production change record.
+The retention order is therefore: legacy watch/snapshot script only when both tables are absent → retention baseline once → snapshot-provenance increment only when both columns are absent → event-risk increment only when both columns are absent. Verify `WEB_USER_QUERY_HISTORY` and `WEB_API_USAGE_DAILY` before running the retention report; current `create.sql` provides both. Never re-run a `CREATE TABLE` or `ADD COLUMN` migration against a schema that already contains its objects. Record the applied script name, deploy version, operator, and UTC time in the production change record.
 
 #### Worker schedule and SMTP dependency
 
@@ -187,7 +221,22 @@ Before each phase, verify the application health check, migration record, profil
 
 Use GA4 only with the privacy-safe custom events `watch_created`, `watchlist_return_visit`, `notification_opened`, `notification_action_clicked`, and `notification_preferences_saved`. The client sends only allowlisted `type`, `category`, `risk`, and UI `source` values after successful API responses. It never sends a domain, email, user ID, event ID, notification text, or any free-form UI value; missing `gtag` is a no-op.
 
-For the production retention report, build the cohorts in the first-party analytics warehouse: monitored users have an active watch on the cohort day; non-monitored users have no active watch on that day. The warehouse may use its internal account key, but it must export only daily aggregates to the report and must never send that key to GA4. A return is a later authenticated watchlist or notification-center API success, counted at most once per account per window. Compare the two cohorts separately for 7 and 30 days:
+The account-level source of record is the local MySQL aggregate report, not GA4. Run it with a database account allowed to create temporary tables; it selects only daily/overall aggregates and never emits a user ID:
+
+```bash
+mysql -u retention_reporter -p wesitedb < scripts/retention-report.sql
+```
+
+The script uses these persisted fields, deduplicated by `(USER_ID, activity_date)` in a temporary table:
+
+| Purpose | Persisted source |
+| --- | --- |
+| Monitored cohort | `WEB_DOMAIN_WATCH.CREATE_TIME`; cohort date is each user's first watch creation date, including a watch later soft-deleted. |
+| Authenticated activity | `WEB_USER_QUERY_HISTORY.CREATE_TIME` where `USER_ID` is present; the recorder writes only for authenticated users. |
+| Notification interaction | `WEB_USER_NOTIFICATION.READ_AT`; this is a durable successful read action. A notification-link click is not currently persisted and is intentionally not inferred. |
+| API activity | `WEB_API_USAGE_DAILY.USAGE_DATE` where `REQUEST_COUNT > 0`. |
+
+The monitored cohort contains every user whose first watch was created on the cohort day. The non-monitored control contains users on their first observed authenticated-activity day who do not create a watch through the following 30 days. This prevents a control user who soon becomes monitored from contaminating the 30-day comparison. Both cohorts are closed at least 30 UTC days before execution, so their 7-day and 30-day outcomes are complete. A return is any later persisted activity above on days 1–7 or 1–30, counted at most once per user per window before the script aggregates it.
 
 ```text
 7-day return rate  = returning cohort users on days 1-7  / eligible cohort users
@@ -195,7 +244,7 @@ For the production retention report, build the cohorts in the first-party analyt
 lift                = monitored return rate - comparison return rate
 ```
 
-Freeze each cohort after its window closes, exclude users who have not yet had the full 7 or 30 days of observation, use the same acquisition-date and geography filters for both groups, and report cohort size alongside each rate. GA4 can provide the corresponding anonymous funnel trend by `watch_created` and the return events, but it is not the source of record for an account-level comparison because no user ID is sent. This is an observational comparison, not a causal claim; repeat it weekly and inspect both absolute lift and confidence intervals before changing notification policy.
+The first result set is a daily closed-cohort trend; the second is the 90-day aggregate comparison. `cohort_users` is the denominator, `returned_users_7d`/`returned_users_30d` are unique returning users, and `return_rate_*_pct` is their percentage. Compute monitored-minus-control lift from the two aggregate rows. GA4 may still show an anonymous privacy-safe funnel trend, but it must not be used for an account-level cohort comparison because no user ID is sent. This is an observational comparison, not a causal claim; repeat it weekly and inspect both absolute lift and confidence intervals before changing notification policy.
 
 ## Contributing
 

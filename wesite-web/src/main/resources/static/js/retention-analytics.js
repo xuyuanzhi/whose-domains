@@ -25,8 +25,13 @@
     }
 
     function track(eventName, parameters) {
-        if (!hasValue(EVENTS, eventName) || typeof root.gtag !== 'function') return;
-        root.gtag('event', eventName, safeParameters(parameters));
+        if (!hasValue(EVENTS, eventName) || typeof root.gtag !== 'function') return false;
+        try {
+            root.gtag('event', eventName, safeParameters(parameters));
+            return true;
+        } catch (error) {
+            return false;
+        }
     }
 
     root.WhoseRetentionAnalytics = { track: track };

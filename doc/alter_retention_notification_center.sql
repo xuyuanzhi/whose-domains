@@ -1,5 +1,8 @@
 -- Retention notification-center release migration.
--- Apply after doc/alter_domain_watch_snapshot.sql on an existing installation.
+-- On a current clean install, run doc/create.sql first and then this file; do not run
+-- doc/alter_domain_watch_snapshot.sql because create.sql already creates WEB_DOMAIN_WATCH.
+-- On an older install missing BOTH WEB_DOMAIN_WATCH and WEB_DOMAIN_SNAPSHOT, run
+-- doc/alter_domain_watch_snapshot.sql first, then this file. See README for preflight checks.
 -- This current baseline already includes SCHEMA_VERSION/OBSERVED_SOURCES and RISK/SOURCE.
 -- Do not also run the later incremental column migrations on a fresh application of this file.
 CREATE TABLE `WEB_MONITOR_SNAPSHOT` (

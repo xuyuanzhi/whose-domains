@@ -6,6 +6,8 @@ const vm = require('node:vm');
 
 const templatePath = path.resolve(__dirname, '../../main/resources/views/user/domain-watch.html');
 const template = fs.readFileSync(templatePath, 'utf8');
+const retentionAnalyticsPath = path.resolve(__dirname, '../../main/resources/static/js/retention-analytics.js');
+const retentionAnalyticsScript = fs.readFileSync(retentionAnalyticsPath, 'utf8');
 const domainWatchScript = Array.from(template.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g), (match) => match[1])
     .find((script) => script.includes("function checkLoginAndLoad()"));
 
@@ -55,7 +57,7 @@ class FakeDocument {
     }
 }
 
-function createHarness(fetch) {
+function createHarness(fetch, retentionAnalytics, gtag) {
     const document = new FakeDocument();
     const loginRequired = document.register('loginRequired');
     const listLoader = document.register('listLoader');
@@ -77,6 +79,8 @@ function createHarness(fetch) {
     const editNotifyEmail = document.register('editNotifyEmail');
     const alerts = [];
 
+    const window = { WhoseRetentionAnalytics: retentionAnalytics };
+    if (typeof gtag === 'function') window.gtag = gtag;
     const context = vm.createContext({
         document,
         fetch,
@@ -84,9 +88,11 @@ function createHarness(fetch) {
         Date,
         Math,
         setTimeout,
+        window,
         confirm: () => true,
         alert: (message) => alerts.push(message)
     });
+    if (typeof gtag === 'function') vm.runInContext(retentionAnalyticsScript, context, { filename: retentionAnalyticsPath });
     vm.runInContext(domainWatchScript, context, { filename: templatePath });
     return {
         context,
@@ -198,6 +204,22 @@ test('successful list response hides signed-out state and shows Watchlist UI', a
 
     assert.equal(harness.loginRequired.style.display, 'none');
     assert.equal(harness.listLoader.style.display, 'none');
+    assert.equal(harness.watchlistUI.style.display, 'block');
+    assert.equal(harness.context.isLoggedIn, true);
+});
+
+test('a throwing gtag cannot switch a successful watchlist load to signed-out UI', async () => {
+    const harness = createHarness(() => Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ code: 0, data: [] })
+    }), undefined, () => { throw new Error('analytics outage'); });
+
+    harness.loginRequired.style.display = 'block';
+    harness.context.checkLoginAndLoad();
+    await flushPromises();
+
+    assert.equal(harness.loginRequired.style.display, 'none');
     assert.equal(harness.watchlistUI.style.display, 'block');
     assert.equal(harness.context.isLoggedIn, true);
 });

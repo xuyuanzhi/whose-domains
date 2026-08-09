@@ -21,16 +21,16 @@ function loadAnalytics(gtag) {
 test('analytics is a no-op when GA4 is unavailable', () => {
     const analytics = loadAnalytics(undefined);
 
-    assert.doesNotThrow(() => analytics.track('watch_created', {
+    assert.equal(analytics.track('watch_created', {
         type: 'watch_created', category: 'watchlist', source: 'watchlist'
-    }));
+    }), false);
 });
 
 test('analytics sends only allowlisted event names and privacy-safe parameters', () => {
     const calls = [];
     const analytics = loadAnalytics((...args) => calls.push(args));
 
-    analytics.track('watch_created', {
+    assert.equal(analytics.track('watch_created', {
         type: 'watch_created',
         category: 'watchlist',
         risk: 'HIGH',
@@ -40,8 +40,8 @@ test('analytics sends only allowlisted event names and privacy-safe parameters',
         userId: 'user-42',
         eventId: 'event-99',
         notificationText: 'Private notification details'
-    });
-    analytics.track('not_an_event', { type: 'watch_created', category: 'watchlist', source: 'watchlist' });
+    }), true);
+    assert.equal(analytics.track('not_an_event', { type: 'watch_created', category: 'watchlist', source: 'watchlist' }), false);
 
     assert.deepEqual(JSON.parse(JSON.stringify(calls)), [[
         'event',
@@ -55,12 +55,23 @@ test('analytics drops unrecognized parameter values instead of forwarding caller
     const calls = [];
     const analytics = loadAnalytics((...args) => calls.push(args));
 
-    analytics.track('notification_opened', {
+    assert.equal(analytics.track('notification_opened', {
         type: 'unrecognized-action',
         category: 'customer-entered-category',
         risk: 'UNTRUSTED',
         source: 'external-widget'
-    });
+    }), true);
 
     assert.deepEqual(JSON.parse(JSON.stringify(calls)), [['event', 'notification_opened', {}]]);
+});
+
+test('analytics swallows a throwing gtag and reports the failed delivery', () => {
+    const analytics = loadAnalytics(() => { throw new Error('GA4 unavailable'); });
+
+    assert.doesNotThrow(() => analytics.track('watch_created', {
+        type: 'watch_created', category: 'watchlist', source: 'watchlist'
+    }));
+    assert.equal(analytics.track('watch_created', {
+        type: 'watch_created', category: 'watchlist', source: 'watchlist'
+    }), false);
 });
