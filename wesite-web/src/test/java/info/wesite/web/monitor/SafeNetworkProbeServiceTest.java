@@ -7,6 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
+import static org.mockito.Mockito.mockStatic;
 
 import java.io.IOException;
 import java.net.Inet6Address;
@@ -26,6 +28,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
 import org.springframework.core.task.AsyncTaskExecutor;
 import org.springframework.core.task.TaskRejectedException;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
@@ -195,6 +198,73 @@ class SafeNetworkProbeServiceTest {
             () -> service.checkPorts("::ffff:8.8.8.8", List.of(443)));
         assertEquals(0, resolutions.get(), "mapped literals must be rejected before the JDK erases their form");
         assertEquals(0, connections.get());
+    }
+
+    @Test
+    void rejectsMalformedColonAndZoneIdWithoutNameServiceOrInjectedResolverCalls() throws Exception {
+        assertFalse(MonitorTargetPolicy.isPublic(InetAddress.getByAddress(new byte[] {0, 0, 0, 0})));
+        AtomicInteger nameServiceCalls = new AtomicInteger();
+        AtomicInteger resolverCalls = new AtomicInteger();
+        List<String> invalidHosts = List.of(
+            "zzzz:invalid",
+            "\uff12001:db8::1",
+            "2001:db8::1::2",
+            "1:2:3:4:5:6:7:8:9",
+            "fe80::1%1",
+            "[fe80::1%eth0]");
+
+        try (MockedStatic<InetAddress> inetAddress = mockStatic(InetAddress.class, CALLS_REAL_METHODS)) {
+            for (String invalid : List.of(
+                "zzzz:invalid", "\uff12001:db8::1", "2001:db8::1::2", "1:2:3:4:5:6:7:8:9",
+                "fe80::1%1", "fe80::1%eth0")) {
+                inetAddress.when(() -> InetAddress.getByName(invalid)).thenAnswer(invocation -> {
+                    nameServiceCalls.incrementAndGet();
+                    throw new java.net.UnknownHostException(invalid);
+                });
+                inetAddress.when(() -> InetAddress.getAllByName(invalid)).thenAnswer(invocation -> {
+                    nameServiceCalls.incrementAndGet();
+                    throw new java.net.UnknownHostException(invalid);
+                });
+            }
+
+            long startedAt = System.nanoTime();
+            for (String invalid : invalidHosts) {
+                assertThrows(java.net.UnknownHostException.class, () -> MonitorTargetPolicy.resolvePublic(
+                    invalid,
+                    MonitorDeadline.after(Duration.ofMillis(100)),
+                    (host, deadline) -> {
+                        resolverCalls.incrementAndGet();
+                        return new InetAddress[] {InetAddress.getByAddress(new byte[] {8, 8, 8, 8})};
+                    }));
+            }
+            assertTrue(Duration.ofNanos(System.nanoTime() - startedAt).toMillis() < 500,
+                "malformed literals must fail locally without blocking");
+        }
+
+        assertEquals(0, nameServiceCalls.get(), "literal validation must never enter name service");
+        assertEquals(0, resolverCalls.get(), "invalid literals must fail before the injected resolver");
+    }
+
+    @Test
+    void acceptsCompressedIpv6WithEmbeddedIpv4TailWithoutPreResolutionLookup() throws Exception {
+        AtomicInteger resolverCalls = new AtomicInteger();
+        byte[] publicAddress = new byte[] {
+            0x2a, 0x00, 0x14, 0x50, 0, 0, 0, 0, 0, 0, 0, 0, 8, 8, 8, 8};
+
+        for (String rawHost : List.of("2A00:1450::8.8.8.8", "[2a00:1450::8.8.8.8]")) {
+            MonitorTargetPolicy.ResolvedTarget target = MonitorTargetPolicy.resolvePublic(
+                rawHost,
+                MonitorDeadline.after(Duration.ofMillis(100)),
+                (host, deadline) -> {
+                    resolverCalls.incrementAndGet();
+                    assertEquals("2a00:1450::8.8.8.8", host);
+                    return new InetAddress[] {InetAddress.getByAddress(publicAddress)};
+                });
+
+            assertEquals("2a00:1450::8.8.8.8", target.host());
+        }
+
+        assertEquals(2, resolverCalls.get());
     }
 
     @Test

@@ -2,9 +2,9 @@ package info.wesite.web.monitor;
 
 import java.io.IOException;
 import java.net.IDN;
-import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -157,24 +157,24 @@ final class MonitorTargetPolicy {
 
     private static IpPrefix prefix(String literal, int bits) {
         try {
-            byte[] address = InetAddress.getByName(literal).getAddress();
-            if (address.length != 16 || bits < 0 || bits > 128) {
+            byte[] address = parseIpv6Literal(literal);
+            if (bits < 0 || bits > 128) {
                 throw new IllegalArgumentException("Invalid IPv6 prefix " + literal + "/" + bits);
             }
             return new IpPrefix(address, bits);
-        } catch (UnknownHostException invalidLiteral) {
+        } catch (IllegalArgumentException invalidLiteral) {
             throw new ExceptionInInitializerError(invalidLiteral);
         }
     }
 
     private static IpPrefix ipv4Prefix(String literal, int bits) {
         try {
-            byte[] address = InetAddress.getByName(literal).getAddress();
-            if (address.length != 4 || bits < 0 || bits > 32) {
+            byte[] address = parseIpv4Literal(literal);
+            if (bits < 0 || bits > 32) {
                 throw new IllegalArgumentException("Invalid IPv4 prefix " + literal + "/" + bits);
             }
             return new IpPrefix(address, bits);
-        } catch (UnknownHostException invalidLiteral) {
+        } catch (IllegalArgumentException invalidLiteral) {
             throw new ExceptionInInitializerError(invalidLiteral);
         }
     }
@@ -198,7 +198,8 @@ final class MonitorTargetPolicy {
         }
         if (value.indexOf(':') >= 0) {
             try {
-                if (!(InetAddress.getByName(value) instanceof Inet6Address)) {
+                byte[] address = parseIpv6Literal(value);
+                if (isIpv4Mapped(address)) {
                     throw new UnknownHostException("invalid host");
                 }
                 return value.toLowerCase(java.util.Locale.ROOT);
@@ -215,6 +216,136 @@ final class MonitorTargetPolicy {
             failure.initCause(invalid);
             throw failure;
         }
+    }
+
+    private static byte[] parseIpv6Literal(String literal) {
+        if (literal.isEmpty() || literal.indexOf('%') >= 0) {
+            throw new IllegalArgumentException("invalid IPv6 literal");
+        }
+
+        int compression = literal.indexOf("::");
+        if (compression >= 0 && literal.indexOf("::", compression + 2) >= 0) {
+            throw new IllegalArgumentException("invalid IPv6 literal");
+        }
+
+        List<Integer> left;
+        List<Integer> right;
+        if (compression < 0) {
+            left = parseIpv6Words(literal, true);
+            right = List.of();
+            if (left.size() != 8) {
+                throw new IllegalArgumentException("invalid IPv6 literal");
+            }
+        } else {
+            String leftText = literal.substring(0, compression);
+            String rightText = literal.substring(compression + 2);
+            left = parseIpv6Words(leftText, rightText.isEmpty());
+            right = parseIpv6Words(rightText, true);
+            if (left.size() + right.size() >= 8) {
+                throw new IllegalArgumentException("invalid IPv6 literal");
+            }
+        }
+
+        byte[] address = new byte[16];
+        int wordIndex = 0;
+        for (int word : left) {
+            writeIpv6Word(address, wordIndex++, word);
+        }
+        wordIndex = 8 - right.size();
+        for (int word : right) {
+            writeIpv6Word(address, wordIndex++, word);
+        }
+        return address;
+    }
+
+    private static List<Integer> parseIpv6Words(String section, boolean allowIpv4Tail) {
+        if (section.isEmpty()) {
+            return List.of();
+        }
+        String[] tokens = section.split(":", -1);
+        List<Integer> words = new ArrayList<>(tokens.length);
+        for (int index = 0; index < tokens.length; index++) {
+            String token = tokens[index];
+            if (token.isEmpty()) {
+                throw new IllegalArgumentException("invalid IPv6 literal");
+            }
+            if (token.indexOf('.') >= 0) {
+                if (!allowIpv4Tail || index != tokens.length - 1) {
+                    throw new IllegalArgumentException("invalid IPv6 literal");
+                }
+                byte[] ipv4 = parseIpv4Literal(token);
+                words.add(((ipv4[0] & 0xff) << 8) | (ipv4[1] & 0xff));
+                words.add(((ipv4[2] & 0xff) << 8) | (ipv4[3] & 0xff));
+                continue;
+            }
+            if (token.length() > 4) {
+                throw new IllegalArgumentException("invalid IPv6 literal");
+            }
+            int word = 0;
+            for (int characterIndex = 0; characterIndex < token.length(); characterIndex++) {
+                int digit = hexDigit(token.charAt(characterIndex));
+                if (digit < 0) {
+                    throw new IllegalArgumentException("invalid IPv6 literal");
+                }
+                word = (word << 4) | digit;
+            }
+            words.add(word);
+        }
+        return words;
+    }
+
+    private static byte[] parseIpv4Literal(String literal) {
+        String[] tokens = literal.split("\\.", -1);
+        if (tokens.length != 4) {
+            throw new IllegalArgumentException("invalid IPv4 literal");
+        }
+        byte[] address = new byte[4];
+        for (int index = 0; index < tokens.length; index++) {
+            String token = tokens[index];
+            if (token.isEmpty() || token.length() > 3 || (token.length() > 1 && token.charAt(0) == '0')) {
+                throw new IllegalArgumentException("invalid IPv4 literal");
+            }
+            int octet = 0;
+            for (int characterIndex = 0; characterIndex < token.length(); characterIndex++) {
+                char character = token.charAt(characterIndex);
+                if (character < '0' || character > '9') {
+                    throw new IllegalArgumentException("invalid IPv4 literal");
+                }
+                octet = octet * 10 + character - '0';
+            }
+            if (octet > 255) {
+                throw new IllegalArgumentException("invalid IPv4 literal");
+            }
+            address[index] = (byte) octet;
+        }
+        return address;
+    }
+
+    private static int hexDigit(char character) {
+        if (character >= '0' && character <= '9') {
+            return character - '0';
+        }
+        if (character >= 'a' && character <= 'f') {
+            return character - 'a' + 10;
+        }
+        if (character >= 'A' && character <= 'F') {
+            return character - 'A' + 10;
+        }
+        return -1;
+    }
+
+    private static void writeIpv6Word(byte[] address, int wordIndex, int word) {
+        address[wordIndex * 2] = (byte) (word >>> 8);
+        address[wordIndex * 2 + 1] = (byte) word;
+    }
+
+    private static boolean isIpv4Mapped(byte[] address) {
+        for (int index = 0; index < 10; index++) {
+            if (address[index] != 0) {
+                return false;
+            }
+        }
+        return address[10] == (byte) 0xff && address[11] == (byte) 0xff;
     }
 
     record ResolvedTarget(String host, List<InetAddress> addresses) {
