@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -30,5 +31,12 @@ class LegacyToolRedirectControllerTest {
         mvc.perform(head(legacy))
                 .andExpect(status().isMovedPermanently())
                 .andExpect(header().string("Location", canonical));
+    }
+
+    @Test
+    void preservesQueryParametersWhenRedirecting() throws Exception {
+        mvc.perform(get("/tools/domain_analyzer").queryParam("domain", "example.com"))
+                .andExpect(status().isMovedPermanently())
+                .andExpect(header().string("Location", "/tools/domain-analyzer?domain=example.com"));
     }
 }

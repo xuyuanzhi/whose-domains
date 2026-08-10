@@ -21,6 +21,9 @@ public class LegacyToolRedirectController {
     })
     public ResponseEntity<Void> redirect(HttpServletRequest request) {
         String target = CanonicalToolRoutes.canonicalFor(request.getRequestURI()).orElseThrow();
+        if (request.getQueryString() != null) {
+            target += "?" + request.getQueryString();
+        }
         return ResponseEntity.status(HttpStatus.MOVED_PERMANENTLY)
                 .location(URI.create(target))
                 .build();
