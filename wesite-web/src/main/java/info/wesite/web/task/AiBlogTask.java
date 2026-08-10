@@ -18,6 +18,7 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import info.wesite.core.entity.BlogPost;
 import info.wesite.core.service.BlogPostService;
 import info.wesite.web.ai.DeepSeekClient;
+import info.wesite.web.seo.CanonicalToolRoutes;
 
 /**
  * AI 博客自动生成定时任务
@@ -82,6 +83,12 @@ public class AiBlogTask {
 
             if (StringUtils.isBlank(content)) {
                 log.warn("[AiBlogTask] Empty content returned, skipping save.");
+                return;
+            }
+
+            content = CanonicalToolRoutes.canonicalizeInternalLinks(content);
+            if (CanonicalToolRoutes.containsLegacyInternalLink(content)) {
+                log.error("[AiBlogTask] Generated content still contains legacy tool links, skipping save.");
                 return;
             }
 
@@ -180,17 +187,17 @@ public class AiBlogTask {
             Available tools:
             - WHOIS Lookup          -> /tools/whois-lookup
             - RDAP Lookup           -> /tools/rdap-lookup
-            - DNS Analyzer          -> /tools/dns_analyzer
+            - DNS Analyzer          -> /tools/dns-analyzer
             - Domain Availability   -> /tools/domain-availability
             - Domain History        -> /tools/domain-history
             - Domain Score          -> /tools/domain-score
             - Domain Valuation      -> /tools/domain-valuation
-            - Domain Analyzer       -> /tools/domain_analyzer
+            - Domain Analyzer       -> /tools/domain-analyzer
             - Bulk Domain Search    -> /tools/bulk-domain-search
             - WHOIS Compare         -> /tools/whois-compare
             - Related Domains       -> /tools/related-domains
             - Reverse IP Lookup     -> /tools/reverse-ip
-            - SSL Checker           -> /tools/ssl_checker
+            - SSL Checker           -> /tools/ssl-checker
             - My IP Address         -> /tools/my-ip-address
             - Ping Test             -> /tools/ping-test
             - Port Checker          -> /tools/port-checker
