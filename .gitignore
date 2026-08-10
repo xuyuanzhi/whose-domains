@@ -80,6 +80,8 @@ package-lock.json
 
 # Misc
 .worktrees/
+/docs/
+wesite-web/TOOLS_FEATURES.md
 *.swp
 *.swo
 *~

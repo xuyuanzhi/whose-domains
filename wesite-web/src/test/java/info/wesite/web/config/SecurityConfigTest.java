@@ -36,6 +36,7 @@ import org.springframework.web.bind.annotation.RestController;
 import info.wesite.web.auth.ReturnTargetService;
 import info.wesite.web.auth.google.GoogleAuthenticationFailureHandler;
 import info.wesite.web.auth.google.GoogleAuthenticationSuccessHandler;
+import info.wesite.web.auth.google.OAuthSessionCleaner;
 
 class SecurityConfigTest {
 
@@ -49,7 +50,7 @@ class SecurityConfigTest {
                     SecurityFilterAutoConfiguration.class,
                     OAuth2ClientAutoConfiguration.class,
                     OAuth2ClientWebSecurityAutoConfiguration.class))
-            .withUserConfiguration(SecurityConfig.class, ProbeController.class)
+            .withUserConfiguration(SecurityConfig.class, OAuthSessionCleaner.class, ProbeController.class)
             .withPropertyValues("wesite.google-login.enabled=false");
 
     @Test

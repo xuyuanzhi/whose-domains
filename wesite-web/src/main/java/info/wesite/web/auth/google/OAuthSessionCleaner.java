@@ -2,6 +2,7 @@ package info.wesite.web.auth.google;
 
 import java.util.Objects;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.client.web.OAuth2AuthorizedClientRepository;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
@@ -12,6 +13,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 
 @Component
+@ConditionalOnProperty(prefix = "wesite.google-login", name = "enabled", havingValue = "true")
 public class OAuthSessionCleaner {
 
     private static final String GOOGLE_REGISTRATION_ID = "google";
