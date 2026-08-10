@@ -1,5 +1,6 @@
 package info.wesite.web.monitor;
 
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -194,10 +195,40 @@ class SafeNetworkProbeServiceTest {
                 return true;
             });
 
-        assertThrows(IOException.class,
-            () -> service.checkPorts("::ffff:8.8.8.8", List.of(443)));
+        for (String mapped : List.of("::ffff:8.8.8.8", "::ffff:192.0.2.1")) {
+            assertThrows(IOException.class, () -> service.checkPorts(mapped, List.of(443)));
+        }
         assertEquals(0, resolutions.get(), "mapped literals must be rejected before the JDK erases their form");
         assertEquals(0, connections.get());
+    }
+
+    @Test
+    void rejectsIpv4TailBeforeCompressionWithoutResolutionOrConnection() throws Exception {
+        AtomicInteger rejections = new AtomicInteger();
+        AtomicInteger resolverCalls = new AtomicInteger();
+        AtomicInteger connections = new AtomicInteger();
+        SafeNetworkProbeService service = serviceWith(
+            (host, deadline) -> {
+                resolverCalls.incrementAndGet();
+                return new InetAddress[] {InetAddress.getByAddress(new byte[] {8, 8, 8, 8})};
+            },
+            (address, port, timeoutMillis) -> {
+                connections.incrementAndGet();
+                return true;
+            });
+
+        for (String invalid : List.of("192.0.2.1::", "1:2:3:4:5:192.0.2.1::")) {
+            try {
+                service.checkPorts(invalid, List.of(443));
+            } catch (java.net.UnknownHostException expected) {
+                rejections.incrementAndGet();
+            }
+        }
+
+        assertAll(
+            () -> assertEquals(2, rejections.get(), "both malformed literals must be rejected locally"),
+            () -> assertEquals(0, resolverCalls.get(), "malformed literals must not reach the resolver"),
+            () -> assertEquals(0, connections.get(), "malformed literals must not reach the connector"));
     }
 
     @Test

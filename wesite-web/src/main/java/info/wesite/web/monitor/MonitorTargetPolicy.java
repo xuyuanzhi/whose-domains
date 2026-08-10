@@ -239,7 +239,7 @@ final class MonitorTargetPolicy {
         } else {
             String leftText = literal.substring(0, compression);
             String rightText = literal.substring(compression + 2);
-            left = parseIpv6Words(leftText, rightText.isEmpty());
+            left = parseIpv6Words(leftText, false);
             right = parseIpv6Words(rightText, true);
             if (left.size() + right.size() >= 8) {
                 throw new IllegalArgumentException("invalid IPv6 literal");
