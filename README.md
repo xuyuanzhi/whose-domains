@@ -130,6 +130,27 @@ Alternatively point Spring at any path with `--spring.config.additional-location
 
 Run `pwsh -File scripts/check-seo.ps1 -BaseUrl https://whose.domains` after each production deployment. This is a production-only contract: `-BaseUrl` must normalize to the exact origin `https://whose.domains` (an optional trailing slash is accepted), and other hosts, schemes, non-default ports, paths, queries, or fragments are rejected before any HTTP request.
 
+### Post-deployment production smoke
+
+Run the read-only P0 smoke check immediately after each production deployment and at every traffic-expansion checkpoint:
+
+```powershell
+pwsh -NoProfile -File scripts/check-production-smoke.ps1 `
+  -BaseUrl https://whose.domains `
+  -TimeoutSeconds 20
+```
+
+The script sends GET requests only, refuses any origin other than the exact production HTTPS origin, disables redirects, and checks the homepage, tool catalog, WHOIS lookup, DNS analyzer, SSL checker, login page, and help center. Every endpoint must directly return HTTP 200 with a non-empty HTML document. It aggregates all failures, exits non-zero when any check fails, and reports elapsed time per successful endpoint. Use `-SelfTest` to validate the script offline without sending requests.
+
+Use the following release gates:
+
+1. Run the smoke check at 5%, 25%, and 100% traffic. Two consecutive smoke failures stop traffic expansion; investigate or roll back the application release.
+2. Run `scripts/check-seo.ps1` after the P0 smoke check passes. Keep the broader sitemap crawl separate so a slow SEO audit does not delay the first availability decision.
+3. Keep both notification-delivery rollout properties false for the first smoke pass. Validate an internal watch, snapshot, event, in-app notification, unread count, link, and user scope before enabling email delivery.
+4. After enabling immediate delivery, disable that rollout property on any wrong recipient, duplicate message, or queue-age breach. Data corruption or cross-user access requires stopping workers and rolling back the application.
+
+Record the deployed commit, operator, UTC time, traffic percentage, command output, and decision at each checkpoint. The public smoke check deliberately does not mutate account data or invoke domain-probe APIs; authenticated, notification, and external-provider journeys remain controlled internal-account checks.
+
 ### Retention notification center operations
 
 The watchlist, monitoring-event, in-app notification, and email-delivery pipeline is an additive production migration. Take a schema and data backup before starting, stop application instances that run scheduled workers, and apply the scripts with the same MySQL user that owns the application tables.
