@@ -179,7 +179,7 @@
         <div class="container">
             <nav class="navbar">
                 <a href="/" class="logo">
-                    <img alt="Whose.Domains - Domain WHOIS Lookup" src="/static/image/transparent-logo.png" width="160" height="40"/>
+                    <img alt="Whose.Domains - Domain WHOIS Lookup" src="/static/image/transparent-logo.png" width="120" height="56"/>
                 </a>
                 <!-- Hamburger (mobile only) -->
                 <button class="nav-hamburger" id="navHamburger" aria-label="Toggle navigation" onclick="toggleNav()">
@@ -278,16 +278,16 @@
         fetch('/user/session',{credentials:'include'}).then(function(r){return r.json();}).then(function(d){
             if(d.code===0&&d.data){
                 window.WhoseAuthState={authenticated:true,user:d.data};
-                document.getElementById('navUserMenu').style.display='list-item';
+                document.getElementById('navUserMenu').style.display='flex';
                 document.getElementById('navUserName').textContent=d.data.name||'Account';
                 window.dispatchEvent(new CustomEvent('whose:authenticated'));
             } else {
                 window.WhoseAuthState={authenticated:false,user:null};
-                document.getElementById('navLoginBtn').style.display='list-item';
+                document.getElementById('navLoginBtn').style.display='flex';
             }
         }).catch(function(){
             window.WhoseAuthState={authenticated:false,user:null};
-            document.getElementById('navLoginBtn').style.display='list-item';
+            document.getElementById('navLoginBtn').style.display='flex';
         });
     })();
     var authModal=document.getElementById('authModal');

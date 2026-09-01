@@ -389,6 +389,30 @@ test('Google binding result changes only the button label and keeps the icon nod
     assert.ok(harness.googleIcon);
 });
 
+test('authenticated user menu remains a vertically centered flex item', async () => {
+    const harness = createHarness({
+        fetch: () => Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ code: 0, data: { name: 'Ada' } })
+        })
+    }).run();
+
+    await flushPromises();
+
+    assert.equal(harness.navUserMenu.style.display, 'flex');
+    assert.equal(harness.document.getElementById('navUserName').textContent, 'Ada');
+});
+
+test('failed session request keeps the sign-in menu vertically centered', async () => {
+    const harness = createHarness({
+        fetch: () => Promise.reject(new Error('session unavailable'))
+    }).run();
+
+    await flushPromises();
+
+    assert.equal(harness.document.getElementById('navLoginBtn').style.display, 'flex');
+});
+
 test('dragging follows pointer displacement and clamps against all four viewport edges', () => {
     const harness = createHarness({ dialogLeft: 100, dialogTop: 100 }).run();
     const start = pointerEvent(harness.titleBar);
