@@ -82,6 +82,7 @@ You can also override settings via environment variables without touching the co
 | `REDIS_PASSWORD` | Redis password (may be empty) |
 | `JWT_SECRET` | JWT signing secret |
 | `DEEPSEEK_API_KEY` | DeepSeek API key (required for AI features) |
+| `WESITE_SUPPORT_URL` | Optional override for the official HTTPS PayPal Payment Link; set it to an empty value to hide support links |
 | `WESITE_NOTIFICATION_DELIVERY_IMMEDIATE_ENABLED` | Allows the immediate-mail job when `wesite.mail.enabled=true`; defaults to `false` |
 | `WESITE_NOTIFICATION_DELIVERY_DIGEST_ENABLED` | Allows the daily/weekly digest jobs when `wesite.mail.enabled=true`; defaults to `false` |
 | `WESITE_RETENTION_REPORTING_ZONE` | The single formal retention reporting calendar, as an IANA `ZoneId`; defaults to `Asia/Shanghai` |

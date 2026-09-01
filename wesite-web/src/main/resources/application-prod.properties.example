@@ -82,6 +82,8 @@ wesite.auth-cookie-secure=${WESITE_AUTH_COOKIE_SECURE:true}
 wesite.google-login.enabled=${WESITE_GOOGLE_LOGIN_ENABLED:false}
 wesite.google-login.client-id=${GOOGLE_CLIENT_ID:}
 wesite.google-login.client-secret=${GOOGLE_CLIENT_SECRET:}
+# Official PayPal Payment Link. Override with WESITE_SUPPORT_URL; an empty override hides the calls to action.
+wesite.support.url=${WESITE_SUPPORT_URL:https://www.paypal.com/ncp/payment/LFWN7F5X9626W}
 
 # Resend transactional email (SMTP over implicit TLS). Keep RESEND_API_KEY out of this file.
 spring.mail.host=smtp.resend.com

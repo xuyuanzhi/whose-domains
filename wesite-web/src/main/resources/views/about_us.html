@@ -56,6 +56,19 @@
 	            </ul>
 	
 	            <p><b>We believe transparent information is fundamental to a healthy internet. We are honored to be your trusted partner in navigating the domain world.</b></p>
+
+	            <section id="support-panel" class="support-panel" th:if="${supportUrl != null}" aria-labelledby="support-heading">
+	                <div class="support-panel__copy">
+	                    <h2 id="support-heading">Support Whose.Domains</h2>
+	                    <p>Whose.Domains is free to use. If it saved you time, you can help cover hosting, monitoring, and data-service costs.</p>
+	                    <p class="support-panel__note">Voluntary support only. Payments are processed by PayPal. This is not a charitable donation and does not provide additional service rights.</p>
+	                </div>
+	                <a class="btn btn-primary support-panel__action" th:href="${supportUrl}" target="_blank" rel="noopener noreferrer sponsored">
+	                    <i class="fab fa-paypal" aria-hidden="true"></i>
+	                    Support via PayPal
+	                    <span class="sr-only"> (opens in a new tab)</span>
+	                </a>
+	            </section>
 	        </article>
     	</div>
     </main>

@@ -1374,6 +1374,33 @@ ul.tld-list li {list-style: none; font-size: 1.1rem;}
 .about-us ul.values li {width:25%;padding: 8px 15px; background: rgba(0,229,255,0.05); margin: 5px; border-radius: var(--radius-sm); border: 1px solid rgba(0,229,255,0.1);}
 .about-us ul.roadmap {list-style: square; margin-left: 20px;}
 
+.support-panel {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 28px;
+    margin-top: 28px;
+    padding: 24px;
+    background: rgba(0,229,255,0.05);
+    border: 1px solid rgba(0,229,255,0.16);
+    border-radius: var(--radius);
+}
+.support-panel h2 {margin-top: 0;}
+.support-panel p {margin-bottom: 6px;}
+.support-panel__copy {min-width: 0;}
+.support-panel__note {color: #7a8ba0; font-size: 12px; line-height: 1.55;}
+.support-panel__action {flex: 0 0 auto; min-height: 44px;}
+.support-panel__action:focus-visible,
+#footer-support-link:focus-visible {outline: 3px solid rgba(0,229,255,0.48); outline-offset: 3px;}
+
+@media (max-width: 640px) {
+    .about-us {padding: 22px 20px;}
+    .about-us ul.values {flex-direction: column;}
+    .about-us ul.values li {width: auto; margin: 5px 0;}
+    .support-panel {align-items: stretch; flex-direction: column; padding: 20px;}
+    .support-panel__action {justify-content: center; width: 100%;}
+}
+
 .contact-us {background-color: var(--card-bg); padding: 15px 25px; border-radius: var(--radius); border: 1px solid var(--glass-border);}
 .contact-us .contact-form .form-group {display: flex; flex-direction: row; min-height: 50px;}
 .contact-us .contact-form .form-group label {width:120px; display: flex; align-content: center; flex-wrap: wrap; color: #7a8ba0;}
