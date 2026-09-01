@@ -45,11 +45,9 @@ class ProductionSecurityConfigurationTest {
     }
 
     @Test
-    void canonicalRedirectIsDisabledByDefaultAndEnabledInProductionExample() throws IOException {
-        Properties defaults = properties("src", "main", "resources", "application.properties");
+    void productionExampleExplicitlyEnablesCanonicalRedirect() throws IOException {
         Properties production = properties("src", "main", "resources", "application-prod.properties.example");
 
-        assertEquals("false", defaults.getProperty("wesite.seo.canonical-redirect-enabled"));
         assertEquals("true", production.getProperty("wesite.seo.canonical-redirect-enabled"));
     }
 

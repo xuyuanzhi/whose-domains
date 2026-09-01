@@ -10,14 +10,19 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Profile;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 @Component
+@Profile("prod")
 @Order(Ordered.HIGHEST_PRECEDENCE + 1)
-@ConditionalOnProperty(name = "wesite.seo.canonical-redirect-enabled", havingValue = "true")
+@ConditionalOnProperty(
+        name = "wesite.seo.canonical-redirect-enabled",
+        havingValue = "true",
+        matchIfMissing = true)
 public class CanonicalRedirectFilter extends OncePerRequestFilter {
 
     private static final Set<String> EXCLUDED_PREFIXES = Set.of(

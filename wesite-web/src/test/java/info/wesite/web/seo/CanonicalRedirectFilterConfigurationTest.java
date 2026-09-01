@@ -18,13 +18,29 @@ class CanonicalRedirectFilterConfigurationTest {
             .withUserConfiguration(FilterConfiguration.class);
 
     @Test
-    void doesNotRegisterFilterWhenCanonicalRedirectIsDisabledByDefault() {
+    void doesNotRegisterFilterOutsideProduction() {
         contextRunner.run(context -> assertThat(context).doesNotHaveBean(CanonicalRedirectFilter.class));
     }
 
     @Test
+    void registersFilterByDefaultInProduction() {
+        contextRunner.withPropertyValues("spring.profiles.active=prod").run(context ->
+                assertThat(context).hasSingleBean(CanonicalRedirectFilter.class));
+    }
+
+    @Test
+    void allowsProductionRedirectsToBeExplicitlyDisabled() {
+        contextRunner.withPropertyValues(
+                "spring.profiles.active=prod",
+                "wesite.seo.canonical-redirect-enabled=false")
+                .run(context -> assertThat(context).doesNotHaveBean(CanonicalRedirectFilter.class));
+    }
+
+    @Test
     void registersFilterWithConfiguredOrderWhenCanonicalRedirectIsEnabled() {
-        contextRunner.withPropertyValues("wesite.seo.canonical-redirect-enabled=true").run(context -> {
+        contextRunner.withPropertyValues(
+                "spring.profiles.active=prod",
+                "wesite.seo.canonical-redirect-enabled=true").run(context -> {
             assertThat(context).hasSingleBean(CanonicalRedirectFilter.class);
 
             ServletContextInitializerBeans initializers = new ServletContextInitializerBeans(context.getBeanFactory());
