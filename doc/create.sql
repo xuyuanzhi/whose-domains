@@ -373,6 +373,7 @@ CREATE TABLE `WEB_BLOG_POST` (
   `TAGS`             varchar(300)  COMMENT 'Comma-separated tags',
   `CATEGORY`         varchar(100)  COMMENT 'Category slug',
   `PUBLISH_DATE`     datetime,
+  `CONTENT_UPDATED_AT` datetime    NULL COMMENT 'Last material editorial content update',
   `VIEW_COUNT`       int           NOT NULL DEFAULT '0',
   `META_TITLE`       varchar(300)  COMMENT 'SEO meta title',
   `META_DESCRIPTION` varchar(600)  COMMENT 'SEO meta description',

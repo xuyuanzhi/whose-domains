@@ -46,6 +46,9 @@ public class BlogPost extends BaseEntity {
     /** 发布日期 */
     private Date publishDate;
 
+    /** 最后一次实质性编辑时间；浏览次数更新不得修改它。 */
+    private Date contentUpdatedAt;
+
     /** 浏览次数 */
     private Integer viewCount;
 
