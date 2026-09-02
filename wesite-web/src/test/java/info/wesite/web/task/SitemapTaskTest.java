@@ -2,12 +2,16 @@ package info.wesite.web.task;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.util.Date;
 import java.util.List;
 
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -17,6 +21,8 @@ import org.junit.jupiter.api.io.TempDir;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
 
 import info.wesite.core.entity.BlogPost;
 import info.wesite.core.service.BlogPostService;
@@ -94,5 +100,59 @@ class SitemapTaskTest {
 
         assertTrue(blogUrl != null, "generated sitemap should contain the published blog URL");
         assertEquals(0, ((org.w3c.dom.Element) blogUrl).getElementsByTagName("lastmod").getLength());
+    }
+
+    @Test
+    void blogLastmodUsesEditorialThenPublicationAndNeverGenericUpdateTime() throws Exception {
+        com.baomidou.mybatisplus.core.metadata.TableInfoHelper.initTableInfo(
+                new org.apache.ibatis.builder.MapperBuilderAssistant(
+                        new com.baomidou.mybatisplus.core.MybatisConfiguration(), "SitemapTaskTest-editorial-lastmod"),
+                BlogPost.class);
+        BlogPost editorial = post("editorial", date("2026-08-20"), date("2026-08-01"), date("2026-09-02"));
+        BlogPost fallback = post("fallback", null, date("2026-07-15"), date("2026-09-02"));
+        BlogPost omitted = post("omitted", null, null, date("2026-09-02"));
+        BlogPostService posts = mock(BlogPostService.class);
+        when(posts.list(org.mockito.ArgumentMatchers
+                .<com.baomidou.mybatisplus.core.conditions.Wrapper<BlogPost>>any()))
+                .thenReturn(List.of(editorial, fallback, omitted));
+
+        SitemapTask task = new SitemapTask();
+        ReflectionTestUtils.setField(task, "sitemapRoot", output.toString());
+        ReflectionTestUtils.setField(task, "blogPostService", posts);
+        task.createFile();
+
+        Path sitemap = output.resolve("sitemap_all.xml");
+        Document xml = DocumentBuilderFactory.newInstance().newDocumentBuilder()
+            .parse(sitemap.toFile());
+
+        assertTrue(lastmod(xml, "editorial").startsWith("2026-08-20"));
+        assertTrue(lastmod(xml, "fallback").startsWith("2026-07-15"));
+        assertNull(lastmod(xml, "omitted"));
+        assertFalse(Files.readString(sitemap).contains("2026-09-02"));
+    }
+
+    private static BlogPost post(String slug, Date editorial, Date published, Date updated) {
+        BlogPost post = new BlogPost();
+        post.setSlug(slug);
+        post.setContentUpdatedAt(editorial);
+        post.setPublishDate(published);
+        post.setUpdateTime(updated);
+        return post;
+    }
+
+    private static Date date(String iso) {
+        return Date.from(LocalDate.parse(iso).atStartOfDay(ZoneOffset.UTC).toInstant());
+    }
+
+    private static String lastmod(Document document, String slug) {
+        NodeList urls = document.getElementsByTagName("url");
+        for (int i = 0; i < urls.getLength(); i++) {
+            Element url = (Element) urls.item(i);
+            if (url.getTextContent().contains("https://whose.domains/blog/" + slug)) {
+                NodeList values = url.getElementsByTagName("lastmod");
+                return values.getLength() == 0 ? null : values.item(0).getTextContent();
+            }
+        }
+        return null;
     }
 }

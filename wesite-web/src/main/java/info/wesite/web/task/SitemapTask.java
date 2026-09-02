@@ -210,10 +210,10 @@ public class SitemapTask {
 		List<BlogPost> posts = blogPostService.list(
 				Wrappers.<BlogPost>lambdaQuery()
 						.eq(BlogPost::getStatus, BlogPost.POST_STATUS_PUBLISHED)
-						.select(BlogPost::getSlug, BlogPost::getUpdateTime, BlogPost::getPublishDate));
+						.select(BlogPost::getSlug, BlogPost::getContentUpdatedAt, BlogPost::getPublishDate));
 		for (BlogPost post : posts) {
 			if (post.getSlug() == null || post.getSlug().isBlank()) continue;
-			Date lastMod = post.getUpdateTime() != null ? post.getUpdateTime()
+			Date lastMod = post.getContentUpdatedAt() != null ? post.getContentUpdatedAt()
 					: post.getPublishDate();
 			WebSitemapUrl.Options options = new WebSitemapUrl.Options(PREFIX + "/blog/" + post.getSlug())
 					.changeFreq(com.redfin.sitemapgenerator.ChangeFreq.WEEKLY)
