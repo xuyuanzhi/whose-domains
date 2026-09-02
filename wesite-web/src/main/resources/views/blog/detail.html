@@ -53,48 +53,8 @@
            style="font-size:12px; padding:4px 12px; background:rgba(255,255,255,0.06); color:#94a3b8; border-radius:20px; text-decoration:none; border:1px solid rgba(255,255,255,0.1);"></a>
     </div>
 
-    <!-- Schema: BlogPosting -->
-    <script th:inline="javascript" type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "BlogPosting",
-      "mainEntityOfPage": {
-        "@type": "WebPage",
-        "@id": /*[['https://whose.domains/blog/' + ${post.slug}]]*/ ""
-      },
-      "headline": /*[[${post.title}]]*/ "",
-      "description": /*[[${post.effectiveMetaDescription != null ? post.effectiveMetaDescription : post.summary}]]*/ "",
-      "image": {
-        "@type": "ImageObject",
-        "url": /*[[${post.cover != null ? post.cover : 'https://whose.domains/og-image.png?type=blog'}]]*/ ""
-      },
-      "author": /*[[${post.author != null
-          ? '{"@type":"Person","name":"' + post.author + '","url":"https://whose.domains/blog"}'
-          : '{"@type":"Organization","name":"Whose.Domains","url":"https://whose.domains"}'}]]*/ {},
-      "publisher": {
-        "@type": "Organization",
-        "name": "Whose.Domains",
-        "url": "https://whose.domains",
-        "logo": {
-          "@type": "ImageObject",
-          "url": "https://whose.domains/static/image/transparent-logo.png",
-          "width": 200,
-          "height": 60
-        }
-      },
-      "datePublished": /*[[${post.publishDate != null ? #dates.format(post.publishDate, 'yyyy-MM-dd') : ''}]]*/ "",
-      "dateModified": /*[[${post.updateTime != null ? #dates.format(post.updateTime, 'yyyy-MM-dd') : (post.publishDate != null ? #dates.format(post.publishDate, 'yyyy-MM-dd') : '')}]]*/ "",
-      "inLanguage": "en-US",
-      "articleSection": /*[[${post.category != null ? post.category : 'Blog'}]]*/ "Blog",
-      "keywords": /*[[${post.tags != null ? post.tags : ''}]]*/ "",
-      "url": /*[['https://whose.domains/blog/' + ${post.slug}]]*/ "",
-      "isPartOf": {
-        "@type": "Blog",
-        "name": "Whose.Domains Blog",
-        "url": "https://whose.domains/blog"
-      }
-    }
-    </script>
+    <!-- Schema: BlogPosting. Serialized with BrowserSecure in BlogController. -->
+    <script type="application/ld+json" th:utext="${_blogSchema}"></script>
 
     <!-- Schema: BreadcrumbList -->
     <script th:inline="javascript" type="application/ld+json">

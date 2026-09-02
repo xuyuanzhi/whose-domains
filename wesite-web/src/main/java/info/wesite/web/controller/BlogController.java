@@ -1,6 +1,8 @@
 package info.wesite.web.controller;
 
 import java.text.SimpleDateFormat;
+import java.time.ZoneOffset;
+import java.util.Date;
 import java.util.List;
 
 import org.apache.commons.lang3.StringUtils;
@@ -14,7 +16,11 @@ import org.springframework.web.bind.annotation.RequestParam;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONObject;
+import com.alibaba.fastjson2.JSONWriter;
 
+import info.wesite.core.blog.BlogHtmlSanitizer;
 import info.wesite.core.entity.BlogPost;
 import info.wesite.core.service.BlogPostService;
 import info.wesite.core.utils.Constants;
@@ -31,6 +37,9 @@ public class BlogController {
 
     @Autowired
     private BlogPostService blogPostService;
+
+    @Autowired
+    private BlogHtmlSanitizer htmlSanitizer;
 
     /** Blog 首页 / 列表页 */
     @GetMapping({"", "/"})
@@ -82,6 +91,8 @@ public class BlogController {
             throw new ResourceNotFoundException("Blog post not found: " + slug);
         }
 
+        post.setContent(htmlSanitizer.sanitize(post.getContent()));
+
         // Increment view count
         blogPostService.update(Wrappers.<BlogPost>lambdaUpdate()
                 .setSql("VIEW_COUNT = IFNULL(VIEW_COUNT,0) + 1")
@@ -93,6 +104,8 @@ public class BlogController {
         if (post.getTags() != null) {
             post.setTagArray(post.getTags().split(","));
         }
+
+        model.addAttribute("_blogSchema", buildBlogSchema(post));
 
         // Related posts (same category, excluding current)
         List<BlogPost> related = blogPostService.list(
@@ -121,6 +134,74 @@ public class BlogController {
 
         model.addAttribute("requestURI", request.getRequestURI());
         return "blog/detail";
+    }
+
+    private String buildBlogSchema(BlogPost post) {
+        String articleUrl = "https://whose.domains/blog/" + post.getSlug();
+
+        JSONObject mainEntity = new JSONObject();
+        mainEntity.put("@type", "WebPage");
+        mainEntity.put("@id", articleUrl);
+
+        JSONObject image = new JSONObject();
+        image.put("@type", "ImageObject");
+        image.put("url", StringUtils.defaultIfBlank(
+            post.getCover(), "https://whose.domains/og-image.png?type=blog"));
+
+        JSONObject author = new JSONObject();
+        if (StringUtils.isBlank(post.getAuthor())) {
+            author.put("@type", "Organization");
+            author.put("name", "Whose.Domains");
+            author.put("url", "https://whose.domains");
+        } else {
+            author.put("@type", "Person");
+            author.put("name", post.getAuthor().trim());
+            author.put("url", "https://whose.domains/blog");
+        }
+
+        JSONObject logo = new JSONObject();
+        logo.put("@type", "ImageObject");
+        logo.put("url", "https://whose.domains/static/image/transparent-logo.png");
+        logo.put("width", 200);
+        logo.put("height", 60);
+
+        JSONObject publisher = new JSONObject();
+        publisher.put("@type", "Organization");
+        publisher.put("name", "Whose.Domains");
+        publisher.put("url", "https://whose.domains");
+        publisher.put("logo", logo);
+
+        JSONObject isPartOf = new JSONObject();
+        isPartOf.put("@type", "Blog");
+        isPartOf.put("name", "Whose.Domains Blog");
+        isPartOf.put("url", "https://whose.domains/blog");
+
+        JSONObject root = new JSONObject();
+        root.put("@context", "https://schema.org");
+        root.put("@type", "BlogPosting");
+        root.put("mainEntityOfPage", mainEntity);
+        root.put("headline", post.getTitle());
+        root.put("description", post.getEffectiveMetaDescription());
+        root.put("image", image);
+        root.put("author", author);
+        root.put("publisher", publisher);
+        putDate(root, "datePublished", post.getPublishDate());
+        Date modified = post.getContentUpdatedAt() != null
+            ? post.getContentUpdatedAt()
+            : post.getPublishDate();
+        putDate(root, "dateModified", modified);
+        root.put("inLanguage", "en-US");
+        root.put("articleSection", StringUtils.defaultIfBlank(post.getCategory(), "Blog"));
+        root.put("keywords", StringUtils.defaultString(post.getTags()));
+        root.put("url", articleUrl);
+        root.put("isPartOf", isPartOf);
+        return JSON.toJSONString(root, JSONWriter.Feature.BrowserSecure);
+    }
+
+    private static void putDate(JSONObject target, String name, Date date) {
+        if (date != null) {
+            target.put(name, date.toInstant().atZone(ZoneOffset.UTC).toLocalDate().toString());
+        }
     }
 
     private void formatDates(List<BlogPost> posts) {
