@@ -1,7 +1,6 @@
 package info.wesite.web.task;
 
 import java.util.List;
-import java.util.UUID;
 
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -14,6 +13,8 @@ import org.springframework.stereotype.Component;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 
+import info.wesite.core.blog.BlogDraftCommand;
+import info.wesite.core.blog.BlogEditorialService;
 import info.wesite.core.entity.BlogPost;
 import info.wesite.core.service.BlogPostService;
 import info.wesite.web.ai.DeepSeekClient;
@@ -38,6 +39,9 @@ public class AiBlogTask {
     @Autowired
     private BlogPostService blogPostService;
 
+    @Autowired
+    private BlogEditorialService editorial;
+
     /**
      * 每3天凌晨2点执行一次（避免流量高峰）
      * cron: 秒 分 时 日 月 周
@@ -60,14 +64,6 @@ public class AiBlogTask {
 
             String slug = toSlug(topic.title);
 
-            // 防止 slug 重复
-            long exists = blogPostService.count(
-                Wrappers.<BlogPost>lambdaQuery().eq(BlogPost::getSlug, slug));
-            if (exists > 0) {
-                log.info("[AiBlogTask] Post with slug '{}' already exists, skipping.", slug);
-                return;
-            }
-
             // Step 2: 生成正文
             String rawContent = deepSeekClient.chat(buildSystemPrompt(), buildUserPrompt(topic.title));
 
@@ -86,21 +82,20 @@ public class AiBlogTask {
                 return;
             }
 
-            BlogPost post = new BlogPost();
-            post.setId(UUID.randomUUID().toString().replace("-", "").substring(0, 16));
-            post.setSlug(slug);
-            post.setTitle(topic.title);
-            post.setSummary(StringUtils.isBlank(summary) ? "" : summary.trim());
-            post.setContent(content.trim());
-            post.setCategory(topic.category);
-            post.setTags(topic.tags);
-            post.setViewCount(0);
-            post.setStatus(BlogPost.POST_STATUS_DRAFT);
-            post.setMetaTitle(topic.title + " | Whose.Domains Blog");
-            post.setMetaDescription(StringUtils.isBlank(metaDesc) ? summary : metaDesc.trim());
-
-            blogPostService.save(post);
-            log.info("[AiBlogTask] Blog post saved as draft: slug={}", slug);
+            String normalizedSummary = StringUtils.isBlank(summary) ? "" : summary.trim();
+            String normalizedMetaDescription = StringUtils.isBlank(metaDesc)
+                ? normalizedSummary
+                : metaDesc.trim();
+            editorial.createAiDraft(new BlogDraftCommand(
+                slug,
+                topic.title,
+                normalizedSummary,
+                content.trim(),
+                topic.category,
+                topic.tags,
+                topic.title + " | Whose.Domains Blog",
+                normalizedMetaDescription));
+            log.info("[AiBlogTask] Blog post created as draft: slug={}", slug);
 
         } catch (Exception e) {
             log.error("[AiBlogTask] Failed to generate blog post", e);

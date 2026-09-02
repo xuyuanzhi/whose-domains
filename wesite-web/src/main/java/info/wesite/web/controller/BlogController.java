@@ -5,18 +5,12 @@ import java.util.List;
 
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.ResponseBody;
-
-import info.wesite.web.task.AiBlogTask;
-import jakarta.servlet.http.HttpServletResponse;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -37,12 +31,6 @@ public class BlogController {
 
     @Autowired
     private BlogPostService blogPostService;
-
-    @Autowired
-    private AiBlogTask aiBlogTask;
-
-    @Autowired
-    private org.springframework.core.env.Environment env;
 
     /** Blog 首页 / 列表页 */
     @GetMapping({"", "/"})
@@ -133,37 +121,6 @@ public class BlogController {
 
         model.addAttribute("requestURI", request.getRequestURI());
         return "blog/detail";
-    }
-
-    /**
-     * 手动触发 AI 生成一篇 Blog。
-     * 仅允许本机（127.0.0.1 / ::1）调用，不对外开放。
-     * 用法：POST /blog/internal/generate?secret=xxx
-     */
-    @PostMapping("/internal/generate")
-    @ResponseBody
-    public ResponseEntity<String> manualGenerate(
-            @RequestParam(defaultValue = "") String secret,
-            HttpServletRequest request) {
-
-        // 1. 只允许本机回环地址访问
-//        String remoteAddr = request.getRemoteAddr();
-//        if (!"127.0.0.1".equals(remoteAddr) && !"::1".equals(remoteAddr) && !"0:0:0:0:0:0:0:1".equals(remoteAddr)) {
-//            return ResponseEntity.status(403).body("Forbidden");
-//        }
-
-        // 2. 简单密钥校验（在 application.properties 中配置 blog.internal.secret）
-        String configuredSecret = env.getProperty("blog.internal.secret", "");
-        if (StringUtils.isNotBlank(configuredSecret) && !configuredSecret.equals(secret)) {
-            return ResponseEntity.status(401).body("Unauthorized");
-        }
-
-        try {
-            aiBlogTask.generateBlogPost();
-            return ResponseEntity.ok("Blog generation triggered successfully.");
-        } catch (Exception e) {
-            return ResponseEntity.internalServerError().body("Error: " + e.getMessage());
-        }
     }
 
     private void formatDates(List<BlogPost> posts) {
