@@ -45,6 +45,19 @@ class ProductionSecurityConfigurationTest {
     }
 
     @Test
+    void applicationDefaultsHonorForwardedHeadersOnlyFromTrustedProxies() throws IOException {
+        Properties properties = properties("src", "main", "resources", "application.properties");
+
+        assertEquals("native", properties.getProperty("server.forward-headers-strategy"));
+        assertEquals("x-forwarded-for", properties.getProperty("server.tomcat.remoteip.remote-ip-header"));
+        assertEquals("x-forwarded-proto", properties.getProperty("server.tomcat.remoteip.protocol-header"));
+        assertEquals("x-forwarded-host", properties.getProperty("server.tomcat.remoteip.host-header"));
+        assertEquals("x-forwarded-port", properties.getProperty("server.tomcat.remoteip.port-header"));
+        assertEquals("${WESITE_TRUSTED_PROXY_REGEX:127\\.0\\.0\\.1|::1}",
+                properties.getProperty("server.tomcat.remoteip.internal-proxies"));
+    }
+
+    @Test
     void productionExampleExplicitlyEnablesCanonicalRedirect() throws IOException {
         Properties production = properties("src", "main", "resources", "application-prod.properties.example");
 
