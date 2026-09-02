@@ -338,6 +338,76 @@ lift                = monitored return rate - comparison return rate
 
 The first result set is a single readiness row, the second is a daily closed-cohort trend, and the third is the 90-day aggregate comparison. A 90-day window of cohorts whose 30-day outcomes are closed requires at least 120 days of retained facts. Until `DATEDIFF(CURDATE(), COLLECTION_STARTED_ON)` reaches the configured minimum, the readiness row is `INSUFFICIENT_HISTORY` and both cohort result sets are intentionally empty. Missing metadata similarly returns `MISSING_COLLECTION_METADATA`; neither state may be presented as zero retention. Once ready, both cohort result sets suppress any emitted cohort with fewer than five users (`@minimum_cohort_size = 5`) so the report never exposes tiny groups. `cohort_users` is the denominator, `returned_users_7d`/`returned_users_30d` are unique returning users, and `return_rate_*_pct` is their percentage. Compute monitored-minus-control lift from the two aggregate rows. GA4 may still show an anonymous privacy-safe funnel trend, but it must not be used for an account-level cohort comparison because no user ID is sent. This is an observational comparison, not a causal claim; repeat it weekly and inspect both absolute lift and confidence intervals before changing notification policy.
 
+## Blog editorial workflow deployment
+
+Treat the editorial schema migration and the one-time HTML sanitization as a controlled production change. Keep normal writers stopped from the backup through the apply step, retain every command output with the release record, and do not deploy only one of the two applications.
+
+Follow this order exactly:
+
+1. **Back up WEB_BLOG_POST before changing the schema or content.** Record the deployed commit, operator, UTC time, database name, and backup checksum.
+
+   ```bash
+   mysqldump --single-transaction -u root -p wesitedb WEB_BLOG_POST \
+     > web-blog-post-before-editorial-20260902T130000Z.sql
+   ```
+
+2. Apply the idempotent editorial timestamp migration, then confirm the nullable column exists. The migration initializes published legacy posts from `PUBLISH_DATE`; it does not make the column mandatory.
+
+   ```bash
+   mysql -u root -p wesitedb < doc/alter_blog_editorial_workflow.sql
+   mysql -u root -p wesitedb -e "SHOW COLUMNS FROM WEB_BLOG_POST LIKE 'CONTENT_UPDATED_AT';"
+   ```
+
+3. Build the release and run the new admin JAR in non-web, read-only dry-run mode. It scans with keyset pagination, reports the IDs and slugs whose stored HTML would change, performs no updates, and exits after logging one JSON report.
+
+   ```bash
+   set -o pipefail
+   mvn clean package -DskipTests -P prod
+
+   java -jar wesite-admin/target/wesite-admin-1.0.0.jar \
+     --spring.profiles.active=prod,blog-sanitize \
+     --spring.main.web-application-type=none \
+     --wesite.blog.sanitization.mode=dry-run \
+     --wesite.blog.sanitization.batch-size=100 \
+     2>&1 | tee blog-sanitize-dry-run.log
+   ```
+
+4. **Inspect the dry-run report before permitting writes.** Confirm the scanned count against the live, non-deleted post count; inspect every reported ID/slug or an explicitly recorded sample when the list is large; and stop if a legitimate element would be removed. Keep the report with the database backup because it defines the affected-row rollback scope.
+
+5. Run the same artifact in apply mode. Each changed batch is one independent transaction, every row must update exactly once, and one timestamp is shared within a batch. A non-zero exit or missing completion report is a failed maintenance run: stop, investigate, and do not deploy. A successful repeat must report zero changed posts.
+
+   ```bash
+   set -o pipefail
+   java -jar wesite-admin/target/wesite-admin-1.0.0.jar \
+     --spring.profiles.active=prod,blog-sanitize \
+     --spring.main.web-application-type=none \
+     --wesite.blog.sanitization.mode=apply \
+     --wesite.blog.sanitization.batch-size=100 \
+     2>&1 | tee blog-sanitize-apply.log
+
+   java -jar wesite-admin/target/wesite-admin-1.0.0.jar \
+     --spring.profiles.active=prod,blog-sanitize \
+     --spring.main.web-application-type=none \
+     --wesite.blog.sanitization.mode=dry-run \
+     --wesite.blog.sanitization.batch-size=100
+   ```
+
+6. **Deploy wesite-admin and wesite-web from the same tested commit.** Start both in their normal production mode without the `blog-sanitize` profile or any `wesite.blog.sanitization.mode` property. Confirm both processes remain healthy before restoring traffic and editorial writes.
+
+7. Complete these release checks:
+
+   - Unauthenticated admin editorial API calls are denied by default, a non-admin account is denied, and an administrator can list and edit drafts.
+   - Saving, previewing, publishing, and unpublishing work; a published slug is locked; the preview iframe sandbox has no script or same-origin capability; and repeated publish does not replace the first publication date.
+   - A post containing a representative safe table, link, code block, and previously unsafe markup renders correctly. Inspect the public HTML and JSON-LD, parse the JSON-LD as JSON, and confirm neither output can execute stored script or event-handler markup.
+   - The blog sitemap contains only published posts, uses `CONTENT_UPDATED_AT` with `PUBLISH_DATE` fallback for `lastmod`, and the existing public `/blog/*` and `/domain/*` URLs are unchanged.
+   - Run the production P0 smoke and SEO contract commands documented above.
+
+### Editorial rollback
+
+For a binary rollback, stop both new applications, deploy the previous `wesite-admin` and `wesite-web` artifacts together, and **leave the nullable column in place**. The additive `CONTENT_UPDATED_AT` column is safe for the previous binary to ignore; dropping it during an incident adds unnecessary risk.
+
+A binary rollback does not undo sanitized article content. For a content rollback, stop editorial writers and use the saved dry-run/apply report to select only affected IDs. From the pre-change backup, **restore CONTENT and the original CONTENT_UPDATED_AT** for those rows, or restore `NULL` when the column did not exist before this release. Do not restore the entire table over unrelated post edits. Validate the affected rows and public pages before restarting writers, and retain the backup until the rollback window closes.
+
 ## Network probe safety and capacity
 
 Ping and Port Checker connect only to public IP addresses approved by the target policy. Mixed DNS answers and redirects to unsafe targets fail closed. Each request has one 15-second total time budget; port checks accept 1–20 ports, each in the range `1..65535`, and run with at most 8 worker threads plus a 32-task queue. Rate limiting remains per application instance until a separate distributed-limiter change is made.
