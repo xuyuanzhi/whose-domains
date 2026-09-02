@@ -27,14 +27,10 @@ class CanonicalRedirectFilterTest {
     }
 
     @Test
-    void redirectsHttpHomePageToCanonicalOrigin() throws Exception {
+    void passesThroughCanonicalHomePageBehindHttpReverseProxy() throws Exception {
         MockHttpServletRequest request = request("GET", "/", "http", "whose.domains");
-        MockHttpServletResponse response = new MockHttpServletResponse();
 
-        filter.doFilter(request, response, new MockFilterChain());
-
-        assertEquals(301, response.getStatus());
-        assertEquals("https://whose.domains/", response.getHeader("Location"));
+        assertPassedThrough(request);
     }
 
     @Test
@@ -49,17 +45,11 @@ class CanonicalRedirectFilterTest {
     }
 
     @Test
-    void redirectsRequestsOnNonDefaultHttpsPorts() throws Exception {
+    void passesThroughCanonicalRequestsOnInternalProxyPorts() throws Exception {
         MockHttpServletRequest request = request("GET", "/info/what-is-whois", "https", "whose.domains");
         request.setServerPort(8443);
-        MockHttpServletResponse response = new MockHttpServletResponse();
-        MockFilterChain chain = new MockFilterChain();
 
-        filter.doFilter(request, response, chain);
-
-        assertEquals(301, response.getStatus());
-        assertEquals("https://whose.domains/info/what-is-whois", response.getHeader("Location"));
-        assertNull(chain.getRequest());
+        assertPassedThrough(request);
     }
 
     @Test

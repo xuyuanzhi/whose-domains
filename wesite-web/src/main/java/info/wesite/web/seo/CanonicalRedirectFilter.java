@@ -49,9 +49,7 @@ public class CanonicalRedirectFilter extends OncePerRequestFilter {
             FilterChain filterChain) throws ServletException, IOException {
         String path = request.getRequestURI();
         String canonicalPath = canonicalUrlService.normalizePath(path);
-        boolean canonicalRequest = "https".equalsIgnoreCase(request.getScheme())
-                && "whose.domains".equals(request.getServerName())
-                && request.getServerPort() == 443
+        boolean canonicalRequest = "whose.domains".equals(request.getServerName())
                 && path.equals(canonicalPath);
 
         if (canonicalRequest) {
