@@ -63,6 +63,7 @@ class CanonicalRedirectFilterTest {
     void doesNotRedirectPostApiOrSitemapRequests() throws Exception {
         assertPassedThrough(request("POST", "/domain/example.com/search", "http", "www.whose.domains"));
         assertPassedThrough(request("GET", "/api/tools/score/example.com", "http", "www.whose.domains"));
+        assertPassedThrough(request("GET", "/api/healthz", "http", "www.whose.domains"));
         assertPassedThrough(request("GET", "/sitemap_all.xml", "http", "www.whose.domains"));
     }
 

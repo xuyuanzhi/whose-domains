@@ -273,6 +273,14 @@ Use the following controlled rollout, with a rollback checkpoint between phases:
 
 Before each phase, verify the application health check, migration record, profile, server clock/time zone, SMTP credentials, sender-domain authorization, and an authenticated watchlist/notification-center round trip. After enabling delivery, verify one `WEB_NOTIFICATION_DELIVERY_BATCH` row and its corresponding audit log for each mode, plus that unread counts and notification links remain user-scoped.
 
+Use the dependency-free liveness endpoint for process supervisors and watchdogs:
+
+```bash
+curl --fail --silent --show-error http://127.0.0.1:8080/api/healthz
+```
+
+It returns `{"status":"UP"}` when the web process can serve requests. It deliberately does not check MySQL or external services, so a downstream outage does not create a restart loop. Because `/api/` bypasses canonical redirects, the watchdog does not need to send a public `Host` header.
+
 #### Retention measurement (7-day and 30-day)
 
 Use GA4 only with the privacy-safe custom events `watch_created`, `watchlist_return_visit`, `notification_opened`, `notification_action_clicked`, `notification_preferences_saved`, and `domain_detail_cta_clicked`. The client sends only allowlisted `type`, `category`, `risk`, and UI `source` values. It never sends a domain, email, user ID, event ID, notification text, or any free-form UI value; missing `gtag` is a no-op. `notification_opened` means the in-app center loaded successfully; email-open tracking is not implemented and must not be inferred from it.
