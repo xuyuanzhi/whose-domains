@@ -1158,15 +1158,6 @@ public class ViewController {
 		isPartOf.put("url", "https://whose.domains/");
 		schema.put("isPartOf", isPartOf);
 
-		// Aggregate rating placeholder (helps CTR; update when real reviews exist)
-		JSONObject aggregateRating = new JSONObject();
-		aggregateRating.put("@type", "AggregateRating");
-		aggregateRating.put("ratingValue", "4.8");
-		aggregateRating.put("ratingCount", "127");
-		aggregateRating.put("bestRating", "5");
-		aggregateRating.put("worstRating", "1");
-		schema.put("aggregateRating", aggregateRating);
-
 		return schema.toJSONString();
 	}
 	
