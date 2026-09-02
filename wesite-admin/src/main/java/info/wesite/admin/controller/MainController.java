@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import com.alibaba.fastjson2.JSONObject;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 
+import info.wesite.core.config.AccessControl;
 import info.wesite.core.config.UserHolder;
 import info.wesite.core.entity.User;
 import info.wesite.core.service.UserService;
@@ -33,6 +34,7 @@ public class MainController {
  	private static final String version = "9." + String.valueOf(System.currentTimeMillis());
 
     @Operation(summary = "首页")
+    @AccessControl(level = AccessControl.Level.NONE)
     @GetMapping({ "/", "/index", "/index.html" })
     public String index(Model model) {
     	// 版本号，解决缓存问题
@@ -41,6 +43,7 @@ public class MainController {
     }
 
     @Operation(summary = "登录")
+    @AccessControl(level = AccessControl.Level.NONE)
     @PostMapping("/login")
     @ResponseBody
     public ResponseJson<JSONObject> login(@RequestBody LoginParam param) {

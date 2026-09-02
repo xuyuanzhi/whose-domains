@@ -9,10 +9,17 @@ import info.wesite.admin.interceptor.AdminInterceptor;
 @Configuration
 public class InterceptorConfig implements WebMvcConfigurer {
 
+	private final AdminInterceptor adminInterceptor;
+
+	public InterceptorConfig(AdminInterceptor adminInterceptor) {
+		this.adminInterceptor = adminInterceptor;
+	}
+
 	@Override
 	public void addInterceptors(InterceptorRegistry registry) {
-		registry.addInterceptor(new AdminInterceptor()).addPathPatterns("/**").excludePathPatterns("/static/**",
-				"/error", "/swagger-ui.html", "/swagger-ui/**", "/v3/**", "/doc.html");
+		registry.addInterceptor(adminInterceptor)
+				.addPathPatterns("/**")
+				.excludePathPatterns("/static/**", "/error");
 	}
 
 }
