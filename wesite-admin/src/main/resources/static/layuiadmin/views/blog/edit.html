@@ -1,0 +1,233 @@
+<style>
+  .blog-editor-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, .8fr); gap: 18px; padding: 18px; }
+  .blog-editor-panel { min-width: 0; }
+  .blog-editor-panel h3 { margin: 0 0 14px; font-size: 16px; font-weight: 600; }
+  .blog-editor-panel .layui-form-label { width: 96px; }
+  .blog-editor-panel .layui-input-block { margin-left: 126px; }
+  #blog-content { min-height: 360px; resize: vertical; font-family: Consolas, Monaco, monospace; line-height: 1.55; }
+  #blog-preview { display: block; width: 100%; min-height: 620px; border: 1px solid #e6e6e6; background: #fff; }
+  .blog-editor-actions { display: flex; gap: 8px; padding: 0 18px 18px; }
+  .blog-editor-note { margin: -6px 0 14px 126px; color: #999; }
+  @media (max-width: 980px) {
+    .blog-editor-layout { grid-template-columns: 1fr; }
+    #blog-preview { min-height: 420px; }
+  }
+</style>
+
+<div class="blog-editor-layout">
+  <section class="blog-editor-panel" aria-labelledby="blog-fields-heading">
+    <h3 id="blog-fields-heading">文章内容</h3>
+    <form class="layui-form" lay-filter="blog-editor-form">
+      <input type="hidden" id="blog-id" name="id">
+      <div class="layui-form-item">
+        <label class="layui-form-label" for="blog-title">标题</label>
+        <div class="layui-input-block">
+          <input class="layui-input" id="blog-title" name="title" maxlength="300" autocomplete="off">
+        </div>
+      </div>
+      <div class="layui-form-item">
+        <label class="layui-form-label" for="blog-slug">Slug</label>
+        <div class="layui-input-block">
+          <input class="layui-input" id="blog-slug" name="slug" maxlength="200" autocomplete="off">
+        </div>
+      </div>
+      <p class="blog-editor-note">文章发布后 Slug 不可修改，避免已有链接失效。</p>
+      <div class="layui-form-item layui-form-text">
+        <label class="layui-form-label" for="blog-summary">摘要</label>
+        <div class="layui-input-block">
+          <textarea class="layui-textarea" id="blog-summary" name="summary" maxlength="600"></textarea>
+        </div>
+      </div>
+      <div class="layui-form-item layui-form-text">
+        <label class="layui-form-label" for="blog-content">正文 HTML</label>
+        <div class="layui-input-block">
+          <textarea class="layui-textarea" id="blog-content" name="content" spellcheck="false"></textarea>
+        </div>
+      </div>
+      <div class="layui-form-item">
+        <label class="layui-form-label" for="blog-author">作者</label>
+        <div class="layui-input-block">
+          <input class="layui-input" id="blog-author" name="author" maxlength="100" autocomplete="off">
+        </div>
+      </div>
+      <div class="layui-form-item">
+        <label class="layui-form-label" for="blog-category">分类</label>
+        <div class="layui-input-block">
+          <input class="layui-input" id="blog-category" name="category" maxlength="100" autocomplete="off">
+        </div>
+      </div>
+      <div class="layui-form-item">
+        <label class="layui-form-label" for="blog-tags">标签</label>
+        <div class="layui-input-block">
+          <input class="layui-input" id="blog-tags" name="tags" maxlength="300" placeholder="使用英文逗号分隔" autocomplete="off">
+        </div>
+      </div>
+      <div class="layui-form-item">
+        <label class="layui-form-label" for="blog-meta-title">Meta 标题</label>
+        <div class="layui-input-block">
+          <input class="layui-input" id="blog-meta-title" name="metaTitle" maxlength="300" autocomplete="off">
+        </div>
+      </div>
+      <div class="layui-form-item layui-form-text">
+        <label class="layui-form-label" for="blog-meta-description">Meta 描述</label>
+        <div class="layui-input-block">
+          <textarea class="layui-textarea" id="blog-meta-description" name="metaDescription" maxlength="600"></textarea>
+        </div>
+      </div>
+    </form>
+  </section>
+
+  <section class="blog-editor-panel" aria-labelledby="blog-preview-heading">
+    <h3 id="blog-preview-heading">安全预览</h3>
+    <iframe id="blog-preview" sandbox title="博客文章预览"></iframe>
+  </section>
+</div>
+
+<div class="blog-editor-actions">
+  <button type="button" class="layui-btn layui-btn-primary blog-editor-action" id="blog-preview-button">更新预览</button>
+  <button type="button" class="layui-btn layui-btn-normal blog-editor-action" id="blog-save-button">保存草稿</button>
+  <button type="button" class="layui-btn blog-editor-action" id="blog-publish-button">保存并发布</button>
+</div>
+
+<script>
+layui.use(['admin', 'form'], function(){
+  var $ = layui.$;
+  var admin = layui.admin;
+  var form = layui.form;
+  var pendingRequests = 0;
+  var afterSave = null;
+
+  function setEditorBusy(busy) {
+    pendingRequests = Math.max(0, pendingRequests + (busy ? 1 : -1));
+    busy = pendingRequests > 0;
+    $('.blog-editor-action').prop('disabled', busy).toggleClass('layui-disabled', busy);
+  }
+
+  function collectFields() {
+    return {
+      id: $('#blog-id').val(),
+      slug: $('#blog-slug').val(),
+      title: $('#blog-title').val(),
+      summary: $('#blog-summary').val(),
+      content: $('#blog-content').val(),
+      author: $('#blog-author').val(),
+      category: $('#blog-category').val(),
+      tags: $('#blog-tags').val(),
+      metaTitle: $('#blog-meta-title').val(),
+      metaDescription: $('#blog-meta-description').val()
+    };
+  }
+
+  function fillEditor(detail) {
+    $('#blog-id').val(detail.id || '');
+    $('#blog-slug').val(detail.slug || '');
+    $('#blog-title').val(detail.title || '');
+    $('#blog-summary').val(detail.summary || '');
+    $('#blog-content').val(detail.content || '');
+    $('#blog-author').val(detail.author || '');
+    $('#blog-category').val(detail.category || '');
+    $('#blog-tags').val(detail.tags || '');
+    $('#blog-meta-title').val(detail.metaTitle || '');
+    $('#blog-meta-description').val(detail.metaDescription || '');
+    $('#blog-slug').prop('readonly', detail.status === 1);
+    $('#blog-publish-button').toggle(detail.status !== 1);
+    form.render(null, 'blog-editor-form');
+  }
+
+  function previewBlog() {
+    setEditorBusy(true);
+    admin.req({
+      type: 'post',
+      url: '/blog/preview',
+      contentType: 'application/json;charset=UTF-8',
+      data: JSON.stringify({content: $('#blog-content').val()}),
+      done: function(resp) {
+        document.getElementById('blog-preview').srcdoc = resp.data.html;
+      },
+      complete: function() {
+        setEditorBusy(false);
+      }
+    });
+  }
+
+  function saveBlog(done) {
+    setEditorBusy(true);
+    admin.req({
+      type: 'post',
+      url: '/blog/save',
+      contentType: 'application/json;charset=UTF-8',
+      data: JSON.stringify(collectFields()),
+      done: function() {
+        layer.msg('草稿已保存');
+        if (typeof done === 'function') {
+          done();
+        }
+        if (typeof afterSave === 'function') {
+          afterSave();
+        }
+      },
+      complete: function() {
+        setEditorBusy(false);
+      }
+    });
+  }
+
+  function publishBlog() {
+    setEditorBusy(true);
+    admin.req({
+      type: 'post',
+      url: '/blog/publish',
+      contentType: 'application/json;charset=UTF-8',
+      data: JSON.stringify({id: $('#blog-id').val()}),
+      done: function() {
+        layer.msg('文章已发布');
+        $('#blog-slug').prop('readonly', true);
+        $('#blog-publish-button').hide();
+        if (typeof afterSave === 'function') {
+          afterSave();
+        }
+      },
+      complete: function() {
+        setEditorBusy(false);
+      }
+    });
+  }
+
+  function loadBlog(id) {
+    setEditorBusy(true);
+    admin.req({
+      type: 'post',
+      url: '/blog/detail',
+      contentType: 'application/json;charset=UTF-8',
+      data: JSON.stringify({id: id}),
+      done: function(resp) {
+        fillEditor(resp.data);
+        previewBlog();
+      },
+      complete: function() {
+        setEditorBusy(false);
+      }
+    });
+  }
+
+  $('#blog-preview-button').on('click', previewBlog);
+  $('#blog-save-button').on('click', function() {
+    saveBlog();
+  });
+  $('#blog-publish-button').on('click', function() {
+    layer.confirm('保存当前修改并发布文章？', function(index) {
+      layer.close(index);
+      saveBlog(function() {
+        publishBlog();
+      });
+    });
+  });
+
+  layui.blogEditor = {
+    init: function(id, savedCallback) {
+      afterSave = savedCallback;
+      loadBlog(id);
+    }
+  };
+});
+</script>

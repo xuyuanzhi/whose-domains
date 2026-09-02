@@ -25,6 +25,11 @@
       ,"title": "二级保留域名"
     }]
   }, {
+    "name": "blog"
+    ,"title": "博客管理"
+    ,"icon": "layui-icon-read"
+    ,"jump": "blog/list"
+  }, {
     "name": "template"
     ,"title": "页面"
     ,"icon": "layui-icon-template"

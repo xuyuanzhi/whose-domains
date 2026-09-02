@@ -1,0 +1,188 @@
+<title>博客管理</title>
+
+<div class="layui-card layadmin-header">
+  <div class="layui-breadcrumb" lay-filter="breadcrumb">
+    <a lay-href="">主页</a>
+    <a><cite>博客管理</cite></a>
+  </div>
+</div>
+
+<div class="layui-fluid">
+  <div class="layui-card">
+    <div class="layui-form layui-card-header layuiadmin-card-header-auto" lay-filter="blog-list-filter">
+      <div class="layui-form-item">
+        <div class="layui-inline">
+          <label class="layui-form-label">关键词</label>
+          <div class="layui-input-inline">
+            <input type="text" name="keyword" maxlength="200" placeholder="标题、Slug 或摘要" autocomplete="off" class="layui-input">
+          </div>
+        </div>
+        <div class="layui-inline">
+          <label class="layui-form-label">状态</label>
+          <div class="layui-input-inline">
+            <select name="status">
+              <option value="">全部</option>
+              <option value="0">草稿</option>
+              <option value="1">已发布</option>
+            </select>
+          </div>
+        </div>
+        <div class="layui-inline">
+          <button class="layui-btn" lay-submit lay-filter="blog-list-search">
+            <i class="layui-icon layui-icon-search"></i> 筛选
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="layui-card-body">
+      <div class="layui-text" style="margin-bottom: 12px; color: #666;">
+        AI 生成的文章会先进入草稿。请完成内容审核和安全预览后再发布。
+      </div>
+      <table id="blog-table" lay-filter="blog-table"></table>
+    </div>
+  </div>
+</div>
+
+<script type="text/html" id="blog-status-template">
+  {{# if (d.status === 1) { }}
+    <span class="layui-badge layui-bg-green">已发布</span>
+  {{# } else { }}
+    <span class="layui-badge layui-bg-orange">草稿</span>
+  {{# } }}
+</script>
+
+<script type="text/html" id="blog-actions-template">
+  <button type="button" class="layui-btn layui-btn-xs layui-btn-normal" lay-event="edit">编辑</button>
+  {{# if (d.status === 1) { }}
+    <button type="button" class="layui-btn layui-btn-xs layui-btn-warm" lay-event="unpublish">撤回</button>
+    <button type="button" class="layui-btn layui-btn-xs layui-btn-primary" lay-event="view">查看</button>
+  {{# } else { }}
+    <button type="button" class="layui-btn layui-btn-xs" lay-event="publish">发布</button>
+  {{# } }}
+</script>
+
+<script>
+layui.use(['admin', 'table', 'form', 'util'], function(){
+  var $ = layui.$;
+  var admin = layui.admin;
+  var table = layui.table;
+  var form = layui.form;
+  var view = layui.view;
+
+  function safeText(value) {
+    return layui.util.escape(value == null ? '' : String(value));
+  }
+
+  function setBusy(button, busy) {
+    button.data('busy', busy);
+    button.prop('disabled', busy);
+    button.toggleClass('layui-disabled', busy);
+  }
+
+  function reloadTable() {
+    table.reload('blog-table');
+  }
+
+  function openEditor(data) {
+    admin.popup({
+      title: '编辑博客文章',
+      area: ['94%', '92%'],
+      id: 'blog-editor-popup',
+      success: function() {
+        view(this.id).render('blog/edit').done(function() {
+          layui.blogEditor.init(data.id, reloadTable);
+        });
+      }
+    });
+  }
+
+  function changeState(url, data, button, successMessage) {
+    if (button.data('busy')) {
+      return;
+    }
+    setBusy(button, true);
+    admin.req({
+      type: 'post',
+      url: url,
+      contentType: 'application/json;charset=UTF-8',
+      data: JSON.stringify({id: data.id}),
+      done: function() {
+        layer.msg(successMessage);
+        reloadTable();
+      },
+      complete: function() {
+        setBusy(button, false);
+      }
+    });
+  }
+
+  form.render(null, 'blog-list-filter');
+
+  table.render({
+    elem: '#blog-table',
+    id: 'blog-table',
+    url: '/blog/list',
+    method: 'post',
+    contentType: 'application/json;charset=UTF-8',
+    page: true,
+    limit: 20,
+    limits: [20, 50, 100],
+    height: 'full-285',
+    text: {none: '暂无博客文章'},
+    cols: [[
+      {field: 'title', title: '标题', minWidth: 250, templet: function(data) {
+        return '<span title="' + safeText(data.title) + '">' + safeText(data.title) + '</span>';
+      }},
+      {field: 'slug', title: 'Slug', minWidth: 210, templet: function(data) {
+        return '<code>' + safeText(data.slug) + '</code>';
+      }},
+      {field: 'category', title: '分类', width: 130, templet: function(data) {
+        return safeText(data.category);
+      }},
+      {field: 'status', title: '状态', width: 90, align: 'center', templet: '#blog-status-template'},
+      {field: 'publishDate', title: '发布时间', width: 180, templet: function(data) {
+        return safeText(data.publishDate || '—');
+      }},
+      {field: 'contentUpdatedAt', title: '内容更新', width: 180, templet: function(data) {
+        return safeText(data.contentUpdatedAt || '—');
+      }},
+      {title: '操作', width: 220, align: 'center', fixed: 'right', toolbar: '#blog-actions-template'}
+    ]]
+  });
+
+  form.on('submit(blog-list-search)', function(data) {
+    var filters = data.field;
+    if (filters.status !== '') {
+      filters.status = Number(filters.status);
+    } else {
+      delete filters.status;
+    }
+    table.reload('blog-table', {page: {curr: 1}, where: filters});
+    return false;
+  });
+
+  table.on('tool(blog-table)', function(obj) {
+    var data = obj.data;
+    var button = $(obj.event ? obj.tr.find('[lay-event="' + obj.event + '"]') : []);
+    if (button.data('busy')) {
+      return;
+    }
+    if (obj.event === 'edit') {
+      openEditor(data);
+    } else if (obj.event === 'view') {
+      window.open('https://whose.domains/blog/' + encodeURIComponent(data.slug), '_blank', 'noopener,noreferrer');
+    } else if (obj.event === 'publish') {
+      layer.confirm('发布后文章将立即对外可见，确认发布？', function(index) {
+        layer.close(index);
+        changeState('/blog/publish', data, button, '文章已发布');
+      });
+    } else if (obj.event === 'unpublish') {
+      layer.confirm('撤回后公开页面将不可访问，确认撤回？', function(index) {
+        layer.close(index);
+        changeState('/blog/unpublish', data, button, '文章已撤回为草稿');
+      });
+    }
+  });
+});
+</script>
