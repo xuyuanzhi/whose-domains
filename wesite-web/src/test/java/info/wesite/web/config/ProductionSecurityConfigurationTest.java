@@ -64,6 +64,13 @@ class ProductionSecurityConfigurationTest {
         assertEquals("true", production.getProperty("wesite.seo.canonical-redirect-enabled"));
     }
 
+    @Test
+    void applicationExplicitlyEnablesCanonicalRedirect() throws IOException {
+        Properties application = properties("src", "main", "resources", "application.properties");
+
+        assertEquals("true", application.getProperty("wesite.seo.canonical-redirect-enabled"));
+    }
+
     private void assertSessionCookiePolicy(Properties properties) {
         assertEquals("JSESSIONID", properties.getProperty("server.servlet.session.cookie.name"));
         assertEquals("true", properties.getProperty("server.servlet.session.cookie.secure"));
