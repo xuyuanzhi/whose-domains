@@ -159,6 +159,144 @@ class BlogEditorialServiceTest {
         assertThrows(BlogEditorialException.class, () -> service.sanitizePreview(oversized));
     }
 
+    @Test
+    void publishedPostRejectsSlugChange() {
+        BlogPost stored = publishablePost("post-1", BlogPost.POST_STATUS_PUBLISHED);
+        stored.setSlug("fixed-slug");
+        when(mapper.selectByIdForUpdate(stored.getId())).thenReturn(stored);
+
+        BlogEditCommand edit = edit(stored, "changed-slug", stored.getTitle());
+
+        assertThrows(BlogEditorialException.class, () -> service.save(edit, "admin-1"));
+        verify(mapper, never()).updateById(any(BlogPost.class));
+    }
+
+    @Test
+    void normalizedNoOpSavePreservesEditorialTimestamp() {
+        Date editedAt = new Date(1_790_000_000_000L);
+        Date auditNow = new Date(1_800_000_000_000L);
+        BlogPost stored = publishablePost("post-2", BlogPost.POST_STATUS_DRAFT);
+        stored.setContentUpdatedAt(editedAt);
+        stored.setCategory(null);
+        when(mapper.selectByIdForUpdate(stored.getId())).thenReturn(stored);
+        when(mapper.selectCount(any())).thenReturn(0L);
+        when(mapper.updateById(any(BlogPost.class))).thenReturn(1);
+        when(time.now()).thenReturn(auditNow);
+
+        BlogPost result = service.save(new BlogEditCommand(
+            stored.getId(), " Publish Me ", " Publish Me ", " Summary ", "<p>Body</p>",
+            "   ", "  ", null, null, " Description "), " admin-1 ");
+
+        assertEquals(editedAt, result.getContentUpdatedAt());
+        assertEquals("publish-me", result.getSlug());
+        assertNull(result.getAuthor());
+        assertNull(result.getCategory());
+        assertEquals("admin-1", result.getUpdateBy());
+        assertEquals(auditNow, result.getUpdateTime());
+        assertEquals(BlogPost.POST_STATUS_DRAFT, result.getStatus());
+    }
+
+    @Test
+    void materialSaveAdvancesEditorialTimestampAndPreservesPublicationState() {
+        Date publishedAt = new Date(1_780_000_000_000L);
+        Date editedAt = new Date(1_790_000_000_000L);
+        Date now = new Date(1_800_000_000_000L);
+        BlogPost stored = publishablePost("post-3", BlogPost.POST_STATUS_DRAFT);
+        stored.setPublishDate(publishedAt);
+        stored.setContentUpdatedAt(editedAt);
+        when(mapper.selectByIdForUpdate(stored.getId())).thenReturn(stored);
+        when(mapper.selectCount(any())).thenReturn(0L);
+        when(mapper.updateById(any(BlogPost.class))).thenReturn(1);
+        when(time.now()).thenReturn(now);
+
+        BlogPost result = service.save(edit(stored, stored.getSlug(), "Revised title"), "admin-1");
+
+        assertEquals("Revised title", result.getTitle());
+        assertEquals(now, result.getContentUpdatedAt());
+        assertEquals(now, result.getUpdateTime());
+        assertEquals(publishedAt, result.getPublishDate());
+        assertEquals(BlogPost.POST_STATUS_DRAFT, result.getStatus());
+    }
+
+    @Test
+    void firstPublishSetsDateAndRepublishPreservesIt() {
+        Date firstNow = new Date(1_800_000_000_000L);
+        Date secondNow = new Date(1_800_000_100_000L);
+        BlogPost stored = publishablePost("post-4", BlogPost.POST_STATUS_DRAFT);
+        when(mapper.selectByIdForUpdate(stored.getId())).thenReturn(stored);
+        when(mapper.updateById(any(BlogPost.class))).thenReturn(1);
+        when(time.now()).thenReturn(firstNow, secondNow);
+
+        BlogPost first = service.publish(stored.getId(), "admin-1");
+        Date originalPublishDate = first.getPublishDate();
+        BlogPost second = service.publish(stored.getId(), "admin-1");
+
+        assertEquals(firstNow, originalPublishDate);
+        assertEquals(firstNow, first.getContentUpdatedAt());
+        assertEquals(originalPublishDate, second.getPublishDate());
+        assertEquals(BlogPost.POST_STATUS_PUBLISHED, second.getStatus());
+    }
+
+    @Test
+    void publishResanitizesStoredHtmlAndAdvancesEditorialTimestamp() {
+        Date oldEditorialTime = new Date(1_790_000_000_000L);
+        Date now = new Date(1_800_000_000_000L);
+        BlogPost stored = publishablePost("post-5", BlogPost.POST_STATUS_DRAFT);
+        stored.setContent("<p>Body</p><script>alert(1)</script>");
+        stored.setContentUpdatedAt(oldEditorialTime);
+        when(mapper.selectByIdForUpdate(stored.getId())).thenReturn(stored);
+        when(mapper.updateById(any(BlogPost.class))).thenReturn(1);
+        when(time.now()).thenReturn(now);
+
+        BlogPost result = service.publish(stored.getId(), "admin-1");
+
+        assertEquals("<p>Body</p>", result.getContent());
+        assertEquals(now, result.getContentUpdatedAt());
+    }
+
+    @ParameterizedTest(name = "publish rejects missing {0}")
+    @MethodSource("unpublishablePosts")
+    void publishRejectsIncompletePosts(String field, BlogPost stored) {
+        when(mapper.selectByIdForUpdate(stored.getId())).thenReturn(stored);
+
+        assertThrows(BlogEditorialException.class,
+            () -> service.publish(stored.getId(), "admin-1"));
+
+        verify(mapper, never()).updateById(any(BlogPost.class));
+    }
+
+    @Test
+    void unpublishPreservesPublicationAndEditorialDates() {
+        Date publishedAt = new Date(1_790_000_000_000L);
+        Date editedAt = new Date(1_795_000_000_000L);
+        Date now = new Date(1_800_000_000_000L);
+        BlogPost stored = publishablePost("post-6", BlogPost.POST_STATUS_PUBLISHED);
+        stored.setPublishDate(publishedAt);
+        stored.setContentUpdatedAt(editedAt);
+        when(mapper.selectByIdForUpdate(stored.getId())).thenReturn(stored);
+        when(mapper.updateById(any(BlogPost.class))).thenReturn(1);
+        when(time.now()).thenReturn(now);
+
+        BlogPost result = service.unpublish(stored.getId(), "admin-1");
+
+        assertEquals(BlogPost.POST_STATUS_DRAFT, result.getStatus());
+        assertEquals(publishedAt, result.getPublishDate());
+        assertEquals(editedAt, result.getContentUpdatedAt());
+        assertEquals(now, result.getUpdateTime());
+    }
+
+    @Test
+    void unpublishRejectsDraftAndBlankActor() {
+        BlogPost stored = publishablePost("post-7", BlogPost.POST_STATUS_DRAFT);
+        when(mapper.selectByIdForUpdate(stored.getId())).thenReturn(stored);
+
+        assertThrows(BlogEditorialException.class,
+            () -> service.unpublish(stored.getId(), "admin-1"));
+        assertThrows(BlogEditorialException.class,
+            () -> service.unpublish(stored.getId(), "   "));
+        verify(mapper, never()).updateById(any(BlogPost.class));
+    }
+
     private static Stream<Arguments> overlongDraftFields() {
         return Stream.of(
             Arguments.of("slug", draft("a".repeat(201), "Title", "<p>body</p>")),
@@ -175,6 +313,47 @@ class BlogEditorialServiceTest {
             Arguments.of("meta description", new BlogDraftCommand(
                 "slug", "Title", null, "<p>body</p>", null, null, null, "a".repeat(601)))
         );
+    }
+
+    private static Stream<Arguments> unpublishablePosts() {
+        BlogPost missingSlug = publishablePost("missing-slug", BlogPost.POST_STATUS_DRAFT);
+        missingSlug.setSlug(null);
+        BlogPost missingTitle = publishablePost("missing-title", BlogPost.POST_STATUS_DRAFT);
+        missingTitle.setTitle(" ");
+        BlogPost missingSummary = publishablePost("missing-summary", BlogPost.POST_STATUS_DRAFT);
+        missingSummary.setSummary(null);
+        BlogPost missingContent = publishablePost("missing-content", BlogPost.POST_STATUS_DRAFT);
+        missingContent.setContent("<script>alert(1)</script>");
+        BlogPost missingDescription = publishablePost("missing-description", BlogPost.POST_STATUS_DRAFT);
+        missingDescription.setMetaDescription(null);
+        return Stream.of(
+            Arguments.of("slug", missingSlug),
+            Arguments.of("title", missingTitle),
+            Arguments.of("summary", missingSummary),
+            Arguments.of("content", missingContent),
+            Arguments.of("meta description", missingDescription)
+        );
+    }
+
+    private static BlogEditCommand edit(BlogPost stored, String slug, String title) {
+        return new BlogEditCommand(
+            stored.getId(), slug, title, stored.getSummary(), stored.getContent(),
+            stored.getAuthor(), stored.getCategory(), stored.getTags(),
+            stored.getMetaTitle(), stored.getMetaDescription());
+    }
+
+    private static BlogPost publishablePost(String id, int status) {
+        BlogPost post = new BlogPost();
+        post.setId(id);
+        post.setSlug("publish-me");
+        post.setTitle("Publish Me");
+        post.setSummary("Summary");
+        post.setContent("<p>Body</p>");
+        post.setMetaDescription("Description");
+        post.setStatus(status);
+        post.setViewCount(0);
+        post.setDeleted(0);
+        return post;
     }
 
     private static BlogDraftCommand draft(String slug, String title, String content) {

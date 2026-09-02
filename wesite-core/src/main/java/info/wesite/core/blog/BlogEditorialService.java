@@ -3,6 +3,7 @@ package info.wesite.core.blog;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.Locale;
+import java.util.Objects;
 
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.dao.DuplicateKeyException;
@@ -59,7 +60,7 @@ public class BlogEditorialService {
         if (!sanitizer.hasVisibleContent(content)) {
             throw new BlogEditorialException("Content is required");
         }
-        ensureSlugAvailable(slug);
+        ensureSlugAvailable(slug, null);
 
         Date now = time.now();
         BlogPost post = new BlogPost();
@@ -96,9 +97,174 @@ public class BlogEditorialService {
         return sanitizer.sanitize(html);
     }
 
-    private void ensureSlugAvailable(String slug) {
+    @Transactional
+    public BlogPost save(BlogEditCommand command, String actorId) {
+        String actor = requiredActor(actorId);
+        if (command == null) {
+            throw new BlogEditorialException("Edit is required");
+        }
+        BlogPost stored = requireLocked(command.id());
+        NormalizedEdit edit = normalizeAndValidate(command);
+        if (Objects.equals(stored.getStatus(), BlogPost.POST_STATUS_PUBLISHED)
+                && !Objects.equals(stored.getSlug(), edit.slug())) {
+            throw new BlogEditorialException("Published slug cannot be changed");
+        }
+        ensureSlugAvailable(edit.slug(), stored.getId());
+
+        boolean materialChange = differsFromPersisted(stored, edit);
+        applyEditableFields(stored, edit);
+        Date now = time.now();
+        if (materialChange) {
+            stored.setContentUpdatedAt(now);
+        }
+        setUpdateAudit(stored, actor, now);
+        update(stored);
+        return stored;
+    }
+
+    @Transactional
+    public BlogPost publish(String id, String actorId) {
+        String actor = requiredActor(actorId);
+        BlogPost stored = requireLocked(id);
+        validateHtmlSize(stored.getContent());
+        String sanitized = sanitizer.sanitize(stored.getContent());
+        validatePublishable(stored, sanitized);
+
+        Date now = time.now();
+        if (!Objects.equals(sanitized, stored.getContent())) {
+            stored.setContentUpdatedAt(now);
+        }
+        stored.setContent(sanitized);
+        if (stored.getPublishDate() == null) {
+            stored.setPublishDate(now);
+        }
+        if (stored.getContentUpdatedAt() == null) {
+            stored.setContentUpdatedAt(now);
+        }
+        stored.setStatus(BlogPost.POST_STATUS_PUBLISHED);
+        setUpdateAudit(stored, actor, now);
+        update(stored);
+        return stored;
+    }
+
+    @Transactional
+    public BlogPost unpublish(String id, String actorId) {
+        String actor = requiredActor(actorId);
+        BlogPost stored = requireLocked(id);
+        if (!Objects.equals(stored.getStatus(), BlogPost.POST_STATUS_PUBLISHED)) {
+            throw new BlogEditorialException("Only published posts can be unpublished");
+        }
+
+        Date now = time.now();
+        stored.setStatus(BlogPost.POST_STATUS_DRAFT);
+        setUpdateAudit(stored, actor, now);
+        update(stored);
+        return stored;
+    }
+
+    private BlogPost requireLocked(String id) {
+        String normalizedId = required(id, "Post ID is required");
+        BlogPost stored = mapper.selectByIdForUpdate(normalizedId);
+        if (stored == null) {
+            throw new BlogEditorialException("Post not found");
+        }
+        return stored;
+    }
+
+    private NormalizedEdit normalizeAndValidate(BlogEditCommand command) {
+        validateHtmlSize(command.content());
+        NormalizedEdit edit = new NormalizedEdit(
+            normalizeSlug(command.slug()),
+            required(command.title(), "Title is required"),
+            optional(command.summary()),
+            sanitizer.sanitize(command.content()),
+            optional(command.author()),
+            optional(command.category()),
+            optional(command.tags()),
+            optional(command.metaTitle()),
+            optional(command.metaDescription()));
+
+        validateLength(edit.slug(), 200, "Slug");
+        validateLength(edit.title(), 300, "Title");
+        validateLength(edit.summary(), 600, "Summary");
+        validateLength(edit.author(), 100, "Author");
+        validateLength(edit.category(), 100, "Category");
+        validateLength(edit.tags(), 300, "Tags");
+        validateLength(edit.metaTitle(), 300, "Meta title");
+        validateLength(edit.metaDescription(), 600, "Meta description");
+        return edit;
+    }
+
+    private void validatePublishable(BlogPost stored, String sanitizedContent) {
+        String slug = normalizeSlug(stored.getSlug());
+        if (!Objects.equals(slug, stored.getSlug())) {
+            throw new BlogEditorialException("Slug must be normalized before publication");
+        }
+        String title = required(stored.getTitle(), "Title is required");
+        String summary = required(stored.getSummary(), "Summary is required");
+        String metaDescription = required(stored.getMetaDescription(), "Meta description is required");
+        validateLength(slug, 200, "Slug");
+        validateLength(title, 300, "Title");
+        validateLength(summary, 600, "Summary");
+        validateLength(stored.getAuthor(), 100, "Author");
+        validateLength(stored.getCategory(), 100, "Category");
+        validateLength(stored.getTags(), 300, "Tags");
+        validateLength(stored.getMetaTitle(), 300, "Meta title");
+        validateLength(metaDescription, 600, "Meta description");
+        if (!sanitizer.hasVisibleContent(sanitizedContent)) {
+            throw new BlogEditorialException("Content is required");
+        }
+    }
+
+    private static boolean differsFromPersisted(BlogPost stored, NormalizedEdit edit) {
+        return !Objects.equals(stored.getSlug(), edit.slug())
+            || !Objects.equals(stored.getTitle(), edit.title())
+            || !Objects.equals(stored.getSummary(), edit.summary())
+            || !Objects.equals(stored.getContent(), edit.content())
+            || !Objects.equals(stored.getAuthor(), edit.author())
+            || !Objects.equals(stored.getCategory(), edit.category())
+            || !Objects.equals(stored.getTags(), edit.tags())
+            || !Objects.equals(stored.getMetaTitle(), edit.metaTitle())
+            || !Objects.equals(stored.getMetaDescription(), edit.metaDescription());
+    }
+
+    private static void applyEditableFields(BlogPost stored, NormalizedEdit edit) {
+        stored.setSlug(edit.slug());
+        stored.setTitle(edit.title());
+        stored.setSummary(edit.summary());
+        stored.setContent(edit.content());
+        stored.setAuthor(edit.author());
+        stored.setCategory(edit.category());
+        stored.setTags(edit.tags());
+        stored.setMetaTitle(edit.metaTitle());
+        stored.setMetaDescription(edit.metaDescription());
+    }
+
+    private void update(BlogPost stored) {
+        try {
+            if (mapper.updateById(stored) != 1) {
+                throw new BlogEditorialException("Failed to update post");
+            }
+        } catch (DuplicateKeyException exception) {
+            throw new BlogEditorialException("Slug already exists", exception);
+        }
+    }
+
+    private static void setUpdateAudit(BlogPost stored, String actor, Date now) {
+        stored.setUpdateBy(actor);
+        stored.setUpdateTime(now);
+    }
+
+    private static String requiredActor(String actorId) {
+        String actor = required(actorId, "Actor ID is required");
+        validateLength(actor, 64, "Actor ID");
+        return actor;
+    }
+
+    private void ensureSlugAvailable(String slug, String excludedId) {
         LambdaQueryWrapper<BlogPost> query = new LambdaQueryWrapper<>();
         query.eq(BlogPost::getSlug, slug);
+        query.ne(excludedId != null, BlogPost::getId, excludedId);
         if (mapper.selectCount(query) > 0) {
             throw new BlogEditorialException("Slug already exists");
         }
@@ -137,5 +303,17 @@ public class BlogEditorialService {
         if (html != null && html.getBytes(StandardCharsets.UTF_8).length > MAX_HTML_BYTES) {
             throw new BlogEditorialException("Content exceeds 1 MiB");
         }
+    }
+
+    private record NormalizedEdit(
+            String slug,
+            String title,
+            String summary,
+            String content,
+            String author,
+            String category,
+            String tags,
+            String metaTitle,
+            String metaDescription) {
     }
 }
