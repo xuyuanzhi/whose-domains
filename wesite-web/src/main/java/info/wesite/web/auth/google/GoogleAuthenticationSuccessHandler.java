@@ -3,6 +3,7 @@ package info.wesite.web.auth.google;
 import java.io.IOException;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
@@ -18,6 +19,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 @Component
+@ConditionalOnProperty(prefix = "wesite.google-login", name = "enabled", havingValue = "true")
 public class GoogleAuthenticationSuccessHandler implements AuthenticationSuccessHandler {
 
     private static final String PENDING_REDIRECT = "/?login=google_check_email";
