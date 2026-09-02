@@ -214,12 +214,14 @@ public class SitemapTask {
 		for (BlogPost post : posts) {
 			if (post.getSlug() == null || post.getSlug().isBlank()) continue;
 			Date lastMod = post.getUpdateTime() != null ? post.getUpdateTime()
-					: (post.getPublishDate() != null ? post.getPublishDate() : new Date());
-			gen.addUrl(new WebSitemapUrl.Options(PREFIX + "/blog/" + post.getSlug())
-					.lastMod(lastMod)
+					: post.getPublishDate();
+			WebSitemapUrl.Options options = new WebSitemapUrl.Options(PREFIX + "/blog/" + post.getSlug())
 					.changeFreq(com.redfin.sitemapgenerator.ChangeFreq.WEEKLY)
-					.priority(0.7)
-					.build());
+					.priority(0.7);
+			if (lastMod != null) {
+				options.lastMod(lastMod);
+			}
+			gen.addUrl(options.build());
 		}
 
 		return gen.write();

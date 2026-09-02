@@ -15,7 +15,10 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
 
+import info.wesite.core.entity.BlogPost;
 import info.wesite.core.service.BlogPostService;
 
 class SitemapTaskTest {
@@ -55,5 +58,41 @@ class SitemapTaskTest {
         assertFalse(xml.contains("/tools/dns_analyzer"));
         assertFalse(xml.contains("/tools/ssl_checker"));
         assertFalse(xml.contains("/tools/competitor_analysis"));
+    }
+
+    @Test
+    void omitsLastModifiedWhenBlogPostHasNoContentTimestamp() throws Exception {
+        com.baomidou.mybatisplus.core.metadata.TableInfoHelper.initTableInfo(
+                new org.apache.ibatis.builder.MapperBuilderAssistant(
+                        new com.baomidou.mybatisplus.core.MybatisConfiguration(), "SitemapTaskTest-no-lastmod"),
+                BlogPost.class);
+        BlogPost post = new BlogPost();
+        post.setSlug("untimestamped-post");
+        BlogPostService posts = mock(BlogPostService.class);
+        when(posts.list(org.mockito.ArgumentMatchers
+                .<com.baomidou.mybatisplus.core.conditions.Wrapper<BlogPost>>any()))
+                .thenReturn(List.of(post));
+
+        SitemapTask task = new SitemapTask();
+        ReflectionTestUtils.setField(task, "sitemapRoot", output.toString());
+        ReflectionTestUtils.setField(task, "blogPostService", posts);
+
+        task.createFile();
+
+        NodeList urls = DocumentBuilderFactory.newInstance()
+                .newDocumentBuilder()
+                .parse(output.resolve("sitemap_all.xml").toFile())
+                .getElementsByTagName("url");
+        Node blogUrl = null;
+        for (int i = 0; i < urls.getLength(); i++) {
+            Node candidate = urls.item(i);
+            if (candidate.getTextContent().contains("https://whose.domains/blog/untimestamped-post")) {
+                blogUrl = candidate;
+                break;
+            }
+        }
+
+        assertTrue(blogUrl != null, "generated sitemap should contain the published blog URL");
+        assertEquals(0, ((org.w3c.dom.Element) blogUrl).getElementsByTagName("lastmod").getLength());
     }
 }
