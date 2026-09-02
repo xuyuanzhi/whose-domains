@@ -1,6 +1,8 @@
 package info.wesite.web.task;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -28,7 +30,7 @@ import info.wesite.web.ai.DeepSeekClient;
 class AiBlogTaskTest {
 
     @Test
-    void canonicalizesGeneratedToolLinksBeforePublishing() throws Exception {
+    void canonicalizesGeneratedToolLinksBeforeSavingDraft() throws Exception {
         TableInfoHelper.initTableInfo(
                 new MapperBuilderAssistant(new MybatisConfiguration(), "AiBlogTaskTest"),
                 BlogPost.class);
@@ -61,6 +63,9 @@ class AiBlogTaskTest {
 
         ArgumentCaptor<BlogPost> saved = ArgumentCaptor.forClass(BlogPost.class);
         verify(posts).save(saved.capture());
+        assertEquals(BlogPost.POST_STATUS_DRAFT, saved.getValue().getStatus());
+        assertNull(saved.getValue().getAuthor());
+        assertNull(saved.getValue().getPublishDate());
         assertTrue(saved.getValue().getContent()
                 .contains("/tools/dns-analyzer?d=example.com"));
         assertFalse(saved.getValue().getContent().contains("/tools/dns_analyzer"));

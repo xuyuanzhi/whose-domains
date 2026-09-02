@@ -1,6 +1,5 @@
 package info.wesite.web.task;
 
-import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 
@@ -23,8 +22,8 @@ import info.wesite.web.seo.CanonicalToolRoutes;
 /**
  * AI 博客自动生成定时任务
  *
- * 每3天凌晨2点自动调用 DeepSeek 生成一篇博客文章并发布。
- * 话题由 DeepSeek 根据已有文章动态生成，不依赖固定列表，可长期无人值守运行。
+ * 每3天凌晨2点自动调用 DeepSeek 生成一篇博客草稿，等待人工审核后发布。
+ * 话题由 DeepSeek 根据已有文章动态生成，不依赖固定列表。
  */
 @Profile({ "prod", "mac", "dev" })
 @Component
@@ -32,11 +31,6 @@ import info.wesite.web.seo.CanonicalToolRoutes;
 public class AiBlogTask {
 
     private static final Logger log = LoggerFactory.getLogger(AiBlogTask.class);
-
-    /** 笔名池，随机选取，避免单一作者名 */
-    private static final List<String> AUTHORS = List.of(
-        "James Chen", "Mark Zhang"
-    );
 
     @Autowired
     private DeepSeekClient deepSeekClient;
@@ -92,25 +86,21 @@ public class AiBlogTask {
                 return;
             }
 
-            String author = AUTHORS.get((int) (Math.random() * AUTHORS.size()));
-
             BlogPost post = new BlogPost();
             post.setId(UUID.randomUUID().toString().replace("-", "").substring(0, 16));
             post.setSlug(slug);
             post.setTitle(topic.title);
             post.setSummary(StringUtils.isBlank(summary) ? "" : summary.trim());
             post.setContent(content.trim());
-            post.setAuthor(author);
             post.setCategory(topic.category);
             post.setTags(topic.tags);
-            post.setPublishDate(new Date());
             post.setViewCount(0);
-            post.setStatus(BlogPost.POST_STATUS_PUBLISHED);
+            post.setStatus(BlogPost.POST_STATUS_DRAFT);
             post.setMetaTitle(topic.title + " | Whose.Domains Blog");
             post.setMetaDescription(StringUtils.isBlank(metaDesc) ? summary : metaDesc.trim());
 
             blogPostService.save(post);
-            log.info("[AiBlogTask] Blog post saved: slug={}, author={}", slug, author);
+            log.info("[AiBlogTask] Blog post saved as draft: slug={}", slug);
 
         } catch (Exception e) {
             log.error("[AiBlogTask] Failed to generate blog post", e);
