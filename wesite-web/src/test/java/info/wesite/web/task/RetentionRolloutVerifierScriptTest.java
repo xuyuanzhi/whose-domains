@@ -1,26 +1,71 @@
 package info.wesite.web.task;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 
 import org.junit.jupiter.api.Test;
 
 class RetentionRolloutVerifierScriptTest {
 
     @Test
+    void powerShellSelectionPrefersPwsh() {
+        List<String> attempts = new ArrayList<>();
+
+        String executable = selectPowerShellExecutable(candidate -> {
+            attempts.add(candidate);
+            return true;
+        });
+
+        assertEquals("pwsh", executable);
+        assertEquals(List.of("pwsh"), attempts);
+    }
+
+    @Test
+    void powerShellSelectionFallsBackToWindowsPowerShell() {
+        List<String> attempts = new ArrayList<>();
+
+        String executable = selectPowerShellExecutable(candidate -> {
+            attempts.add(candidate);
+            return candidate.equals("powershell.exe");
+        });
+
+        assertEquals("powershell.exe", executable);
+        assertEquals(List.of("pwsh", "powershell.exe"), attempts);
+    }
+
+    @Test
+    void powerShellSelectionReturnsNullWhenNoHostCanStart() {
+        List<String> attempts = new ArrayList<>();
+
+        String executable = selectPowerShellExecutable(candidate -> {
+            attempts.add(candidate);
+            return false;
+        });
+
+        assertNull(executable);
+        assertEquals(List.of("pwsh", "powershell.exe"), attempts);
+    }
+
+    @Test
     void staticFixtureRunsOfflineAndReportsItsTerminalContract() throws Exception {
         Path repository = repositoryRoot();
         Path script = repository.resolve("scripts/verify-retention-rollout.ps1");
+        String executable = selectPowerShellExecutable(RetentionRolloutVerifierScriptTest::canStart);
+        assumeTrue(executable != null,
+            "Neither pwsh nor powershell.exe is installed; skipping only the retention rollout script test");
         Process process = new ProcessBuilder(List.of(
-            powerShellHost(),
+            executable,
             "-NoProfile",
             "-ExecutionPolicy", "Bypass",
             "-File", script.toString(),
@@ -40,8 +85,11 @@ class RetentionRolloutVerifierScriptTest {
     void pathAFixtureProvesRetentionMaturityAndKSuppressionAgainstMySql() throws Exception {
         Path repository = repositoryRoot();
         Path script = repository.resolve("scripts/verify-retention-rollout.ps1");
+        String executable = selectPowerShellExecutable(RetentionRolloutVerifierScriptTest::canStart);
+        assumeTrue(executable != null,
+            "Neither pwsh nor powershell.exe is installed; skipping only the retention rollout script test");
         Process process = new ProcessBuilder(List.of(
-            powerShellHost(),
+            executable,
             "-NoProfile",
             "-ExecutionPolicy", "Bypass",
             "-File", script.toString(),
@@ -70,9 +118,28 @@ class RetentionRolloutVerifierScriptTest {
         throw new IOException("repository root not found");
     }
 
-    private static String powerShellHost() {
-        return System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win")
-            ? "powershell.exe"
-            : "pwsh";
+    private static String selectPowerShellExecutable(Predicate<String> canStart) {
+        for (String candidate : List.of("pwsh", "powershell.exe")) {
+            if (canStart.test(candidate)) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    private static boolean canStart(String executable) {
+        try {
+            Process probe = new ProcessBuilder(executable, "-NoProfile", "-Command", "exit 0")
+                .redirectErrorStream(true)
+                .start();
+            probe.getInputStream().readAllBytes();
+            probe.waitFor();
+            return true;
+        } catch (IOException e) {
+            return false;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while locating PowerShell", e);
+        }
     }
 }
