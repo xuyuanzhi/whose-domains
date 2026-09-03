@@ -5,7 +5,7 @@ wesite_readiness_check() {
   local response
   local status
   local body
-  local response_mode="${WESITE_HEALTH_RESPONSE_MODE:-readiness}"
+  local response_mode="${2:-${WESITE_HEALTH_RESPONSE_MODE:-readiness}}"
   local up_pattern='^[[:space:]]*\{[[:space:]]*"status"[[:space:]]*:[[:space:]]*"UP"[[:space:]]*\}[[:space:]]*$'
 
   if ! response="$(curl --silent --show-error --max-time 5 \
