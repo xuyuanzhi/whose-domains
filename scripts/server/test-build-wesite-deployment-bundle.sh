@@ -265,39 +265,35 @@ test_cleanup_swap() {
   mkdir -p "$output" "$fake_bin" "$cleanup_escape"
   printf 'foreign-replacement-must-survive\n' > "$foreign_content"
   cp -- "$foreign_content" "$cleanup_escape/outside-sentinel"
-  cat > "$fake_bin/stat" <<'EOF'
+  cat > "$fake_bin/find" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-real_output="$(/usr/bin/stat "$@")"
-target="${*: -1}"
-if [[ -d "$target" && ! -L "$target" \
-    && "$(basename "$target")" == .wesite-deployment-build.* ]]; then
-  count=0
-  if [[ -f "$WESITE_TEST_STAT_COUNT" ]]; then
-    read -r count < "$WESITE_TEST_STAT_COUNT"
+target=''
+for argument in "$@"; do
+  if [[ "$argument" == /proc/*/fd/*/. ]]; then
+    target="$argument"
+    break
   fi
-  count=$((count + 1))
-  printf '%s\n' "$count" > "$WESITE_TEST_STAT_COUNT"
-  if (( count == 1 )); then
+done
+if [[ "$*" == *' -delete'* && -n "$target" ]]; then
+  canonical_target="$(/usr/bin/realpath -e -- "$target")"
+  if [[ "$(basename "$canonical_target")" == .wesite-deployment-build.* ]]; then
+    printf '%s\n' "$canonical_target" > "$WESITE_TEST_SWAPPED_PATH"
     /usr/bin/ln -s -- "$WESITE_TEST_CLEANUP_ESCAPE" \
-      "$target/cleanup-escape"
-  fi
-  if (( count == 2 )); then
-    printf '%s\n' "$target" > "$WESITE_TEST_SWAPPED_PATH"
-    /usr/bin/mv -- "$target" "$WESITE_TEST_RETAINED_STAGING"
-    /usr/bin/mkdir -- "$target"
+      "$canonical_target/cleanup-escape"
+    /usr/bin/mv -- "$canonical_target" "$WESITE_TEST_RETAINED_STAGING"
+    /usr/bin/mkdir -- "$canonical_target"
     /usr/bin/cp -- "$WESITE_TEST_FOREIGN_CONTENT" \
-      "$target/foreign-sentinel"
+      "$canonical_target/foreign-sentinel"
   fi
 fi
-printf '%s\n' "$real_output"
+exec /usr/bin/find "$@"
 EOF
-  chmod +x "$fake_bin/stat"
+  chmod +x "$fake_bin/find"
 
   set +e
   env \
     PATH="$fake_bin:$PATH" \
-    WESITE_TEST_STAT_COUNT="$scenario/stat-count" \
     WESITE_TEST_SWAPPED_PATH="$swapped_path_file" \
     WESITE_TEST_RETAINED_STAGING="$retained_staging" \
     WESITE_TEST_FOREIGN_CONTENT="$foreign_content" \
@@ -332,12 +328,166 @@ EOF
       >&2
     failed=1
   fi
-  if ! grep -Fq 'staging cleanup identity changed' "$scenario/builder.out"; then
+  if ! grep -Fq 'staging cleanup root removal failed' "$scenario/builder.out"; then
     printf 'FAIL: builder did not report the staging cleanup identity change\n' >&2
     failed=1
   fi
   if ! cmp -s "$foreign_content" "$cleanup_escape/outside-sentinel"; then
     printf 'FAIL: cleanup followed a symlink inside original staging\n' >&2
+    failed=1
+  fi
+
+  (( failed == 0 ))
+}
+
+test_unverified_staging_fd_swap() {
+  local scenario="$TEST_ROOT/unverified-staging-fd-swap"
+  local output="$scenario/output"
+  local fake_bin="$scenario/fake-bin"
+  local retained_staging="$scenario/retained-original-staging"
+  local foreign_content="$scenario/foreign-content"
+  local swapped_path_file="$scenario/swapped-path"
+  local stage_path
+  local status
+  local failed=0
+
+  mkdir -p "$output" "$fake_bin"
+  printf 'unverified-foreign-directory-must-survive\n' > "$foreign_content"
+  cat > "$fake_bin/realpath" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+real_output="$(/usr/bin/realpath "$@")"
+target="${*: -1}"
+if [[ ! -e "$WESITE_TEST_SWAPPED_PATH" \
+    && -d "$target" && ! -L "$target" \
+    && "$(basename "$target")" == .wesite-deployment-build.* ]]; then
+  printf '%s\n' "$real_output" > "$WESITE_TEST_SWAPPED_PATH"
+  /usr/bin/mv -- "$target" "$WESITE_TEST_RETAINED_STAGING"
+  /usr/bin/mkdir -- "$target"
+  /usr/bin/cp -- "$WESITE_TEST_FOREIGN_CONTENT" \
+    "$target/foreign-sentinel"
+fi
+printf '%s\n' "$real_output"
+EOF
+  chmod +x "$fake_bin/realpath"
+
+  set +e
+  env \
+    PATH="$fake_bin:$PATH" \
+    WESITE_TEST_SWAPPED_PATH="$swapped_path_file" \
+    WESITE_TEST_RETAINED_STAGING="$retained_staging" \
+    WESITE_TEST_FOREIGN_CONTENT="$foreign_content" \
+    bash "$BUILDER" "$COMMIT" "$output" \
+    > "$scenario/builder.out" 2>&1
+  status=$?
+  set -e
+
+  (( status != 0 )) \
+    || { printf 'FAIL: builder accepted an unverified staging descriptor\n' >&2; failed=1; }
+  if [[ ! -s "$swapped_path_file" ]]; then
+    printf 'FAIL: unverified-FD fixture did not reach the acquisition boundary\n' >&2
+    return 1
+  fi
+  stage_path="$(cat "$swapped_path_file")"
+  if [[ ! -d "$stage_path" ]] \
+      || ! cmp -s "$foreign_content" "$stage_path/foreign-sentinel"; then
+    printf 'FAIL: cleanup mutated the directory opened through an unverified FD\n' >&2
+    failed=1
+  fi
+  if [[ ! -d "$retained_staging" ]]; then
+    printf 'FAIL: unverified-FD fixture lost the original staging directory\n' >&2
+    failed=1
+  fi
+
+  (( failed == 0 ))
+}
+
+test_private_parent_cleanup_race() {
+  local scenario="$TEST_ROOT/private-parent-cleanup-race"
+  local output="$scenario/output"
+  local fake_bin="$scenario/fake-bin"
+  local foreign_parent="$scenario/foreign-parent"
+  local foreign_directory="$foreign_parent/foreign-empty"
+  local retained_staging="$output/retained-original-staging"
+  local attack_status_file="$scenario/attack-status"
+  local foreign_identity
+  local stage_path
+  local status
+  local failed=0
+
+  (( EUID == 0 )) || fail 'private-parent cleanup race requires a root test process'
+  command -v setpriv >/dev/null \
+    || fail 'private-parent cleanup race requires setpriv'
+  chmod 0711 "$TEST_ROOT"
+  mkdir -p "$output" "$fake_bin" "$foreign_directory"
+  chmod 0711 "$scenario"
+  chmod 0777 "$output" "$foreign_parent"
+  chown 65534:65534 "$foreign_directory"
+  foreign_identity="$(stat -c '%d:%i' -- "$foreign_directory")"
+
+  cat > "$fake_bin/rmdir" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+target="${*: -1}"
+attack_status=0
+/usr/bin/setpriv --reuid=65534 --regid=65534 --clear-groups \
+  /bin/bash -c '
+    set -e
+    /usr/bin/mv -- "$1" "$2"
+    /usr/bin/mv -- "$3" "$1"
+  ' bash "$target" "$WESITE_TEST_RETAINED_STAGING" \
+  "$WESITE_TEST_FOREIGN_DIRECTORY" \
+  > "$WESITE_TEST_ATTACK_OUTPUT" 2>&1 \
+  || attack_status=$?
+printf '%s\n' "$attack_status" > "$WESITE_TEST_ATTACK_STATUS"
+if (( attack_status == 0 )); then
+  exec /usr/bin/rmdir "$@"
+fi
+exit "$attack_status"
+EOF
+  chmod +x "$fake_bin/rmdir"
+
+  set +e
+  env \
+    PATH="$fake_bin:$PATH" \
+    WESITE_TEST_RETAINED_STAGING="$retained_staging" \
+    WESITE_TEST_FOREIGN_DIRECTORY="$foreign_directory" \
+    WESITE_TEST_ATTACK_OUTPUT="$scenario/attack.out" \
+    WESITE_TEST_ATTACK_STATUS="$attack_status_file" \
+    bash "$BUILDER" "$COMMIT" "$output" \
+    > "$scenario/builder.out" 2>&1
+  status=$?
+  set -e
+
+  (( status != 0 )) \
+    || { printf 'FAIL: builder accepted the cleanup replacement race\n' >&2; failed=1; }
+  if [[ ! -s "$attack_status_file" ]] \
+      || (( $(cat "$attack_status_file") == 0 )); then
+    printf 'FAIL: an untrusted UID replaced staging below the private parent\n' >&2
+    failed=1
+  fi
+  if [[ "$(stat -c '%u:%a' -- "$output")" != "$EUID:700" ]]; then
+    printf 'FAIL: builder did not enforce an EUID-owned mode-0700 output parent\n' >&2
+    failed=1
+  fi
+  if [[ ! -d "$foreign_directory" ]] \
+      || [[ "$(stat -c '%d:%i' -- "$foreign_directory")" != "$foreign_identity" ]]; then
+    printf 'FAIL: cleanup deleted or replaced the untrusted UID foreign directory\n' >&2
+    failed=1
+  fi
+  if [[ -e "$retained_staging" || -L "$retained_staging" ]]; then
+    printf 'FAIL: an untrusted UID moved the original staging directory\n' >&2
+    failed=1
+  fi
+  stage_path="$(
+    find "$output" -mindepth 1 -maxdepth 1 -type d \
+      -name '.wesite-deployment-build.*' -print -quit
+  )"
+  if [[ -z "$stage_path" ]]; then
+    printf 'FAIL: failed cleanup did not preserve the original staging root\n' >&2
+    failed=1
+  elif [[ -n "$(find "$stage_path" -mindepth 1 -print -quit)" ]]; then
+    printf 'FAIL: failed cleanup did not empty staging through its verified FD\n' >&2
     failed=1
   fi
 
@@ -434,6 +584,10 @@ done
 (( publication_race_failures == 0 )) \
   || fail "$publication_race_failures publication-race scenarios failed"
 test_cleanup_swap || fail 'staging cleanup-swap scenario failed'
+test_private_parent_cleanup_race \
+  || fail 'private-parent cleanup-race scenario failed'
+test_unverified_staging_fd_swap \
+  || fail 'unverified staging-FD swap scenario failed'
 
 MEMBERS="$TEST_ROOT/archive-members"
 tar -tzf "$ARCHIVE" > "$MEMBERS"
@@ -621,4 +775,4 @@ expect_bootstrap_failure special-archive-entry "$SPECIAL_ARCHIVE" \
   "$SPECIAL_ARCHIVE.sha256" "$SPECIAL_ENTRY"
 
 printf '%s\n' \
-  'Deployment bundle tests passed: reproducible whitelist, 10 rejection scenarios, 4 publication races, and cleanup swap.'
+  'Deployment bundle tests passed: reproducible whitelist, 10 rejection scenarios, 4 publication races, and 3 cleanup/acquisition races.'
