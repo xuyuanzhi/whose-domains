@@ -250,6 +250,100 @@ EOF
   (( failed == 0 ))
 }
 
+test_cleanup_swap() {
+  local scenario="$TEST_ROOT/cleanup-swap"
+  local output="$scenario/output"
+  local fake_bin="$scenario/fake-bin"
+  local retained_staging="$scenario/retained-original-staging"
+  local foreign_content="$scenario/foreign-content"
+  local cleanup_escape="$scenario/cleanup-escape-target"
+  local swapped_path_file="$scenario/swapped-path"
+  local stage_path
+  local status
+  local failed=0
+
+  mkdir -p "$output" "$fake_bin" "$cleanup_escape"
+  printf 'foreign-replacement-must-survive\n' > "$foreign_content"
+  cp -- "$foreign_content" "$cleanup_escape/outside-sentinel"
+  cat > "$fake_bin/stat" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+real_output="$(/usr/bin/stat "$@")"
+target="${*: -1}"
+if [[ -d "$target" && ! -L "$target" \
+    && "$(basename "$target")" == .wesite-deployment-build.* ]]; then
+  count=0
+  if [[ -f "$WESITE_TEST_STAT_COUNT" ]]; then
+    read -r count < "$WESITE_TEST_STAT_COUNT"
+  fi
+  count=$((count + 1))
+  printf '%s\n' "$count" > "$WESITE_TEST_STAT_COUNT"
+  if (( count == 1 )); then
+    /usr/bin/ln -s -- "$WESITE_TEST_CLEANUP_ESCAPE" \
+      "$target/cleanup-escape"
+  fi
+  if (( count == 2 )); then
+    printf '%s\n' "$target" > "$WESITE_TEST_SWAPPED_PATH"
+    /usr/bin/mv -- "$target" "$WESITE_TEST_RETAINED_STAGING"
+    /usr/bin/mkdir -- "$target"
+    /usr/bin/cp -- "$WESITE_TEST_FOREIGN_CONTENT" \
+      "$target/foreign-sentinel"
+  fi
+fi
+printf '%s\n' "$real_output"
+EOF
+  chmod +x "$fake_bin/stat"
+
+  set +e
+  env \
+    PATH="$fake_bin:$PATH" \
+    WESITE_TEST_STAT_COUNT="$scenario/stat-count" \
+    WESITE_TEST_SWAPPED_PATH="$swapped_path_file" \
+    WESITE_TEST_RETAINED_STAGING="$retained_staging" \
+    WESITE_TEST_FOREIGN_CONTENT="$foreign_content" \
+    WESITE_TEST_CLEANUP_ESCAPE="$cleanup_escape" \
+    bash "$BUILDER" "$COMMIT" "$output" \
+    > "$scenario/builder.out" 2>&1
+  status=$?
+  set -e
+
+  if (( status == 0 )); then
+    printf 'FAIL: builder did not fail closed after staging cleanup identity changed\n' \
+      >&2
+    failed=1
+  fi
+  if [[ ! -s "$swapped_path_file" ]]; then
+    printf 'FAIL: cleanup-swap fixture did not reach the cleanup boundary\n' >&2
+    return 1
+  fi
+  stage_path="$(cat "$swapped_path_file")"
+  if [[ ! -d "$stage_path" ]] \
+      || ! cmp -s "$foreign_content" "$stage_path/foreign-sentinel"; then
+    printf 'FAIL: cleanup deleted the foreign staging replacement\n' >&2
+    failed=1
+  fi
+  if [[ ! -d "$retained_staging" ]]; then
+    printf 'FAIL: cleanup-swap fixture lost the original staging root\n' >&2
+    failed=1
+  elif [[ -n "$(
+    find "$retained_staging" -mindepth 1 -maxdepth 1 -print -quit
+  )" ]]; then
+    printf 'FAIL: cleanup did not remove original staging contents through its identity\n' \
+      >&2
+    failed=1
+  fi
+  if ! grep -Fq 'staging cleanup identity changed' "$scenario/builder.out"; then
+    printf 'FAIL: builder did not report the staging cleanup identity change\n' >&2
+    failed=1
+  fi
+  if ! cmp -s "$foreign_content" "$cleanup_escape/outside-sentinel"; then
+    printf 'FAIL: cleanup followed a symlink inside original staging\n' >&2
+    failed=1
+  fi
+
+  (( failed == 0 ))
+}
+
 EXPECTED_PAYLOADS=(
   SOURCE_COMMIT
   SHA256SUMS
@@ -339,6 +433,7 @@ for race_kind in archive-file archive-symlink sidecar bootstrap; do
 done
 (( publication_race_failures == 0 )) \
   || fail "$publication_race_failures publication-race scenarios failed"
+test_cleanup_swap || fail 'staging cleanup-swap scenario failed'
 
 MEMBERS="$TEST_ROOT/archive-members"
 tar -tzf "$ARCHIVE" > "$MEMBERS"
@@ -526,4 +621,4 @@ expect_bootstrap_failure special-archive-entry "$SPECIAL_ARCHIVE" \
   "$SPECIAL_ARCHIVE.sha256" "$SPECIAL_ENTRY"
 
 printf '%s\n' \
-  'Deployment bundle tests passed: reproducible whitelist, 10 rejection scenarios, and 4 publication races.'
+  'Deployment bundle tests passed: reproducible whitelist, 10 rejection scenarios, 4 publication races, and cleanup swap.'

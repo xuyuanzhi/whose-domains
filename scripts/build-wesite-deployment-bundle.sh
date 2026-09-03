@@ -4,6 +4,7 @@ set -euo pipefail
 REPOSITORY_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 STAGING_DIRECTORY=''
 STAGING_IDENTITY=''
+STAGING_FD=''
 
 fail() {
   printf 'ERROR: %s\n' "$*" >&2
@@ -11,15 +12,47 @@ fail() {
 }
 
 cleanup() {
+  local original_status="$?"
+  local cleanup_status=0
   local current_identity
+  local fd_root
 
-  [[ -n "$STAGING_DIRECTORY" && -n "$STAGING_IDENTITY" \
-    && -d "$STAGING_DIRECTORY" && ! -L "$STAGING_DIRECTORY" ]] \
-    || return 0
-  current_identity="$(stat -c '%d:%i' -- "$STAGING_DIRECTORY" 2>/dev/null)" \
-    || return 0
-  [[ "$current_identity" == "$STAGING_IDENTITY" ]] || return 0
-  rm -rf -- "$STAGING_DIRECTORY"
+  trap - EXIT
+  if [[ -n "$STAGING_DIRECTORY" && -n "$STAGING_IDENTITY" ]]; then
+    if [[ -z "$STAGING_FD" ]]; then
+      printf 'WARNING: staging cleanup has no bound directory descriptor: %s\n' \
+        "$STAGING_DIRECTORY" >&2
+      cleanup_status=1
+    else
+      fd_root="/proc/$$/fd/$STAGING_FD/."
+      if [[ ! -d "$fd_root" ]] \
+          || ! find -P "$fd_root" -xdev -mindepth 1 -delete; then
+        printf 'WARNING: staging cleanup through the bound descriptor failed: %s\n' \
+          "$STAGING_DIRECTORY" >&2
+        cleanup_status=1
+      else
+        current_identity="$(
+          stat -c '%d:%i' -- "$STAGING_DIRECTORY" 2>/dev/null
+        )" || current_identity=''
+        if [[ "$current_identity" != "$STAGING_IDENTITY" ]]; then
+          printf 'WARNING: staging cleanup identity changed; preserving path: %s\n' \
+            "$STAGING_DIRECTORY" >&2
+          cleanup_status=1
+        elif ! rmdir -- "$STAGING_DIRECTORY"; then
+          printf 'WARNING: staging cleanup identity changed or root is not empty; preserving path: %s\n' \
+            "$STAGING_DIRECTORY" >&2
+          cleanup_status=1
+        fi
+      fi
+    fi
+  fi
+  if [[ -n "$STAGING_FD" ]]; then
+    exec {STAGING_FD}<&- || cleanup_status=1
+  fi
+  if (( original_status != 0 )); then
+    exit "$original_status"
+  fi
+  exit "$cleanup_status"
 }
 trap cleanup EXIT
 
@@ -95,6 +128,10 @@ STAGING_IDENTITY="$(stat -c '%d:%i' -- "$STAGING_DIRECTORY")"
 chmod 0700 "$staging_candidate"
 [[ "$(realpath -e -- "$staging_candidate")" == "$STAGING_DIRECTORY" ]] \
   || fail 'private staging directory is not canonical'
+exec {STAGING_FD}<"$STAGING_DIRECTORY"
+[[ "$(stat -Lc '%d:%i' -- "/proc/$$/fd/$STAGING_FD")" \
+  == "$STAGING_IDENTITY" ]] \
+  || fail 'private staging descriptor does not match its directory'
 
 BUNDLE_ROOT="$STAGING_DIRECTORY/wesite-deployment"
 mkdir "$BUNDLE_ROOT"
