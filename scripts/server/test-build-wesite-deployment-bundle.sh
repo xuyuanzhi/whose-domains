@@ -140,6 +140,116 @@ expect_bootstrap_failure() {
     || fail "$name input mutated the fake host: $(head -n 1 "$scenario/calls.log")"
 }
 
+wait_for_builder_pause() {
+  local pause_file="$1"
+  local builder_pid="$2"
+  local attempt
+
+  for ((attempt = 0; attempt < 500; attempt++)); do
+    [[ -e "$pause_file" ]] && return 0
+    if ! kill -0 "$builder_pid" 2>/dev/null; then
+      wait "$builder_pid" || true
+      fail 'builder exited before the publication-race pause'
+    fi
+    sleep 0.01
+  done
+  kill "$builder_pid" 2>/dev/null || true
+  wait "$builder_pid" 2>/dev/null || true
+  fail 'timed out waiting for the publication-race pause'
+}
+
+test_publish_race() {
+  local kind="$1"
+  local scenario="$TEST_ROOT/publish-race-$kind"
+  local output="$scenario/output"
+  local fake_bin="$scenario/fake-bin"
+  local pause_file="$scenario/paused"
+  local resume_fifo="$scenario/resume"
+  local archive="$output/wesite-deployment-$COMMIT.tar.gz"
+  local sidecar="$archive.sha256"
+  local bootstrap="$output/install-wesite-deployment-bundle.sh"
+  local protected_content="$scenario/protected-content"
+  local target
+  local sentinel=''
+  local builder_pid
+  local status
+  local failed=0
+
+  mkdir -p "$output" "$fake_bin"
+  mkfifo "$resume_fifo"
+  printf 'concurrent-owner-%s\n' "$kind" > "$protected_content"
+  cat > "$fake_bin/mktemp" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+candidate="$(/usr/bin/mktemp "$@")"
+/usr/bin/touch "$WESITE_TEST_BUILD_PAUSED"
+IFS= read -r _ < "$WESITE_TEST_BUILD_RESUME"
+printf '%s\n' "$candidate"
+EOF
+  chmod +x "$fake_bin/mktemp"
+
+  env \
+    PATH="$fake_bin:$PATH" \
+    WESITE_TEST_BUILD_PAUSED="$pause_file" \
+    WESITE_TEST_BUILD_RESUME="$resume_fifo" \
+    bash "$BUILDER" "$COMMIT" "$output" \
+    > "$scenario/builder.out" 2>&1 &
+  builder_pid=$!
+  wait_for_builder_pause "$pause_file" "$builder_pid"
+
+  case "$kind" in
+    archive-file)
+      target="$archive"
+      cp -- "$protected_content" "$target"
+      ;;
+    archive-symlink)
+      target="$archive"
+      sentinel="$scenario/sentinel"
+      cp -- "$protected_content" "$sentinel"
+      ln -s -- "$sentinel" "$target"
+      ;;
+    sidecar)
+      target="$sidecar"
+      cp -- "$protected_content" "$target"
+      ;;
+    bootstrap)
+      target="$bootstrap"
+      cp -- "$protected_content" "$target"
+      ;;
+    *)
+      fail "unknown publication-race fixture: $kind"
+      ;;
+  esac
+
+  printf 'resume\n' > "$resume_fifo"
+  set +e
+  wait "$builder_pid"
+  status=$?
+  set -e
+
+  if (( status == 0 )); then
+    printf 'FAIL: builder accepted concurrent %s publication target\n' \
+      "$kind" >&2
+    failed=1
+  fi
+  if [[ "$kind" == archive-symlink ]]; then
+    if [[ ! -L "$target" || "$(readlink -- "$target")" != "$sentinel" ]]; then
+      printf 'FAIL: builder replaced the concurrent archive symlink\n' >&2
+      failed=1
+    fi
+    if ! cmp -s "$protected_content" "$sentinel"; then
+      printf 'FAIL: builder followed the concurrent archive symlink\n' >&2
+      failed=1
+    fi
+  elif [[ ! -f "$target" || -L "$target" ]] \
+      || ! cmp -s "$protected_content" "$target"; then
+    printf 'FAIL: builder overwrote the concurrent %s target\n' "$kind" >&2
+    failed=1
+  fi
+
+  (( failed == 0 ))
+}
+
 EXPECTED_PAYLOADS=(
   SOURCE_COMMIT
   SHA256SUMS
@@ -220,6 +330,15 @@ set -e
 (( extra_argument_status != 0 )) || fail 'builder accepted an extra argument'
 [[ "$(cat "$NONEMPTY_OUTPUT/sentinel")" == keep ]] \
   || fail 'builder changed an existing nonempty output directory'
+
+publication_race_failures=0
+for race_kind in archive-file archive-symlink sidecar bootstrap; do
+  if ! test_publish_race "$race_kind"; then
+    publication_race_failures=$((publication_race_failures + 1))
+  fi
+done
+(( publication_race_failures == 0 )) \
+  || fail "$publication_race_failures publication-race scenarios failed"
 
 MEMBERS="$TEST_ROOT/archive-members"
 tar -tzf "$ARCHIVE" > "$MEMBERS"
@@ -406,4 +525,5 @@ SPECIAL_ARCHIVE="$SPECIAL_ENTRY/wesite-deployment-malicious.tar.gz"
 expect_bootstrap_failure special-archive-entry "$SPECIAL_ARCHIVE" \
   "$SPECIAL_ARCHIVE.sha256" "$SPECIAL_ENTRY"
 
-printf 'Deployment bundle tests passed: reproducible whitelist and 10 rejection scenarios.\n'
+printf '%s\n' \
+  'Deployment bundle tests passed: reproducible whitelist, 10 rejection scenarios, and 4 publication races.'

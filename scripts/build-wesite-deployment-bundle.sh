@@ -3,6 +3,7 @@ set -euo pipefail
 
 REPOSITORY_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 STAGING_DIRECTORY=''
+STAGING_IDENTITY=''
 
 fail() {
   printf 'ERROR: %s\n' "$*" >&2
@@ -10,9 +11,15 @@ fail() {
 }
 
 cleanup() {
-  if [[ -n "$STAGING_DIRECTORY" ]]; then
-    rm -rf -- "$STAGING_DIRECTORY"
-  fi
+  local current_identity
+
+  [[ -n "$STAGING_DIRECTORY" && -n "$STAGING_IDENTITY" \
+    && -d "$STAGING_DIRECTORY" && ! -L "$STAGING_DIRECTORY" ]] \
+    || return 0
+  current_identity="$(stat -c '%d:%i' -- "$STAGING_DIRECTORY" 2>/dev/null)" \
+    || return 0
+  [[ "$current_identity" == "$STAGING_IDENTITY" ]] || return 0
+  rm -rf -- "$STAGING_DIRECTORY"
 }
 trap cleanup EXIT
 
@@ -72,13 +79,19 @@ if [[ -e "$OUTPUT_DIRECTORY" || -L "$OUTPUT_DIRECTORY" ]]; then
 else
   mkdir -- "$OUTPUT_DIRECTORY"
 fi
+OUTPUT_DIRECTORY="$(cd "$OUTPUT_DIRECTORY" && pwd -P)"
+[[ -d "$OUTPUT_DIRECTORY" && ! -L "$OUTPUT_DIRECTORY" ]] \
+  || fail 'OUTPUT_DIRECTORY is not a canonical directory'
 
 umask 077
-staging_candidate="$(mktemp -d)"
+staging_candidate="$(
+  mktemp -d "$OUTPUT_DIRECTORY/.wesite-deployment-build.XXXXXXXXXX"
+)"
 [[ "$staging_candidate" == /* && "$staging_candidate" != / \
   && -d "$staging_candidate" && ! -L "$staging_candidate" ]] \
   || fail 'could not create a safe private staging directory'
 STAGING_DIRECTORY="$staging_candidate"
+STAGING_IDENTITY="$(stat -c '%d:%i' -- "$STAGING_DIRECTORY")"
 chmod 0700 "$staging_candidate"
 [[ "$(realpath -e -- "$staging_candidate")" == "$STAGING_DIRECTORY" ]] \
   || fail 'private staging directory is not canonical'
@@ -113,16 +126,35 @@ MANIFEST_PAYLOADS=(
 )
 
 ARCHIVE_NAME="wesite-deployment-$SOURCE_COMMIT.tar.gz"
-ARCHIVE_PATH="$OUTPUT_DIRECTORY/$ARCHIVE_NAME"
+ARCHIVE_PATH="$STAGING_DIRECTORY/$ARCHIVE_NAME"
 tar --sort=name --format=gnu --mtime='@0' --owner=0 --group=0 \
   --numeric-owner -cf - -C "$STAGING_DIRECTORY" wesite-deployment \
   | gzip -n -9 > "$ARCHIVE_PATH"
 (
-  cd "$OUTPUT_DIRECTORY"
+  cd "$STAGING_DIRECTORY"
   sha256sum -- "$ARCHIVE_NAME" > "$ARCHIVE_NAME.sha256"
 )
 install -m 0755 -- "$BOOTSTRAP_SOURCE" \
-  "$OUTPUT_DIRECTORY/install-wesite-deployment-bundle.sh"
+  "$STAGING_DIRECTORY/install-wesite-deployment-bundle.sh"
+
+OUTPUT_FILES=(
+  "$ARCHIVE_NAME"
+  "$ARCHIVE_NAME.sha256"
+  install-wesite-deployment-bundle.sh
+)
+for output_name in "${OUTPUT_FILES[@]}"; do
+  staged_output="$STAGING_DIRECTORY/$output_name"
+  final_output="$OUTPUT_DIRECTORY/$output_name"
+  [[ -f "$staged_output" && ! -L "$staged_output" ]] \
+    || fail "staged output is missing or unsafe: $output_name"
+  staged_identity="$(stat -c '%d:%i' -- "$staged_output")"
+  ln --no-dereference --no-target-directory -- \
+    "$staged_output" "$final_output" \
+    || fail "refusing to overwrite publication target: $final_output"
+  [[ -f "$final_output" && ! -L "$final_output" \
+    && "$(stat -c '%d:%i' -- "$final_output")" == "$staged_identity" ]] \
+    || fail "published output identity changed: $final_output"
+done
 
 printf 'Created %s, %s, and install-wesite-deployment-bundle.sh\n' \
   "$ARCHIVE_NAME" "$ARCHIVE_NAME.sha256"
