@@ -1,0 +1,8 @@
+*.sh text eol=lf
+*.service text eol=lf
+*.timer text eol=lf
+*.Jenkinsfile text eol=lf
+deploy/config/* text eol=lf
+deploy/sudoers/* text eol=lf
+deploy/systemd/*.example text eol=lf
+deploy/tmpfiles.d/* text eol=lf
