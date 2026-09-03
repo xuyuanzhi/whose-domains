@@ -4,7 +4,6 @@ import java.util.concurrent.TimeUnit;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Profile;
-import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.xbill.DNS.Type;
@@ -19,7 +18,6 @@ import info.wesite.core.service.DomainDnsService;
 
 @Profile({ "prod", "dev" })
 @Component
-@EnableScheduling
 public class IPAddressTask {
 
 	@Autowired

@@ -3,7 +3,12 @@
 
 #server
 server.port = 8082
+server.address = 127.0.0.1
 server.servlet.context-path = /
+server.tomcat.threads.max=24
+server.tomcat.threads.min-spare=4
+server.tomcat.accept-count=30
+server.tomcat.max-connections=256
 server.servlet.session.cookie.name=JSESSIONID
 server.servlet.session.cookie.secure=true
 server.servlet.session.cookie.http-only=true
@@ -17,11 +22,23 @@ server.tomcat.remoteip.host-header=x-forwarded-host
 server.tomcat.remoteip.port-header=x-forwarded-port
 server.tomcat.remoteip.internal-proxies=${WESITE_TRUSTED_PROXY_REGEX:127\\.0\\.0\\.1|::1}
 
+#jwt (must match wesite-web)
+app.jwt.secret=${JWT_SECRET:please-change-this-default-secret-key-in-production}
+app.jwt.issuer=system
+
 #database
 spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
 spring.datasource.url=${WD_DB_URL:jdbc:mysql://localhost:3306/wesitedb?allowMultiQueries=true&useUnicode=true&characterEncoding=UTF-8&useSSL=false&autoReconnect=true&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true}
 spring.datasource.username=${WD_DB_USERNAME:your-db-username}
 spring.datasource.password=${WD_DB_PASSWORD:your-db-password}
+
+#hikari connection pool
+spring.datasource.hikari.minimum-idle=2
+spring.datasource.hikari.maximum-pool-size=8
+spring.datasource.hikari.idle-timeout=300000
+spring.datasource.hikari.max-lifetime=1800000
+spring.datasource.hikari.connection-timeout=10000
+spring.datasource.hikari.validation-timeout=3000
 
 #maxmind GeoIP2 database paths — download from https://www.maxmind.com/
 maxmind.city.file.path = /path/to/GeoLite2-City.mmdb
@@ -31,8 +48,14 @@ maxmind.asn.file.path = /path/to/GeoLite2-ASN.mmdb
 sitemap.root = /var/www/sitemap/
 
 #redis
-spring.redis.host = 127.0.0.1
-spring.redis.port = 6379
-spring.redis.password = ${REDIS_PASSWORD:}
-spring.redis.pool.max-active = 200
-spring.redis.pool.max-wait = -1
+spring.data.redis.host = 127.0.0.1
+spring.data.redis.port = 6379
+spring.data.redis.password = ${REDIS_PASSWORD:}
+spring.data.redis.timeout=3000
+spring.data.redis.lettuce.pool.max-active=8
+spring.data.redis.lettuce.pool.max-idle=4
+spring.data.redis.lettuce.pool.min-idle=1
+spring.data.redis.lettuce.pool.max-wait=3000
+
+#production template cache
+spring.thymeleaf.cache=true

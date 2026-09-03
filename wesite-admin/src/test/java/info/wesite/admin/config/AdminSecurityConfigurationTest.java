@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -17,6 +18,10 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.support.PropertiesLoaderUtils;
+import org.springframework.data.redis.connection.RedisConnection;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.mock.web.MockServletContext;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -32,6 +37,7 @@ import info.wesite.admin.controller.MainController;
 import info.wesite.admin.interceptor.AdminInterceptor;
 import info.wesite.core.config.AccessControl;
 import info.wesite.core.config.UserHolder;
+import info.wesite.core.health.ReadinessController;
 import info.wesite.core.service.UserService;
 
 class AdminSecurityConfigurationTest {
@@ -57,6 +63,35 @@ class AdminSecurityConfigurationTest {
         mvc.perform(get("/configured-protected"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.code").value(401));
+    }
+
+    @Test
+    void readinessEndpointIsExplicitlyPublic() throws Exception {
+        context = new AnnotationConfigWebApplicationContext();
+        context.setServletContext(new MockServletContext());
+        context.register(TestWebConfiguration.class);
+        context.refresh();
+        MockMvc mvc = MockMvcBuilders.webAppContextSetup(context).build();
+
+        mvc.perform(get("/api/readyz"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("UP"));
+    }
+
+    @Test
+    void readinessDependencyFailureRemainsARealServiceUnavailableResponse() throws Exception {
+        context = new AnnotationConfigWebApplicationContext();
+        context.setServletContext(new MockServletContext());
+        context.register(TestWebConfiguration.class);
+        context.refresh();
+        JdbcTemplate database = context.getBean(JdbcTemplate.class);
+        when(database.queryForObject("SELECT 1", Integer.class))
+            .thenThrow(new DataAccessResourceFailureException("database unavailable"));
+        MockMvc mvc = MockMvcBuilders.webAppContextSetup(context).build();
+
+        mvc.perform(get("/api/readyz"))
+            .andExpect(status().isServiceUnavailable())
+            .andExpect(jsonPath("$.status").value("DOWN"));
     }
 
     @Test
@@ -94,12 +129,29 @@ class AdminSecurityConfigurationTest {
 
     @Configuration
     @EnableWebMvc
-    @Import({ InterceptorConfig.class, AdminInterceptor.class, ConfiguredProbeController.class })
+    @Import({ InterceptorConfig.class, AdminInterceptor.class, ConfiguredProbeController.class,
+        ReadinessController.class })
     static class TestWebConfiguration {
 
         @Bean
         UserService userService() {
             return mock(UserService.class);
+        }
+
+        @Bean
+        JdbcTemplate jdbcTemplate() {
+            JdbcTemplate database = mock(JdbcTemplate.class);
+            when(database.queryForObject("SELECT 1", Integer.class)).thenReturn(1);
+            return database;
+        }
+
+        @Bean
+        RedisConnectionFactory redisConnectionFactory() {
+            RedisConnection connection = mock(RedisConnection.class);
+            when(connection.ping()).thenReturn("PONG");
+            RedisConnectionFactory factory = mock(RedisConnectionFactory.class);
+            when(factory.getConnection()).thenReturn(connection);
+            return factory;
         }
     }
 
