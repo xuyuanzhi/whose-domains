@@ -201,9 +201,38 @@ if run_check web; then
 fi
 printf 'http://127.0.0.1:8080/api/readyz\n' > "$TEST_ROOT/apps/web/releases/v1/HEALTH_URL"
 
+for invalid_timestamp in '2026-99-03T12:34:56Z' '2026-09-03T99:99:99Z'; do
+  printf '%s\n' "$invalid_timestamp" > "$TEST_ROOT/apps/web/releases/v1/DEPLOYED_AT"
+  if run_check web; then
+    fail "out-of-range DEPLOYED_AT was accepted: $invalid_timestamp"
+  fi
+done
+printf '%s\n' '2026-09-03T12:34:56Z' > "$TEST_ROOT/apps/web/releases/v1/DEPLOYED_AT"
+
 # shellcheck source=/dev/null
 source "$APP_FUNCTIONS"
 printf 'deploying\n' > "$TEST_ROOT/apps/web/releases/v1/STATUS"
+
+printf 'legacy-http-200\n' > "$TEST_ROOT/apps/web/releases/v1/HEALTH_MODE"
+reset_calls
+if PATH="$TEST_ROOT/fake-bin:$PATH" WESITE_TEST_CALL_LOG="$CALL_LOG" \
+    WESITE_APPS_BASE_DIR="$TEST_ROOT/apps" \
+    wesite_check_release_health web "$TEST_ROOT/apps/web/releases/v1"; then
+  fail 'deploying release accepted legacy HTTP 200 health mode'
+fi
+[[ ! -s "$CALL_LOG" ]] || fail 'invalid deploying health mode called a service or endpoint'
+printf 'readiness\n' > "$TEST_ROOT/apps/web/releases/v1/HEALTH_MODE"
+
+printf 'http://127.0.0.1:8080/legacy\n' > "$TEST_ROOT/apps/web/releases/v1/HEALTH_URL"
+reset_calls
+if PATH="$TEST_ROOT/fake-bin:$PATH" WESITE_TEST_CALL_LOG="$CALL_LOG" \
+    WESITE_APPS_BASE_DIR="$TEST_ROOT/apps" \
+    wesite_check_release_health web "$TEST_ROOT/apps/web/releases/v1"; then
+  fail 'deploying release accepted a non-default health URL'
+fi
+[[ ! -s "$CALL_LOG" ]] || fail 'invalid deploying health URL called a service or endpoint'
+printf 'http://127.0.0.1:8080/api/readyz\n' > "$TEST_ROOT/apps/web/releases/v1/HEALTH_URL"
+
 reset_calls
 PATH="$TEST_ROOT/fake-bin:$PATH" WESITE_TEST_CALL_LOG="$CALL_LOG" \
   WESITE_APPS_BASE_DIR="$TEST_ROOT/apps" \
@@ -212,4 +241,4 @@ PATH="$TEST_ROOT/fake-bin:$PATH" WESITE_TEST_CALL_LOG="$CALL_LOG" \
 grep -Fq 'wesite-web.service' "$CALL_LOG" || fail 'deploying release did not check web service'
 assert_no_other_app wesite-admin.service 8082
 
-printf 'Single application health-check tests passed: 15.\n'
+printf 'Single application health-check tests passed: 20.\n'

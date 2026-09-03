@@ -65,6 +65,7 @@ wesite_load_release_metadata() {
   local health_mode
   local health_url
   local selected_port
+  local normalized_deployed_at
 
   [[ -n "${WESITE_SELECTED_NAME:-}" ]] || return 1
   [[ -d "$release_dir" ]] || return 1
@@ -89,6 +90,8 @@ wesite_load_release_metadata() {
   [[ "$version" == "$release_name" && "$version" =~ ^[A-Za-z0-9._-]+$ ]] || return 1
   [[ "$sha256" =~ ^[0-9a-f]{64}$ ]] || return 1
   [[ "$deployed_at" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] || return 1
+  normalized_deployed_at="$(LC_ALL=C TZ=UTC0 date -u -d "$deployed_at" '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null)" || return 1
+  [[ "$normalized_deployed_at" == "$deployed_at" ]] || return 1
   case "$status" in deploying|successful|failed) ;; *) return 1 ;; esac
   case "$health_mode" in readiness|legacy-http-200) ;; *) return 1 ;; esac
 
@@ -113,7 +116,11 @@ wesite_check_release_health() {
   wesite_release_directory_is_selected "$release_dir" || return 1
   wesite_load_release_metadata "$release_dir" || return 1
   case "$WESITE_RELEASE_STATUS" in
-    deploying|successful) ;;
+    deploying)
+      [[ "$WESITE_RELEASE_HEALTH_MODE" == readiness ]] || return 1
+      [[ "$WESITE_RELEASE_HEALTH_URL" == "$WESITE_SELECTED_DEFAULT_HEALTH_URL" ]] || return 1
+      ;;
+    successful) ;;
     *) return 1 ;;
   esac
 
