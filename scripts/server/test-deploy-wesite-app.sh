@@ -127,7 +127,34 @@ case "${1:-}" in
   *) exit 64 ;;
 esac
 EOF
-  chmod +x "$fixture/fake-bin/systemctl" "$fixture/fake-bin/curl" "$fixture/fake-bin/unzip"
+
+  cat > "$fixture/fake-bin/flock" <<'EOF'
+#!/bin/sh
+if [ -n "${WESITE_TEST_SWAP_SOURCE_ON_LOCK:-}" ] \
+    && [ ! -e "$WESITE_TEST_SOURCE_SWAPPED" ]; then
+  rm -f "$WESITE_TEST_SWAP_SOURCE_ON_LOCK"
+  ln -s "$WESITE_TEST_SWAP_SOURCE_TARGET" "$WESITE_TEST_SWAP_SOURCE_ON_LOCK"
+  : > "$WESITE_TEST_SOURCE_SWAPPED"
+fi
+exec /usr/bin/flock "$@"
+EOF
+
+  cat > "$fixture/fake-bin/mv" <<'EOF'
+#!/bin/sh
+destination=''
+for argument in "$@"; do
+  destination="$argument"
+done
+/usr/bin/mv "$@" || exit $?
+if [ -n "${WESITE_TEST_SIGNAL_AFTER_PREVIOUS:-}" ] \
+    && [ "${destination%/}" = "${WESITE_TEST_SIGNAL_AFTER_PREVIOUS%/}" ] \
+    && [ ! -e "$WESITE_TEST_PREVIOUS_SIGNAL_SENT" ]; then
+  : > "$WESITE_TEST_PREVIOUS_SIGNAL_SENT"
+  kill -TERM "$PPID"
+fi
+EOF
+  chmod +x "$fixture/fake-bin/systemctl" "$fixture/fake-bin/curl" \
+    "$fixture/fake-bin/unzip" "$fixture/fake-bin/flock" "$fixture/fake-bin/mv"
 }
 
 run_deploy() {
@@ -161,6 +188,11 @@ run_deploy() {
     WESITE_TEST_SIGNAL_SENT="$fixture/signal-sent" \
     WESITE_TEST_MUTATE_SOURCE="${WESITE_TEST_MUTATE_SOURCE:-}" \
     WESITE_TEST_SOURCE_MUTATED="$fixture/source-mutated" \
+    WESITE_TEST_SWAP_SOURCE_ON_LOCK="${WESITE_TEST_SWAP_SOURCE_ON_LOCK:-}" \
+    WESITE_TEST_SWAP_SOURCE_TARGET="${WESITE_TEST_SWAP_SOURCE_TARGET:-}" \
+    WESITE_TEST_SOURCE_SWAPPED="$fixture/source-swapped" \
+    WESITE_TEST_SIGNAL_AFTER_PREVIOUS="${WESITE_TEST_SIGNAL_AFTER_PREVIOUS:-}" \
+    WESITE_TEST_PREVIOUS_SIGNAL_SENT="$fixture/previous-signal-sent" \
     SUDO_USER="${WESITE_TEST_SUDO_USER:-}" \
     bash "$DEPLOY_SCRIPT" "$app" "$version" "$jar"
 }
@@ -368,6 +400,57 @@ test_private_copy_closes_source_toctou() {
     http://127.0.0.1:8080/api/readyz wesite-web.jar
 }
 
+test_path_replacement_cannot_publish_outside_inode() {
+  local fixture="$TEST_ROOT/path-replacement"
+  local published="$fixture/apps/web/releases/v2/wesite-web.jar"
+  make_fixture "$fixture"
+  cp "$fixture/incoming/web.jar" "$fixture/original-web.jar"
+
+  if WESITE_TEST_SWAP_SOURCE_ON_LOCK="$fixture/incoming/web.jar" \
+      WESITE_TEST_SWAP_SOURCE_TARGET="$fixture/outside/outside.jar" \
+      run_deploy "$fixture" web v2 "$fixture/incoming/web.jar"; then
+    cmp -s "$fixture/original-web.jar" "$published" \
+      || fail 'path replacement changed the opened inode published as Web'
+  else
+    assert_link_target "$fixture/apps/web/current" "$fixture/apps/web/releases/v1"
+  fi
+  [[ -e "$fixture/source-swapped" ]] || fail 'path replacement fixture did not run'
+  if [[ -f "$published" ]] && cmp -s "$fixture/outside/outside.jar" "$published"; then
+    fail 'outside symlink target was published after path validation'
+  fi
+}
+
+test_sigterm_after_previous_commit_restores_both_links() {
+  local fixture="$TEST_ROOT/previous-signal-rollback"
+  make_fixture "$fixture"
+
+  if WESITE_TEST_SIGNAL_AFTER_PREVIOUS="$fixture/apps/web/previous" \
+      run_deploy "$fixture" web v2 "$fixture/incoming/web.jar"; then
+    fail 'deployment unexpectedly succeeded after SIGTERM in previous commit window'
+  fi
+  [[ -e "$fixture/previous-signal-sent" ]] || fail 'previous commit signal fixture did not run'
+  assert_link_target "$fixture/apps/web/current" "$fixture/apps/web/releases/v1"
+  assert_link_target "$fixture/apps/web/previous" "$fixture/apps/web/releases/v0"
+  [[ "$(cat "$fixture/apps/web/releases/v2/STATUS")" == failed ]] \
+    || fail 'candidate interrupted during previous commit was not marked failed'
+  assert_no_call_for "$fixture" wesite-admin.service
+}
+
+test_invalid_previous_fails_closed_before_switch() {
+  local fixture="$TEST_ROOT/invalid-previous"
+  make_fixture "$fixture"
+  rm -f "$fixture/apps/web/previous"
+  ln -s "$fixture/apps/admin/releases/v0" "$fixture/apps/web/previous"
+
+  if run_deploy "$fixture" web v2 "$fixture/incoming/web.jar"; then
+    fail 'deployment accepted previous outside the selected application'
+  fi
+  assert_link_target "$fixture/apps/web/current" "$fixture/apps/web/releases/v1"
+  assert_link_target "$fixture/apps/web/previous" "$fixture/apps/admin/releases/v0"
+  [[ ! -e "$fixture/apps/web/releases/v2" ]] || fail 'invalid previous published a candidate'
+  ! grep -Fq 'systemctl ' "$fixture/calls.log" || fail 'invalid previous called systemctl'
+}
+
 test_successful_web_deploy_is_isolated
 test_successful_admin_deploy_is_isolated
 test_failed_readiness_rolls_back_only_selected_app
@@ -377,4 +460,7 @@ test_contended_lock_rejects_deploy
 test_sigterm_after_switch_rolls_back
 test_legacy_overrides_require_direct_root
 test_private_copy_closes_source_toctou
-printf 'Independent deployment script tests passed: 9 scenarios.\n'
+test_path_replacement_cannot_publish_outside_inode
+test_invalid_previous_fails_closed_before_switch
+test_sigterm_after_previous_commit_restores_both_links
+printf 'Independent deployment script tests passed: 12 scenarios.\n'

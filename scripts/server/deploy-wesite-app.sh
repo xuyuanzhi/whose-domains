@@ -64,6 +64,20 @@ fi
 INCOMING_ROOT="$(realpath -e "${WESITE_INCOMING_DIR:-/var/lib/wesite-deploy/incoming}")"
 INPUT_REAL="$(realpath -e "$INPUT_JAR")"
 [[ "$INPUT_REAL" == "$INCOMING_ROOT"/* ]] || fail 'staged JAR is outside incoming root'
+INPUT_LSTAT="$(LC_ALL=C stat -c '%F|%d:%i' -- "$INPUT_REAL")" \
+  || fail 'invalid staged JAR'
+case "$INPUT_LSTAT" in
+  'regular file|'*) ;;
+  *) fail 'invalid staged JAR' ;;
+esac
+exec {INPUT_FD}< "$INPUT_REAL" || fail 'cannot open staged JAR'
+INPUT_FSTAT="$(LC_ALL=C stat -Lc '%F|%d:%i' -- "/proc/self/fd/$INPUT_FD")" \
+  || fail 'cannot inspect opened staged JAR'
+[[ "$INPUT_FSTAT" == "$INPUT_LSTAT" ]] || fail 'staged JAR changed while opening'
+INPUT_FD_REAL="$(realpath -e "/proc/self/fd/$INPUT_FD")" \
+  || fail 'opened staged JAR no longer resolves'
+[[ "$INPUT_FD_REAL" == "$INCOMING_ROOT"/* ]] \
+  || fail 'opened staged JAR is outside incoming root'
 
 exec 9> "$LOCK_FILE"
 flock -n 9 || fail 'Another Whose.Domains deployment or health recovery is already running'
@@ -82,16 +96,32 @@ elif [[ -e "$CURRENT_LINK" ]]; then
   fail "$CURRENT_LINK exists but is not a symbolic link"
 fi
 
+PREVIOUS_ORIGINAL_STATE=missing
+PREVIOUS_ORIGINAL_TARGET=''
+if [[ -L "$PREVIOUS_LINK" ]]; then
+  PREVIOUS_ORIGINAL_TARGET="$(realpath -e "$PREVIOUS_LINK")" \
+    || fail 'previous release link is broken'
+  wesite_release_directory_is_selected "$PREVIOUS_ORIGINAL_TARGET" \
+    || fail 'previous release is outside the selected application'
+  wesite_load_release_metadata "$PREVIOUS_ORIGINAL_TARGET" \
+    || fail 'previous release metadata is invalid'
+  [[ "$WESITE_RELEASE_STATUS" == successful ]] || fail 'previous release is not successful'
+  PREVIOUS_ORIGINAL_STATE=target
+elif [[ -e "$PREVIOUS_LINK" ]]; then
+  fail "$PREVIOUS_LINK exists but is not a symbolic link"
+fi
+
 TEMP_RELEASE="$RELEASES_DIR/.${VERSION}.tmp.$$"
 NEXT_LINK="$APP_BASE/.current.${VERSION}.tmp.$$"
 PREVIOUS_NEXT="$APP_BASE/.previous.${VERSION}.tmp.$$"
+PREVIOUS_RESTORE="$APP_BASE/.previous.rollback.${VERSION}.tmp.$$"
 CURRENT_SWITCHED=0
 
 cleanup_artifacts() {
   if [[ -n "$TEMP_RELEASE" ]]; then
     rm -rf -- "$TEMP_RELEASE"
   fi
-  rm -f -- "$NEXT_LINK" "$PREVIOUS_NEXT"
+  rm -f -- "$NEXT_LINK" "$PREVIOUS_NEXT" "$PREVIOUS_RESTORE"
 }
 
 switch_current() {
@@ -124,12 +154,28 @@ restart_and_check_release() {
   wait_for_health "$WESITE_RELEASE_HEALTH_URL" "$WESITE_RELEASE_HEALTH_MODE"
 }
 
+restore_previous_state() {
+  case "$PREVIOUS_ORIGINAL_STATE" in
+    target)
+      rm -f -- "$PREVIOUS_RESTORE"
+      ln -s "$PREVIOUS_ORIGINAL_TARGET" "$PREVIOUS_RESTORE"
+      mv -Tf "$PREVIOUS_RESTORE" "$PREVIOUS_LINK"
+      ;;
+    missing)
+      rm -f -- "$PREVIOUS_LINK"
+      ;;
+    *) return 1 ;;
+  esac
+}
+
 rollback_selected_app() {
   printf 'Deployment failed; rolling back %s.\n' "$WESITE_SELECTED_NAME" >&2
   printf '%s\n' failed > "$RELEASE_DIR/STATUS"
   if [[ -n "$OLD_TARGET" && -d "$OLD_TARGET" ]]; then
     if switch_current "$OLD_TARGET"; then
       CURRENT_SWITCHED=0
+      restore_previous_state \
+        || printf 'ERROR: previous release link could not be restored\n' >&2
       if ! wesite_load_release_metadata "$OLD_TARGET" \
           || [[ "$WESITE_RELEASE_STATUS" != successful ]] \
           || ! systemctl restart "$WESITE_SELECTED_SERVICE" \
@@ -138,11 +184,15 @@ rollback_selected_app() {
       fi
     else
       printf 'ERROR: rollback link switch failed; stopping %s\n' "$WESITE_SELECTED_NAME" >&2
+      restore_previous_state \
+        || printf 'ERROR: previous release link could not be restored\n' >&2
       systemctl stop "$WESITE_SELECTED_SERVICE" || true
     fi
   else
     rm -f -- "$CURRENT_LINK"
     CURRENT_SWITCHED=0
+    restore_previous_state \
+      || printf 'ERROR: previous release link could not be restored\n' >&2
     systemctl stop "$WESITE_SELECTED_SERVICE" || true
   fi
 }
@@ -164,8 +214,10 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 
 install -d -m 0755 "$TEMP_RELEASE"
-install -m 0444 "$INPUT_REAL" "$TEMP_RELEASE/$WESITE_SELECTED_JAR_NAME"
+install -m 0444 "/proc/self/fd/$INPUT_FD" "$TEMP_RELEASE/$WESITE_SELECTED_JAR_NAME"
+exec {INPUT_FD}<&-
 PRIVATE_JAR="$TEMP_RELEASE/$WESITE_SELECTED_JAR_NAME"
+[[ -f "$PRIVATE_JAR" && ! -L "$PRIVATE_JAR" ]] || fail 'invalid private JAR copy'
 unzip -tqq "$PRIVATE_JAR" || fail 'invalid JAR archive'
 MANIFEST="$(unzip -p "$PRIVATE_JAR" META-INF/MANIFEST.MF | tr -d '\r')" \
   || fail 'JAR manifest is missing'
