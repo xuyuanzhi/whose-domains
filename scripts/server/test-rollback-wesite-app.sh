@@ -30,6 +30,10 @@ assert_no_call_for() {
     || fail "unexpected call containing: $forbidden"
 }
 
+link_inode() {
+  stat -c '%i' -- "$1"
+}
+
 write_metadata() {
   local release_dir="$1"
   local app="$2"
@@ -81,7 +85,19 @@ if [ "$url" = "${WESITE_TEST_FAIL_FIRST_URL:-}" ] && [ ! -e "$WESITE_TEST_HEALTH
 fi
 printf '{"status":"UP"}\n200'
 EOF
-  chmod +x "$fixture/fake-bin/systemctl" "$fixture/fake-bin/curl"
+
+  cat > "$fixture/fake-bin/mv" <<'EOF'
+#!/bin/sh
+destination=''
+for argument in "$@"; do destination="$argument"; done
+/usr/bin/mv "$@" || exit $?
+if [ "$destination" = "${WESITE_TEST_SIGNAL_AFTER_PREVIOUS:-}" ] \
+    && [ ! -e "$WESITE_TEST_PREVIOUS_SIGNAL_SENT" ]; then
+  : > "$WESITE_TEST_PREVIOUS_SIGNAL_SENT"
+  kill -TERM "$PPID"
+fi
+EOF
+  chmod +x "$fixture/fake-bin/systemctl" "$fixture/fake-bin/curl" "$fixture/fake-bin/mv"
 }
 
 run_rollback() {
@@ -98,6 +114,8 @@ run_rollback() {
     WESITE_TEST_HEALTH_FAILED="$fixture/health-failed" \
     WESITE_TEST_SIGNAL_ON_SERVICE="${WESITE_TEST_SIGNAL_ON_SERVICE:-}" \
     WESITE_TEST_SIGNAL_SENT="$fixture/signal-sent" \
+    WESITE_TEST_SIGNAL_AFTER_PREVIOUS="${WESITE_TEST_SIGNAL_AFTER_PREVIOUS:-}" \
+    WESITE_TEST_PREVIOUS_SIGNAL_SENT="$fixture/previous-signal-sent" \
     bash "$ROLLBACK_SCRIPT" "$app"
 }
 
@@ -179,14 +197,20 @@ test_contended_lock_fails_without_changes() {
 
 test_unhealthy_target_restores_current_and_keeps_previous() {
   local fixture="$TEST_ROOT/unhealthy"
+  local previous_inode
   make_fixture "$fixture"
+  previous_inode="$(link_inode "$fixture/apps/web/previous")"
   if WESITE_TEST_FAIL_FIRST_URL=http://127.0.0.1:8080/rollback-v0 run_rollback "$fixture" web; then
     fail 'unhealthy rollback target accepted'
   fi
   assert_link_target "$fixture/apps/web/current" "$fixture/apps/web/releases/v1"
   assert_link_target "$fixture/apps/web/previous" "$fixture/apps/web/releases/v0"
+  [[ "$(link_inode "$fixture/apps/web/previous")" == "$previous_inode" ]] \
+    || fail 'unhealthy target replaced the unchanged previous link'
   [[ "$(grep -Fc 'systemctl restart wesite-web.service' "$fixture/calls.log")" -eq 2 ]] \
     || fail 'unhealthy target and restored current were not each restarted once'
+  grep -Fq 'curl http://127.0.0.1:8080/current-v1' "$fixture/calls.log" \
+    || fail 'restored current was not checked with its recorded health URL'
   assert_link_target "$fixture/apps/admin/current" "$fixture/apps/admin/releases/v1"
   assert_link_target "$fixture/apps/admin/previous" "$fixture/apps/admin/releases/v0"
   assert_no_call_for "$fixture" wesite-admin.service
@@ -202,6 +226,29 @@ test_sigterm_restores_selected_pair_without_touching_other_app() {
   [[ -e "$fixture/signal-sent" ]] || fail 'signal fixture did not run'
   assert_link_target "$fixture/apps/web/current" "$fixture/apps/web/releases/v1"
   assert_link_target "$fixture/apps/web/previous" "$fixture/apps/web/releases/v0"
+  [[ "$(grep -Fc 'systemctl restart wesite-web.service' "$fixture/calls.log")" -eq 2 ]] \
+    || fail 'SIGTERM recovery did not restart the original current release'
+  grep -Fq 'curl http://127.0.0.1:8080/current-v1' "$fixture/calls.log" \
+    || fail 'SIGTERM recovery did not check the original current health URL'
+  assert_link_target "$fixture/apps/admin/current" "$fixture/apps/admin/releases/v1"
+  assert_link_target "$fixture/apps/admin/previous" "$fixture/apps/admin/releases/v0"
+  assert_no_call_for "$fixture" wesite-admin.service
+  assert_no_call_for "$fixture" 8082
+}
+
+test_sigterm_after_previous_commit_restores_entry_pair() {
+  local fixture="$TEST_ROOT/previous-signal"
+  make_fixture "$fixture"
+  if WESITE_TEST_SIGNAL_AFTER_PREVIOUS="$fixture/apps/web/previous" run_rollback "$fixture" web; then
+    fail 'rollback unexpectedly succeeded after SIGTERM during previous commit'
+  fi
+  [[ -e "$fixture/previous-signal-sent" ]] || fail 'previous commit signal fixture did not run'
+  assert_link_target "$fixture/apps/web/current" "$fixture/apps/web/releases/v1"
+  assert_link_target "$fixture/apps/web/previous" "$fixture/apps/web/releases/v0"
+  [[ "$(grep -Fc 'systemctl restart wesite-web.service' "$fixture/calls.log")" -eq 2 ]] \
+    || fail 'post-previous-commit recovery did not restart the original current release'
+  grep -Fq 'curl http://127.0.0.1:8080/current-v1' "$fixture/calls.log" \
+    || fail 'post-previous-commit recovery did not check the original current URL'
   assert_link_target "$fixture/apps/admin/current" "$fixture/apps/admin/releases/v1"
   assert_link_target "$fixture/apps/admin/previous" "$fixture/apps/admin/releases/v0"
   assert_no_call_for "$fixture" wesite-admin.service
@@ -214,4 +261,5 @@ test_validation_rejections_fail_closed
 test_contended_lock_fails_without_changes
 test_unhealthy_target_restores_current_and_keeps_previous
 test_sigterm_restores_selected_pair_without_touching_other_app
-printf 'Independent rollback script tests passed: 6 scenarios.\n'
+test_sigterm_after_previous_commit_restores_entry_pair
+printf 'Independent rollback script tests passed: 7 scenarios.\n'

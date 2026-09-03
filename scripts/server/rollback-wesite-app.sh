@@ -62,6 +62,7 @@ PREVIOUS_NEXT="$APP_BASE/.previous.rollback.tmp.$$"
 CURRENT_RESTORE="$APP_BASE/.current.restore.tmp.$$"
 PREVIOUS_RESTORE="$APP_BASE/.previous.restore.tmp.$$"
 TRANSACTION_ACTIVE=0
+PREVIOUS_MAY_HAVE_CHANGED=0
 
 cleanup_artifacts() {
   rm -f -- "$CURRENT_NEXT" "$PREVIOUS_NEXT" "$CURRENT_RESTORE" "$PREVIOUS_RESTORE"
@@ -109,8 +110,13 @@ restart_and_check_recorded_contract() {
 }
 
 restore_original_pair() {
-  switch_link "$ORIGINAL_CURRENT_TARGET" "$CURRENT_RESTORE" "$CURRENT_LINK" || return 1
-  switch_link "$ORIGINAL_PREVIOUS_TARGET" "$PREVIOUS_RESTORE" "$PREVIOUS_LINK"
+  local restore_failed=0
+
+  switch_link "$ORIGINAL_CURRENT_TARGET" "$CURRENT_RESTORE" "$CURRENT_LINK" || restore_failed=1
+  if (( PREVIOUS_MAY_HAVE_CHANGED == 1 )); then
+    switch_link "$ORIGINAL_PREVIOUS_TARGET" "$PREVIOUS_RESTORE" "$PREVIOUS_LINK" || restore_failed=1
+  fi
+  return "$restore_failed"
 }
 
 restore_original_current_health() {
@@ -144,6 +150,7 @@ TRANSACTION_ACTIVE=1
 switch_link "$ORIGINAL_PREVIOUS_TARGET" "$CURRENT_NEXT" "$CURRENT_LINK"
 restart_and_check_recorded_contract "$ORIGINAL_PREVIOUS_TARGET" "$TARGET_MODE" "$TARGET_URL" \
   || fail "$WESITE_SELECTED_SERVICE did not become ready after rollback"
+PREVIOUS_MAY_HAVE_CHANGED=1
 switch_link "$ORIGINAL_CURRENT_TARGET" "$PREVIOUS_NEXT" "$PREVIOUS_LINK"
 TRANSACTION_ACTIVE=0
 
