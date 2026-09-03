@@ -76,6 +76,13 @@ EOF
 #!/usr/bin/env bash
 printf 'systemctl %s\n' "$*" >> "$WESITE_TEST_CALL_LOG"
 EOF
+  cat > "$fake_bin/systemd-tmpfiles" <<'EOF'
+#!/usr/bin/env bash
+printf 'systemd-tmpfiles %s\n' "$*" >> "$WESITE_TEST_CALL_LOG"
+mkdir -p "$WESITE_ROOT_PREFIX/run/lock/wesite"
+/usr/bin/chmod 0755 "$WESITE_ROOT_PREFIX/run/lock/wesite"
+/usr/bin/chown 0:0 "$WESITE_ROOT_PREFIX/run/lock/wesite"
+EOF
   chmod +x "$fake_bin"/*
 }
 
@@ -505,6 +512,7 @@ EXPECTED_PAYLOADS=(
   deploy/systemd/wesite-health-monitor.timer
   deploy/systemd/wesite-web.service
   deploy/systemd/wesite.env.example
+  deploy/tmpfiles.d/wesite.conf
   scripts/server/check-wesite-app.sh
   scripts/server/check-wesite-services.sh
   scripts/server/deploy-wesite-app.sh

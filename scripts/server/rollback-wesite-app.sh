@@ -21,7 +21,7 @@ wesite_select_app "$APP" || usage
 
 HEALTH_ATTEMPTS="${WESITE_HEALTH_ATTEMPTS:-30}"
 HEALTH_INTERVAL_SECONDS="${WESITE_HEALTH_INTERVAL_SECONDS:-2}"
-LOCK_FILE="${WESITE_DEPLOY_LOCK_FILE:-/run/lock/wesite-deploy.lock}"
+LOCK_FILE="${WESITE_DEPLOY_LOCK_FILE:-/run/lock/wesite/wesite-deploy.lock}"
 APP_BASE="$WESITE_SELECTED_BASE"
 CURRENT_LINK="$APP_BASE/current"
 PREVIOUS_LINK="$APP_BASE/previous"
@@ -31,7 +31,8 @@ PREVIOUS_LINK="$APP_BASE/previous"
 [[ "$LOCK_FILE" == /* ]] || fail 'WESITE_DEPLOY_LOCK_FILE must be an absolute path'
 command -v flock >/dev/null 2>&1 || fail 'flock is required'
 
-exec 9> "$LOCK_FILE"
+wesite_open_deployment_lock "$LOCK_FILE" \
+  || fail 'deployment lock path is unsafe or unavailable'
 flock -n 9 || fail 'Another Whose.Domains deployment or health recovery is already running'
 
 read_successful_link() {

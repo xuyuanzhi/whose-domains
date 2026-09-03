@@ -30,7 +30,7 @@ HEALTH_MODE="${WESITE_HEALTH_RESPONSE_MODE:-readiness}"
 HEALTH_URL="${WESITE_APP_HEALTH_URL:-$WESITE_SELECTED_DEFAULT_HEALTH_URL}"
 HEALTH_ATTEMPTS="${WESITE_HEALTH_ATTEMPTS:-30}"
 HEALTH_INTERVAL_SECONDS="${WESITE_HEALTH_INTERVAL_SECONDS:-2}"
-LOCK_FILE="${WESITE_DEPLOY_LOCK_FILE:-/run/lock/wesite-deploy.lock}"
+LOCK_FILE="${WESITE_DEPLOY_LOCK_FILE:-/run/lock/wesite/wesite-deploy.lock}"
 APP_BASE="$WESITE_SELECTED_BASE"
 RELEASES_DIR="$APP_BASE/releases"
 CURRENT_LINK="$APP_BASE/current"
@@ -79,7 +79,8 @@ INPUT_FD_REAL="$(realpath -e "/proc/self/fd/$INPUT_FD")" \
 [[ "$INPUT_FD_REAL" == "$INCOMING_ROOT"/* ]] \
   || fail 'opened staged JAR is outside incoming root'
 
-exec 9> "$LOCK_FILE"
+wesite_open_deployment_lock "$LOCK_FILE" \
+  || fail 'deployment lock path is unsafe or unavailable'
 flock -n 9 || fail 'Another Whose.Domains deployment or health recovery is already running'
 
 install -d -m 0755 "$RELEASES_DIR"

@@ -4,6 +4,80 @@ WESITE_APP_FUNCTIONS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 # shellcheck source=wesite-health-functions.sh
 source "$WESITE_APP_FUNCTIONS_DIR/wesite-health-functions.sh"
 
+wesite_open_deployment_lock() {
+  local lock_path="$1"
+  local lock_parent
+  local lock_name
+  local parent_real
+  local parent_owner
+  local parent_permissions
+  local path_owner
+  local path_permissions
+  local path_identity
+  local descriptor_owner
+  local descriptor_permissions
+  local descriptor_identity
+  local previous_umask
+  local open_status
+
+  [[ "$lock_path" == /* ]] || return 1
+  lock_parent="${lock_path%/*}"
+  lock_name="${lock_path##*/}"
+  [[ -n "$lock_parent" && -n "$lock_name" && "$lock_name" != . && "$lock_name" != .. ]] \
+    || return 1
+  [[ -d "$lock_parent" && ! -L "$lock_parent" ]] || return 1
+  parent_real="$(realpath -e -- "$lock_parent")" || return 1
+  [[ "$parent_real" == "$lock_parent" ]] || return 1
+
+  IFS='|' read -r parent_owner parent_permissions \
+    < <(LC_ALL=C stat -Lc '%u|%A' -- "$parent_real") || return 1
+  [[ "$parent_owner" == "$EUID" ]] || return 1
+  [[ "${parent_permissions:5:1}" != w && "${parent_permissions:8:1}" != w ]] \
+    || return 1
+
+  if [[ -e "$lock_path" || -L "$lock_path" ]]; then
+    [[ -f "$lock_path" && ! -L "$lock_path" ]] || return 1
+    IFS='|' read -r path_owner path_permissions path_identity \
+      < <(LC_ALL=C stat -c '%u|%A|%d:%i' -- "$lock_path") || return 1
+    [[ "$path_owner" == "$EUID" ]] || return 1
+    [[ "${path_permissions:5:1}" != w && "${path_permissions:8:1}" != w ]] \
+      || return 1
+  fi
+
+  previous_umask="$(umask)"
+  umask 077
+  if exec 9<> "$lock_path"; then
+    open_status=0
+  else
+    open_status=$?
+  fi
+  umask "$previous_umask"
+  (( open_status == 0 )) || return 1
+
+  if [[ ! -f "$lock_path" || -L "$lock_path" || ! -f /proc/self/fd/9 ]]; then
+    exec 9>&-
+    return 1
+  fi
+  IFS='|' read -r path_owner path_permissions path_identity \
+    < <(LC_ALL=C stat -c '%u|%A|%d:%i' -- "$lock_path") || {
+      exec 9>&-
+      return 1
+    }
+  IFS='|' read -r descriptor_owner descriptor_permissions descriptor_identity \
+    < <(LC_ALL=C stat -Lc '%u|%A|%d:%i' -- /proc/self/fd/9) || {
+      exec 9>&-
+      return 1
+    }
+  if [[ "$path_owner" != "$EUID" || "$descriptor_owner" != "$EUID" \
+      || "$path_identity" != "$descriptor_identity" \
+      || "${path_permissions:5:1}" == w || "${path_permissions:8:1}" == w \
+      || "${descriptor_permissions:5:1}" == w \
+      || "${descriptor_permissions:8:1}" == w ]]; then
+    exec 9>&-
+    return 1
+  fi
+}
+
 wesite_select_app() {
   case "${1:-}" in
     web)

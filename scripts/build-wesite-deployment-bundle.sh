@@ -89,6 +89,7 @@ READ_ONLY_PAYLOADS=(
   deploy/systemd/wesite-health-monitor.timer
   deploy/systemd/wesite-web.service
   deploy/systemd/wesite.env.example
+  deploy/tmpfiles.d/wesite.conf
   scripts/server/wesite-app-functions.sh
   scripts/server/wesite-health-functions.sh
 )

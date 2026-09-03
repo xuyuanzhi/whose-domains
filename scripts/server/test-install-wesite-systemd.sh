@@ -33,6 +33,7 @@ make_bundle() {
     deploy/systemd/wesite-health-monitor.service
     deploy/systemd/wesite-health-monitor.timer
     deploy/systemd/wesite.env.example
+    deploy/tmpfiles.d/wesite.conf
     scripts/server/deploy-wesite-app.sh
     scripts/server/rollback-wesite-app.sh
     scripts/server/check-wesite-app.sh
@@ -46,7 +47,8 @@ make_bundle() {
   )
 
   mkdir -p "$bundle/deploy/config" "$bundle/deploy/sudoers" \
-    "$bundle/deploy/systemd" "$bundle/scripts/server"
+    "$bundle/deploy/systemd" "$bundle/deploy/tmpfiles.d" \
+    "$bundle/scripts/server"
   for path in "${payloads[@]}"; do
     cp -- "$REPOSITORY_ROOT/$path" "$bundle/$path"
   done
@@ -122,6 +124,13 @@ EOF
   cat > "$fake_bin/systemctl" <<'EOF'
 #!/usr/bin/env bash
 printf 'systemctl %s\n' "$*" >> "$WESITE_TEST_CALL_LOG"
+EOF
+  cat > "$fake_bin/systemd-tmpfiles" <<'EOF'
+#!/usr/bin/env bash
+printf 'systemd-tmpfiles %s\n' "$*" >> "$WESITE_TEST_CALL_LOG"
+mkdir -p "$WESITE_ROOT_PREFIX/run/lock/wesite"
+chmod 0755 "$WESITE_ROOT_PREFIX/run/lock/wesite"
+chown 0:0 "$WESITE_ROOT_PREFIX/run/lock/wesite"
 EOF
   cat > "$fake_bin/sha256sum" <<'EOF'
 #!/usr/bin/env bash
@@ -310,10 +319,13 @@ grep -Fq '/usr/java/apps/admin/current/wesite-admin.jar' \
   || fail 'Admin release root was not created'
 [[ -d "$ROOT/var/lib/wesite-deploy/incoming" ]] \
   || fail 'deployment incoming directory was not created'
+[[ -d "$ROOT/run/lock/wesite" ]] \
+  || fail 'root-owned deployment lock directory was not created'
 assert_file_mode "$ROOT/usr/java/apps/web/releases" 750
 assert_file_mode "$ROOT/usr/java/apps/admin/releases" 750
 assert_file_mode "$ROOT/var/lib/wesite-deploy" 750
 assert_file_mode "$ROOT/var/lib/wesite-deploy/incoming" 750
+assert_file_mode "$ROOT/run/lock/wesite" 755
 
 [[ "$(cat "$ROOT/etc/wesite/wesite.env")" == 'KEEP_THIS_SECRET=yes' ]] \
   || fail 'existing environment file was overwritten'
@@ -359,6 +371,8 @@ grep -Fq "chown wesite-deploy:wesite-deploy $ROOT/var/lib/wesite-deploy" \
   "$SCENARIO/calls.log" || fail 'deployment home ownership was not enforced'
 grep -Fq "chown wesite-deploy:wesite-deploy $ROOT/var/lib/wesite-deploy/incoming" \
   "$SCENARIO/calls.log" || fail 'incoming ownership was not enforced'
+grep -Fxq "systemd-tmpfiles --root=$ROOT --create wesite.conf" \
+  "$SCENARIO/calls.log" || fail 'deployment lock tmpfiles policy was not applied'
 
 mapfile -t systemctl_calls < <(grep '^systemctl ' "$SCENARIO/calls.log")
 [[ "${#systemctl_calls[@]}" -eq 1 \

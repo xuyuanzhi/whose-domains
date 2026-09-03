@@ -123,7 +123,12 @@ sudo systemd-analyze verify \
   /etc/systemd/system/wesite-admin.service \
   /etc/systemd/system/wesite-health-monitor.service \
   /etc/systemd/system/wesite-health-monitor.timer
+sudo stat -c '%U:%G %a %n' /run/lock/wesite
 ```
+
+The bundled `tmpfiles.d` policy recreates the volatile deployment lock
+directory at every boot. It must report `root:root 755`; deployment, rollback,
+and health recovery refuse an unsafe or replaceable lock path.
 
 If step 2 identified missing swap and the approved plan is the bundled helper,
 run it now and repeat the swap checks before proceeding:
@@ -278,14 +283,16 @@ overrides require direct root invocation and are only for old binaries that
 predate readiness endpoints:
 
 ```bash
-sudo env WESITE_HEALTH_RESPONSE_MODE=legacy-http-200 \
+sudo -i env -u SUDO_USER -u SUDO_UID -u SUDO_GID \
+  WESITE_HEALTH_RESPONSE_MODE=legacy-http-200 \
   WESITE_APP_HEALTH_URL=http://127.0.0.1:8080/ \
   /usr/local/sbin/deploy-wesite-app web \
   "baseline-web-$BASELINE_ID" \
   "/var/lib/wesite-deploy/incoming/baseline-web-$BASELINE_ID/wesite-web.jar"
 sudo /usr/local/sbin/check-wesite-app web
 
-sudo env WESITE_HEALTH_RESPONSE_MODE=legacy-http-200 \
+sudo -i env -u SUDO_USER -u SUDO_UID -u SUDO_GID \
+  WESITE_HEALTH_RESPONSE_MODE=legacy-http-200 \
   WESITE_APP_HEALTH_URL=http://127.0.0.1:8082/ \
   /usr/local/sbin/deploy-wesite-app admin \
   "baseline-admin-$BASELINE_ID" \

@@ -266,6 +266,20 @@ assert_no_banned_commands() {
   fi
 }
 
+assert_no_dynamic_command_dispatch() {
+  local body="$1"
+  local app="$2"
+  local boundary='(^|[;&|]|[(){}][[:space:]]|[[:space:]](if|then|elif|while|until|do|!|time)[[:space:]])'
+  local assignments='([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]+[[:space:]]+)*'
+  local wrappers='((command|builtin|env)[[:space:]]+)*'
+  local unsafe_marker='([$]|[\\]|["]|'"'"')'
+  local obfuscated_word="[^[:space:];&|(){}=]*${unsafe_marker}"
+
+  if grep -Eq "${boundary}[[:space:]]*${assignments}${wrappers}${obfuscated_word}" "$body"; then
+    fail "$app job contains dynamic command dispatch"
+  fi
+}
+
 assert_no_disallowed_redirections() {
   local body="$1"
   local code_body="$2"
@@ -386,6 +400,7 @@ assert_shared_contract() {
   assert_transport_commands "$body" "$code_body" "$app"
   assert_sudo_commands "$body" "$code_body" "$app"
   assert_no_banned_commands "$body" "$code_body" "$app"
+  assert_no_dynamic_command_dispatch "$body" "$app"
   assert_no_disallowed_redirections "$body" "$code_body" "$app"
   assert_command_substitution_contract "$body" "$app"
 
@@ -492,6 +507,57 @@ add_command_substitution_fixture() {
   [[ "$inserted" -eq 1 ]] || fail 'command-substitution fixture insertion point was missing'
 }
 
+add_dynamic_command_fixture() {
+  local source="$1"
+  local destination="$2"
+  local inserted=0
+  local line
+
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    printf '%s\n' "$line"
+    if [[ "$inserted" -eq 0 && "$line" == 'set -euo pipefail' ]]; then
+      printf '%s\n' 'command_name=sudo' \
+        '"$command_name" -n /usr/local/sbin/rollback-wesite-app web'
+      inserted=1
+    fi
+  done < "$source" > "$destination"
+  [[ "$inserted" -eq 1 ]] || fail 'dynamic-command fixture insertion point was missing'
+}
+
+add_positional_command_fixture() {
+  local source="$1"
+  local destination="$2"
+  local inserted=0
+  local line
+
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    printf '%s\n' "$line"
+    if [[ "$inserted" -eq 0 && "$line" == 'set -euo pipefail' ]]; then
+      printf '%s\n' 'set -- sudo' \
+        '"$1" -n /usr/local/sbin/rollback-wesite-app web'
+      inserted=1
+    fi
+  done < "$source" > "$destination"
+  [[ "$inserted" -eq 1 ]] || fail 'positional-command fixture insertion point was missing'
+}
+
+add_obfuscated_command_fixture() {
+  local source="$1"
+  local destination="$2"
+  local command_line="$3"
+  local inserted=0
+  local line
+
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    printf '%s\n' "$line"
+    if [[ "$inserted" -eq 0 && "$line" == 'set -euo pipefail' ]]; then
+      printf '%s\n' "$command_line"
+      inserted=1
+    fi
+  done < "$source" > "$destination"
+  [[ "$inserted" -eq 1 ]] || fail 'obfuscated-command fixture insertion point was missing'
+}
+
 CONTRACT_FAILURES=0
 
 expect_contract_rejection() {
@@ -556,6 +622,58 @@ extract_embedded_bash "$COMMAND_SUBSTITUTION" "$COMMAND_SUBSTITUTION_BODY"
 expect_contract_rejection command-substitution \
   'web job contains unexpected command substitution' \
   assert_command_substitution_contract "$COMMAND_SUBSTITUTION_BODY" web
+
+DYNAMIC_COMMAND="$TEST_ROOT/web-dynamic-command.Jenkinsfile"
+add_dynamic_command_fixture "$WEB_PIPELINE" "$DYNAMIC_COMMAND"
+DYNAMIC_COMMAND_BODY="$TEST_ROOT/web-dynamic-command.body"
+extract_embedded_bash "$DYNAMIC_COMMAND" "$DYNAMIC_COMMAND_BODY"
+expect_contract_rejection dynamic-command \
+  'web job contains dynamic command dispatch' \
+  assert_no_dynamic_command_dispatch "$DYNAMIC_COMMAND_BODY" web
+
+POSITIONAL_COMMAND="$TEST_ROOT/web-positional-command.Jenkinsfile"
+add_positional_command_fixture "$WEB_PIPELINE" "$POSITIONAL_COMMAND"
+POSITIONAL_COMMAND_BODY="$TEST_ROOT/web-positional-command.body"
+extract_embedded_bash "$POSITIONAL_COMMAND" "$POSITIONAL_COMMAND_BODY"
+expect_contract_rejection positional-command \
+  'web job contains dynamic command dispatch' \
+  assert_no_dynamic_command_dispatch "$POSITIONAL_COMMAND_BODY" web
+
+ESCAPED_COMMAND="$TEST_ROOT/web-escaped-command.Jenkinsfile"
+add_obfuscated_command_fixture "$WEB_PIPELINE" "$ESCAPED_COMMAND" \
+  's\udo -n /usr/local/sbin/rollback-wesite-app web'
+ESCAPED_COMMAND_BODY="$TEST_ROOT/web-escaped-command.body"
+extract_embedded_bash "$ESCAPED_COMMAND" "$ESCAPED_COMMAND_BODY"
+expect_contract_rejection escaped-command \
+  'web job contains dynamic command dispatch' \
+  assert_no_dynamic_command_dispatch "$ESCAPED_COMMAND_BODY" web
+
+EMPTY_QUOTE_COMMAND="$TEST_ROOT/web-empty-quote-command.Jenkinsfile"
+add_obfuscated_command_fixture "$WEB_PIPELINE" "$EMPTY_QUOTE_COMMAND" \
+  "s''udo -n /usr/local/sbin/rollback-wesite-app web"
+EMPTY_QUOTE_COMMAND_BODY="$TEST_ROOT/web-empty-quote-command.body"
+extract_embedded_bash "$EMPTY_QUOTE_COMMAND" "$EMPTY_QUOTE_COMMAND_BODY"
+expect_contract_rejection empty-quote-command \
+  'web job contains dynamic command dispatch' \
+  assert_no_dynamic_command_dispatch "$EMPTY_QUOTE_COMMAND_BODY" web
+
+QUOTED_COMMAND="$TEST_ROOT/web-quoted-command.Jenkinsfile"
+add_obfuscated_command_fixture "$WEB_PIPELINE" "$QUOTED_COMMAND" \
+  "'sudo' -n /usr/local/sbin/rollback-wesite-app web"
+QUOTED_COMMAND_BODY="$TEST_ROOT/web-quoted-command.body"
+extract_embedded_bash "$QUOTED_COMMAND" "$QUOTED_COMMAND_BODY"
+expect_contract_rejection quoted-command \
+  'web job contains dynamic command dispatch' \
+  assert_no_dynamic_command_dispatch "$QUOTED_COMMAND_BODY" web
+
+ANSI_COMMAND="$TEST_ROOT/web-ansi-command.Jenkinsfile"
+add_obfuscated_command_fixture "$WEB_PIPELINE" "$ANSI_COMMAND" \
+  "\$'sudo' -n /usr/local/sbin/rollback-wesite-app web"
+ANSI_COMMAND_BODY="$TEST_ROOT/web-ansi-command.body"
+extract_embedded_bash "$ANSI_COMMAND" "$ANSI_COMMAND_BODY"
+expect_contract_rejection ansi-command \
+  'web job contains dynamic command dispatch' \
+  assert_no_dynamic_command_dispatch "$ANSI_COMMAND_BODY" web
 
 DOCUMENTATION="$TEST_ROOT/web-documentation.Jenkinsfile"
 add_documentation_fixture "$WEB_PIPELINE" "$DOCUMENTATION"

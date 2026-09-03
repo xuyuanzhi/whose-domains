@@ -12,7 +12,8 @@ check_app() {
   local app="$1"
 
   wesite_select_app "$app" || return 1
-  if [[ ! -e "$WESITE_SELECTED_BASE/current" ]]; then
+  if [[ ! -e "$WESITE_SELECTED_BASE/current" \
+      && ! -L "$WESITE_SELECTED_BASE/current" ]]; then
     printf 'Application %s not deployed.\n' "$app"
     return 0
   fi

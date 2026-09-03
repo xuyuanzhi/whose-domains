@@ -190,10 +190,28 @@ test_monitor_uses_deployed_release_health_contract() {
     || fail 'legacy metadata health mode restarted web'
 }
 
+test_dangling_current_link_counts_as_failure_and_restarts() {
+  local fixture="$TEST_ROOT/dangling-current"
+  local output
+  make_fixture "$fixture"
+  rm "$fixture/apps/admin/current"
+  ln -s "$fixture/apps/admin/releases/missing" "$fixture/apps/admin/current"
+
+  output="$(run_monitor "$fixture" 2>&1)"
+  run_monitor "$fixture" >/dev/null 2>&1
+  run_monitor "$fixture" >/dev/null 2>&1
+
+  [[ "$output" != *'admin not deployed'* ]] \
+    || fail 'dangling admin current link was reported as undeployed'
+  grep -Fxq 'wesite-admin.service' "$fixture/restarts.log" \
+    || fail 'dangling admin current link did not reach recovery threshold'
+}
+
 test_three_consecutive_failures_restart_only_the_failed_service
 test_success_resets_the_consecutive_failure_counter
 test_monitor_skips_checks_while_deployment_lock_is_held
 test_web_only_deployment_skips_admin_without_state_or_restart
 test_admin_only_deployment_skips_web_without_state_or_restart
 test_monitor_uses_deployed_release_health_contract
-printf 'Service monitor tests passed: 6.\n'
+test_dangling_current_link_counts_as_failure_and_restarts
+printf 'Service monitor tests passed: 7.\n'

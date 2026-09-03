@@ -7,7 +7,7 @@ source "$SCRIPT_DIR/wesite-app-functions.sh"
 
 FAILURE_THRESHOLD="${WESITE_HEALTH_FAILURE_THRESHOLD:-3}"
 STATE_DIR="${WESITE_HEALTH_STATE_DIR:-/run/wesite-health}"
-LOCK_FILE="${WESITE_DEPLOY_LOCK_FILE:-/run/lock/wesite-deploy.lock}"
+LOCK_FILE="${WESITE_DEPLOY_LOCK_FILE:-/run/lock/wesite/wesite-deploy.lock}"
 
 fail() {
   printf 'ERROR: %s\n' "$*" >&2
@@ -21,7 +21,8 @@ fail() {
 command -v flock >/dev/null 2>&1 || fail "flock is required"
 
 install -d -m 0750 "$STATE_DIR"
-exec 9> "$LOCK_FILE"
+wesite_open_deployment_lock "$LOCK_FILE" \
+  || fail 'deployment lock path is unsafe or unavailable'
 if ! flock -n 9; then
   printf 'Health recovery skipped: deployment lock is held.\n'
   exit 0
@@ -54,7 +55,8 @@ check_app() {
   local count
 
   wesite_select_app "$app" || return 1
-  if [[ ! -e "$WESITE_SELECTED_BASE/current" ]]; then
+  if [[ ! -e "$WESITE_SELECTED_BASE/current" \
+      && ! -L "$WESITE_SELECTED_BASE/current" ]]; then
     printf 'Health monitor skipped: %s not deployed.\n' "$app"
     return 0
   fi

@@ -153,10 +153,27 @@ test_entirely_undeployed_host_fails_with_clear_message() {
   [[ "$output" == *'no applications are deployed'* ]] || fail 'entirely undeployed host did not explain the failure'
 }
 
+test_dangling_current_link_is_unhealthy_not_undeployed() {
+  local fixture="$TEST_ROOT/dangling-current"
+  local output
+  make_fixture "$fixture"
+  rm "$fixture/apps/admin/current"
+  ln -s "$fixture/apps/admin/releases/missing" "$fixture/apps/admin/current"
+
+  if output="$(run_check "$fixture" 2>&1)"; then
+    fail 'dangling admin current link was accepted as undeployed'
+  fi
+  [[ "$output" == *'FAIL application unhealthy: admin'* ]] \
+    || fail 'dangling admin current link was not reported unhealthy'
+  [[ "$output" != *'admin not deployed'* ]] \
+    || fail 'dangling admin current link was reported as undeployed'
+}
+
 test_global_status_succeeds_when_both_deployed_apps_pass
 test_global_status_fails_when_deployed_app_is_unhealthy
 test_global_status_fails_when_admin_is_inactive_but_web_remains_healthy
 test_undeployed_app_is_reported_without_failing_healthy_deployed_app
 test_global_status_uses_deployed_legacy_health_contract
 test_entirely_undeployed_host_fails_with_clear_message
-printf 'Service health-check tests passed: 6.\n'
+test_dangling_current_link_is_unhealthy_not_undeployed
+printf 'Service health-check tests passed: 7.\n'

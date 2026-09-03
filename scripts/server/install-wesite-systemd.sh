@@ -16,6 +16,7 @@ REQUIRED_PAYLOADS=(
   deploy/systemd/wesite-health-monitor.service
   deploy/systemd/wesite-health-monitor.timer
   deploy/systemd/wesite.env.example
+  deploy/tmpfiles.d/wesite.conf
   deploy/config/wesite-web.application-prod.properties.example
   deploy/config/wesite-admin.application-prod.properties.example
   deploy/sudoers/wesite-deploy
@@ -155,6 +156,8 @@ ensure_accounts() {
 }
 
 validate_bundle
+command -v systemd-tmpfiles >/dev/null 2>&1 \
+  || fail 'systemd-tmpfiles is required'
 
 if [[ -z "$ROOT_PREFIX" && "$(id -u)" -ne 0 ]]; then
   fail 'Run this installer as root'
@@ -164,6 +167,7 @@ ensure_accounts
 
 install -d -m 0750 "$(destination /etc/wesite)"
 install -d -m 0755 "$(destination /etc/systemd/system)"
+install -d -m 0755 "$(destination /etc/tmpfiles.d)"
 install -d -m 0755 "$(destination /usr/local/sbin)"
 install -d -m 0750 "$(destination /usr/java/apps)"
 install -d -m 0750 "$(destination /usr/java/apps/web)"
@@ -186,6 +190,8 @@ install -m 0644 "$DEPLOYMENT_ROOT/deploy/systemd/wesite-health-monitor.service" 
   "$(destination /etc/systemd/system/wesite-health-monitor.service)"
 install -m 0644 "$DEPLOYMENT_ROOT/deploy/systemd/wesite-health-monitor.timer" \
   "$(destination /etc/systemd/system/wesite-health-monitor.timer)"
+install -m 0644 "$DEPLOYMENT_ROOT/deploy/tmpfiles.d/wesite.conf" \
+  "$(destination /etc/tmpfiles.d/wesite.conf)"
 
 install -m 0755 "$DEPLOYMENT_ROOT/scripts/server/deploy-wesite-app.sh" \
   "$(destination /usr/local/sbin/deploy-wesite-app)"
@@ -257,6 +263,17 @@ chown "$DEPLOY_USER":"$DEPLOY_GROUP" "$(destination /var/lib/wesite-deploy)"
 chown "$DEPLOY_USER":"$DEPLOY_GROUP" \
   "$(destination /var/lib/wesite-deploy/incoming)"
 chmod 2775 "$(destination /var/www/sitemap)"
+
+if [[ -n "$ROOT_PREFIX" ]]; then
+  systemd-tmpfiles --root="$ROOT_PREFIX" --create wesite.conf
+else
+  systemd-tmpfiles --create wesite.conf
+fi
+LOCK_DIRECTORY="$(destination /run/lock/wesite)"
+[[ -d "$LOCK_DIRECTORY" && ! -L "$LOCK_DIRECTORY" \
+  && "$(realpath -e -- "$LOCK_DIRECTORY")" == "$LOCK_DIRECTORY" \
+  && "$(stat -Lc '%u:%g %a' -- "$LOCK_DIRECTORY")" == '0:0 755' ]] \
+  || fail 'systemd-tmpfiles did not create a safe deployment lock directory'
 
 systemctl daemon-reload
 
