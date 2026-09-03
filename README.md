@@ -109,6 +109,8 @@ URLs:
 
 ### Production deployment
 
+For the recommended low-memory production layout, including the two `systemd` units, 2 GiB swap setup, immutable release switching, health checks, and automatic rollback, follow [`deploy/README.md`](deploy/README.md).
+
 `application-prod.properties` is gitignored and is **not** bundled into the jar from a clean checkout, so supply it externally at runtime. Spring Boot automatically loads `application-prod.properties` from a `config/` directory (or the current directory) next to the jar, which overrides anything on the classpath:
 
 ```bash
