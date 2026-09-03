@@ -2,13 +2,9 @@
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-# shellcheck source=wesite-health-functions.sh
-source "$SCRIPT_DIR/wesite-health-functions.sh"
+# shellcheck source=wesite-app-functions.sh
+source "$SCRIPT_DIR/wesite-app-functions.sh"
 
-ADMIN_SERVICE="${WESITE_ADMIN_SERVICE:-wesite-admin.service}"
-WEB_SERVICE="${WESITE_WEB_SERVICE:-wesite-web.service}"
-ADMIN_HEALTH_URL="${WESITE_ADMIN_HEALTH_URL:-http://127.0.0.1:8082/api/readyz}"
-WEB_HEALTH_URL="${WESITE_WEB_HEALTH_URL:-http://127.0.0.1:8080/api/readyz}"
 FAILURE_THRESHOLD="${WESITE_HEALTH_FAILURE_THRESHOLD:-3}"
 STATE_DIR="${WESITE_HEALTH_STATE_DIR:-/run/wesite-health}"
 LOCK_FILE="${WESITE_DEPLOY_LOCK_FILE:-/run/lock/wesite-deploy.lock}"
@@ -51,30 +47,30 @@ write_failure_count() {
   mv -f "$temporary_file" "$state_file"
 }
 
-is_healthy() {
-  local service="$1"
-  local url="$2"
-  systemctl is-active --quiet "$service" \
-    && wesite_readiness_check "$url"
-}
-
-check_service() {
-  local name="$1"
-  local service="$2"
-  local url="$3"
-  local state_file="$STATE_DIR/${name}.failures"
+check_app() {
+  local app="$1"
+  local service
+  local state_file
   local count
 
-  if is_healthy "$service" "$url"; then
+  wesite_select_app "$app" || return 1
+  if [[ ! -e "$WESITE_SELECTED_BASE/current" ]]; then
+    printf 'Health monitor skipped: %s not deployed.\n' "$app"
+    return 0
+  fi
+
+  service="$WESITE_SELECTED_SERVICE"
+  state_file="$STATE_DIR/${app}.failures"
+  if wesite_check_app "$app"; then
     rm -f "$state_file"
-    printf 'Health monitor passed: %s %s\n' "$service" "$url"
+    printf 'Health monitor passed: %s %s\n' "$app" "$service"
     return 0
   fi
 
   count="$(read_failure_count "$state_file")"
   count=$((count + 1))
   printf 'Health monitor failure %d/%d: %s %s\n' \
-    "$count" "$FAILURE_THRESHOLD" "$service" "$url" >&2
+    "$count" "$FAILURE_THRESHOLD" "$app" "$service" >&2
 
   if (( count < FAILURE_THRESHOLD )); then
     write_failure_count "$state_file" "$count"
@@ -94,7 +90,8 @@ check_service() {
 }
 
 FAILURES=0
-check_service admin "$ADMIN_SERVICE" "$ADMIN_HEALTH_URL" || FAILURES=$((FAILURES + 1))
-check_service web "$WEB_SERVICE" "$WEB_HEALTH_URL" || FAILURES=$((FAILURES + 1))
+for app in admin web; do
+  check_app "$app" || FAILURES=$((FAILURES + 1))
+done
 
 (( FAILURES == 0 )) || exit 1

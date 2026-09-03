@@ -9,11 +9,11 @@ StartLimitBurst=5
 Type=exec
 User=wesite
 Group=wesite
-WorkingDirectory=/usr/java/current
+WorkingDirectory=/usr/java/apps/admin/current
 EnvironmentFile=/etc/wesite/wesite.env
-ExecStartPre=/usr/bin/test -r /usr/java/current/wesite-admin.jar
+ExecStartPre=/usr/bin/test -r /usr/java/apps/admin/current/wesite-admin.jar
 ExecStartPre=/usr/bin/test -r /usr/java/config/admin/application-prod.properties
-ExecStart=/usr/bin/java -Xms128m -Xmx384m -Xss512k -XX:MaxMetaspaceSize=160m -XX:MaxDirectMemorySize=64m -XX:+UseG1GC -XX:+ExitOnOutOfMemoryError -Dfile.encoding=UTF-8 -jar /usr/java/current/wesite-admin.jar --spring.profiles.active=prod --spring.config.additional-location=file:/usr/java/config/admin/ --server.address=127.0.0.1 --server.port=8082
+ExecStart=/usr/bin/java -Xms128m -Xmx384m -Xss512k -XX:MaxMetaspaceSize=160m -XX:MaxDirectMemorySize=64m -XX:+UseG1GC -XX:+ExitOnOutOfMemoryError -Dfile.encoding=UTF-8 -jar /usr/java/apps/admin/current/wesite-admin.jar --spring.profiles.active=prod --spring.config.additional-location=file:/usr/java/config/admin/ --server.address=127.0.0.1 --server.port=8082
 Restart=on-failure
 RestartSec=10
 TimeoutStartSec=120

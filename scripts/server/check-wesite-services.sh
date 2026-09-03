@@ -2,40 +2,38 @@
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-# shellcheck source=wesite-health-functions.sh
-source "$SCRIPT_DIR/wesite-health-functions.sh"
+# shellcheck source=wesite-app-functions.sh
+source "$SCRIPT_DIR/wesite-app-functions.sh"
 
-ADMIN_SERVICE="${WESITE_ADMIN_SERVICE:-wesite-admin.service}"
-WEB_SERVICE="${WESITE_WEB_SERVICE:-wesite-web.service}"
-ADMIN_HEALTH_URL="${WESITE_ADMIN_HEALTH_URL:-http://127.0.0.1:8082/api/readyz}"
-WEB_HEALTH_URL="${WESITE_WEB_HEALTH_URL:-http://127.0.0.1:8080/api/readyz}"
 FAILURES=0
+DEPLOYED_APPS=0
 
-check_service() {
-  local service="$1"
-  if systemctl is-active --quiet "$service"; then
-    printf 'PASS service active: %s\n' "$service"
+check_app() {
+  local app="$1"
+
+  wesite_select_app "$app" || return 1
+  if [[ ! -e "$WESITE_SELECTED_BASE/current" ]]; then
+    printf 'Application %s not deployed.\n' "$app"
+    return 0
+  fi
+
+  DEPLOYED_APPS=$((DEPLOYED_APPS + 1))
+  if wesite_check_app "$app"; then
+    printf 'PASS application healthy: %s\n' "$app"
   else
-    printf 'FAIL service inactive: %s\n' "$service" >&2
+    printf 'FAIL application unhealthy: %s\n' "$app" >&2
     FAILURES=$((FAILURES + 1))
   fi
 }
 
-check_url() {
-  local name="$1"
-  local url="$2"
-  if wesite_readiness_check "$url"; then
-    printf 'PASS endpoint: %s %s\n' "$name" "$url"
-  else
-    printf 'FAIL endpoint: %s %s\n' "$name" "$url" >&2
-    FAILURES=$((FAILURES + 1))
-  fi
-}
+for app in admin web; do
+  check_app "$app"
+done
 
-check_service "$ADMIN_SERVICE"
-check_service "$WEB_SERVICE"
-check_url admin "$ADMIN_HEALTH_URL"
-check_url web "$WEB_HEALTH_URL"
+if (( DEPLOYED_APPS == 0 )); then
+  printf 'Whose.Domains health checks failed: no applications are deployed.\n' >&2
+  exit 1
+fi
 
 if (( FAILURES > 0 )); then
   printf 'Whose.Domains health checks failed: %d.\n' "$FAILURES" >&2

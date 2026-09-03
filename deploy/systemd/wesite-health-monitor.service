@@ -1,7 +1,6 @@
 [Unit]
 Description=Whose.Domains readiness monitor
 After=wesite-admin.service wesite-web.service
-ConditionPathExists=/usr/java/current
 
 [Service]
 Type=oneshot
