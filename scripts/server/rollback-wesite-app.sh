@@ -48,21 +48,37 @@ read_successful_link() {
   printf '%s' "$target"
 }
 
+link_identity() {
+  [[ -L "$1" ]] || return 1
+  LC_ALL=C stat -c '%d:%i' -- "$1"
+}
+
 ORIGINAL_CURRENT_TARGET="$(read_successful_link "$CURRENT_LINK" current)"
 wesite_load_release_metadata "$ORIGINAL_CURRENT_TARGET" || fail 'current release metadata is invalid'
 ORIGINAL_CURRENT_MODE="$WESITE_RELEASE_HEALTH_MODE"
 ORIGINAL_CURRENT_URL="$WESITE_RELEASE_HEALTH_URL"
-ORIGINAL_PREVIOUS_TARGET="$(read_successful_link "$PREVIOUS_LINK" previous)"
-wesite_load_release_metadata "$ORIGINAL_PREVIOUS_TARGET" || fail 'previous release metadata is invalid'
-TARGET_MODE="$WESITE_RELEASE_HEALTH_MODE"
-TARGET_URL="$WESITE_RELEASE_HEALTH_URL"
+if [[ -L "$PREVIOUS_LINK" ]]; then
+  ORIGINAL_PREVIOUS_STATE=link
+  ORIGINAL_PREVIOUS_TARGET="$(read_successful_link "$PREVIOUS_LINK" previous)"
+  wesite_load_release_metadata "$ORIGINAL_PREVIOUS_TARGET" || fail 'previous release metadata is invalid'
+  TARGET_MODE="$WESITE_RELEASE_HEALTH_MODE"
+  TARGET_URL="$WESITE_RELEASE_HEALTH_URL"
+  ORIGINAL_PREVIOUS_IDENTITY="$(link_identity "$PREVIOUS_LINK")" \
+    || fail 'previous release link identity is invalid'
+elif [[ ! -e "$PREVIOUS_LINK" ]]; then
+  ORIGINAL_PREVIOUS_STATE=missing
+  ORIGINAL_PREVIOUS_TARGET=''
+  ORIGINAL_PREVIOUS_IDENTITY=''
+  fail 'previous release link is missing or is not a symbolic link'
+else
+  fail 'previous release link is missing or is not a symbolic link'
+fi
 
 CURRENT_NEXT="$APP_BASE/.current.rollback.tmp.$$"
 PREVIOUS_NEXT="$APP_BASE/.previous.rollback.tmp.$$"
 CURRENT_RESTORE="$APP_BASE/.current.restore.tmp.$$"
 PREVIOUS_RESTORE="$APP_BASE/.previous.restore.tmp.$$"
 TRANSACTION_ACTIVE=0
-PREVIOUS_MAY_HAVE_CHANGED=0
 
 cleanup_artifacts() {
   rm -f -- "$CURRENT_NEXT" "$PREVIOUS_NEXT" "$CURRENT_RESTORE" "$PREVIOUS_RESTORE"
@@ -113,10 +129,39 @@ restore_original_pair() {
   local restore_failed=0
 
   switch_link "$ORIGINAL_CURRENT_TARGET" "$CURRENT_RESTORE" "$CURRENT_LINK" || restore_failed=1
-  if (( PREVIOUS_MAY_HAVE_CHANGED == 1 )); then
-    switch_link "$ORIGINAL_PREVIOUS_TARGET" "$PREVIOUS_RESTORE" "$PREVIOUS_LINK" || restore_failed=1
-  fi
+  restore_original_previous_if_changed || restore_failed=1
   return "$restore_failed"
+}
+
+previous_matches_original_entry() {
+  case "$ORIGINAL_PREVIOUS_STATE" in
+    link)
+      [[ -L "$PREVIOUS_LINK" ]] || return 1
+      [[ "$(link_identity "$PREVIOUS_LINK")" == "$ORIGINAL_PREVIOUS_IDENTITY" ]]
+      ;;
+    missing)
+      [[ ! -e "$PREVIOUS_LINK" && ! -L "$PREVIOUS_LINK" ]]
+      ;;
+    *) return 1 ;;
+  esac
+}
+
+restore_original_previous_if_changed() {
+  local current_previous_target
+
+  previous_matches_original_entry && return 0
+  [[ "$ORIGINAL_PREVIOUS_STATE" == link ]] || return 1
+
+  if [[ -L "$PREVIOUS_LINK" ]]; then
+    current_previous_target="$(realpath -e "$PREVIOUS_LINK")" || return 1
+    wesite_release_directory_is_selected "$current_previous_target" || return 1
+    wesite_load_release_metadata "$current_previous_target" || return 1
+    [[ "$WESITE_RELEASE_STATUS" == successful ]] || return 1
+  elif [[ -e "$PREVIOUS_LINK" ]]; then
+    return 1
+  fi
+
+  switch_link "$ORIGINAL_PREVIOUS_TARGET" "$PREVIOUS_RESTORE" "$PREVIOUS_LINK"
 }
 
 restore_original_current_health() {
@@ -150,7 +195,6 @@ TRANSACTION_ACTIVE=1
 switch_link "$ORIGINAL_PREVIOUS_TARGET" "$CURRENT_NEXT" "$CURRENT_LINK"
 restart_and_check_recorded_contract "$ORIGINAL_PREVIOUS_TARGET" "$TARGET_MODE" "$TARGET_URL" \
   || fail "$WESITE_SELECTED_SERVICE did not become ready after rollback"
-PREVIOUS_MAY_HAVE_CHANGED=1
 switch_link "$ORIGINAL_CURRENT_TARGET" "$PREVIOUS_NEXT" "$PREVIOUS_LINK"
 TRANSACTION_ACTIVE=0
 

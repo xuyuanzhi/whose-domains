@@ -34,6 +34,10 @@ link_inode() {
   stat -c '%i' -- "$1"
 }
 
+link_identity() {
+  stat -c '%d:%i:%Z' -- "$1"
+}
+
 write_metadata() {
   local release_dir="$1"
   local app="$2"
@@ -90,6 +94,12 @@ EOF
 #!/bin/sh
 destination=''
 for argument in "$@"; do destination="$argument"; done
+if [ "$destination" = "${WESITE_TEST_SIGNAL_BEFORE_PREVIOUS_MV:-}" ] \
+    && [ ! -e "$WESITE_TEST_PREVIOUS_PREPARE_SIGNAL_SENT" ]; then
+  : > "$WESITE_TEST_PREVIOUS_PREPARE_SIGNAL_SENT"
+  kill -TERM "$PPID"
+  exit 75
+fi
 /usr/bin/mv "$@" || exit $?
 if [ "$destination" = "${WESITE_TEST_SIGNAL_AFTER_PREVIOUS:-}" ] \
     && [ ! -e "$WESITE_TEST_PREVIOUS_SIGNAL_SENT" ]; then
@@ -116,6 +126,8 @@ run_rollback() {
     WESITE_TEST_SIGNAL_SENT="$fixture/signal-sent" \
     WESITE_TEST_SIGNAL_AFTER_PREVIOUS="${WESITE_TEST_SIGNAL_AFTER_PREVIOUS:-}" \
     WESITE_TEST_PREVIOUS_SIGNAL_SENT="$fixture/previous-signal-sent" \
+    WESITE_TEST_SIGNAL_BEFORE_PREVIOUS_MV="${WESITE_TEST_SIGNAL_BEFORE_PREVIOUS_MV:-}" \
+    WESITE_TEST_PREVIOUS_PREPARE_SIGNAL_SENT="$fixture/previous-prepare-signal-sent" \
     bash "$ROLLBACK_SCRIPT" "$app"
 }
 
@@ -255,6 +267,30 @@ test_sigterm_after_previous_commit_restores_entry_pair() {
   assert_no_call_for "$fixture" 8082
 }
 
+test_sigterm_before_previous_commit_keeps_entry_previous_identity() {
+  local fixture="$TEST_ROOT/previous-prepare-signal"
+  local previous_identity
+  make_fixture "$fixture"
+  previous_identity="$(link_identity "$fixture/apps/web/previous")"
+  if WESITE_TEST_SIGNAL_BEFORE_PREVIOUS_MV="$fixture/apps/web/previous" run_rollback "$fixture" web; then
+    fail 'rollback unexpectedly succeeded after SIGTERM before previous commit'
+  fi
+  [[ -e "$fixture/previous-prepare-signal-sent" ]] \
+    || fail 'previous prepare signal fixture did not run'
+  assert_link_target "$fixture/apps/web/current" "$fixture/apps/web/releases/v1"
+  assert_link_target "$fixture/apps/web/previous" "$fixture/apps/web/releases/v0"
+  [[ "$(link_identity "$fixture/apps/web/previous")" == "$previous_identity" ]] \
+    || fail 'SIGTERM before previous commit replaced the entry previous link'
+  [[ "$(grep -Fc 'systemctl restart wesite-web.service' "$fixture/calls.log")" -eq 2 ]] \
+    || fail 'pre-previous-commit recovery did not restart the original current release'
+  grep -Fq 'curl http://127.0.0.1:8080/current-v1' "$fixture/calls.log" \
+    || fail 'pre-previous-commit recovery did not check the original current URL'
+  assert_link_target "$fixture/apps/admin/current" "$fixture/apps/admin/releases/v1"
+  assert_link_target "$fixture/apps/admin/previous" "$fixture/apps/admin/releases/v0"
+  assert_no_call_for "$fixture" wesite-admin.service
+  assert_no_call_for "$fixture" 8082
+}
+
 test_successful_web_rollback_is_isolated
 test_successful_admin_rollback_is_isolated
 test_validation_rejections_fail_closed
@@ -262,4 +298,5 @@ test_contended_lock_fails_without_changes
 test_unhealthy_target_restores_current_and_keeps_previous
 test_sigterm_restores_selected_pair_without_touching_other_app
 test_sigterm_after_previous_commit_restores_entry_pair
-printf 'Independent rollback script tests passed: 7 scenarios.\n'
+test_sigterm_before_previous_commit_keeps_entry_previous_identity
+printf 'Independent rollback script tests passed: 8 scenarios.\n'
