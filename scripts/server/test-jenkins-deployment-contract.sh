@@ -272,10 +272,12 @@ assert_no_dynamic_command_dispatch() {
   local boundary='(^|[;&|]|[(){}][[:space:]]|[[:space:]](if|then|elif|while|until|do|!|time)[[:space:]])'
   local assignments='([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]+[[:space:]]+)*'
   local wrappers='((command|builtin|env)[[:space:]]+)*'
-  local unsafe_marker='([$]|[\\]|["]|'"'"')'
+  local unsafe_marker='([$]|[\\]|["]|'"'"'|[*]|[?]|[~])'
   local obfuscated_word="[^[:space:];&|(){}=]*${unsafe_marker}"
+  local bracket_glob_word='[^][[:space:];&|(){}=]+[[]'
 
-  if grep -Eq "${boundary}[[:space:]]*${assignments}${wrappers}${obfuscated_word}" "$body"; then
+  if grep -Eq "${boundary}[[:space:]]*${assignments}${wrappers}(${obfuscated_word}|${bracket_glob_word})" \
+    "$body"; then
     fail "$app job contains dynamic command dispatch"
   fi
 }
@@ -674,6 +676,15 @@ extract_embedded_bash "$ANSI_COMMAND" "$ANSI_COMMAND_BODY"
 expect_contract_rejection ansi-command \
   'web job contains dynamic command dispatch' \
   assert_no_dynamic_command_dispatch "$ANSI_COMMAND_BODY" web
+
+GLOB_COMMAND="$TEST_ROOT/web-glob-command.Jenkinsfile"
+add_obfuscated_command_fixture "$WEB_PIPELINE" "$GLOB_COMMAND" \
+  '/usr/bin/su[d]o -n /usr/local/sbin/rollback-wesite-app web'
+GLOB_COMMAND_BODY="$TEST_ROOT/web-glob-command.body"
+extract_embedded_bash "$GLOB_COMMAND" "$GLOB_COMMAND_BODY"
+expect_contract_rejection glob-command \
+  'web job contains dynamic command dispatch' \
+  assert_no_dynamic_command_dispatch "$GLOB_COMMAND_BODY" web
 
 DOCUMENTATION="$TEST_ROOT/web-documentation.Jenkinsfile"
 add_documentation_fixture "$WEB_PIPELINE" "$DOCUMENTATION"
