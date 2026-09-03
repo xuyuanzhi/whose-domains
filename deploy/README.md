@@ -1,172 +1,496 @@
-# Whose.Domains systemd deployment
+# Whose.Domains independent systemd production runbook
 
-This runbook targets the current production shape:
+This runbook migrates and operates the production host at `47.76.125.96`.
+Web and Admin have independent immutable release trees, services, health checks,
+rollbacks, and Jenkins jobs:
 
-- Ubuntu/Debian-style Linux with `systemd`
-- Java 17 available as `/usr/bin/java`
-- Nginx and Redis on the application host
-- MySQL on a remote host
-- public web bound to `127.0.0.1:8080`
-- admin bound to `127.0.0.1:8082`
+```text
+/usr/java/apps/web/{current,previous,releases/}
+/usr/java/apps/admin/{current,previous,releases/}
+```
 
-The scripts never build on the production host and never run old and new application JVMs at the same time. A release contains both JARs from one commit. The `current` symlink is switched atomically, admin is restarted and checked first, then web is restarted and checked. A failed check restores the previous symlink automatically.
+The public Web service binds to `127.0.0.1:8080`; Admin binds to
+`127.0.0.1:8082`. Jenkins connects only as `wesite-deploy`. A routine job
+builds and uploads one application JAR, then invokes that application's
+allowlisted deploy and check commands. Infrastructure installation, live
+configuration, database work, rollback, service administration, and release
+cleanup are operator procedures and never Jenkins job side effects.
 
-## Why systemd
+The host has 3.5 GiB RAM. The checked-in units reserve up to 768 MiB of heap
+for Web and 384 MiB for Admin, with explicit metaspace and direct-memory caps.
+A 2 GiB swap file is an emergency buffer, not normal working memory.
 
-`systemd` owns the process PID, starts services after reboot, restarts unexpected exits, rate-limits crash loops, sends `SIGTERM` for Spring Boot shutdown, applies a non-root identity and filesystem restrictions, and puts logs in the journal. A `nohup`/PID/watchdog combination has multiple independent owners and can leave duplicate processes or a long `127.0.0.1:8080` outage after the watchdog itself fails.
+## 1. Preflight Java, unzip, and flock
 
-The service units use `Restart=on-failure`, not `always`: an operator-requested stop stays stopped. `-XX:+ExitOnOutOfMemoryError` converts an unrecoverable heap OOM into a process exit that systemd can restart. A separate systemd timer checks MySQL/Redis readiness once per minute and restarts only a service that fails three consecutive checks; it uses the same lock as the release command and therefore never interferes with a deployment. The unit command line forces both applications to `127.0.0.1` on their fixed ports even when an older preserved properties file omits or overrides those settings. The installer deliberately does not enable or start the applications or timer; boot activation happens only after migration and production verification.
-
-## Memory budget
-
-The host has 3.5 GiB RAM, Redis is local, and MySQL is remote. The checked-in units use these conservative limits:
-
-| Process | Heap | Metaspace | Direct memory | Practical total target |
-| --- | ---: | ---: | ---: | ---: |
-| `wesite-web` | 256–768 MiB | 192 MiB | 128 MiB | about 1.1–1.3 GiB |
-| `wesite-admin` | 128–384 MiB | 160 MiB | 64 MiB | about 0.6–0.8 GiB |
-
-The remainder is reserved for Redis, Nginx, JVM thread stacks, the kernel, and filesystem cache. A 2 GiB swap file is an emergency buffer, not normal working memory. Do not set Redis `maxmemory` until `redis-cli INFO memory` and the eviction/persistence requirements have been reviewed.
-
-## 1. Preflight
-
-Run these read-only checks first:
+Open a maintenance record with operator, UTC time, source commit, and planned
+rollback. Run these read-only checks through the approved production operator
+account:
 
 ```bash
 java -version
 command -v java
 test -x /usr/bin/java
+command -v unzip
 command -v flock
 systemctl is-active nginx redis-server
 free -h
 df -h /
-redis-cli INFO memory | grep -E '^(used_memory_human|maxmemory_human|maxmemory_policy):'
 pgrep -af 'java|watchdog|wesite'
 systemctl list-units --type=service | grep -Ei 'wesite|watchdog'
 systemctl list-timers --all | grep -Ei 'wesite|watchdog'
 crontab -l
-grep -R "watchdog" /etc/cron.d /etc/cron.daily /etc/systemd/system /usr/java 2>/dev/null
+sudo crontab -l
 ```
 
-Before installing the new services, disable the existing Whose.Domains watchdog at its actual source (cron, timer, or service) and stop the old Java launcher. Do not use a broad `pkill -f java`; identify the exact PID or old unit first. Leaving two supervisors active can create duplicate JVMs and port conflicts.
+Stop if `/usr/bin/java`, `unzip`, or `flock` is unavailable. Identify the exact
+legacy launcher and watchdog owner now; do not use a broad process-kill
+command. Confirm that Nginx and Redis are healthy and that ports 8080 and 8082
+are owned only by the expected legacy JVMs.
 
-If `command -v java` is not `/usr/bin/java`, either create the normal alternatives-managed `/usr/bin/java` entry or update both checked-in service units before installation.
-
-## 2. Build and upload one release
-
-Build in Jenkins from one commit; do not compile on the 3.5 GiB production host:
-
-```bash
-mvn clean test
-mvn clean package -DskipTests
-sha256sum wesite-web/target/wesite-web-1.0.0.jar \
-  wesite-admin/target/wesite-admin-1.0.0.jar
-```
-
-Upload both JARs and a checkout/export of this entire repository at the same commit to a temporary server directory. The installer reads `deploy/config/wesite-web.application-prod.properties.example` and `deploy/config/wesite-admin.application-prod.properties.example`, so copying only `deploy/systemd/` and `scripts/server/` is insufficient. Record the commit and checksums in the release record.
-
-## 3. Add swap and install systemd assets
-
-From the uploaded repository checkout:
+## 2. Verify swap
 
 ```bash
-sudo bash scripts/server/ensure-wesite-swap.sh
 free -h
 swapon --show
+grep -F '/swapfile none swap sw 0 0' /etc/fstab
+df -h /
+```
 
-sudo bash scripts/server/install-wesite-systemd.sh
+Record the result and do not enter configuration or application migration on
+this small host until the expected 2 GiB swap is active and persistent, or an
+operator has approved an alternative. If swap is missing, the first approved
+write can use the audited helper after the bundle is installed in step 4.
+`/usr/local/sbin/ensure-wesite-swap` refuses to overwrite an inactive existing
+file.
+
+## 3. Build and upload only the infrastructure bundle
+
+On a trusted build/operator machine, from the reviewed commit:
+
+```bash
+INFRA_COMMIT="$(git rev-parse --verify HEAD)"
+[[ "$INFRA_COMMIT" =~ ^[0-9a-f]{7,64}$ ]]
+INFRA_OUTPUT="$(mktemp -d)"
+scripts/build-wesite-deployment-bundle.sh "$INFRA_COMMIT" "$INFRA_OUTPUT"
+ls -l "$INFRA_OUTPUT"
+(
+  cd "$INFRA_OUTPUT"
+  sha256sum --check "wesite-deployment-$INFRA_COMMIT.tar.gz.sha256"
+)
+```
+
+The output must contain exactly these three files:
+
+```text
+wesite-deployment-<commit>.tar.gz
+wesite-deployment-<commit>.tar.gz.sha256
+install-wesite-deployment-bundle.sh
+```
+
+Set `PRODUCTION_OPERATOR` to the approved privileged operator account. It is
+not `wesite-deploy`. The validated commit is safe to use in the temporary path:
+
+```bash
+REMOTE_INFRA="/tmp/wesite-infrastructure-$INFRA_COMMIT"
+ssh "$PRODUCTION_OPERATOR@47.76.125.96" \
+  "umask 077 && mkdir -m 0700 -- '$REMOTE_INFRA'"
+scp "$INFRA_OUTPUT/wesite-deployment-$INFRA_COMMIT.tar.gz" \
+  "$INFRA_OUTPUT/wesite-deployment-$INFRA_COMMIT.tar.gz.sha256" \
+  "$INFRA_OUTPUT/install-wesite-deployment-bundle.sh" \
+  "$PRODUCTION_OPERATOR@47.76.125.96:$REMOTE_INFRA/"
+```
+
+Do not transfer a repository checkout, `.git`, source code, Maven files,
+tests, application JARs, or live secrets with the infrastructure bundle.
+
+## 4. Run the standalone bootstrap
+
+On the production host, inspect the three uploaded files, then run only the
+standalone bootstrap as root. It verifies the archive sidecar, rejects unsafe
+archive members, verifies the internal payload manifest, preserves existing
+live configuration, installs the commands and units, and reloads systemd. It
+does not enable or start an application or timer.
+
+```bash
+INFRA_COMMIT=0123456789abcdef0123456789abcdef01234567
+[[ "$INFRA_COMMIT" =~ ^[0-9a-f]{7,64}$ ]]
+cd "/tmp/wesite-infrastructure-$INFRA_COMMIT"
+sudo ./install-wesite-deployment-bundle.sh \
+  "wesite-deployment-$INFRA_COMMIT.tar.gz" \
+  "wesite-deployment-$INFRA_COMMIT.tar.gz.sha256"
 sudo systemd-analyze verify \
-  /etc/systemd/system/wesite-admin.service \
   /etc/systemd/system/wesite-web.service \
+  /etc/systemd/system/wesite-admin.service \
   /etc/systemd/system/wesite-health-monitor.service \
   /etc/systemd/system/wesite-health-monitor.timer
 ```
 
-The swap script refuses to overwrite an existing inactive `/swapfile` and writes the `/etc/fstab` entry at most once. The installer is also repeatable: it refreshes public service/script templates but preserves the contents of the three live configuration files. On every run it tightens the live environment file to mode `0600` and both live properties files to `0640`. It reloads systemd but does not enable or start any Whose.Domains unit.
+If step 2 identified missing swap and the approved plan is the bundled helper,
+run it now and repeat the swap checks before proceeding:
 
-## 4. Configure secrets and application properties
+```bash
+sudo /usr/local/sbin/ensure-wesite-swap
+free -h
+swapon --show
+```
 
-Edit these files:
+After a successful bootstrap, remove only the three exact temporary files and
+their now-empty directory. Keep the archive digest in the maintenance record.
+
+## 5. Migrate and preserve live configuration
+
+The installer creates examples and creates a live file only when it is absent.
+It never replaces existing live values. Compare the old production settings
+with these destinations and merge values deliberately:
+
+```text
+/etc/wesite/wesite.env
+/usr/java/config/web/application-prod.properties
+/usr/java/config/admin/application-prod.properties
+```
+
+Use `sudoedit`; never evaluate `/etc/wesite/wesite.env` as shell input. Its
+JDBC URL can contain shell metacharacters. Preserve the tested remote-MySQL
+URL, including the explicit UTC connection/session options, and configure the
+database, Redis, JWT, internal blog, mail, and MaxMind values. Keep notification
+delivery disabled for the first release and keep both services bound to
+loopback.
 
 ```bash
 sudoedit /etc/wesite/wesite.env
 sudoedit /usr/java/config/web/application-prod.properties
 sudoedit /usr/java/config/admin/application-prod.properties
-```
 
-Required changes:
-
-- replace every `CHANGE_ME` value in `/etc/wesite/wesite.env`
-- reuse the existing tested remote-MySQL JDBC URL, then set its username and password; enable certificate-verified TLS only when the database endpoint and CA configuration support it
-- set the Redis password, or leave `REDIS_PASSWORD=` empty when Redis has no password
-- set one long random `JWT_SECRET`; both applications map it to the same `app.jwt.secret`
-- set a separate long random internal blog secret
-- set both MaxMind paths to the actual `.mmdb` files under `/usr/java/data` or their existing location
-- keep notification delivery flags `false` for the first smoke pass
-- keep `server.address=127.0.0.1`; only Nginx should expose the services
-
-Do not `source /etc/wesite/wesite.env` in a shell. It uses systemd `EnvironmentFile` syntax and the JDBC URL contains `&`. Validate permissions and placeholders:
-
-```bash
 sudo chown root:wesite /etc/wesite/wesite.env \
   /usr/java/config/web/application-prod.properties \
   /usr/java/config/admin/application-prod.properties
-sudo chmod 600 /etc/wesite/wesite.env
-sudo chmod 640 /usr/java/config/web/application-prod.properties \
+sudo chmod 0600 /etc/wesite/wesite.env
+sudo chmod 0640 /usr/java/config/web/application-prod.properties \
   /usr/java/config/admin/application-prod.properties
 
 if sudo grep -R -n 'CHANGE_ME\|your-db-\|/path/to/' \
-    /etc/wesite/wesite.env /usr/java/config/web /usr/java/config/admin; then
-  echo 'Stop: production placeholders remain.' >&2
+    /etc/wesite/wesite.env \
+    /usr/java/config/web/application-prod.properties \
+    /usr/java/config/admin/application-prod.properties; then
+  printf 'Stop: production placeholders remain.\n' >&2
   exit 1
 fi
 ```
 
-## 5. Establish the first rollback baseline
+Back up the three reviewed live files outside the release trees. Production
+secrets are never Jenkins parameters, workspaces, archives, or artifacts.
 
-The automatic rollback needs an existing `/usr/java/current` release. Before the first systemd-managed deployment, preserve the currently deployed web and admin JARs as a baseline. First stop the old watchdog/launcher so it cannot compete for ports, then locate the exact current artifacts:
+## 6. Install the Jenkins SSH public key
+
+Create an SSH key credential in the Jenkins secret store and transfer only its
+reviewed public key to a temporary operator-owned path. Verify its fingerprint
+against the maintenance record before installation. The bootstrap creates the
+dedicated `wesite-deploy` account but intentionally does not change SSH daemon
+configuration or generate credentials.
 
 ```bash
-find /usr/java -maxdepth 3 -type f -name 'wesite-*.jar' -print
+ssh-keygen -lf /tmp/whose-domains-prod-ssh.pub
+sudo install -d -o wesite-deploy -g wesite-deploy -m 0700 \
+  /var/lib/wesite-deploy/.ssh
+sudo install -o wesite-deploy -g wesite-deploy -m 0600 \
+  /tmp/whose-domains-prod-ssh.pub \
+  /var/lib/wesite-deploy/.ssh/authorized_keys
+sudo stat -c '%U:%G %a %n' \
+  /var/lib/wesite-deploy/.ssh \
+  /var/lib/wesite-deploy/.ssh/authorized_keys
 ```
 
-After verifying the two paths and checksums, install that known-good pair. Use the homepage as the web check only if the old binary predates `/api/healthz`:
+Test key-only login as `wesite-deploy` under the host's existing SSH policy.
+Do not grant root login, a root shell, or access to an operator key.
+
+## 7. Validate and explicitly activate sudoers
+
+The bootstrap installs an inactive example. Validate that exact file first,
+then explicitly activate it and validate the complete sudoers policy:
 
 ```bash
-BASELINE_VERSION="pre-systemd-$(date -u +%Y%m%dT%H%M%SZ)"
-sudo env WESITE_WEB_HEALTH_URL=http://127.0.0.1:8080/ \
-  WESITE_ADMIN_HEALTH_URL=http://127.0.0.1:8082/ \
-  WESITE_HEALTH_RESPONSE_MODE=legacy-http-200 \
-  deploy-wesite-release \
-  "$BASELINE_VERSION" \
-  /exact/path/to/current-wesite-web.jar \
-  /exact/path/to/current-wesite-admin.jar
-sudo env WESITE_WEB_HEALTH_URL=http://127.0.0.1:8080/ \
-  WESITE_ADMIN_HEALTH_URL=http://127.0.0.1:8082/ \
-  WESITE_HEALTH_RESPONSE_MODE=legacy-http-200 \
-  check-wesite-services
+sudo visudo -cf /etc/wesite/wesite-deploy.sudoers.example
+sudo install -o root -g root -m 0440 \
+  /etc/wesite/wesite-deploy.sudoers.example \
+  /etc/sudoers.d/wesite-deploy
+sudo visudo -cf /etc/sudoers.d/wesite-deploy
+sudo visudo -cf /etc/sudoers
+sudo -l -U wesite-deploy
 ```
 
-Do not guess the JAR paths. If no verified baseline artifacts exist, take a filesystem/configuration backup and explicitly record that the first new deployment has no automatic binary rollback target.
+The only passwordless commands must be single-application Web/Admin deploys
+and checks. The account must have no infrastructure install, configuration,
+service-manager, rollback, pruning, arbitrary root command, or shell access.
 
-Disable and stop the baseline services before the database backup and maintenance window. Also stop the timer and any monitor invocation so a reboot or in-flight check cannot restart normal writers:
+## 8. Prepare independent old-JAR baseline releases
+
+Before stopping the legacy supervisor, locate each exact known-good JAR,
+record its provenance and SHA-256, and copy each one without modification into
+its own root-owned mode `0700` incoming directory. Do not guess paths or
+substitute one application's artifact for the other.
 
 ```bash
-sudo systemctl disable --now \
-  wesite-health-monitor.timer wesite-web.service wesite-admin.service
-sudo systemctl stop wesite-health-monitor.service
-systemctl is-enabled wesite-health-monitor.timer wesite-web.service wesite-admin.service
-systemctl is-active wesite-health-monitor.timer wesite-health-monitor.service \
+find /usr/java -maxdepth 4 -type f -name 'wesite-*.jar' -print
+
+BASELINE_ID="$(date -u +%Y%m%dT%H%M%SZ)"
+[[ "$BASELINE_ID" =~ ^[0-9]{8}T[0-9]{6}Z$ ]]
+sudo mkdir -m 0700 \
+  "/var/lib/wesite-deploy/incoming/baseline-web-$BASELINE_ID" \
+  "/var/lib/wesite-deploy/incoming/baseline-admin-$BASELINE_ID"
+sudo install -o root -g root -m 0400 /absolute/reviewed/old-wesite-web.jar \
+  "/var/lib/wesite-deploy/incoming/baseline-web-$BASELINE_ID/wesite-web.jar"
+sudo install -o root -g root -m 0400 /absolute/reviewed/old-wesite-admin.jar \
+  "/var/lib/wesite-deploy/incoming/baseline-admin-$BASELINE_ID/wesite-admin.jar"
+sudo sha256sum \
+  "/var/lib/wesite-deploy/incoming/baseline-web-$BASELINE_ID/wesite-web.jar" \
+  "/var/lib/wesite-deploy/incoming/baseline-admin-$BASELINE_ID/wesite-admin.jar"
+```
+
+These staged candidates become the two independent baseline releases in step
+10, after the legacy watchdog and launcher can no longer race systemd. If an
+old artifact cannot be verified, record that application as having no initial
+binary rollback target and take configuration/filesystem backups instead.
+
+## 9. Disable the legacy watchdog and launcher
+
+Enter the maintenance window. Using the exact source identified in step 1,
+disable and stop the legacy watchdog (cron entry, timer, or service), then stop
+the exact legacy Java launcher. Do not kill unrelated Java processes and do not
+leave two supervisors able to own the same port.
+
+Verify the result before activating a baseline:
+
+```bash
+pgrep -af 'java|watchdog|wesite'
+systemctl list-units --type=service | grep -Ei 'wesite|watchdog'
+systemctl list-timers --all | grep -Ei 'wesite|watchdog'
+grep -R "watchdog" /etc/cron.d /etc/cron.daily /etc/systemd/system 2>/dev/null
+ss -lntp | grep -E '127\.0\.0\.1:(8080|8082)' || true
+```
+
+Record the exact unit, timer, cron file, or launcher that was disabled. Removal
+of that legacy mechanism is a one-time operator action, never a Jenkins step.
+
+## 10. Activate baselines and perform the first independent releases
+
+Activate and check each verified old binary separately. Legacy HTTP-200 health
+overrides require direct root invocation and are only for old binaries that
+predate readiness endpoints:
+
+```bash
+sudo env WESITE_HEALTH_RESPONSE_MODE=legacy-http-200 \
+  WESITE_APP_HEALTH_URL=http://127.0.0.1:8080/ \
+  /usr/local/sbin/deploy-wesite-app web \
+  "baseline-web-$BASELINE_ID" \
+  "/var/lib/wesite-deploy/incoming/baseline-web-$BASELINE_ID/wesite-web.jar"
+sudo /usr/local/sbin/check-wesite-app web
+
+sudo env WESITE_HEALTH_RESPONSE_MODE=legacy-http-200 \
+  WESITE_APP_HEALTH_URL=http://127.0.0.1:8082/ \
+  /usr/local/sbin/deploy-wesite-app admin \
+  "baseline-admin-$BASELINE_ID" \
+  "/var/lib/wesite-deploy/incoming/baseline-admin-$BASELINE_ID/wesite-admin.jar"
+sudo /usr/local/sbin/check-wesite-app admin
+```
+
+Remove only each baseline input file and its empty staging directory after its
+command has returned. Never remove its immutable release directory.
+
+Build the new Web and Admin candidates on CI or another build host. Run and
+record the two module builds separately; production receives JARs, not source:
+
+```bash
+mvn -B -pl wesite-web -am clean verify
+mvn -B -pl wesite-admin -am clean verify
+```
+
+Stage and deploy Web first with its commit-based version, run its single check,
+then independently stage and deploy Admin and run its single check. New
+releases use the default strict readiness contract; do not apply legacy health
+overrides. Transfer only the two built JARs to separate operator-owned
+temporary paths. On production, validate the recorded commit, create two
+private incoming directories, and install each exact artifact:
+
+```bash
+NEW_COMMIT=0123456789abcdef0123456789abcdef01234567
+[[ "$NEW_COMMIT" =~ ^[0-9a-f]{7,64}$ ]]
+sudo mkdir -m 0700 \
+  "/var/lib/wesite-deploy/incoming/first-web-$NEW_COMMIT" \
+  "/var/lib/wesite-deploy/incoming/first-admin-$NEW_COMMIT"
+sudo install -o root -g root -m 0400 \
+  "/tmp/wesite-web-$NEW_COMMIT.jar" \
+  "/var/lib/wesite-deploy/incoming/first-web-$NEW_COMMIT/wesite-web-1.0.0.jar"
+sudo install -o root -g root -m 0400 \
+  "/tmp/wesite-admin-$NEW_COMMIT.jar" \
+  "/var/lib/wesite-deploy/incoming/first-admin-$NEW_COMMIT/wesite-admin-1.0.0.jar"
+```
+
+Invoke and check the releases one at a time:
+
+```bash
+
+sudo /usr/local/sbin/deploy-wesite-app web \
+  "$NEW_COMMIT-first-web" \
+  "/var/lib/wesite-deploy/incoming/first-web-$NEW_COMMIT/wesite-web-1.0.0.jar"
+sudo /usr/local/sbin/check-wesite-app web
+
+sudo /usr/local/sbin/deploy-wesite-app admin \
+  "$NEW_COMMIT-first-admin" \
+  "/var/lib/wesite-deploy/incoming/first-admin-$NEW_COMMIT/wesite-admin-1.0.0.jar"
+sudo /usr/local/sbin/check-wesite-app admin
+```
+
+A failed deploy rolls back only that application. Stop and investigate a
+failure; do not make the other application part of its health gate or rollback.
+
+## 11. Enable services and the health timer
+
+After both first-release checks have passed:
+
+```bash
+sudo systemctl enable --now \
+  wesite-web.service wesite-admin.service wesite-health-monitor.timer
+systemctl is-enabled \
+  wesite-web.service wesite-admin.service wesite-health-monitor.timer
+systemctl is-active \
+  wesite-web.service wesite-admin.service wesite-health-monitor.timer
+systemctl list-timers wesite-health-monitor.timer --no-pager
+```
+
+The timer evaluates each deployed application independently. Before an
+intentional application stop, stop the timer and any in-flight monitor so it
+cannot treat maintenance as a failure.
+
+## 12. Production operation
+
+### Single-application and global checks
+
+```bash
+sudo /usr/local/sbin/check-wesite-app web
+sudo /usr/local/sbin/check-wesite-app admin
+sudo /usr/local/sbin/check-wesite-services
+curl --fail --silent --show-error http://127.0.0.1:8080/api/healthz
+curl --fail --silent --show-error http://127.0.0.1:8080/api/readyz
+curl --fail --silent --show-error http://127.0.0.1:8082/api/readyz
+nginx -t
+```
+
+From the operator machine:
+
+```powershell
+pwsh -NoProfile -File scripts/check-production-smoke.ps1 -BaseUrl https://whose.domains
+pwsh -NoProfile -File scripts/check-seo.ps1 -BaseUrl https://whose.domains
+```
+
+### Jenkins credentials and two independent jobs
+
+In Jenkins Credentials, create:
+
+- an SSH Username with private key credential named
+  `whose-domains-prod-ssh`, with username `wesite-deploy`;
+- a Secret file credential named `whose-domains-prod-known-hosts`.
+
+Obtain the production host public key through a trusted console or provider
+channel. Compare its fingerprint out of band before putting the exact
+`47.76.125.96` known-hosts line in the Secret file. `ssh-keyscan` output alone
+does not authenticate a host key.
+
+Create two Pipeline-from-SCM jobs:
+
+- Web uses `deploy/jenkins/wesite-web.Jenkinsfile`;
+- Admin uses `deploy/jenkins/wesite-admin.Jenkinsfile`.
+
+Each job disables same-job concurrency, validates `GIT_COMMIT` as lowercase
+hexadecimal and `BUILD_NUMBER` as decimal digits, pins the host key, creates a
+mode `0700` app/commit/build staging directory, uploads exactly its own JAR,
+and invokes only its own non-interactive deploy and check commands. Cleanup in
+the same remote shell removes only the uploaded file and empty job directory,
+then returns the saved deploy/check status.
+
+Routine jobs must not upload infrastructure or source, install units, edit
+configuration, start Java, manage services directly, invoke a watchdog,
+perform rollback, prune releases, or run database maintenance. Independent
+releases can temporarily run mixed commits, so changes to schemas, JWT claims,
+Redis values, internal APIs, and other shared contracts must be backward- and
+forward-compatible across adjacent versions. Incompatible changes require a
+coordinated maintenance window.
+
+### Root-only manual rollback
+
+Jenkins has no rollback permission. An operator rolls back one application and
+checks that same application before deciding whether a separate rollback is
+needed elsewhere:
+
+```bash
+sudo /usr/local/sbin/rollback-wesite-app web
+sudo /usr/local/sbin/check-wesite-app web
+
+sudo /usr/local/sbin/rollback-wesite-app admin
+sudo /usr/local/sbin/check-wesite-app admin
+```
+
+The rollback swaps that application's successful `current` and `previous`
+targets. If the target fails its recorded health contract, the command restores
+the original links and original version.
+
+### Journal inspection
+
+```bash
+journalctl -u wesite-web.service --since '-15 min' --no-pager
+journalctl -u wesite-admin.service --since '-15 min' --no-pager
+journalctl -u wesite-health-monitor.service --since '-15 min' --no-pager
+journalctl -u wesite-web.service -f
+journalctl -u wesite-admin.service -f
+```
+
+### Root-only old-release cleanup
+
+Release pruning is a separate, reviewed operator change. For one application
+at a time, resolve and record its `current` and `previous` targets, list the
+terminal release metadata, and print exact candidates before deletion:
+
+```bash
+sudo realpath -e /usr/java/apps/web/current
+sudo realpath -e /usr/java/apps/web/previous
+sudo find /usr/java/apps/web/releases -mindepth 1 -maxdepth 1 -type d -print
+
+sudo realpath -e /usr/java/apps/admin/current
+sudo realpath -e /usr/java/apps/admin/previous
+sudo find /usr/java/apps/admin/releases -mindepth 1 -maxdepth 1 -type d -print
+```
+
+Retain both link targets and at least the three most recent additional
+successful releases. Keep failed releases until diagnosis is complete. Only
+root may remove one fully resolved, literal release directory after checking
+its `APP`, `VERSION`, `STATUS`, and link exclusion. Never delete an unchecked
+variable, symlink target, application root, shared parent, or all releases with
+a wildcard. Once those checks are recorded, remove only the reviewed literal
+path, for example
+`sudo rm -rf -- /usr/java/apps/web/releases/0123456789abcdef-123`; never paste
+the example without replacing and rechecking its release identity.
+
+## Coordinated blog database migration and sanitization
+
+This is database/application maintenance outside both routine Jenkins jobs.
+It is not a hidden side effect of either release. Schedule a coordinated
+maintenance window, keep normal writers stopped from backup through apply, and
+retain all output with the change record.
+
+Stop the monitor and both services deliberately:
+
+```bash
+sudo systemctl stop \
+  wesite-health-monitor.timer wesite-health-monitor.service \
   wesite-web.service wesite-admin.service
 ```
 
-## 6. Back up and migrate the blog table
-
-Keep both normal application writers stopped. Use the remote database hostname and an account with the required schema permissions:
+From the trusted operator machine that contains the reviewed SQL file, back up
+and migrate `WEB_BLOG_POST` directly against the remote database using a
+schema-authorized account. Do not copy the repository to production:
 
 ```bash
-mysqldump --single-transaction -h MYSQL_HOST -u DB_USER -p wesitedb WEB_BLOG_POST \
-  > web-blog-post-before-editorial-$(date -u +%Y%m%dT%H%M%SZ).sql
+mysqldump --single-transaction -h MYSQL_HOST -u DB_USER -p wesitedb \
+  WEB_BLOG_POST > web-blog-post-before-editorial-$(date -u +%Y%m%dT%H%M%SZ).sql
 sha256sum web-blog-post-before-editorial-*.sql
 
 mysql -h MYSQL_HOST -u DB_USER -p wesitedb \
@@ -175,11 +499,9 @@ mysql -h MYSQL_HOST -u DB_USER -p wesitedb \
   -e "SHOW COLUMNS FROM WEB_BLOG_POST LIKE 'CONTENT_UPDATED_AT';"
 ```
 
-Follow the complete editorial migration and rollback contract in the repository root `README.md` before normal deployment.
-
-## 7. Run the one-time sanitization
-
-Make the uploaded admin JAR readable by the `wesite` user. `systemd-run` safely loads the systemd environment file without evaluating it as shell code:
+Copy the reviewed Admin maintenance JAR as a root-owned, runtime-readable
+file. Run it through a transient root-created systemd unit so the environment
+file is parsed by systemd rather than a shell:
 
 ```bash
 sudo install -o root -g wesite -m 0440 \
@@ -201,85 +523,15 @@ sudo systemd-run --quiet --wait --collect --pipe \
   2>&1 | sudo tee /usr/java/logs/blog-sanitize-dry-run.log
 ```
 
-Inspect every reported change or a recorded sample for a large result. Then repeat the command with a new unit name, `mode=apply`, and `blog-sanitize-apply.log`. Run dry-run once more; it must report zero changed posts. A non-zero exit or missing completion report stops the release.
+Inspect every proposed change, or an explicitly recorded sample for a large
+set. Repeat with a new unit name, `mode=apply`, and a separate apply log. A
+non-zero exit or missing completion report stops the change. Run dry-run again;
+it must report zero changes.
 
-## 8. Deploy both applications
-
-Use the newly built Git commit as the immutable version. The release directory must not already exist:
-
-```bash
-RELEASE_VERSION='<new-git-commit>'
-sudo deploy-wesite-release \
-  "$RELEASE_VERSION" \
-  /tmp/wesite-web-1.0.0.jar \
-  /tmp/wesite-admin-1.0.0.jar
-```
-
-The command performs this sequence:
-
-1. copy both JARs to `/usr/java/releases/<version>/`
-2. atomically switch `/usr/java/current`
-3. restart and check `wesite-admin.service`
-4. restart and check `wesite-web.service`
-5. set `/usr/java/previous` only after both checks pass
-6. restore the old `current` target and restart both services if either check fails
-
-The command holds `/run/lock/wesite-deploy.lock` for the complete transaction. A concurrent release is rejected before it creates a release directory, and HUP/INT/TERM or another unsuccessful exit after switching `current` triggers the same rollback. Never reuse a version name or edit a release directory in place.
-
-## 9. Verify production
-
-```bash
-sudo systemctl enable --now \
-  wesite-admin.service wesite-web.service wesite-health-monitor.timer
-sudo check-wesite-services
-systemctl status wesite-admin.service wesite-web.service --no-pager
-systemctl status wesite-health-monitor.timer --no-pager
-systemctl list-timers wesite-health-monitor.timer --no-pager
-journalctl -u wesite-admin.service -u wesite-web.service --since '-15 min' --no-pager
-ss -lntp | grep -E '127\.0\.0\.1:(8080|8082)'
-curl --fail --silent --show-error http://127.0.0.1:8080/api/healthz
-curl --fail --silent --show-error http://127.0.0.1:8080/api/readyz
-curl --fail --silent --show-error http://127.0.0.1:8082/api/readyz
-free -h
-swapon --show
-nginx -t
-```
-
-From the repository operator machine, also run:
-
-```powershell
-pwsh -NoProfile -File scripts/check-production-smoke.ps1 -BaseUrl https://whose.domains
-pwsh -NoProfile -File scripts/check-seo.ps1 -BaseUrl https://whose.domains
-```
-
-Check the admin blog save/preview/publish/unpublish workflow and the blog sitemap. Keep `/domain/*` and `/blog/*` public URL shapes unchanged.
-
-## Logs and routine operation
-
-```bash
-journalctl -u wesite-web.service -f
-journalctl -u wesite-admin.service -f
-journalctl -u wesite-health-monitor.service -f
-systemctl restart wesite-web.service
-systemctl restart wesite-admin.service
-systemctl stop wesite-web.service wesite-admin.service
-```
-
-Before a planned maintenance window, stop both the timer and any currently running monitor, then confirm both are inactive so intentional service stops cannot be counted as failures:
-
-```bash
-sudo systemctl stop wesite-health-monitor.timer wesite-health-monitor.service
-systemctl is-active wesite-health-monitor.timer wesite-health-monitor.service
-```
-
-If the maintenance window may span a host reboot, disable all three boot units and stop any in-flight monitor:
-
-```bash
-sudo systemctl disable --now \
-  wesite-health-monitor.timer wesite-web.service wesite-admin.service
-sudo systemctl stop wesite-health-monitor.service
-```
-
-Confirm all three boot units report `disabled`. After maintenance and a successful deployment, restore boot activation with `sudo systemctl enable --now wesite-admin.service wesite-web.service wesite-health-monitor.timer`.
-
-Do not delete `/usr/java/previous` or the database backup until the release has passed its observation window. After stability is confirmed, remove old release directories individually; never recursively delete `/usr/java`, `/usr/java/releases`, or a path derived from an unchecked variable.
+Release the tested, compatibility-matched Web and Admin binaries through two
+separate application deployment invocations, checking each independently.
+Leave the additive database column in place during binary rollback. Content
+rollback restores only affected IDs and their original `CONTENT` and
+`CONTENT_UPDATED_AT` values from the recorded backup; never overwrite unrelated
+post edits. Restore services and the timer only after application, editorial,
+public page, P0 smoke, and SEO checks pass.

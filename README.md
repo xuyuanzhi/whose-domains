@@ -109,25 +109,21 @@ URLs:
 
 ### Production deployment
 
-For the recommended low-memory production layout, including the two `systemd` units, 2 GiB swap setup, immutable release switching, health checks, and automatic rollback, follow [`deploy/README.md`](deploy/README.md).
+Production Web and Admin releases are independent. The Web Jenkins job builds
+and uploads only the Web JAR and gates only Web health; the Admin job does the
+same for Admin. Their Pipeline definitions are
+[`deploy/jenkins/wesite-web.Jenkinsfile`](deploy/jenkins/wesite-web.Jenkinsfile)
+and
+[`deploy/jenkins/wesite-admin.Jenkinsfile`](deploy/jenkins/wesite-admin.Jenkinsfile).
 
-`application-prod.properties` is gitignored and is **not** bundled into the jar from a clean checkout, so supply it externally at runtime. Spring Boot automatically loads `application-prod.properties` from a `config/` directory (or the current directory) next to the jar, which overrides anything on the classpath:
-
-```bash
-mvn clean package -DskipTests -P prod
-
-# Provide the prod config outside the jar (fill in real values, or leave ${ENV_VAR} refs)
-mkdir -p config
-cp deploy/config/wesite-web.application-prod.properties.example config/application-prod.properties
-# edit config/application-prod.properties as needed
-
-# Secrets are best supplied as environment variables (see the table above)
-export WD_DB_PASSWORD=... JWT_SECRET=... REDIS_PASSWORD=... BLOG_INTERNAL_SECRET=... DEEPSEEK_API_KEY=...
-
-java -jar wesite-web/target/wesite-web-1.0.0.jar --spring.profiles.active=prod
-```
-
-Alternatively point Spring at any path with `--spring.config.additional-location=file:/etc/whosedomains/`. Never place real secrets in a tracked file — keep them in environment variables or the external, gitignored `application-prod.properties`.
+Follow [`deploy/README.md`](deploy/README.md) for the ordered source-free
+bootstrap, external live configuration, old-binary baselines, first releases,
+Jenkins credential setup, checks, root-only rollback, logs, and cleanup.
+Routine Jenkins releases never upload source or infrastructure, edit live
+configuration, manage services directly, run database work, or perform
+rollback. `application-prod.properties` remains external and gitignored; never
+put real production secrets in a tracked file, Jenkins parameter, workspace,
+or artifact.
 
 ### Post-deployment SEO contract
 
@@ -342,7 +338,12 @@ The first result set is a single readiness row, the second is a daily closed-coh
 
 ## Blog editorial workflow deployment
 
-Treat the editorial schema migration and the one-time HTML sanitization as a controlled production change. Keep normal writers stopped from the backup through the apply step, retain every command output with the release record, and do not deploy only one of the two applications.
+Treat the editorial schema migration and one-time HTML sanitization as a
+coordinated maintenance operation outside both routine Jenkins jobs. Keep
+normal writers stopped from the backup through the apply step and retain every
+command output with the maintenance record. Database migration, sanitization,
+and service coordination must never be added as side effects of either
+application Pipeline.
 
 Follow this order exactly:
 
@@ -394,7 +395,7 @@ Follow this order exactly:
      --wesite.blog.sanitization.batch-size=100
    ```
 
-6. **Deploy wesite-admin and wesite-web from the same tested commit.** Start both in their normal production mode without the `blog-sanitize` profile or any `wesite.blog.sanitization.mode` property. Confirm both processes remain healthy before restoring traffic and editorial writes.
+6. **Release both compatibility-matched binaries through separate application deployments.** Deploy and check Admin independently, then deploy and check Web independently, without the `blog-sanitize` profile or any `wesite.blog.sanitization.mode` property. Confirm both processes remain healthy before restoring traffic and editorial writes. This maintenance gate does not turn the two routine Jenkins jobs into a paired deployment.
 
 7. Complete these release checks:
 
@@ -406,7 +407,11 @@ Follow this order exactly:
 
 ### Editorial rollback
 
-For a binary rollback, stop both new applications, deploy the previous `wesite-admin` and `wesite-web` artifacts together, and **leave the nullable column in place**. The additive `CONTENT_UPDATED_AT` column is safe for the previous binary to ignore; dropping it during an incident adds unnecessary risk.
+For a binary rollback, a root operator invokes
+`rollback-wesite-app admin` and `rollback-wesite-app web` separately and checks
+each application after its command returns. **Leave the nullable column in
+place.** The additive `CONTENT_UPDATED_AT` column is safe for the previous
+binary to ignore; dropping it during an incident adds unnecessary risk.
 
 A binary rollback does not undo sanitized article content. For a content rollback, stop editorial writers and use the saved dry-run/apply report to select only affected IDs. From the pre-change backup, **restore CONTENT and the original CONTENT_UPDATED_AT** for those rows, or restore `NULL` when the column did not exist before this release. Do not restore the entire table over unrelated post edits. Validate the affected rows and public pages before restarting writers, and retain the backup until the rollback window closes.
 
