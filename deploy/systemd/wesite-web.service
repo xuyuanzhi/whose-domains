@@ -1,0 +1,35 @@
+[Unit]
+Description=Whose.Domains public web application
+Wants=network-online.target redis-server.service
+After=network-online.target redis-server.service
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=exec
+User=wesite
+Group=wesite
+WorkingDirectory=/usr/java/current
+EnvironmentFile=/etc/wesite/wesite.env
+ExecStartPre=/usr/bin/test -r /usr/java/current/wesite-web.jar
+ExecStartPre=/usr/bin/test -r /usr/java/config/web/application-prod.properties
+ExecStart=/usr/bin/java -Xms256m -Xmx768m -Xss512k -XX:MaxMetaspaceSize=192m -XX:MaxDirectMemorySize=128m -XX:+UseG1GC -XX:+ExitOnOutOfMemoryError -Dfile.encoding=UTF-8 -jar /usr/java/current/wesite-web.jar --spring.profiles.active=prod --spring.config.additional-location=file:/usr/java/config/web/ --server.address=127.0.0.1 --server.port=8080
+Restart=on-failure
+RestartSec=10
+TimeoutStartSec=120
+TimeoutStopSec=45
+KillSignal=SIGTERM
+SuccessExitStatus=143
+LimitNOFILE=65535
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+ReadWritePaths=/usr/java/logs /var/www/sitemap
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=wesite-web
+
+[Install]
+WantedBy=multi-user.target

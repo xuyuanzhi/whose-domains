@@ -1,0 +1,16 @@
+[Unit]
+Description=Whose.Domains readiness monitor
+After=wesite-admin.service wesite-web.service
+ConditionPathExists=/usr/java/current
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/monitor-wesite-services
+User=root
+Group=root
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
