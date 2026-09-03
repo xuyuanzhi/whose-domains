@@ -71,6 +71,10 @@ printf '%s\n' "$url" >> "$WESITE_TEST_CALL_LOG"
 if [ "$url" = "${WESITE_TEST_FAIL_URL:-}" ]; then
   exit 22
 fi
+if [ "$url" = "${WESITE_TEST_LEGACY_URL:-}" ]; then
+  printf '<html>legacy application</html>\n200'
+  exit 0
+fi
 printf '{"status":"UP"}\n200'
 EOF
   chmod +x "$fixture/fake-bin/systemctl" "$fixture/fake-bin/curl"
@@ -88,6 +92,7 @@ run_monitor() {
     WESITE_TEST_CALL_LOG="$fixture/calls.log" \
     WESITE_TEST_INACTIVE_SERVICE="${WESITE_TEST_INACTIVE_SERVICE:-}" \
     WESITE_TEST_FAIL_URL="${WESITE_TEST_FAIL_URL:-}" \
+    WESITE_TEST_LEGACY_URL="${WESITE_TEST_LEGACY_URL:-}" \
     bash "$MONITOR_SCRIPT"
 }
 
@@ -175,10 +180,14 @@ test_monitor_uses_deployed_release_health_contract() {
   make_fixture "$fixture"
   write_metadata "$fixture/apps/web/releases/v1" web legacy-http-200 http://127.0.0.1:8080/legacy-health
 
-  run_monitor "$fixture"
+  WESITE_TEST_LEGACY_URL=http://127.0.0.1:8080/legacy-health run_monitor "$fixture"
 
   grep -Fxq 'http://127.0.0.1:8080/legacy-health' "$fixture/calls.log" \
     || fail 'monitor did not use web release metadata health URL'
+  [[ ! -e "$fixture/state/web.failures" ]] \
+    || fail 'legacy metadata health mode was treated as a readiness failure'
+  [[ ! -s "$fixture/restarts.log" ]] \
+    || fail 'legacy metadata health mode restarted web'
 }
 
 test_three_consecutive_failures_restart_only_the_failed_service

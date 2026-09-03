@@ -41,6 +41,7 @@ set_current() {
 make_fixture() {
   local fixture="$1"
   mkdir -p "$fixture/fake-bin"
+  : > "$fixture/calls.log"
   write_metadata "$fixture" web readiness http://127.0.0.1:8080/api/readyz
   write_metadata "$fixture" admin readiness http://127.0.0.1:8082/api/readyz
   set_current "$fixture" web
@@ -48,14 +49,20 @@ make_fixture() {
 
   cat > "$fixture/fake-bin/systemctl" <<'EOF'
 #!/bin/sh
+printf 'systemctl %s\n' "$*" >> "$WESITE_TEST_CALL_LOG"
 [ "${WESITE_TEST_INACTIVE_SERVICE:-}" != "${3:-}" ]
 EOF
   cat > "$fixture/fake-bin/curl" <<'EOF'
 #!/bin/sh
 url=''
 for argument in "$@"; do url="$argument"; done
+printf 'curl %s\n' "$url" >> "$WESITE_TEST_CALL_LOG"
 if [ "${WESITE_TEST_FAIL_URL:-}" = "$url" ]; then
   exit 22
+fi
+if [ "$url" = "${WESITE_TEST_LEGACY_URL:-}" ]; then
+  printf '<html>legacy application</html>\n200'
+  exit 0
 fi
 printf '{"status":"UP"}\n200'
 EOF
@@ -67,8 +74,10 @@ run_check() {
   env \
     PATH="$fixture/fake-bin:$PATH" \
     WESITE_APPS_BASE_DIR="$fixture/apps" \
+    WESITE_TEST_CALL_LOG="$fixture/calls.log" \
     WESITE_TEST_INACTIVE_SERVICE="${WESITE_TEST_INACTIVE_SERVICE:-}" \
     WESITE_TEST_FAIL_URL="${WESITE_TEST_FAIL_URL:-}" \
+    WESITE_TEST_LEGACY_URL="${WESITE_TEST_LEGACY_URL:-}" \
     bash "$CHECK_SCRIPT"
 }
 
@@ -90,6 +99,22 @@ test_global_status_fails_when_deployed_app_is_unhealthy() {
   fi
 }
 
+test_global_status_fails_when_admin_is_inactive_but_web_remains_healthy() {
+  local fixture="$TEST_ROOT/admin-inactive"
+  local output
+  make_fixture "$fixture"
+
+  if output="$(WESITE_TEST_INACTIVE_SERVICE=wesite-admin.service run_check "$fixture" 2>&1)"; then
+    fail 'inactive deployed admin application was accepted'
+  fi
+  [[ "$output" == *'FAIL application unhealthy: admin'* ]] \
+    || fail 'inactive admin was not reported unhealthy'
+  [[ "$output" == *'PASS application healthy: web'* ]] \
+    || fail 'admin failure prevented the independent web health check'
+  grep -Fq 'systemctl is-active --quiet wesite-web.service' "$fixture/calls.log" \
+    || fail 'inactive admin prevented the web service health check'
+}
+
 test_undeployed_app_is_reported_without_failing_healthy_deployed_app() {
   local fixture="$TEST_ROOT/web-only"
   local output
@@ -99,6 +124,21 @@ test_undeployed_app_is_reported_without_failing_healthy_deployed_app() {
   output="$(run_check "$fixture" 2>&1)"
   [[ "$output" == *'admin not deployed'* ]] || fail 'missing admin current was not reported as not deployed'
   [[ "$output" == *'All Whose.Domains services are healthy.'* ]] || fail 'healthy deployed web application failed because admin is absent'
+}
+
+test_global_status_uses_deployed_legacy_health_contract() {
+  local fixture="$TEST_ROOT/legacy-contract"
+  local output
+  make_fixture "$fixture"
+  rm "$fixture/apps/admin/current"
+  write_metadata "$fixture" web legacy-http-200 http://127.0.0.1:8080/legacy-health
+
+  output="$(WESITE_TEST_LEGACY_URL=http://127.0.0.1:8080/legacy-health run_check "$fixture" 2>&1)"
+
+  [[ "$output" == *'All Whose.Domains services are healthy.'* ]] \
+    || fail 'legacy metadata health contract was rejected'
+  grep -Fq 'curl http://127.0.0.1:8080/legacy-health' "$fixture/calls.log" \
+    || fail 'global status did not use the recorded legacy health URL'
 }
 
 test_entirely_undeployed_host_fails_with_clear_message() {
@@ -115,6 +155,8 @@ test_entirely_undeployed_host_fails_with_clear_message() {
 
 test_global_status_succeeds_when_both_deployed_apps_pass
 test_global_status_fails_when_deployed_app_is_unhealthy
+test_global_status_fails_when_admin_is_inactive_but_web_remains_healthy
 test_undeployed_app_is_reported_without_failing_healthy_deployed_app
+test_global_status_uses_deployed_legacy_health_contract
 test_entirely_undeployed_host_fails_with_clear_message
-printf 'Service health-check tests passed: 4.\n'
+printf 'Service health-check tests passed: 6.\n'
