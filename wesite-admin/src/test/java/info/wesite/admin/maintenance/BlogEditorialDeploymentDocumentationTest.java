@@ -18,7 +18,8 @@ class BlogEditorialDeploymentDocumentationTest {
         int dryRun = readme.indexOf("wesite.blog.sanitization.mode=dry-run");
         int inspect = readme.indexOf("Inspect the dry-run report");
         int apply = readme.indexOf("wesite.blog.sanitization.mode=apply");
-        int deploy = readme.indexOf("Deploy wesite-admin and wesite-web");
+        int deploy = readme.indexOf(
+                "Deploy and check Admin independently, then deploy and check Web independently");
 
         assertTrue(backup >= 0 && backup < migration);
         assertTrue(migration < dryRun && dryRun < inspect);
@@ -28,7 +29,7 @@ class BlogEditorialDeploymentDocumentationTest {
         assertTrue(readme.contains("CONTENT_UPDATED_AT"));
         assertTrue(readme.contains("preview iframe sandbox"));
         assertTrue(readme.contains("public HTML and JSON-LD"));
-        assertTrue(readme.contains("leave the nullable column in place"));
+        assertTrue(readme.matches("(?s).*Leave the nullable column\\s+in\\s+place.*"));
         assertTrue(readme.contains("restore CONTENT and the original CONTENT_UPDATED_AT"));
     }
 }
