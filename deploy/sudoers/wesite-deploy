@@ -1,0 +1,1 @@
+wesite-deploy ALL=(root) NOPASSWD: /usr/local/sbin/deploy-wesite-app web *, /usr/local/sbin/deploy-wesite-app admin *, /usr/local/sbin/check-wesite-app web, /usr/local/sbin/check-wesite-app admin

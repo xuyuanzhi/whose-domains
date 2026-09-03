@@ -15,7 +15,8 @@ class ProductionSecurityConfigurationTest {
     @Test
     void webProductionExampleSecuresSessionCookiesAndAcceptsForwardedHeadersOnlyFromTrustedProxies()
             throws IOException {
-        Properties properties = properties("src", "main", "resources", "application-prod.properties.example");
+        Properties properties = properties("..", "deploy", "config",
+                "wesite-web.application-prod.properties.example");
 
         assertSessionCookiePolicy(properties);
         assertEquals("native", properties.getProperty("server.forward-headers-strategy"));
@@ -28,8 +29,8 @@ class ProductionSecurityConfigurationTest {
 
     @Test
     void adminProductionExampleSecuresSessionCookiesAndTrustsOnlyConfiguredProxies() throws IOException {
-        Properties properties = properties("..", "wesite-admin", "src", "main", "resources",
-                "application-prod.properties.example");
+        Properties properties = properties("..", "deploy", "config",
+                "wesite-admin.application-prod.properties.example");
 
         assertSessionCookiePolicy(properties);
         assertEquals("native", properties.getProperty("server.forward-headers-strategy"));
@@ -59,7 +60,8 @@ class ProductionSecurityConfigurationTest {
 
     @Test
     void productionExampleExplicitlyEnablesCanonicalRedirect() throws IOException {
-        Properties production = properties("src", "main", "resources", "application-prod.properties.example");
+        Properties production = properties("..", "deploy", "config",
+                "wesite-web.application-prod.properties.example");
 
         assertEquals("true", production.getProperty("wesite.seo.canonical-redirect-enabled"));
     }

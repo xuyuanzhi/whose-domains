@@ -63,7 +63,7 @@ sha256sum wesite-web/target/wesite-web-1.0.0.jar \
   wesite-admin/target/wesite-admin-1.0.0.jar
 ```
 
-Upload both JARs and a checkout/export of this entire repository at the same commit to a temporary server directory. The installer also reads the web and admin production-property templates, so copying only `deploy/` and `scripts/server/` is insufficient. Record the commit and checksums in the release record.
+Upload both JARs and a checkout/export of this entire repository at the same commit to a temporary server directory. The installer reads `deploy/config/wesite-web.application-prod.properties.example` and `deploy/config/wesite-admin.application-prod.properties.example`, so copying only `deploy/systemd/` and `scripts/server/` is insufficient. Record the commit and checksums in the release record.
 
 ## 3. Add swap and install systemd assets
 

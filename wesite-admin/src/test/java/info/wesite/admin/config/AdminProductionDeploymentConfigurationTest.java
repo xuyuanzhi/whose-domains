@@ -8,7 +8,7 @@ import java.util.Properties;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
-import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.support.PropertiesLoaderUtils;
 
 class AdminProductionDeploymentConfigurationTest {
@@ -19,7 +19,7 @@ class AdminProductionDeploymentConfigurationTest {
     @Test
     void productionTemplateMapsTheSharedJwtSecret() throws IOException {
         Properties production = PropertiesLoaderUtils.loadProperties(
-            new ClassPathResource("application-prod.properties.example"));
+            new FileSystemResource("../deploy/config/wesite-admin.application-prod.properties.example"));
 
         assertEquals("${JWT_SECRET:please-change-this-default-secret-key-in-production}",
             production.getProperty("app.jwt.secret"));

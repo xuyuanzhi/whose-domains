@@ -66,9 +66,9 @@ mysql -u root -p wesitedb < doc/data_blog_posts.sql
 Copy the templates and fill in your local values (these files are gitignored, so they will not be committed):
 
 ```bash
-cp wesite-web/src/main/resources/application-prod.properties.example \
+cp deploy/config/wesite-web.application-prod.properties.example \
    wesite-web/src/main/resources/application-prod.properties
-cp wesite-admin/src/main/resources/application-prod.properties.example \
+cp deploy/config/wesite-admin.application-prod.properties.example \
    wesite-admin/src/main/resources/application-prod.properties
 ```
 
@@ -118,7 +118,7 @@ mvn clean package -DskipTests -P prod
 
 # Provide the prod config outside the jar (fill in real values, or leave ${ENV_VAR} refs)
 mkdir -p config
-cp wesite-web/src/main/resources/application-prod.properties.example config/application-prod.properties
+cp deploy/config/wesite-web.application-prod.properties.example config/application-prod.properties
 # edit config/application-prod.properties as needed
 
 # Secrets are best supplied as environment variables (see the table above)
