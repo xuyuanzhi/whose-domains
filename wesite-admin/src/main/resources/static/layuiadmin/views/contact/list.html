@@ -1,0 +1,335 @@
+<title>联系消息</title>
+
+<style>
+.contact-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-bottom: 16px;
+  border: 1px solid #e6e6e6;
+  background: #fff;
+}
+.contact-summary__item {
+  position: relative;
+  min-height: 82px;
+  padding: 18px 22px 14px 26px;
+  border-right: 1px solid #e6e6e6;
+}
+.contact-summary__item:last-child { border-right: 0; }
+.contact-summary__item::before {
+  position: absolute;
+  top: 18px;
+  bottom: 18px;
+  left: 0;
+  width: 4px;
+  content: '';
+  background: #1e9fff;
+}
+.contact-summary__item--pending::before { background: #ffb800; }
+.contact-summary__item--processed::before { background: #5fb878; }
+.contact-summary__label { color: #666; font-size: 13px; }
+.contact-summary__value {
+  margin-top: 6px;
+  color: #24262b;
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1;
+}
+.contact-message-cell {
+  overflow: hidden;
+  max-width: 360px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.contact-detail { padding: 20px 24px 8px; }
+.contact-detail__row {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  padding: 10px 0;
+  border-bottom: 1px solid #f2f2f2;
+}
+.contact-detail__label { color: #8a8f99; }
+.contact-detail__value { min-width: 0; color: #24262b; overflow-wrap: anywhere; }
+.contact-detail__message { line-height: 1.75; white-space: pre-wrap; }
+@media (max-width: 640px) {
+  .contact-summary { grid-template-columns: 1fr; }
+  .contact-summary__item { border-right: 0; border-bottom: 1px solid #e6e6e6; }
+  .contact-summary__item:last-child { border-bottom: 0; }
+  .contact-detail__row { grid-template-columns: 1fr; gap: 5px; }
+}
+</style>
+
+<div class="layui-card layadmin-header">
+  <div class="layui-breadcrumb" lay-filter="breadcrumb">
+    <a lay-href="">主页</a>
+    <a><cite>联系消息</cite></a>
+  </div>
+</div>
+
+<div class="layui-fluid">
+  <section class="contact-summary" aria-label="联系消息统计">
+    <div class="contact-summary__item">
+      <div class="contact-summary__label">全部消息</div>
+      <div class="contact-summary__value" data-stat="total">0</div>
+    </div>
+    <div class="contact-summary__item contact-summary__item--pending">
+      <div class="contact-summary__label">待处理</div>
+      <div class="contact-summary__value" data-stat="pending">0</div>
+    </div>
+    <div class="contact-summary__item contact-summary__item--processed">
+      <div class="contact-summary__label">已处理</div>
+      <div class="contact-summary__value" data-stat="processed">0</div>
+    </div>
+  </section>
+
+  <div class="layui-card">
+    <div class="layui-card-body">
+      <table id="LAY-contact-list" lay-filter="LAY-contact-list"></table>
+    </div>
+  </div>
+</div>
+
+<div id="contact-toolbar" class="layui-hide">
+  <button id="contact-refresh" type="button" class="layui-btn layui-btn-sm" lay-event="refresh">
+    <i class="layui-icon layui-icon-refresh"></i> 刷新
+  </button>
+  <button id="contact-delete-selected" type="button" class="layui-btn layui-btn-danger layui-btn-sm" lay-event="deleteSelected">
+    <i class="layui-icon layui-icon-delete"></i> 删除选中
+  </button>
+</div>
+
+<div id="contact-actions" class="layui-hide">
+  <button type="button" class="layui-btn layui-btn-primary layui-btn-xs" lay-event="detail">详情</button>
+  <button type="button" class="layui-btn layui-btn-normal layui-btn-xs" lay-event="status">切换状态</button>
+  <button type="button" class="layui-btn layui-btn-danger layui-btn-xs" lay-event="delete">删除</button>
+</div>
+
+<div id="contact-detail-template" class="layui-hide">
+  <div class="contact-detail">
+    <div class="contact-detail__row"><div class="contact-detail__label">姓名</div><div class="contact-detail__value" data-field="name"></div></div>
+    <div class="contact-detail__row"><div class="contact-detail__label">邮箱</div><div class="contact-detail__value" data-field="email"></div></div>
+    <div class="contact-detail__row"><div class="contact-detail__label">主题</div><div class="contact-detail__value" data-field="subject"></div></div>
+    <div class="contact-detail__row"><div class="contact-detail__label">IP 地址</div><div class="contact-detail__value" data-field="requestIp"></div></div>
+    <div class="contact-detail__row"><div class="contact-detail__label">提交时间</div><div class="contact-detail__value" data-field="createTimeText"></div></div>
+    <div class="contact-detail__row"><div class="contact-detail__label">消息内容</div><div class="contact-detail__value contact-detail__message" data-field="message"></div></div>
+  </div>
+</div>
+
+<script>
+layui.use(['admin', 'table', 'util'], function(){
+  var $ = layui.$;
+  var admin = layui.admin;
+  var table = layui.table;
+  var detailRequestSequence = 0;
+  var deleteInFlight = false;
+
+  function safeText(value) {
+    return layui.util.escape(value == null ? '' : String(value));
+  }
+
+  function setBusy(button, busy) {
+    if (!button) {
+      return;
+    }
+    button.data('busy', busy);
+    button.prop('disabled', busy).toggleClass('layui-disabled', busy);
+  }
+
+  function showFailure(response, fallback) {
+    layer.msg(response && response.msg ? safeText(response.msg) : fallback);
+  }
+
+  function loadStats() {
+    admin.req({
+      type: 'get',
+      url: '/admin/contacts/stats',
+      success: function(response) {
+        if (!response || response.code !== 0 || !response.data) {
+          showFailure(response, '联系消息统计加载失败');
+          return;
+        }
+        $('[data-stat="total"]').text(Number(response.data.total) || 0);
+        $('[data-stat="pending"]').text(Number(response.data.pending) || 0);
+        $('[data-stat="processed"]').text(Number(response.data.processed) || 0);
+      }
+    });
+  }
+
+  function reloadContacts() {
+    table.reload('LAY-contact-list');
+    loadStats();
+  }
+
+  function setSafeText(content, field, value) {
+    content.find('[data-field="' + field + '"]').html(safeText(value));
+  }
+
+  function detailContent(detail) {
+    var content = $('#contact-detail-template').children().first().clone();
+    setSafeText(content, 'name', detail.name);
+    setSafeText(content, 'email', detail.email);
+    setSafeText(content, 'subject', detail.subject);
+    setSafeText(content, 'requestIp', detail.requestIp);
+    setSafeText(content, 'createTimeText', detail.createTimeText);
+    setSafeText(content, 'message', detail.message);
+    return content;
+  }
+
+  function openDetail(data, button) {
+    if (button.data('busy')) {
+      return;
+    }
+    var requestSequence = ++detailRequestSequence;
+    setBusy(button, true);
+    admin.req({
+      type: 'get',
+      url: '/admin/contacts/' + encodeURIComponent(data.id),
+      success: function(response) {
+        if (requestSequence !== detailRequestSequence) {
+          return;
+        }
+        if (!response || response.code !== 0 || !response.data) {
+          showFailure(response, '联系消息详情加载失败');
+          return;
+        }
+        var detail = response.data;
+        layer.open({
+          type: 1,
+          title: '联系消息详情',
+          area: ['min(680px, 92vw)', 'auto'],
+          maxHeight: '86vh',
+          shadeClose: true,
+          content: detailContent(detail),
+          contactId: detail.id
+        });
+      },
+      complete: function() {
+        setBusy(button, false);
+      }
+    });
+  }
+
+  function updateStatus(data, button) {
+    if (button.data('busy')) {
+      return;
+    }
+    var nextStatus = Number(data.status) === 1 ? 2 : 1;
+    setBusy(button, true);
+    admin.req({
+      type: 'post',
+      url: '/admin/contacts/status',
+      contentType: 'application/json;charset=UTF-8',
+      data: JSON.stringify({id: data.id, status: nextStatus}),
+      success: function(response) {
+        if (response && response.code === 0) {
+          layer.msg(nextStatus === 2 ? '已标记为已处理' : '已恢复为待处理');
+          reloadContacts();
+        } else {
+          showFailure(response, '联系消息状态更新失败');
+        }
+      },
+      complete: function() {
+        setBusy(button, false);
+      }
+    });
+  }
+
+  function releaseDelete(button) {
+    deleteInFlight = false;
+    setBusy(button, false);
+  }
+
+  function deleteContacts(ids, button) {
+    if (!ids.length || deleteInFlight || button.data('busy')) {
+      return;
+    }
+    deleteInFlight = true;
+    setBusy(button, true);
+    layer.confirm('确认删除选中的 ' + ids.length + ' 条联系消息？', {title: '删除联系消息'}, function(index) {
+      layer.close(index);
+      admin.req({
+        type: 'delete',
+        url: '/admin/contacts/delete',
+        contentType: 'application/json;charset=UTF-8',
+        data: JSON.stringify({ids: ids}),
+        success: function(response) {
+          if (response && response.code === 0) {
+            layer.msg('联系消息已删除');
+            reloadContacts();
+          } else {
+            showFailure(response, '联系消息删除失败');
+          }
+        },
+        complete: function() {
+          releaseDelete(button);
+        }
+      });
+    }, function() {
+      releaseDelete(button);
+    });
+  }
+
+  table.render({
+    elem: '#LAY-contact-list',
+    id: 'LAY-contact-list',
+    url: '/admin/contacts/list',
+    method: 'get',
+    request: {pageName: 'page', limitName: 'size'},
+    toolbar: '#contact-toolbar',
+    page: true,
+    limit: 20,
+    limits: [20, 50, 100],
+    height: 'full-286',
+    text: {none: '暂无联系消息'},
+    parseData: function(response) {
+      var page = response && response.data ? response.data : {};
+      return {
+        code: response ? response.code : 500,
+        msg: response && response.msg ? safeText(response.msg) : '联系消息加载失败',
+        count: Number(page.total) || 0,
+        data: Array.isArray(page.records) ? page.records : []
+      };
+    },
+    cols: [[
+      {type: 'checkbox', fixed: 'left'},
+      {field: 'name', title: '姓名', width: 130, templet: function(data) { return safeText(data.name); }},
+      {field: 'email', title: '邮箱', minWidth: 190, templet: function(data) { return safeText(data.email); }},
+      {field: 'subject', title: '主题', minWidth: 180, templet: function(data) { return safeText(data.subject); }},
+      {field: 'message', title: '消息', minWidth: 240, templet: function(data) { return '<div class="contact-message-cell">' + safeText(data.message) + '</div>'; }},
+      {field: 'requestIp', title: 'IP 地址', width: 140, templet: function(data) { return safeText(data.requestIp); }},
+      {field: 'createTimeText', title: '提交时间', width: 172, templet: function(data) { return safeText(data.createTimeText); }},
+      {field: 'status', title: '状态', width: 96, align: 'center', templet: function(data) {
+        return Number(data.status) === 1
+          ? '<span class="layui-badge layui-bg-orange">待处理</span>'
+          : '<span class="layui-badge layui-bg-green">已处理</span>';
+      }},
+      {title: '操作', width: 210, align: 'center', fixed: 'right', toolbar: '#contact-actions'}
+    ]]
+  });
+
+  loadStats();
+
+  table.on('toolbar(LAY-contact-list)', function(obj) {
+    if (obj.event === 'refresh') {
+      reloadContacts();
+    } else if (obj.event === 'deleteSelected') {
+      var ids = table.checkStatus('LAY-contact-list').data.map(function(item) { return item.id; });
+      if (!ids.length) {
+        layer.msg('请先选择要删除的联系消息');
+        return;
+      }
+      deleteContacts(ids, $('#contact-delete-selected'));
+    }
+  });
+
+  table.on('tool(LAY-contact-list)', function(obj) {
+    var button = obj.tr.find('[lay-event="' + obj.event + '"]');
+    if (obj.event === 'detail') {
+      openDetail(obj.data, button);
+    } else if (obj.event === 'status') {
+      updateStatus(obj.data, button);
+    } else if (obj.event === 'delete') {
+      deleteContacts([obj.data.id], button);
+    }
+  });
+});
+</script>
