@@ -46,7 +46,7 @@ set -euo pipefail
 
 version="${GIT_COMMIT}-${BUILD_NUMBER}"
 artifact='wesite-admin/target/wesite-admin-1.0.0.jar'
-remote_target='wesite-deploy@47.76.125.96'
+remote_target='wesite-deploy@hk.tail5ed8be.ts.net'
 remote_directory="/var/lib/wesite-deploy/incoming/admin-${version}"
 remote_jar="${remote_directory}/wesite-admin-1.0.0.jar"
 [[ -f "$artifact" && ! -L "$artifact" ]] || {

@@ -390,7 +390,7 @@ assert_shared_contract() {
     'version="${GIT_COMMIT}-${BUILD_NUMBER}"' \
     "$app job has a non-canonical version assignment"
   assert_single_exact_assignment "$body" "$code_body" remote_target \
-    "remote_target='wesite-deploy@47.76.125.96'" \
+    "remote_target='wesite-deploy@hk.tail5ed8be.ts.net'" \
     "$app job does not use exactly one fixed non-root SSH target"
   assert_single_exact_assignment "$body" "$code_body" remote_directory \
     "remote_directory=\"/var/lib/wesite-deploy/incoming/${app}-\${version}\"" \
