@@ -98,3 +98,71 @@ Additional checks:
 
 - No blocking concerns. Duplicate-phone validation is enforced at the application layer as requested; concurrent writes still depend on the database schema's uniqueness constraint for race-proof enforcement, and adding a schema migration was outside this task's scope.
 - The full suite emits pre-existing informational/warning logs for the deliberately missing Bean Validation provider and simulated readiness/blog failure cases, but all assertions pass.
+
+## Fix Round 1
+
+### Review findings and root cause
+
+- The save callback read a shared mutable `activePopupIndex` only when the response arrived. Opening a second popup before the first save completed replaced that value, so the first response could close the second popup.
+- Edit buttons had independent busy flags, allowing concurrent detail requests. Since responses were not associated with the latest edit intent, an older response could open a second popup and overwrite the latest selection.
+
+### Behavior tests added
+
+`AdminUserTemplateTest` now extracts and executes the actual executable script from `person/list.html` in Node with a minimal Layui boundary harness. The tests invoke registered table/form handlers and deferred request callbacks; they do not infer behavior by grepping implementation text.
+
+- `delayedSaveResponseClosesOnlyThePopupThatSubmittedIt` opens popup A, submits it, opens popup B, then completes A's save.
+- `staleDetailResponseCannotOpenOrOverwriteTheLatestEdit` starts edits A then B, completes B first, and completes A last.
+- The Java-to-Node probe is Base64 encoded before `--eval` so Windows argument quoting cannot alter the page script.
+
+### RED evidence
+
+Command:
+
+```powershell
+$env:MAVEN_OPTS='-Dmaven.repo.local=C:\Users\Yuz\.m2\repository'
+mvn -pl wesite-admin -am '-Dtest=AdminUserTemplateTest' '-Dsurefire.failIfNoSpecifiedTests=false' test
+```
+
+Behavioral result: `Tests run: 6, Failures: 2, Errors: 0`.
+
+- Delayed save expected closed popup indexes `[1]` but observed `[2]`.
+- Stale detail expected one Bob popup but observed two popups with Alice as the final value.
+
+Before this behavioral RED, the harness itself failed twice while its Windows quoting and `layui.view` test double were corrected. Those were test-runner errors, not accepted RED evidence; no production code was changed until the two expected behavioral assertions failed.
+
+### Implementation
+
+- Removed the shared `activePopupIndex`.
+- Each popup success callback stores its own index on that popup's submit button. `savePerson` captures this value as `submittedPopupIndex` before starting the request, and its response closes only that local index.
+- Added monotonic `editRequestSequence`. Each edit captures its sequence; a detail response returns before any error message, popup creation, or form population when a later edit request has superseded it.
+- Each request still unlocks only its initiating button in `complete`.
+
+### GREEN evidence
+
+Template behavior test command above: `Tests run: 6, Failures: 0, Errors: 0, Skipped: 0`; reactor `BUILD SUCCESS`.
+
+Required combined regression command:
+
+```powershell
+$env:MAVEN_OPTS='-Dmaven.repo.local=C:\Users\Yuz\.m2\repository'
+mvn -pl wesite-admin -am '-Dtest=AdminUserTemplateTest,UserControllerTest' '-Dsurefire.failIfNoSpecifiedTests=false' test
+```
+
+Result: `Tests run: 14, Failures: 0, Errors: 0, Skipped: 0`; reactor `BUILD SUCCESS`.
+
+Full verification command:
+
+```powershell
+$env:MAVEN_OPTS='-Dmaven.repo.local=C:\Users\Yuz\.m2\repository'
+mvn -pl wesite-admin -am test
+```
+
+Result: reactor `BUILD SUCCESS`; `wesite-core` 56 tests and `wesite-admin` 57 tests passed, totaling 113 tests with zero failures, errors, or skips.
+
+### Fix round self-review and concerns
+
+- Mutation check: changing save closure back to a shared latest index makes the save race test fail; removing the sequence comparison makes the stale-detail test fail.
+- Latest-request semantics work for either completion order: A is stale immediately after B starts, while B remains eligible to populate the UI.
+- Popup indexes are bound to concrete submit controls after their own view render, so add and edit forms do not share mutable close state.
+- No controller, persistence model, authentication code, password handling, or `wesite-web` file changed in this fix round.
+- No new blocking concern. The tests require Node, consistent with the existing admin template behavior tests that already execute Node probes.

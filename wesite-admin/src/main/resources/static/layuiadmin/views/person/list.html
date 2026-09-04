@@ -53,7 +53,7 @@ layui.use(['admin', 'table', 'form', 'util'], function(){
   var table = layui.table;
   var form = layui.form;
   var view = layui.view;
-  var activePopupIndex = null;
+  var editRequestSequence = 0;
 
   function safeText(value) {
     return layui.util.escape(value == null ? '' : String(value));
@@ -84,6 +84,7 @@ layui.use(['admin', 'table', 'form', 'util'], function(){
     if (button.data('busy')) {
       return false;
     }
+    var submittedPopupIndex = button.data('popupIndex');
     setBusy(button, true);
     admin.req({
       type: 'post',
@@ -93,9 +94,8 @@ layui.use(['admin', 'table', 'form', 'util'], function(){
       success: function(response) {
         if (response && response.code === 0) {
           layer.msg('用户已保存');
-          if (activePopupIndex !== null) {
-            layer.close(activePopupIndex);
-            activePopupIndex = null;
+          if (submittedPopupIndex != null) {
+            layer.close(submittedPopupIndex);
           }
           reloadUsers();
         } else {
@@ -115,13 +115,10 @@ layui.use(['admin', 'table', 'form', 'util'], function(){
       area: ['520px', '360px'],
       id: 'person-add-popup',
       success: function(layero, index) {
-        activePopupIndex = index;
         view(this.id).render('person/add').done(function() {
           form.render(null, 'person-add-form');
+          layero.find('[lay-filter="person-add-submit"]').data('popupIndex', index);
         });
-      },
-      end: function() {
-        activePopupIndex = null;
       }
     });
   }
@@ -130,6 +127,7 @@ layui.use(['admin', 'table', 'form', 'util'], function(){
     if (button.data('busy')) {
       return;
     }
+    var requestSequence = ++editRequestSequence;
     setBusy(button, true);
     admin.req({
       type: 'post',
@@ -137,6 +135,9 @@ layui.use(['admin', 'table', 'form', 'util'], function(){
       contentType: 'application/json;charset=UTF-8',
       data: JSON.stringify({id: data.id}),
       success: function(response) {
+        if (requestSequence !== editRequestSequence) {
+          return;
+        }
         if (!response || response.code !== 0 || !response.data) {
           layer.msg((response && response.msg) || '用户详情加载失败');
           return;
@@ -147,7 +148,6 @@ layui.use(['admin', 'table', 'form', 'util'], function(){
           area: ['520px', '360px'],
           id: 'person-edit-popup',
           success: function(layero, index) {
-            activePopupIndex = index;
             view(this.id).render('person/edit').done(function() {
               form.val('person-edit-form', {
                 id: detail.id || '',
@@ -156,10 +156,8 @@ layui.use(['admin', 'table', 'form', 'util'], function(){
                 status: String(detail.status)
               });
               form.render(null, 'person-edit-form');
+              layero.find('[lay-filter="person-edit-submit"]').data('popupIndex', index);
             });
-          },
-          end: function() {
-            activePopupIndex = null;
           }
         });
       },
