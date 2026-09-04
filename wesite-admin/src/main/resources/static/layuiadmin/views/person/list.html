@@ -1,222 +1,264 @@
+<title>用户管理</title>
 
-
-<title>网站用户</title>
-  
 <div class="layui-card layadmin-header">
   <div class="layui-breadcrumb" lay-filter="breadcrumb">
     <a lay-href="">主页</a>
-    <a><cite>用户列表</cite></a>
+    <a><cite>用户管理</cite></a>
   </div>
 </div>
 
 <div class="layui-fluid">
   <div class="layui-card">
-    <div class="layui-form layui-card-header layuiadmin-card-header-auto" lay-filter="layadmin-userfront-formlist">
+    <div class="layui-form layui-card-header layuiadmin-card-header-auto" lay-filter="person-list-form">
       <div class="layui-form-item">
         <div class="layui-inline">
-          <label class="layui-form-label">关键词</label>
-          <div class="layui-input-block">
-            <input type="text" name="keyword" placeholder="请输入" autocomplete="off" class="layui-input">
+          <label class="layui-form-label" for="person-keyword">关键词</label>
+          <div class="layui-input-inline">
+            <input id="person-keyword" type="text" name="keyword" placeholder="用户名称或手机号码" autocomplete="off" class="layui-input">
           </div>
         </div>
         <div class="layui-inline">
-          <button class="layui-btn layuiadmin-btn-useradmin" lay-submit lay-filter="LAY-user-front-search">
-            <i class="layui-icon layui-icon-search layuiadmin-button-btn"></i>
+          <button type="submit" class="layui-btn" lay-submit lay-filter="person-list-search">
+            <i class="layui-icon layui-icon-search"></i> 查询
           </button>
         </div>
       </div>
     </div>
-    
+
     <div class="layui-card-body">
       <table id="LAY-user-manage" lay-filter="LAY-user-manage"></table>
-      <script type="text/html" id="imgTpl"> 
-        <img style="display: inline-block; width: 50%; height: 100%;" src= {{ d.avatar }}>
-      </script> 
-      <script type="text/html" id="table-useradmin-webuser">
-        <a class="layui-btn layui-btn-normal layui-btn-xs" lay-event="edit"><i class="layui-icon layui-icon-edit"></i>编辑</a>
-        <a class="layui-btn layui-btn-danger layui-btn-xs" lay-event="del"><i class="layui-icon layui-icon-delete"></i>删除</a>
-      </script>
-      <script type="text/html" id="toolbar01">
-      	<button class="layui-btn layui-btn-sm layuiadmin-btn-useradmin" lay-event="add"><i class="layui-icon layui-icon-addition"></i>添加</button>
-      </script>
     </div>
   </div>
 </div>
 
+<script type="text/html" id="person-list-toolbar">
+  <button type="button" class="layui-btn layui-btn-sm" lay-event="add">
+    <i class="layui-icon layui-icon-addition"></i> 新增用户
+  </button>
+</script>
+
+<script type="text/html" id="person-row-actions">
+  <button type="button" class="layui-btn layui-btn-normal layui-btn-xs" lay-event="edit">
+    <i class="layui-icon layui-icon-edit"></i> 编辑
+  </button>
+  <button type="button" class="layui-btn layui-btn-danger layui-btn-xs" lay-event="delete">
+    <i class="layui-icon layui-icon-delete"></i> 删除
+  </button>
+</script>
+
 <script>
-layui.use(['admin', 'table'], function(){
-  var $ = layui.$
-  ,admin = layui.admin
-  ,view = layui.view
-  ,table = layui.table
-  ,form = layui.form;
-  
-  form.render(null, 'layadmin-userfront-formlist');
-  
-  table.render({
-    elem: '#LAY-user-manage'
-    ,url: './user/list' //模拟接口
-    ,method: 'post'
-    ,contentType: 'application/json;charset=UTF-8'
-    ,toolbar: '#toolbar01'
-    ,cols: [[
-      {type: 'numbers', fixed: 'left'}
-      ,{field: 'name', title: '名称', width: 180}
-      ,{field: 'phoneNo', title: '手机号码', width: 180}
-      ,{field: 'statusText', title: '状态', width: 60}
-      ,{field: 'createTimeText', width: 170, title: '创建时间'}
-      ,{field: 'updateTimeText', width: 170, title: '更新时间'}
-      ,{title: '操作', width: 150, align:'center', fixed: 'right', toolbar: '#table-useradmin-webuser'}
-    ]]
-    ,page: true
-    ,limit: 30
-    ,height: 'full-320'
-    ,text: {none: '无数据'}
-  });
-  
-	//工具条
-  table.on('tool(LAY-user-manage)', function(obj){
-    var data = obj.data;
-    if(obj.event === 'edit'){
-    	admin.popup({
-            title: '编辑监控地址'
-            ,area: ['600px', '350px']
-            ,id: 'LAY-popup-website-edit'
-            ,success: function(layero, index){
-              view(this.id).render('monitor/edit', data).done(function(){
-                form.render(null, 'layuiadmin-form-monitor-edit');
-                
-                //开启提交
-                form.on('submit(layuiadmin-form-monitor-edit-btn)', function(data){
-                  var field = data.field; //获取提交的字段
+layui.use(['admin', 'table', 'form', 'util'], function(){
+  var $ = layui.$;
+  var admin = layui.admin;
+  var table = layui.table;
+  var form = layui.form;
+  var view = layui.view;
+  var activePopupIndex = null;
 
-                  //提交 Ajax 成功后，关闭当前弹层并重载表格
-                  admin.req({
-                	  type : 'post',
-          			  url : '/website/save',
-          			  contentType: 'application/json;charset=UTF-8',
-          			  data: JSON.stringify(field),
-          			  success : function(resp) {
-          				if (resp.code == 0) {
-          					layui.table.reload('LAY-user-manage'); //重载表格
-          	                layer.close(index); //执行关闭 
-          				} else {
-          					layer.msg(resp.msg);
-          				}
-          			}
-                  });
-                  
-                });
-              });
-            }
-          });
-    } else if(obj.event === 'del'){
-    	layer.confirm('确认删除？', function(index){
-            admin.req({
-  		      url: '/website/delete'
-  		      ,type: 'post'
-  		      ,contentType: 'application/json;charset=UTF-8'
-  		      ,data: JSON.stringify(data)
-  		  	  ,success: function(response) {
-  		  		  if (response && response.code === 0) {
-  		  			layer.msg("已删除");
-  		  			layer.close(index); //执行关闭 
-  		  			layui.table.reload('LAY-user-manage'); //重载表格
-  		  		  }
-  		  	  }
-  		  });
-          });
+  function safeText(value) {
+    return layui.util.escape(value == null ? '' : String(value));
+  }
+
+  function setBusy(button, busy) {
+    button.data('busy', busy);
+    button.prop('disabled', busy).toggleClass('layui-disabled', busy);
+  }
+
+  function reloadUsers() {
+    table.reload('LAY-user-manage');
+  }
+
+  function editablePayload(field) {
+    var payload = {
+      name: $.trim(field.name || ''),
+      phoneNo: $.trim(field.phoneNo || ''),
+      status: Number(field.status)
+    };
+    if (field.id) {
+      payload.id = field.id;
     }
-  });
-	
-	table.on('toolbar(LAY-user-manage)', function(obj){
-		var data = obj.data;
-	    if(obj.event === 'refresh'){
-	      layui.table.reloadData('LAY-user-manage');
-	    } else if (obj.event === 'add') {
-	    	admin.popup({
-	            title: '添加监控地址'
-	            ,area: ['600px', '350px']
-	            ,id: 'LAY-popup-website-add'
-	            ,success: function(layero, index){
-	              view(this.id).render('monitor/add').done(function(){
-	                form.render(null, 'layuiadmin-form-useradmin');
-	                
-	                //开启提交
-	                form.on('submit(LAY-user-front-submit)', function(data){
-	                  var field = data.field; //获取提交的字段
+    return payload;
+  }
 
-	                  //提交 Ajax 成功后，关闭当前弹层并重载表格
-	                  admin.req({
-	                	  type : 'post',
-	          			  url : '/website/save',
-	          			  contentType: 'application/json;charset=UTF-8',
-	          			  data: JSON.stringify(field),
-	          			  success : function(resp) {
-	          				if (resp.code == 0) {
-	          					layui.table.reload('LAY-user-manage'); //重载表格
-	          	                layer.close(index); //执行关闭 
-	          				} else {
-	          					layer.msg(resp.msg);
-	          				}
-	          			}
-	                  });
-	                  
-	                });
-	              });
-	            }
-	          });
-	    }
-	});
-  
-  //开启搜索
-  form.on('submit(LAY-user-front-search)', function(data){
-    var field = data.field;
-    
-    //执行重载
-    table.reload('LAY-user-manage', {
-      where: field
-    });
-  });
-
-  //事件
-  var active = {
-    batchdel: function(){
-      var checkStatus = table.checkStatus('LAY-user-manage')
-      ,checkData = checkStatus.data; //得到选中的数据
-
-      if(checkData.length === 0){
-        return layer.msg('请选择数据');
+  function savePerson(field, button) {
+    if (button.data('busy')) {
+      return false;
+    }
+    setBusy(button, true);
+    admin.req({
+      type: 'post',
+      url: '/user/save',
+      contentType: 'application/json;charset=UTF-8',
+      data: JSON.stringify(editablePayload(field)),
+      success: function(response) {
+        if (response && response.code === 0) {
+          layer.msg('用户已保存');
+          if (activePopupIndex !== null) {
+            layer.close(activePopupIndex);
+            activePopupIndex = null;
+          }
+          reloadUsers();
+        } else {
+          layer.msg((response && response.msg) || '保存失败');
+        }
+      },
+      complete: function() {
+        setBusy(button, false);
       }
-      
-      layer.prompt({
-        formType: 1
-        ,title: '敏感操作，请验证口令'
-      }, function(value, index){
-        layer.close(index);
-        
-        layer.confirm('确定删除吗？', function(index) {
-          
-          //执行 Ajax 后重载
-          /*
-          admin.req({
-            url: 'xxx'
-            //,……
-          });
-          */
-          table.reload('LAY-user-manage');
-          layer.msg('已删除');
+    });
+    return false;
+  }
+
+  function openAdd() {
+    admin.popup({
+      title: '新增用户',
+      area: ['520px', '360px'],
+      id: 'person-add-popup',
+      success: function(layero, index) {
+        activePopupIndex = index;
+        view(this.id).render('person/add').done(function() {
+          form.render(null, 'person-add-form');
         });
+      },
+      end: function() {
+        activePopupIndex = null;
+      }
+    });
+  }
+
+  function openEdit(data, button) {
+    if (button.data('busy')) {
+      return;
+    }
+    setBusy(button, true);
+    admin.req({
+      type: 'post',
+      url: '/user/detail',
+      contentType: 'application/json;charset=UTF-8',
+      data: JSON.stringify({id: data.id}),
+      success: function(response) {
+        if (!response || response.code !== 0 || !response.data) {
+          layer.msg((response && response.msg) || '用户详情加载失败');
+          return;
+        }
+        var detail = response.data;
+        admin.popup({
+          title: '编辑用户',
+          area: ['520px', '360px'],
+          id: 'person-edit-popup',
+          success: function(layero, index) {
+            activePopupIndex = index;
+            view(this.id).render('person/edit').done(function() {
+              form.val('person-edit-form', {
+                id: detail.id || '',
+                name: detail.name || '',
+                phoneNo: detail.phoneNo || '',
+                status: String(detail.status)
+              });
+              form.render(null, 'person-edit-form');
+            });
+          },
+          end: function() {
+            activePopupIndex = null;
+          }
+        });
+      },
+      complete: function() {
+        setBusy(button, false);
+      }
+    });
+  }
+
+  function deletePerson(data, button) {
+    if (button.data('busy')) {
+      return;
+    }
+    setBusy(button, true);
+    layer.confirm('确认删除用户“' + safeText(data.name) + '”吗？', function(index) {
+      layer.close(index);
+      admin.req({
+        type: 'post',
+        url: '/user/delete',
+        contentType: 'application/json;charset=UTF-8',
+        data: JSON.stringify({id: data.id}),
+        success: function(response) {
+          if (response && response.code === 0) {
+            layer.msg('用户已删除');
+            reloadUsers();
+          } else {
+            layer.msg((response && response.msg) || '删除失败');
+          }
+        },
+        complete: function() {
+          setBusy(button, false);
+        }
       });
+    }, function() {
+      setBusy(button, false);
+    });
+  }
+
+  form.render(null, 'person-list-form');
+
+  table.render({
+    elem: '#LAY-user-manage',
+    id: 'LAY-user-manage',
+    url: '/user/list',
+    method: 'post',
+    contentType: 'application/json;charset=UTF-8',
+    toolbar: '#person-list-toolbar',
+    page: true,
+    limit: 20,
+    limits: [20, 50, 100],
+    height: 'full-285',
+    text: {none: '暂无用户'},
+    cols: [[
+      {type: 'numbers', title: '序号', width: 70, fixed: 'left'},
+      {field: 'name', title: '用户名称', minWidth: 160, templet: function(data) {
+        return safeText(data.name);
+      }},
+      {field: 'phoneNo', title: '手机号码', width: 160, templet: function(data) {
+        return safeText(data.phoneNo);
+      }},
+      {field: 'statusText', title: '状态', width: 100, templet: function(data) {
+        return safeText(data.statusText);
+      }},
+      {field: 'createTimeText', title: '创建时间', width: 180, templet: function(data) {
+        return safeText(data.createTimeText);
+      }},
+      {field: 'updateTimeText', title: '更新时间', width: 180, templet: function(data) {
+        return safeText(data.updateTimeText);
+      }},
+      {title: '操作', width: 150, align: 'center', fixed: 'right', toolbar: '#person-row-actions'}
+    ]]
+  });
+
+  form.on('submit(person-list-search)', function(data) {
+    table.reload('LAY-user-manage', {page: {curr: 1}, where: {keyword: $.trim(data.field.keyword || '')}});
+    return false;
+  });
+
+  form.on('submit(person-add-submit)', function(data) {
+    return savePerson(data.field, $(data.elem));
+  });
+
+  form.on('submit(person-edit-submit)', function(data) {
+    return savePerson(data.field, $(data.elem));
+  });
+
+  table.on('toolbar(LAY-user-manage)', function(obj) {
+    if (obj.event === 'add') {
+      openAdd();
     }
-    ,add: function(){
-      
+  });
+
+  table.on('tool(LAY-user-manage)', function(obj) {
+    var button = obj.tr.find('[lay-event="' + obj.event + '"]');
+    if (obj.event === 'edit') {
+      openEdit(obj.data, button);
+    } else if (obj.event === 'delete') {
+      deletePerson(obj.data, button);
     }
-  };
-  
-  $('.layui-btn.layuiadmin-btn-useradmin').on('click', function(){
-    var type = $(this).data('type');
-    active[type] ? active[type].call(this) : '';
   });
 });
 </script>

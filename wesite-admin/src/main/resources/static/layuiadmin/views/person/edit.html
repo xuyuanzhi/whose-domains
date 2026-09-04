@@ -1,59 +1,29 @@
-<div class="layui-form" lay-filter="layuiadmin-form-monitor-edit" style="padding: 20px 0 0 0;">
-<script type="text/html" template>
-	<input type="hidden" name="id" value="{{ d.params.id || '' }}"/>
-</script>
+<form class="layui-form" lay-filter="person-edit-form" style="padding: 20px 30px 0 0;">
+  <input type="hidden" name="id">
   <div class="layui-form-item">
-    <label class="layui-form-label">名称</label>
+    <label class="layui-form-label" for="person-edit-name">用户名称</label>
     <div class="layui-input-block">
-      <script type="text/html" template>
-        <input type="text" name="name" value="{{ d.params.name || '' }}" lay-verify="required" placeholder="请输入名称" autocomplete="off" class="layui-input">
-      </script>
+      <input id="person-edit-name" type="text" name="name" maxlength="100" lay-verify="required" placeholder="请输入用户名称" autocomplete="off" class="layui-input">
     </div>
   </div>
   <div class="layui-form-item">
-    <label class="layui-form-label">地址</label>
+    <label class="layui-form-label" for="person-edit-phone">手机号码</label>
     <div class="layui-input-block">
-      <script type="text/html" template>
-        <input type="text" name="url" value="{{ d.params.url || '' }}" lay-verify="required" placeholder="请输入地址" autocomplete="off" class="layui-input">
-      </script>
+      <input id="person-edit-phone" type="text" name="phoneNo" maxlength="32" lay-verify="required" placeholder="请输入手机号码" autocomplete="off" class="layui-input">
     </div>
   </div>
   <div class="layui-form-item">
-    <label class="layui-form-label">是否监控</label>
+    <label class="layui-form-label" for="person-edit-status">状态</label>
     <div class="layui-input-block">
-      <script type="text/html" template>
-		{{#  if(d.params.monitorFlag == 1){ }}
-        	<input type="checkbox" name="monitorFlag" value="1" checked="1" lay-skin="switch" lay-filter="switchTest" title="是|否">
-		{{#  } else { }}
-			<input type="checkbox" name="monitorFlag" value="1" lay-skin="switch" lay-filter="switchTest" title="是|否">
-		{{#  } }}
-      </script>
+      <select id="person-edit-status" name="status" lay-verify="required">
+        <option value="1">启用</option>
+        <option value="2">禁用</option>
+      </select>
     </div>
   </div>
   <div class="layui-form-item">
-    <label class="layui-form-label"></label>
-    <div class="layui-input-inline">
-      <input type="button" lay-submit lay-filter="layuiadmin-form-monitor-edit-btn" value="确认" class="layui-btn">
+    <div class="layui-input-block">
+      <button type="submit" class="layui-btn" lay-submit lay-filter="person-edit-submit">保存修改</button>
     </div>
   </div>
-</div>
-
-<script>
-layui.use(['admin', 'form', 'upload'], function(){
-  var $ = layui.$
-  ,form = layui.form
-  ,upload = layui.upload;
-  
-  //上传头像
-  upload.render({
-    elem: '#layuiadmin-upload-useradmin'
-    ,url: './res/json/upload/demo.js'
-    ,accept: 'images'
-    ,method: 'get'
-    ,acceptMime: 'image/*'
-    ,done: function(res){
-      $(this.item).prev("div").children("input").val(res.data.src)
-    }
-  });
-})
-</script>
+</form>
