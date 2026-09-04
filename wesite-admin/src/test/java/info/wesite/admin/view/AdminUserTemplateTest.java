@@ -15,6 +15,7 @@ import java.util.stream.Collectors;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 class AdminUserTemplateTest {
@@ -212,6 +213,7 @@ class AdminUserTemplateTest {
     }
 
     private static String runNode(String probe) throws Exception {
+        assumeNodeAvailable();
         String encoded = Base64.getEncoder().encodeToString(probe.getBytes(StandardCharsets.UTF_8));
         String evaluation = "eval(Buffer.from('" + encoded + "', 'base64').toString('utf8'))";
         Process process = new ProcessBuilder("node", "--input-type=module", "--eval", evaluation)
@@ -221,6 +223,22 @@ class AdminUserTemplateTest {
 
         assertEquals(0, process.waitFor(), output);
         return output;
+    }
+
+    private static void assumeNodeAvailable() {
+        boolean available = false;
+        try {
+            Process check = new ProcessBuilder("node", "--version")
+                .redirectErrorStream(true)
+                .start();
+            available = check.waitFor() == 0;
+        } catch (IOException exception) {
+            available = false;
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+        }
+        Assumptions.assumeTrue(available,
+            "Node.js is unavailable; static user template contracts still execute");
     }
 
     private static String read(String resource) throws IOException {

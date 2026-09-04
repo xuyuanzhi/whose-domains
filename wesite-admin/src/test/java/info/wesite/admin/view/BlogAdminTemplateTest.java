@@ -38,7 +38,9 @@ class BlogAdminTemplateTest {
 
         assertTrue(list.contains("layui.util.escape"));
         assertTrue(list.contains("encodeURIComponent(data.slug)"));
+        assertTrue(list.contains("'_blank', 'noopener,noreferrer'"));
         assertTrue(list.contains(".prop('disabled', busy)"));
+        assertTrue(list.contains(".attr('aria-busy', String(busy))"));
         assertTrue(list.contains("setBusy(button, true)"));
         assertTrue(list.contains("setBusy(button, false)"));
         assertFalse(list.contains("{{ d.title"));
@@ -64,8 +66,22 @@ class BlogAdminTemplateTest {
         assertTrue(edit.contains("saveBlog(function()"));
         assertTrue(edit.contains("publishBlog();"));
         assertTrue(edit.contains(".prop('disabled', busy)"));
+        assertTrue(edit.contains(".attr('aria-busy', String(busy))"));
         assertTrue(edit.contains("setEditorBusy(true)"));
         assertTrue(edit.contains("setEditorBusy(false)"));
+    }
+
+    @Test
+    void blogViewsRemainReadableChineseUtf8WithoutMojibake() throws Exception {
+        String list = read("static/layuiadmin/views/blog/list.html");
+        String edit = read("static/layuiadmin/views/blog/edit.html");
+
+        assertTrue(list.contains("AI 生成的文章会先进入草稿。请完成内容审核和安全预览后再发布。"));
+        assertTrue(list.contains("发布后文章将立即对外可见，确认发布？"));
+        assertTrue(edit.contains("文章发布后 Slug 不可修改，避免已有链接失效。"));
+        assertTrue(edit.contains("保存当前修改并发布文章？"));
+        assertFalse((list + edit).contains("�"));
+        assertFalse((list + edit).contains("鍗氬"));
     }
 
     private static String read(String resource) throws IOException {

@@ -12,6 +12,7 @@ import java.util.regex.Pattern;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 class AdminLoginTemplateTest {
@@ -50,6 +51,7 @@ class AdminLoginTemplateTest {
 
     @Test
     void encodedRedirectsPreserveInternalPathsAndSafelyRejectUnsafeValues() throws Exception {
+        assumeNodeAvailable();
         String source = read("static/layuiadmin/views/user/login.html");
         int start = source.indexOf("function decodeRedirect");
         int end = source.indexOf("function setBusy", start);
@@ -70,6 +72,22 @@ class AdminLoginTemplateTest {
 
         assertEquals(0, process.waitFor());
         assertEquals("[\"/domain/list\",\"/\",\"/\"]", output);
+    }
+
+    private static void assumeNodeAvailable() {
+        boolean available = false;
+        try {
+            Process check = new ProcessBuilder("node", "--version")
+                .redirectErrorStream(true)
+                .start();
+            available = check.waitFor() == 0;
+        } catch (IOException exception) {
+            available = false;
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+        }
+        Assumptions.assumeTrue(available,
+            "Node.js is unavailable; static login template contracts still execute");
     }
 
     @Test

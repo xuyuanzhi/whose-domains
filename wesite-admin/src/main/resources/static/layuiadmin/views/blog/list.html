@@ -77,6 +77,7 @@ layui.use(['admin', 'table', 'form', 'util'], function(){
   function setBusy(button, busy) {
     button.data('busy', busy);
     button.prop('disabled', busy);
+    button.attr('aria-busy', String(busy));
     button.toggleClass('layui-disabled', busy);
   }
 

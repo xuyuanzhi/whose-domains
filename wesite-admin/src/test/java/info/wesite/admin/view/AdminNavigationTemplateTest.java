@@ -2,6 +2,7 @@ package info.wesite.admin.view;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
@@ -15,6 +16,7 @@ import java.util.regex.Pattern;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 class AdminNavigationTemplateTest {
@@ -30,6 +32,22 @@ class AdminNavigationTemplateTest {
         for (String demoEntry : List.of("senior", "template", "app", "component", "www.baidu.com")) {
             assertFalse(menu.contains(demoEntry), "菜单不得保留演示入口：" + demoEntry);
         }
+    }
+
+    @Test
+    void legacyDemoConsoleAssetsAreNotShippedAsHiddenAdminFeatures() {
+        ClassLoader loader = AdminNavigationTemplateTest.class.getClassLoader();
+
+        assertNull(loader.getResource("static/layuiadmin/modules/console.js"));
+        assertNull(loader.getResource("static/layuiadmin/json/console/prograss.js"));
+        assertNull(loader.getResource("static/layuiadmin/json/console/top-card.js"));
+        assertNull(loader.getResource("static/layuiadmin/json/console/top-search.js"));
+        assertNull(loader.getResource("static/layuiadmin/modules/set.js"));
+        assertNull(loader.getResource("static/layuiadmin/modules/user.js"));
+        assertNull(loader.getResource("static/layuiadmin/modules/useradmin.js"));
+        assertNull(loader.getResource("static/layuiadmin/json/useradmin/mangadmin.js"));
+        assertNull(loader.getResource("static/layuiadmin/json/useradmin/role.js"));
+        assertNull(loader.getResource("static/layuiadmin/json/useradmin/webuser.js"));
     }
 
     @Test
@@ -164,6 +182,7 @@ class AdminNavigationTemplateTest {
     }
 
     private static String runNode(String probe) throws Exception {
+        assumeNodeAvailable();
         Process process = new ProcessBuilder("node", "--input-type=module", "--eval", probe)
             .redirectErrorStream(true)
             .start();
@@ -171,6 +190,22 @@ class AdminNavigationTemplateTest {
 
         assertEquals(0, process.waitFor(), output);
         return output;
+    }
+
+    private static void assumeNodeAvailable() {
+        boolean available = false;
+        try {
+            Process check = new ProcessBuilder("node", "--version")
+                .redirectErrorStream(true)
+                .start();
+            available = check.waitFor() == 0;
+        } catch (IOException exception) {
+            available = false;
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+        }
+        Assumptions.assumeTrue(available,
+            "Node.js is unavailable; static navigation contracts still execute");
     }
 
     private static String read(String resource) throws IOException {

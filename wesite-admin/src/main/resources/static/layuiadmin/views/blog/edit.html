@@ -100,7 +100,10 @@ layui.use(['admin', 'form'], function(){
   function setEditorBusy(busy) {
     pendingRequests = Math.max(0, pendingRequests + (busy ? 1 : -1));
     busy = pendingRequests > 0;
-    $('.blog-editor-action').prop('disabled', busy).toggleClass('layui-disabled', busy);
+    $('.blog-editor-action')
+      .prop('disabled', busy)
+      .attr('aria-busy', String(busy))
+      .toggleClass('layui-disabled', busy);
   }
 
   function collectFields() {
