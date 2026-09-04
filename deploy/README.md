@@ -1,30 +1,27 @@
-# Whose.Domains independent systemd production runbook
+# Whose.Domains 独立 systemd 生产运维手册
 
-This runbook migrates and operates the production host at `47.76.125.96`.
-Web and Admin have independent immutable release trees, services, health checks,
-rollbacks, and Jenkins jobs:
+本手册用于迁移和运维 `47.76.125.96` 上的生产环境。前台 Web 与后台 Admin
+分别使用独立的不可变发布目录、服务、健康检查、回滚和 Jenkins 任务：
 
 ```text
 /usr/java/apps/web/{current,previous,releases/}
 /usr/java/apps/admin/{current,previous,releases/}
 ```
 
-The public Web service binds to `127.0.0.1:8080`; Admin binds to
-`127.0.0.1:8082`. Jenkins connects only as `wesite-deploy`. A routine job
-builds and uploads one application JAR, then invokes that application's
-allowlisted deploy and check commands. Infrastructure installation, live
-configuration, database work, rollback, service administration, and release
-cleanup are operator procedures and never Jenkins job side effects.
+公开的 Web 服务监听 `127.0.0.1:8080`，Admin 监听 `127.0.0.1:8082`。
+Jenkins 只能使用 `wesite-deploy` 账号连接。常规任务只构建并上传一个应用的
+JAR，然后调用该应用白名单内的部署和检查命令。基础设施安装、正式配置、数据库
+操作、回滚、服务管理和旧版本清理均由运维人员执行，绝不能成为 Jenkins 任务的
+附带行为。
 
-The host has 3.5 GiB RAM. The checked-in units reserve up to 768 MiB of heap
-for Web and 384 MiB for Admin, with explicit metaspace and direct-memory caps.
-A 2 GiB swap file is an emergency buffer, not normal working memory.
+服务器有 3.5 GiB 内存。仓库中的 systemd 单元为 Web 最多预留 768 MiB 堆内存，
+为 Admin 最多预留 384 MiB，并明确限制元空间和直接内存。2 GiB 交换文件只是
+应急缓冲，不是常规工作内存。
 
-## 1. Preflight Java, unzip, and flock
+## 1. 前置检查 Java、unzip 和 flock
 
-Open a maintenance record with operator, UTC time, source commit, and planned
-rollback. Run these read-only checks through the approved production operator
-account:
+建立维护记录，写明操作人员、UTC 时间、源代码提交和计划的回滚方案。通过获准的
+生产运维账号执行以下只读检查：
 
 ```bash
 java -version
@@ -42,12 +39,11 @@ crontab -l
 sudo crontab -l
 ```
 
-Stop if `/usr/bin/java`, `unzip`, or `flock` is unavailable. Identify the exact
-legacy launcher and watchdog owner now; do not use a broad process-kill
-command. Confirm that Nginx and Redis are healthy and that ports 8080 and 8082
-are owned only by the expected legacy JVMs.
+如果 `/usr/bin/java`、`unzip` 或 `flock` 不可用，请立即停止。现在必须确认旧启动器
+和 watchdog 的准确归属，不要使用大范围结束进程的命令。确认 Nginx 和 Redis
+运行正常，并确认 8080、8082 端口只由预期的旧 JVM 占用。
 
-## 2. Verify swap
+## 2. 验证交换空间
 
 ```bash
 free -h
@@ -56,16 +52,15 @@ grep -F '/swapfile none swap sw 0 0' /etc/fstab
 df -h /
 ```
 
-Record the result and do not enter configuration or application migration on
-this small host until the expected 2 GiB swap is active and persistent, or an
-operator has approved an alternative. If swap is missing, the first approved
-write can use the audited helper after the bundle is installed in step 4.
-`/usr/local/sbin/ensure-wesite-swap` refuses to overwrite an inactive existing
-file.
+记录检查结果。在这台小内存服务器上，预期的 2 GiB 交换空间必须已经启用且能够
+在重启后保留；否则必须先获得运维人员对替代方案的批准，不能进入配置或应用迁移
+阶段。如果缺少交换空间，可以在第 4 步安装部署包后，使用经过审查的辅助脚本执行
+首次获准的写入操作。`/usr/local/sbin/ensure-wesite-swap` 不会覆盖已经存在但尚未
+启用的文件。
 
-## 3. Build and upload only the infrastructure bundle
+## 3. 仅构建并上传基础设施部署包
 
-On a trusted build/operator machine, from the reviewed commit:
+在可信的构建机或运维机器上，从已经审查的提交执行：
 
 ```bash
 INFRA_COMMIT="$(git rev-parse --verify HEAD)"
@@ -79,7 +74,7 @@ ls -l "$INFRA_OUTPUT"
 )
 ```
 
-The output must contain exactly these three files:
+输出目录必须恰好包含以下三个文件：
 
 ```text
 wesite-deployment-<commit>.tar.gz
@@ -87,8 +82,8 @@ wesite-deployment-<commit>.tar.gz.sha256
 install-wesite-deployment-bundle.sh
 ```
 
-Set `PRODUCTION_OPERATOR` to the approved privileged operator account. It is
-not `wesite-deploy`. The validated commit is safe to use in the temporary path:
+将 `PRODUCTION_OPERATOR` 设置为获准的特权运维账号，它不能是 `wesite-deploy`。
+已验证的提交值可以安全地用于临时目录路径：
 
 ```bash
 REMOTE_INFRA="/tmp/wesite-infrastructure-$INFRA_COMMIT"
@@ -100,16 +95,15 @@ scp "$INFRA_OUTPUT/wesite-deployment-$INFRA_COMMIT.tar.gz" \
   "$PRODUCTION_OPERATOR@47.76.125.96:$REMOTE_INFRA/"
 ```
 
-Do not transfer a repository checkout, `.git`, source code, Maven files,
-tests, application JARs, or live secrets with the infrastructure bundle.
+不要随基础设施部署包传输仓库工作区、`.git`、源代码、Maven 文件、测试、应用 JAR
+或正式环境机密信息（包括密钥、密码和令牌）。
 
-## 4. Run the standalone bootstrap
+## 4. 运行独立引导安装程序
 
-On the production host, inspect the three uploaded files, then run only the
-standalone bootstrap as root. It verifies the archive sidecar, rejects unsafe
-archive members, verifies the internal payload manifest, preserves existing
-live configuration, installs the commands and units, and reloads systemd. It
-does not enable or start an application or timer.
+在生产服务器上检查上传的三个文件，然后仅以 root 身份运行独立引导安装程序。
+安装程序会校验压缩包随附校验文件、拒绝不安全的归档成员、校验内部载荷清单、
+保留现有正式配置、安装命令和 systemd 单元，并重新加载 systemd。它不会启用或
+启动任何应用及定时器。
 
 ```bash
 INFRA_COMMIT=0123456789abcdef0123456789abcdef01234567
@@ -126,12 +120,11 @@ sudo systemd-analyze verify \
 sudo stat -c '%U:%G %a %n' /run/lock/wesite
 ```
 
-The bundled `tmpfiles.d` policy recreates the volatile deployment lock
-directory at every boot. It must report `root:root 755`; deployment, rollback,
-and health recovery refuse an unsafe or replaceable lock path.
+部署包中的 `tmpfiles.d` 策略会在每次启动时重建易失的部署锁目录。检查结果必须为
+`root:root 755`；如果锁路径不安全或可被替换，部署、回滚和健康恢复都会拒绝执行。
 
-If step 2 identified missing swap and the approved plan is the bundled helper,
-run it now and repeat the swap checks before proceeding:
+如果第 2 步确认缺少交换空间，且获准方案是使用部署包中的辅助脚本，现在执行它，
+然后重新检查交换空间再继续：
 
 ```bash
 sudo /usr/local/sbin/ensure-wesite-swap
@@ -139,14 +132,13 @@ free -h
 swapon --show
 ```
 
-After a successful bootstrap, remove only the three exact temporary files and
-their now-empty directory. Keep the archive digest in the maintenance record.
+引导安装成功后，只删除这三个明确的临时文件及其已经为空的目录。将压缩包摘要保存
+到维护记录中。
 
-## 5. Migrate and preserve live configuration
+## 5. 迁移并保留正式配置
 
-The installer creates examples and creates a live file only when it is absent.
-It never replaces existing live values. Compare the old production settings
-with these destinations and merge values deliberately:
+安装程序会创建配置示例，并且只在正式配置文件不存在时创建它，绝不会替换现有
+正式配置值。将旧生产配置与以下目标文件逐项比较并谨慎合并：
 
 ```text
 /etc/wesite/wesite.env
@@ -154,12 +146,10 @@ with these destinations and merge values deliberately:
 /usr/java/config/admin/application-prod.properties
 ```
 
-Use `sudoedit`; never evaluate `/etc/wesite/wesite.env` as shell input. Its
-JDBC URL can contain shell metacharacters. Preserve the tested remote-MySQL
-URL, including the explicit UTC connection/session options, and configure the
-database, Redis, JWT, internal blog, mail, and MaxMind values. Keep notification
-delivery disabled for the first release and keep both services bound to
-loopback.
+使用 `sudoedit` 编辑配置；绝不能将 `/etc/wesite/wesite.env` 作为 Shell 输入执行，
+其中的 JDBC URL 可能包含 Shell 元字符。保留经过测试的远程 MySQL URL，包括明确的
+UTC 连接和会话选项，并配置数据库、Redis、JWT、内部博客、邮件及 MaxMind 参数。
+首次发布时保持通知投递关闭，并让两个服务继续只监听回环地址。
 
 ```bash
 sudoedit /etc/wesite/wesite.env
@@ -182,16 +172,14 @@ if sudo grep -R -n 'CHANGE_ME\|your-db-\|/path/to/' \
 fi
 ```
 
-Back up the three reviewed live files outside the release trees. Production
-secrets are never Jenkins parameters, workspaces, archives, or artifacts.
+将这三个审核后的正式配置文件备份到发布目录之外。正式环境机密信息（包括密钥、
+密码和令牌）绝不能作为 Jenkins 参数，也不能出现在工作区、归档或构建产物中。
 
-## 6. Install the Jenkins SSH public key
+## 6. 安装 Jenkins SSH 公钥
 
-Create an SSH key credential in the Jenkins secret store and transfer only its
-reviewed public key to a temporary operator-owned path. Verify its fingerprint
-against the maintenance record before installation. The bootstrap creates the
-dedicated `wesite-deploy` account but intentionally does not change SSH daemon
-configuration or generate credentials.
+在 Jenkins 密钥存储中创建 SSH 密钥凭据，只将经过审查的公钥传输到运维人员所有的
+临时路径。安装前根据维护记录核对指纹。引导安装程序会创建专用的
+`wesite-deploy` 账号，但有意不修改 SSH 守护进程配置，也不会生成凭据。
 
 ```bash
 ssh-keygen -lf /tmp/whose-domains-prod-ssh.pub
@@ -205,13 +193,13 @@ sudo stat -c '%U:%G %a %n' \
   /var/lib/wesite-deploy/.ssh/authorized_keys
 ```
 
-Test key-only login as `wesite-deploy` under the host's existing SSH policy.
-Do not grant root login, a root shell, or access to an operator key.
+在服务器现有 SSH 策略下测试 `wesite-deploy` 的纯密钥登录。不要授予 root 登录、
+root Shell 或运维人员密钥的访问权限。
 
-## 7. Validate and explicitly activate sudoers
+## 7. 验证并显式启用 sudoers
 
-The bootstrap installs an inactive example. Validate that exact file first,
-then explicitly activate it and validate the complete sudoers policy:
+引导安装程序只会安装一个尚未启用的示例文件。先验证这个准确的文件，再显式启用
+并验证完整的 sudoers 策略：
 
 ```bash
 sudo visudo -cf /etc/wesite/wesite-deploy.sudoers.example
@@ -223,16 +211,14 @@ sudo visudo -cf /etc/sudoers
 sudo -l -U wesite-deploy
 ```
 
-The only passwordless commands must be single-application Web/Admin deploys
-and checks. The account must have no infrastructure install, configuration,
-service-manager, rollback, pruning, arbitrary root command, or shell access.
+免密命令必须只包含单个 Web/Admin 应用的部署和检查。该账号不能获得基础设施安装、
+配置修改、服务管理、回滚、清理旧版本、任意 root 命令或 Shell 权限。
 
-## 8. Prepare independent old-JAR baseline releases
+## 8. 准备相互独立的旧 JAR 基线版本
 
-Before stopping the legacy supervisor, locate each exact known-good JAR,
-record its provenance and SHA-256, and copy each one without modification into
-its own root-owned mode `0700` incoming directory. Do not guess paths or
-substitute one application's artifact for the other.
+停止旧进程管理器之前，分别找到准确且已知正常的 JAR，记录其来源和 SHA-256，
+然后不做修改地复制到各自的、由 root 所有且权限为 `0700` 的接收目录。不要猜测
+路径，也不要用一个应用的构建产物代替另一个应用。
 
 ```bash
 find /usr/java -maxdepth 4 -type f -name 'wesite-*.jar' -print
@@ -251,19 +237,17 @@ sudo sha256sum \
   "/var/lib/wesite-deploy/incoming/baseline-admin-$BASELINE_ID/wesite-admin.jar"
 ```
 
-These staged candidates become the two independent baseline releases in step
-10, after the legacy watchdog and launcher can no longer race systemd. If an
-old artifact cannot be verified, record that application as having no initial
-binary rollback target and take configuration/filesystem backups instead.
+完成第 9 步、确保旧 watchdog 和启动器不再与 systemd 竞争之后，这两个暂存候选文件
+会在第 10 步分别成为两个应用的基线版本。如果无法验证某个旧构建产物，应在记录中
+注明该应用没有初始二进制回滚目标，并改为备份配置和文件系统。
 
-## 9. Disable the legacy watchdog and launcher
+## 9. 停用旧 watchdog 和启动器
 
-Enter the maintenance window. Using the exact source identified in step 1,
-disable and stop the legacy watchdog (cron entry, timer, or service), then stop
-the exact legacy Java launcher. Do not kill unrelated Java processes and do not
-leave two supervisors able to own the same port.
+进入维护窗口。根据第 1 步确认的准确来源，停用并停止旧 watchdog（cron 条目、
+定时器或服务），然后停止准确的旧 Java 启动器。不要结束无关的 Java 进程，也不要
+让两个进程管理器同时拥有同一个端口。
 
-Verify the result before activating a baseline:
+启用基线版本之前验证结果：
 
 ```bash
 pgrep -af 'java|watchdog|wesite'
@@ -273,14 +257,13 @@ grep -R "watchdog" /etc/cron.d /etc/cron.daily /etc/systemd/system 2>/dev/null
 ss -lntp | grep -E '127\.0\.0\.1:(8080|8082)' || true
 ```
 
-Record the exact unit, timer, cron file, or launcher that was disabled. Removal
-of that legacy mechanism is a one-time operator action, never a Jenkins step.
+记录被停用的准确单元、定时器、cron 文件或启动器。移除旧机制是一次性的运维操作，
+绝不能成为 Jenkins 步骤。
 
-## 10. Activate baselines and perform the first independent releases
+## 10. 启用基线并执行首次独立发布
 
-Activate and check each verified old binary separately. Legacy HTTP-200 health
-overrides require direct root invocation and are only for old binaries that
-predate readiness endpoints:
+分别启用和检查每个经过验证的旧二进制文件。旧版 HTTP 200 健康检查覆盖参数必须由
+root 直接调用，并且只能用于尚未提供就绪端点的旧二进制文件：
 
 ```bash
 sudo -i env -u SUDO_USER -u SUDO_UID -u SUDO_GID \
@@ -300,23 +283,21 @@ sudo -i env -u SUDO_USER -u SUDO_UID -u SUDO_GID \
 sudo /usr/local/sbin/check-wesite-app admin
 ```
 
-Remove only each baseline input file and its empty staging directory after its
-command has returned. Never remove its immutable release directory.
+每条命令返回后，只删除对应的基线输入文件及其已经为空的暂存目录。绝不能删除其
+不可变发布目录。
 
-Build the new Web and Admin candidates on CI or another build host. Run and
-record the two module builds separately; production receives JARs, not source:
+在 CI 或其他构建机上构建新的 Web 和 Admin 候选版本。分别运行并记录两个模块的
+构建；生产服务器只接收 JAR，不接收源代码：
 
 ```bash
 mvn -B -pl wesite-web -am clean verify
 mvn -B -pl wesite-admin -am clean verify
 ```
 
-Stage and deploy Web first with its commit-based version, run its single check,
-then independently stage and deploy Admin and run its single check. New
-releases use the default strict readiness contract; do not apply legacy health
-overrides. Transfer only the two built JARs to separate operator-owned
-temporary paths. On production, validate the recorded commit, create two
-private incoming directories, and install each exact artifact:
+先使用基于提交号的版本标识暂存和部署 Web，并只检查 Web；然后独立暂存和部署
+Admin，并只检查 Admin。新版本使用默认的严格就绪检查约定，不能使用旧版健康检查
+覆盖参数。只将两个构建完成的 JAR 分别传输到运维人员所有的临时路径。在生产环境
+验证记录的提交号，创建两个私有接收目录，再安装各自准确的构建产物：
 
 ```bash
 NEW_COMMIT=0123456789abcdef0123456789abcdef01234567
@@ -332,7 +313,7 @@ sudo install -o root -g root -m 0400 \
   "/var/lib/wesite-deploy/incoming/first-admin-$NEW_COMMIT/wesite-admin-1.0.0.jar"
 ```
 
-Invoke and check the releases one at a time:
+逐个调用并检查发布：
 
 ```bash
 
@@ -347,12 +328,12 @@ sudo /usr/local/sbin/deploy-wesite-app admin \
 sudo /usr/local/sbin/check-wesite-app admin
 ```
 
-A failed deploy rolls back only that application. Stop and investigate a
-failure; do not make the other application part of its health gate or rollback.
+某个应用部署失败时，只回滚该应用。发生失败后应停止并调查；不要将另一个应用加入
+它的健康门禁或回滚过程。
 
-## 11. Enable services and the health timer
+## 11. 启用服务和健康检查定时器
 
-After both first-release checks have passed:
+两个首次发布检查均通过后执行：
 
 ```bash
 sudo systemctl enable --now \
@@ -364,13 +345,12 @@ systemctl is-active \
 systemctl list-timers wesite-health-monitor.timer --no-pager
 ```
 
-The timer evaluates each deployed application independently. Before an
-intentional application stop, stop the timer and any in-flight monitor so it
-cannot treat maintenance as a failure.
+定时器会独立评估每个已经部署的应用。有意停止应用进行维护之前，应先停止定时器和
+正在执行的监控任务，避免它将维护操作判定为故障。
 
-## 12. Production operation
+## 12. 生产运维
 
-### Single-application and global checks
+### 单应用检查和全局检查
 
 ```bash
 sudo /usr/local/sbin/check-wesite-app web
@@ -382,51 +362,46 @@ curl --fail --silent --show-error http://127.0.0.1:8082/api/readyz
 nginx -t
 ```
 
-From the operator machine:
+在运维机器上执行：
 
 ```powershell
 pwsh -NoProfile -File scripts/check-production-smoke.ps1 -BaseUrl https://whose.domains
 pwsh -NoProfile -File scripts/check-seo.ps1 -BaseUrl https://whose.domains
 ```
 
-### Jenkins credentials and two independent jobs
+### Jenkins 凭据和两个独立任务
 
-In Jenkins Credentials, create:
+在 Jenkins Credentials 中创建：
 
-- an SSH Username with private key credential named
-  `whose-domains-prod-ssh`, with username `wesite-deploy`;
-- a Secret file credential named `whose-domains-prod-known-hosts`.
+- 名为 `whose-domains-prod-ssh` 的 SSH Username with private key 凭据，用户名为
+  `wesite-deploy`；
+- 名为 `whose-domains-prod-known-hosts` 的 Secret file 凭据。
 
-Obtain the production host public key through a trusted console or provider
-channel. Compare its fingerprint out of band before putting the exact
-`47.76.125.96` known-hosts line in the Secret file. `ssh-keyscan` output alone
-does not authenticate a host key.
+通过可信控制台或云服务商渠道获取生产服务器公钥。先通过带外方式比对指纹，再将
+准确的 `47.76.125.96` known-hosts 行写入 Secret file。仅使用 `ssh-keyscan` 输出
+无法验证主机密钥的真实性。
 
-Create two Pipeline-from-SCM jobs:
+创建两个 Pipeline-from-SCM 任务：
 
-- Web uses `deploy/jenkins/wesite-web.Jenkinsfile`;
-- Admin uses `deploy/jenkins/wesite-admin.Jenkinsfile`.
+- Web 使用 `deploy/jenkins/wesite-web.Jenkinsfile`；
+- Admin 使用 `deploy/jenkins/wesite-admin.Jenkinsfile`。
 
-Each job disables same-job concurrency, validates `GIT_COMMIT` as lowercase
-hexadecimal and `BUILD_NUMBER` as decimal digits, pins the host key, creates a
-mode `0700` app/commit/build staging directory, uploads exactly its own JAR,
-and invokes only its own non-interactive deploy and check commands. Cleanup in
-the same remote shell removes only the uploaded file and empty job directory,
-then returns the saved deploy/check status.
+每个任务都会禁止同一任务并发执行，将 `GIT_COMMIT` 验证为小写十六进制，将
+`BUILD_NUMBER` 验证为十进制数字，固定主机密钥，创建权限为 `0700` 的
+应用/提交/构建暂存目录，只上传自己的 JAR，并且只调用自己的非交互式部署和检查
+命令。同一远程 Shell 中的清理步骤只会删除已上传文件和空任务目录，最后返回保存的
+部署/检查状态。
 
-Routine jobs must not upload infrastructure or source, install units, edit
-configuration, start Java, manage services directly, invoke a watchdog,
-perform rollback, prune releases, or run database maintenance. Independent
-releases can temporarily run mixed commits, so changes to schemas, JWT claims,
-Redis values, internal APIs, and other shared contracts must be backward- and
-forward-compatible across adjacent versions. Incompatible changes require a
-coordinated maintenance window.
+常规任务不能上传基础设施或源代码、安装 systemd 单元、修改配置、直接启动 Java、
+直接管理服务、调用 watchdog、执行回滚、清理旧版本或执行数据库维护。独立发布期间
+可能暂时运行不同提交的 Web 和 Admin，因此数据库结构、JWT 声明、Redis 值、内部
+API 及其他共享约定的变更，必须对相邻版本保持向后和向前兼容。不兼容变更必须安排
+协调维护窗口。
 
-### Root-only manual rollback
+### 仅限 root 的手动回滚
 
-Jenkins has no rollback permission. An operator rolls back one application and
-checks that same application before deciding whether a separate rollback is
-needed elsewhere:
+Jenkins 没有回滚权限。运维人员只回滚一个应用并检查同一个应用，然后再决定是否
+需要单独回滚另一个应用：
 
 ```bash
 sudo /usr/local/sbin/rollback-wesite-app web
@@ -436,11 +411,10 @@ sudo /usr/local/sbin/rollback-wesite-app admin
 sudo /usr/local/sbin/check-wesite-app admin
 ```
 
-The rollback swaps that application's successful `current` and `previous`
-targets. If the target fails its recorded health contract, the command restores
-the original links and original version.
+回滚会交换该应用成功版本的 `current` 和 `previous` 目标。如果目标版本未通过其
+记录的健康检查约定，命令会恢复原始链接和原始版本。
 
-### Journal inspection
+### 查看 journal 日志
 
 ```bash
 journalctl -u wesite-web.service --since '-15 min' --no-pager
@@ -450,11 +424,11 @@ journalctl -u wesite-web.service -f
 journalctl -u wesite-admin.service -f
 ```
 
-### Root-only old-release cleanup
+### 仅限 root 的旧版本清理
 
-Release pruning is a separate, reviewed operator change. For one application
-at a time, resolve and record its `current` and `previous` targets, list the
-terminal release metadata, and print exact candidates before deletion:
+清理旧版本必须作为一项单独且经过审查的运维变更执行。每次只处理一个应用：解析并
+记录它的 `current`、`previous` 目标，列出终态发布元数据，并在删除前打印准确的
+候选目录：
 
 ```bash
 sudo realpath -e /usr/java/apps/web/current
@@ -466,24 +440,21 @@ sudo realpath -e /usr/java/apps/admin/previous
 sudo find /usr/java/apps/admin/releases -mindepth 1 -maxdepth 1 -type d -print
 ```
 
-Retain both link targets and at least the three most recent additional
-successful releases. Keep failed releases until diagnosis is complete. Only
-root may remove one fully resolved, literal release directory after checking
-its `APP`, `VERSION`, `STATUS`, and link exclusion. Never delete an unchecked
-variable, symlink target, application root, shared parent, or all releases with
-a wildcard. Once those checks are recorded, remove only the reviewed literal
-path, for example
-`sudo rm -rf -- /usr/java/apps/web/releases/0123456789abcdef-123`; never paste
-the example without replacing and rechecking its release identity.
+保留两个链接目标，以及除此之外最近的至少三个成功版本。故障版本应保留到诊断完成。
+只有 root 才能在检查版本的 `APP`、`VERSION`、`STATUS` 以及确认它不被链接引用后，删除
+一个完全解析且路径明确的发布目录。绝不能删除未经检查的变量、符号链接目标、应用
+根目录、共享父目录，也不能使用通配符删除所有版本。记录上述检查后，只删除已经审查
+的字面量路径，例如
+`sudo rm -rf -- /usr/java/apps/web/releases/0123456789abcdef-123`；替换并重新检查
+版本身份之前，绝不能直接粘贴执行这个示例。
 
-## Coordinated blog database migration and sanitization
+## 协调执行博客数据库迁移和内容净化
 
-This is database/application maintenance outside both routine Jenkins jobs.
-It is not a hidden side effect of either release. Schedule a coordinated
-maintenance window, keep normal writers stopped from backup through apply, and
-retain all output with the change record.
+这是两个常规 Jenkins 任务之外的数据库和应用维护操作，不能成为任一发布流程的
+隐式副作用。安排协调维护窗口，从备份开始到应用变更完成期间保持常规写入程序停止，
+并将所有输出保存在变更记录中。
 
-Stop the monitor and both services deliberately:
+有计划地停止监控任务和两个服务：
 
 ```bash
 sudo systemctl stop \
@@ -491,9 +462,8 @@ sudo systemctl stop \
   wesite-web.service wesite-admin.service
 ```
 
-From the trusted operator machine that contains the reviewed SQL file, back up
-and migrate `WEB_BLOG_POST` directly against the remote database using a
-schema-authorized account. Do not copy the repository to production:
+在包含已审查 SQL 文件的可信运维机器上，使用具有结构变更权限的账号直接连接远程
+数据库，备份并迁移 `WEB_BLOG_POST`。不要将仓库复制到生产服务器：
 
 ```bash
 mysqldump --single-transaction -h MYSQL_HOST -u DB_USER -p wesitedb \
@@ -506,9 +476,8 @@ mysql -h MYSQL_HOST -u DB_USER -p wesitedb \
   -e "SHOW COLUMNS FROM WEB_BLOG_POST LIKE 'CONTENT_UPDATED_AT';"
 ```
 
-Copy the reviewed Admin maintenance JAR as a root-owned, runtime-readable
-file. Run it through a transient root-created systemd unit so the environment
-file is parsed by systemd rather than a shell:
+将经过审查的 Admin 维护 JAR 复制为 root 所有、运行账号可读的文件。通过 root 创建的
+临时 systemd 单元运行它，让 systemd 而不是 Shell 解析环境文件：
 
 ```bash
 sudo install -o root -g wesite -m 0440 \
@@ -530,15 +499,13 @@ sudo systemd-run --quiet --wait --collect --pipe \
   2>&1 | sudo tee /usr/java/logs/blog-sanitize-dry-run.log
 ```
 
-Inspect every proposed change, or an explicitly recorded sample for a large
-set. Repeat with a new unit name, `mode=apply`, and a separate apply log. A
-non-zero exit or missing completion report stops the change. Run dry-run again;
-it must report zero changes.
+检查每一项拟议变更；如果变更数量很大，则检查明确记录的样本。使用新的单元名称、
+`mode=apply`，并将输出写入单独的 apply 日志后重复执行。非零退出状态或缺少完成报告
+都必须中止变更。
+再次运行 dry-run，结果必须报告零项变更。
 
-Release the tested, compatibility-matched Web and Admin binaries through two
-separate application deployment invocations, checking each independently.
-Leave the additive database column in place during binary rollback. Content
-rollback restores only affected IDs and their original `CONTENT` and
-`CONTENT_UPDATED_AT` values from the recorded backup; never overwrite unrelated
-post edits. Restore services and the timer only after application, editorial,
-public page, P0 smoke, and SEO checks pass.
+通过两个独立的应用部署命令发布经过测试且兼容性匹配的 Web 和 Admin 二进制文件，
+并分别检查每个应用。二进制回滚期间保留新增的数据库列。内容回滚只根据记录的备份
+恢复受影响 ID 的原始 `CONTENT` 和 `CONTENT_UPDATED_AT` 值，绝不能覆盖其他无关的
+文章编辑。只有应用、编辑流程、公开页面、P0 冒烟测试和 SEO 检查全部通过后，才能
+恢复服务和定时器。
