@@ -523,14 +523,8 @@ html{background-color: #f2f2f2; color: #5F5F5F;}
   .layui-layout-admin .layui-body .layadmin-tabsbody-item{-webkit-overflow-scrolling: touch; overflow: auto;}
 }
 
-/* Whose.Domains 管理后台 */
-:root{--whose-domains-brand: #17365D; --whose-domains-accent: #168F8B; --whose-domains-focus: #F0B429;}
-.layui-layout-admin .layui-logo,
-.layui-side-menu{background-color: var(--whose-domains-brand);}
-.layui-nav-tree .layui-this,
-.layui-nav-tree .layui-this>a,
-.layui-nav-tree .layui-nav-child dd.layui-this,
-.layui-nav-tree .layui-nav-child dd.layui-this a{background-color: var(--whose-domains-accent) !important;}
+/* Whose.Domains 管理后台：品牌背景色由 config.js 的动态主题负责。 */
+:root{--whose-domains-focus: #F0B429;}
 .layui-layout-admin a:focus-visible,
 .layui-layout-admin *[layadmin-event]:focus-visible{outline: 3px solid var(--whose-domains-focus); outline-offset: -3px;}
 @media screen and (max-width: 768px) {

@@ -52,8 +52,9 @@ layui.define(['all'], function(exports){
     theme: {
       // 内置主题配色方案
       color: [{
-        main: '#20222A', // 主题色
-        selected: '#16baaa', // 选中色
+        main: '#17365D', // 主题色
+        logo: '#17365D', // 标志色
+        selected: '#168F8B', // 选中色
         alias: 'default' // 默认别名
       },{
         main: '#03152A',

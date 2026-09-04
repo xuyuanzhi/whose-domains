@@ -45,3 +45,36 @@ $env:MAVEN_OPTS='-Dmaven.repo.local=C:\Users\Yuz\.m2\repository'; mvn -pl wesite
 - 已检查退出请求文本顺序、完成回调清理与登录跳转，以及重复点击保护；测试锁定这些风险契约。
 - 已检查差异范围仅为任务指定的六个实现文件、一个测试和本报告；`git diff --check` 无空白错误。
 - 已知依赖：任务简报要求菜单目标为 `contact/list`，其页面由 Task 5 创建（Task 2 → 5 接口）。本任务严格按给定菜单契约实现，未扩展或修改 `wesite-web`。
+
+## Fix round 1
+
+### 修复内容
+
+- 将域名、内容和客户服务父菜单的内部名称改为 `domain`、`blog`、`contact`，使 `#/domain/tld`、`#/blog/list`、`#/contact/list` 的首段能够被 LayuiAdmin 的父项选择逻辑命中并展开。
+- 将 `config.js` 的运行时默认主题改为主色/标志色 `#17365D`、选中色 `#168F8B`。`tableName` 继续为 `whoseDomainsAdmin`，因此不会读取旧的 `layuiAdmin` 存储记录。
+- 删除会与 LayuiAdmin 动态 `!important` 主题竞争的 CSS 背景覆盖；源码和发布版仅保留同语义的焦点与窄屏布局补充。
+- 退出契约测试改为提取并执行 `complete` 回调，验证实际调用 `clearSession()` 后设置登录页 hash。
+
+### RED / GREEN
+
+新增定向测试后执行：
+
+```powershell
+$env:MAVEN_OPTS='-Dmaven.repo.local=C:\Users\Yuz\.m2\repository'; mvn -pl wesite-admin -am '-Dtest=AdminNavigationTemplateTest' '-Dsurefire.failIfNoSpecifiedTests=false' test
+```
+
+RED：测试编译修正后，5 项中 3 项按预期失败：父菜单名称为 `domains` 而非 `domain`；运行时默认主题仍返回 `#20222A`；CSS 补充未满足最小同步契约。
+
+同一命令 GREEN：`AdminNavigationTemplateTest` 5 项通过，反应堆构建成功。
+
+### 覆盖测试与自审
+
+```powershell
+$env:MAVEN_OPTS='-Dmaven.repo.local=C:\Users\Yuz\.m2\repository'; mvn -pl wesite-admin -am test
+```
+
+通过：`wesite-core` 56 项、`wesite-admin` 43 项；零失败、零错误、零跳过。
+
+- 已复核父项名称与三个有子菜单的真实路由首段完全一致。
+- 已在 Node 运行时执行实际 `config.js` 与退出完成回调，而非仅进行全文位置比较。
+- 已检查 src/dist CSS 补充不再覆盖动态主题，且焦点与窄屏规则保持同步；`git diff --check` 无空白错误。

@@ -15,7 +15,7 @@
       "jump": "person/list"
     },
     {
-      "name": "domains",
+      "name": "domain",
       "title": "域名管理",
       "icon": "layui-icon-website",
       "list": [
@@ -32,7 +32,7 @@
       ]
     },
     {
-      "name": "content",
+      "name": "blog",
       "title": "内容管理",
       "icon": "layui-icon-read",
       "list": [
@@ -44,7 +44,7 @@
       ]
     },
     {
-      "name": "service",
+      "name": "contact",
       "title": "客户服务",
       "icon": "layui-icon-dialogue",
       "list": [
