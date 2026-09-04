@@ -61,3 +61,48 @@ mvn -pl wesite-admin -am test
 ## Concerns
 
 无功能性遗留 concern。完整测试输出仍有仓库既有的 Bean Validation provider INFO、JVM CDS warning 和博客错误路径测试日志；所有测试均通过，且这些噪声与本任务无关。
+
+## Fix round 1（2026-09-05）
+
+### 审查问题与根因
+
+- `AdminController` 的 `/admin` 和 `/admin/dashboard` 仍会渲染旧 `templates/admin/dashboard.html`，但 Task 5 已移除 `GET /admin/contacts`，导致旧 dashboard 的联系管理快捷入口成为死链。
+- 同一模板仍读取已从统计契约移除的 `data.today`，同时没有把 `data.pending` 写入页面，也没有 processed 展示位。
+- 根因是 Task 5 只清理了旧联系消息页面与脚本，没有把仍存活的 dashboard 消费方纳入联系统计和导航契约。
+
+### 修复内容
+
+- `wesite-admin/src/main/resources/templates/admin/dashboard.html`
+  - 联系管理入口由 `/admin/contacts` 改为 SPA hash 入口 `/#/contact/list`。
+  - 三项联系统计统一为 total、pending、processed，标签、DOM ID 和脚本赋值保持一致。
+  - 移除 `data.today` 和旧 `todaysContacts`/`pendingReviews` 引用；未重构旧 dashboard 视觉，留待 Task 6 正式替换。
+- `wesite-admin/src/test/java/info/wesite/admin/view/AdminContactTemplateTest.java`
+  - 增加 SPA 链接可达性契约，防止恢复 `/admin/contacts` 死链。
+  - 增加静态统计消费契约，确保三个 DOM 节点存在、pending/processed 被读取且 today 不再出现。
+  - 增加 Node 运行时探针，以 `{total:9,pending:4,processed:5,today:99}` 响应验证页面实际只写入当前三项统计。Node 不可用时该探针显式 skip，前述静态契约仍运行。
+
+### RED / GREEN 证据
+
+```powershell
+mvn -pl wesite-admin -am -Dtest=AdminContactTemplateTest -Dsurefire.failIfNoSpecifiedTests=false test
+```
+
+- RED：11 tests，3 failures / 0 errors。失败分别命中缺失 `/#/contact/list`、缺失 pending/processed DOM，以及运行时仍写入 `{totalContacts:9,todaysContacts:99}`。
+
+```powershell
+mvn -pl wesite-admin -am -Dtest=ContactControllerTest,AdminContactTemplateTest -Dsurefire.failIfNoSpecifiedTests=false test
+```
+
+- GREEN：21 tests，0 failures / 0 errors / 0 skipped；BUILD SUCCESS。
+
+```powershell
+mvn -pl wesite-admin -am test
+```
+
+- 完整 reactor：`wesite-core` 56 tests、`wesite-admin` 105 tests，共 161 tests；0 failures / 0 errors / 0 skipped；BUILD SUCCESS。
+
+### Fix round 1 自审与 concerns
+
+- 修复仅触及仍存活的旧 dashboard 模板和联系模板契约测试；没有恢复已删除的控制器页面映射，也没有修改联系 API 或 `wesite-web`。
+- DOM、静态脚本字段和实际运行时赋值三层契约均覆盖；错误链接、旧 today 字段、缺失 pending/processed 任一回归都会失败。
+- Task 6 计划正式移除旧 dashboard；本轮只保证其存活期间与 Task 5 的 SPA 和统计契约兼容，无新增功能性 concern。

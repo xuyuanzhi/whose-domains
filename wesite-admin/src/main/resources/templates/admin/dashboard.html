@@ -15,19 +15,19 @@
                         <p id="totalContacts">Loading...</p>
                     </div>
                     <div class="stat-card">
-                        <h3>Today's Contacts</h3>
-                        <p id="todaysContacts">Loading...</p>
+                        <h3>Pending Contacts</h3>
+                        <p id="pendingContacts">Loading...</p>
                     </div>
                     <div class="stat-card">
-                        <h3>Pending Reviews</h3>
-                        <p id="pendingReviews">0</p>
+                        <h3>Processed Contacts</h3>
+                        <p id="processedContacts">Loading...</p>
                     </div>
                 </div>
                 
                 <div class="quick-actions">
                     <h2>Quick Actions</h2>
                     <div class="actions-grid">
-                        <a href="/admin/contacts" class="action-card">
+                        <a href="/#/contact/list" class="action-card">
                             <h3>Manage Contacts</h3>
                             <p>View and manage contact form submissions</p>
                         </a>
@@ -58,7 +58,8 @@
             $.get('/admin/contacts/stats', function(response) {
                 if (response.code === 0) {
                     $('#totalContacts').text(response.data.total || 0);
-                    $('#todaysContacts').text(response.data.today || 0);
+                    $('#pendingContacts').text(response.data.pending || 0);
+                    $('#processedContacts').text(response.data.processed || 0);
                 }
             });
         }
