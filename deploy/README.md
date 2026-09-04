@@ -145,7 +145,31 @@ swapon --show
 
 ### 4.1 从 GitHub 代码生成部署包
 
-**执行位置：本地电脑上的可信 Git Bash、WSL 或 Linux Shell**
+**执行位置：WSL2 或 Linux；不能使用 PowerShell、CMD 或 Git Bash 执行本节的 Bash 命令**
+
+构建脚本使用 Linux 的 `/proc/<pid>/fd` 目录描述符防止打包期间发生路径替换。Git Bash
+的 MSYS 兼容层不能向 Windows `tar` 提供相同语义，会出现
+`tar: /proc/.../fd/...: Cannot open: Not a directory`。
+
+在 Windows PowerShell 中先进入 WSL2：
+
+```powershell
+wsl.exe --status
+wsl.exe
+```
+
+看到 Linux Shell 提示符后，进入仓库并验证环境；以下命令从这里开始都在同一个 WSL2
+会话中执行：
+
+```bash
+cd /mnt/c/Users/Yuz/git/whose-domains
+[[ "$(uname -s)" == Linux ]]
+[[ -d "/proc/$$/fd" ]]
+tar --version | head -n 1
+```
+
+`uname` 必须显示 `Linux`，`tar` 应为 GNU tar。不要从 PowerShell 调用 Git Bash 来运行
+后面的代码块。
 
 以下命令会拒绝包含已修改、已暂存或未跟踪文件的工作区，并要求本地 `HEAD` 与最新的
 `origin/main` 完全一致。部署包从该提交的独立临时 worktree 生成，避免把当前工作目录

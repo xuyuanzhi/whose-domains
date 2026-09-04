@@ -50,6 +50,15 @@ require_literal "$ADMIN_PIPELINE" \
   'Admin Pipeline does not use the fixed Tailnet target'
 require_literal "$RUNBOOK" 'git status --porcelain' \
   'runbook does not require a clean source worktree'
+require_literal "$RUNBOOK" \
+  '**执行位置：WSL2 或 Linux；不能使用 PowerShell、CMD 或 Git Bash 执行本节的 Bash 命令**' \
+  'runbook does not clearly exclude non-Linux shells from infrastructure builds'
+require_literal "$RUNBOOK" 'wsl.exe' \
+  'runbook does not show how to enter WSL2 from PowerShell'
+require_literal "$RUNBOOK" '[[ "$(uname -s)" == Linux ]]' \
+  'runbook does not verify that infrastructure builds run on Linux'
+require_literal "$RUNBOOK" '[[ -d "/proc/$$/fd" ]]' \
+  'runbook does not verify Linux directory-descriptor support'
 require_literal "$RUNBOOK" 'git worktree add --detach' \
   'runbook does not build infrastructure from a detached clean worktree'
 require_literal "$RUNBOOK" \

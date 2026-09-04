@@ -16,6 +16,34 @@ fail() {
   exit 1
 }
 
+test_rejects_non_linux_kernel() {
+  local scenario="$TEST_ROOT/non-linux-kernel"
+  local fake_bin="$scenario/fake-bin"
+  local output="$scenario/output"
+  local status
+
+  mkdir -p "$fake_bin"
+  cat > "$fake_bin/uname" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' 'MINGW64_NT-10.0-19045'
+EOF
+  chmod +x "$fake_bin/uname"
+
+  set +e
+  PATH="$fake_bin:$PATH" bash "$BUILDER" "$COMMIT" "$output" \
+    > "$scenario/builder.out" 2>&1
+  status=$?
+  set -e
+
+  (( status != 0 )) || fail 'builder accepted a non-Linux kernel'
+  grep -Fq 'requires a Linux kernel' "$scenario/builder.out" \
+    || fail 'builder did not explain the Linux kernel requirement'
+  [[ ! -e "$output" ]] \
+    || fail 'builder mutated the output path before rejecting a non-Linux kernel'
+}
+
+test_rejects_non_linux_kernel
+
 make_fake_commands() {
   local scenario="$1"
   local fake_bin="$scenario/fake-bin"

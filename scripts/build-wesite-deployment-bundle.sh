@@ -78,6 +78,8 @@ OUTPUT_DIRECTORY="$2"
 [[ "$SOURCE_COMMIT" =~ ^[0-9a-f]{7,64}$ ]] \
   || fail 'COMMIT must contain 7 to 64 lowercase hexadecimal characters'
 [[ -n "$OUTPUT_DIRECTORY" ]] || fail 'OUTPUT_DIRECTORY must not be empty'
+[[ "$(uname -s)" == Linux && -d "/proc/$$/fd" ]] \
+  || fail 'building a deployment bundle requires a Linux kernel with /proc directory descriptors; Git Bash/MSYS is not supported'
 umask 077
 
 READ_ONLY_PAYLOADS=(
