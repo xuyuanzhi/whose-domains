@@ -1,6 +1,7 @@
 package info.wesite.admin.controller;
 
 import java.util.List;
+import java.util.UUID;
 import java.util.function.Supplier;
 
 import org.apache.commons.lang3.StringUtils;
@@ -153,7 +154,8 @@ public class BlogAdminController {
     }
 
     private ResponseJson<?> unexpected(String operation, Exception exception) {
-        LOGGER.error("Unexpected blog {} failure", operation, exception);
+        LOGGER.error("Unexpected blog operation failure: operation={}, errorType={}, correlationId={}",
+            operation, exception.getClass().getName(), UUID.randomUUID());
         return ResponseJson.error(GENERIC_ERROR);
     }
 

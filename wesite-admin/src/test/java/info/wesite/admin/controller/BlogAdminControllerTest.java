@@ -4,7 +4,9 @@ import static info.wesite.admin.blog.BlogAdminModels.IdRequest;
 import static info.wesite.admin.blog.BlogAdminModels.PreviewRequest;
 import static info.wesite.admin.blog.BlogAdminModels.SaveRequest;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -18,6 +20,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.Date;
+import java.util.Locale;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,6 +31,9 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 
 import info.wesite.admin.blog.BlogAdminModels.DetailResponse;
 import info.wesite.admin.blog.BlogAdminModels.PreviewResponse;
@@ -173,6 +179,40 @@ class BlogAdminControllerTest {
         assertEquals(ResponseJson.CODE_ERROR, unexpected.getCode());
         assertEquals("Unable to complete the blog operation", unexpected.getMsg());
         assertTrue(!unexpected.getMsg().contains("secret"));
+    }
+
+    @Test
+    void unexpectedFailureLogKeepsTraceabilityWithoutSensitiveExceptionDetails() {
+        UserHolder.set(admin("admin-4"));
+        String sensitiveMessage = "SQL password=secret";
+        when(editorial.publish("broken", "admin-4"))
+            .thenThrow(new IllegalStateException(sensitiveMessage));
+
+        ch.qos.logback.classic.Logger logger = (ch.qos.logback.classic.Logger)
+            org.slf4j.LoggerFactory.getLogger(BlogAdminController.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            ResponseJson<?> response = controller.publish(new IdRequest("broken"));
+
+            assertEquals(ResponseJson.CODE_ERROR, response.getCode());
+            assertEquals(1, appender.list.size());
+            ILoggingEvent event = appender.list.get(0);
+            String rendered = event.getFormattedMessage();
+            String lowerRendered = rendered.toLowerCase(Locale.ROOT);
+            assertTrue(rendered.contains("operation=publish"));
+            assertTrue(rendered.contains("errorType=java.lang.IllegalStateException"));
+            assertTrue(rendered.matches(".*correlationId=[0-9a-f-]{36}.*"));
+            assertFalse(lowerRendered.contains("sql"));
+            assertFalse(lowerRendered.contains("password"));
+            assertFalse(lowerRendered.contains("secret"));
+            assertFalse(rendered.contains(sensitiveMessage));
+            assertNull(event.getThrowableProxy(), "the exception chain must not be attached to the log event");
+        } finally {
+            logger.detachAppender(appender);
+            appender.stop();
+        }
     }
 
     private void assertListFailure(String body) throws Exception {

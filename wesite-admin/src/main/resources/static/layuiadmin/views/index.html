@@ -363,7 +363,9 @@ layui.use(['admin', 'util'], function(){
     });
   }
 
-  $(document).on('click', '#dashboard-retry', loadSummary);
+  $(document)
+    .off('click.wesiteDashboard', '#dashboard-retry')
+    .on('click.wesiteDashboard', '#dashboard-retry', loadSummary);
   $('#dashboard-date').text(new Intl.DateTimeFormat('zh-CN', {
     year: 'numeric', month: 'long', day: 'numeric', weekday: 'long'
   }).format(new Date()));

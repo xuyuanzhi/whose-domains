@@ -4,6 +4,7 @@ import java.util.Date;
 import java.util.List;
 
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -116,8 +117,12 @@ public class UserController {
         user.setName(name);
         user.setPhoneNo(phoneNo);
         user.setStatus(status);
-        if (userService.saveOrUpdate(user)) {
-            return ResponseJson.success();
+        try {
+            if (userService.saveOrUpdate(user)) {
+                return ResponseJson.success();
+            }
+        } catch (DuplicateKeyException exception) {
+            return ResponseJson.failure("手机号已存在");
         }
         return ResponseJson.failure("保存失败");
     }

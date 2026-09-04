@@ -96,21 +96,49 @@ class AdminDashboardTemplateTest {
         String output = runDashboardScript("""
             requests[0].success({code: 500, msg: '<failure>'});
             requests[0].complete();
-            handlers['click:#dashboard-retry']();
+            trigger('click', '#dashboard-retry');
             console.log(requests.length);
             """);
 
         assertEquals("2", output);
     }
 
+    @Test
+    void remountReplacesTheDashboardRetryDelegateInsteadOfAccumulatingHandlers() throws Exception {
+        String source = read(DASHBOARD);
+        assertTrue(source.contains(".off('click.wesiteDashboard', '#dashboard-retry')"),
+            "dashboard mount must remove its prior namespaced retry delegate");
+        assertTrue(source.contains(".on('click.wesiteDashboard', '#dashboard-retry', loadSummary)"),
+            "dashboard mount must bind one namespaced retry delegate");
+
+        String output = runDashboardScript(2, """
+            requests[0].complete();
+            requests[1].complete();
+            trigger('click', '#dashboard-retry');
+            console.log(requests.length);
+            """);
+
+        assertEquals("3", output);
+    }
+
     private static String runDashboardScript(String scenario) throws Exception {
+        return runDashboardScript(1, scenario);
+    }
+
+    private static String runDashboardScript(int mounts, String scenario) throws Exception {
         String source = executableScript(read(DASHBOARD));
         String harness = """
             const requests = [];
-            const handlers = {};
+            const handlers = [];
             const htmlWrites = [];
             let cloneCounter = 0;
             globalThis.document = {};
+
+            function trigger(event, selector) {
+              handlers
+                .filter(handler => handler.event.split('.')[0] === event && handler.selector === selector)
+                .forEach(handler => handler.callback());
+            }
 
             function element(name) {
               return {
@@ -128,7 +156,15 @@ class AdminDashboardTemplateTest {
                 first() { return this; },
                 clone() { return element(name + '-clone-' + (++cloneCounter)); },
                 on(event, selector, callback) {
-                  handlers[event + ':' + selector] = callback;
+                  handlers.push({event, selector, callback});
+                  return this;
+                },
+                off(event, selector) {
+                  for (let index = handlers.length - 1; index >= 0; index--) {
+                    if (handlers[index].event === event && handlers[index].selector === selector) {
+                      handlers.splice(index, 1);
+                    }
+                  }
                   return this;
                 }
               };
@@ -147,7 +183,7 @@ class AdminDashboardTemplateTest {
               }},
               use(dependencies, callback) { callback(); }
             };
-            """ + source + scenario;
+            """ + source.repeat(mounts) + scenario;
         return runNode(harness);
     }
 

@@ -51,18 +51,30 @@ class AdminLoginTemplateTest {
 
     @Test
     void encodedRedirectsPreserveInternalPathsAndSafelyRejectUnsafeValues() throws Exception {
-        assumeNodeAvailable();
         String source = read("static/layuiadmin/views/user/login.html");
+        assertTrue(source.contains("(layui.router().search || {}).redirect"),
+            "login redirect must be read from the Layui router search map");
+        assertFalse(source.contains("(layui.router().params || {}).redirect"),
+            "Layui puts redirect= in router.search, not router.params");
+
+        assumeNodeAvailable();
         int start = source.indexOf("function decodeRedirect");
         int end = source.indexOf("function setBusy", start);
         assertTrue(start >= 0 && end > start, "login must decode route parameters before validation");
 
         String redirectFunctions = source.substring(start, end);
         String probe = redirectFunctions + """
+            let route;
+            globalThis.layui = {router: () => route};
+            function resolve(candidate) {
+              route = candidate;
+              return redirectFromRouter();
+            }
             console.log(JSON.stringify([
-              safeRedirect(decodeRedirect('%2Fdomain%2Flist')),
-              safeRedirect(decodeRedirect('%2F%2Fevil.example')),
-              safeRedirect(decodeRedirect('%E0%A4%A'))
+              resolve({search: {redirect: '%2Fdomain%2Flist'}}),
+              resolve({search: {redirect: '%2F%2Fevil.example'}}),
+              resolve({search: {redirect: '%E0%A4%A'}}),
+              resolve({params: {redirect: '%2Fperson%2Flist'}})
             ]));
             """;
         Process process = new ProcessBuilder("node", "--input-type=module", "--eval", probe)
@@ -71,7 +83,7 @@ class AdminLoginTemplateTest {
         String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
 
         assertEquals(0, process.waitFor());
-        assertEquals("[\"/domain/list\",\"/\",\"/\"]", output);
+        assertEquals("[\"/domain/list\",\"/\",\"/\",\"/\"]", output);
     }
 
     private static void assumeNodeAvailable() {

@@ -58,6 +58,10 @@ layui.use(['admin', 'form', 'setter'], function(){
     return /^\/(?!\/)/.test(value || '') ? value : '/';
   }
 
+  function redirectFromRouter() {
+    return safeRedirect(decodeRedirect((layui.router().search || {}).redirect));
+  }
+
   function setBusy(button, busy) {
     button.prop('disabled', busy).toggleClass('layui-btn-disabled', busy);
   }
@@ -80,7 +84,7 @@ layui.use(['admin', 'form', 'setter'], function(){
       success: function(response){
         if (response.code === 0 && response.data && response.data.token) {
           layui.data(setter.tableName, { key: setter.request.tokenName, value: response.data.token });
-          location.hash = safeRedirect(decodeRedirect((layui.router().params || {}).redirect));
+          location.hash = redirectFromRouter();
         } else {
           layer.msg(response.msg || '登录失败');
         }

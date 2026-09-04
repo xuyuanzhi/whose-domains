@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -23,6 +24,8 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
@@ -198,6 +201,33 @@ class UserControllerTest {
         AbstractWrapper<?, ?, ?> duplicate = assertInstanceOf(AbstractWrapper.class, duplicateQuery);
         assertNotNull(duplicate.getParamNameValuePairs());
         assertTrue(duplicate.getParamNameValuePairs().containsValue("13800000000"));
+    }
+
+    @Test
+    void concurrentDuplicatePhoneWriteReturnsTheStableDuplicateMessage() {
+        when(users.count(any(Wrapper.class))).thenReturn(0L);
+        when(users.saveOrUpdate(any(User.class)))
+            .thenThrow(new DuplicateKeyException("duplicate PHONE_NO=13800000000"));
+
+        ResponseJson<?> response = controller.save(
+            request(null, "Alice", "13800000000", User.STATUS_ACTIVE));
+
+        assertEquals(ResponseJson.CODE_FAILURE, response.getCode());
+        assertEquals("手机号已存在", response.getMsg());
+    }
+
+    @Test
+    void unrelatedPersistenceFailureIsNotMisreportedAsADuplicatePhone() {
+        when(users.count(any(Wrapper.class))).thenReturn(0L);
+        DataAccessResourceFailureException failure =
+            new DataAccessResourceFailureException("database unavailable");
+        when(users.saveOrUpdate(any(User.class))).thenThrow(failure);
+
+        DataAccessResourceFailureException thrown = assertThrows(
+            DataAccessResourceFailureException.class,
+            () -> controller.save(request(null, "Alice", "13800000000", User.STATUS_ACTIVE)));
+
+        assertEquals(failure, thrown);
     }
 
     @Test
