@@ -1,10 +1,13 @@
 package info.wesite.admin.view;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.regex.Pattern;
 
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -23,6 +26,10 @@ class AdminLoginTemplateTest {
         assertTrue(password != null, "登录表单必须使用密码输入框");
         assertTrue(login.selectFirst("label[for=admin-login-password]") != null,
             "密码输入框必须有可访问标签");
+        Element passwordLabel = login.selectFirst("label[for=admin-login-password]");
+        assertFalse(passwordLabel.hasClass("layui-hide"), "password label must remain in the accessibility tree");
+        assertFalse(passwordLabel.attr("style").replaceAll("\\s", "").contains("display:none"),
+            "password label must not use display:none");
         assertTrue(login.selectFirst("button[type=button][aria-controls=admin-login-password]") != null,
             "必须提供显示密码控件");
 
@@ -42,6 +49,30 @@ class AdminLoginTemplateTest {
     }
 
     @Test
+    void encodedRedirectsPreserveInternalPathsAndSafelyRejectUnsafeValues() throws Exception {
+        String source = read("static/layuiadmin/views/user/login.html");
+        int start = source.indexOf("function decodeRedirect");
+        int end = source.indexOf("function setBusy", start);
+        assertTrue(start >= 0 && end > start, "login must decode route parameters before validation");
+
+        String redirectFunctions = source.substring(start, end);
+        String probe = redirectFunctions + """
+            console.log(JSON.stringify([
+              safeRedirect(decodeRedirect('%2Fdomain%2Flist')),
+              safeRedirect(decodeRedirect('%2F%2Fevil.example')),
+              safeRedirect(decodeRedirect('%E0%A4%A'))
+            ]));
+            """;
+        Process process = new ProcessBuilder("node", "--input-type=module", "--eval", probe)
+            .redirectErrorStream(true)
+            .start();
+        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
+
+        assertEquals(0, process.waitFor());
+        assertEquals("[\"/domain/list\",\"/\",\"/\"]", output);
+    }
+
+    @Test
     void adminConfigurationKeepsLoginOutsideTheAuthenticatedShell() throws Exception {
         String config = read("static/layuiadmin/config.js");
 
@@ -49,6 +80,9 @@ class AdminLoginTemplateTest {
         assertTrue(config.contains("tableName: 'whoseDomainsAdmin'"));
         assertTrue(config.contains("debug: false"));
         assertTrue(config.contains("indPage: ['/user/login']"));
+        assertEquals(1, countProperty(config, "name"));
+        assertEquals(1, countProperty(config, "tableName"));
+        assertEquals(1, countProperty(config, "debug"));
     }
 
     private static void assertSessionCleanupContract(String source) {
@@ -58,6 +92,13 @@ class AdminLoginTemplateTest {
         assertTrue(source.matches("(?s).*key\\s*:\\s*['\"]tabs['\"].*"));
         assertTrue(source.matches("(?s).*(?:view|u)\\.exit\\s*=\\s*function\\s*\\(\\)\\s*\\{\\s*(?:view|u)\\.clearSession\\(\\).*"));
         assertTrue(source.matches("(?s).*location\\.hash\\s*=\\s*['\"]/user/login['\"].*"));
+    }
+
+    private static long countProperty(String source, String property) {
+        return Pattern.compile("(?m)^\\s*" + Pattern.quote(property) + "\\s*:")
+            .matcher(source)
+            .results()
+            .count();
     }
 
     private static String read(String resource) throws IOException {

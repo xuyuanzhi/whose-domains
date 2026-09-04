@@ -22,18 +22,14 @@ layui.define(['all'], function(exports){
     pageTabs: false, // 是否开启页面选项卡功能。单页版不推荐开启
     refreshCurrPage: true, // 当跳转页面 url 与当前页 url 相同时，是否自动执行刷新
     
-    name: 'layuiAdmin',
-    tableName: 'layuiAdmin', // 本地存储表名
+    name: 'Whose.Domains Admin',
+    tableName: 'whoseDomainsAdmin', // 本地存储表名
     MOD_NAME: 'admin', // 模块事件名
     
-    debug: true, // 是否开启调试模式。如开启，接口异常时会抛出异常 URL 等信息
+    debug: false, // 是否开启调试模式。如开启，接口异常时会抛出异常 URL 等信息
     interceptor: true, // 是否开启未登入拦截
     
     // 自定义请求字段
-    name: 'Whose.Domains Admin',
-    tableName: 'whoseDomainsAdmin',
-    debug: false,
-
     request: {
       tokenName: 'access_token' // 自动携带 token 的字段名。可设置 false 不携带。
     },
