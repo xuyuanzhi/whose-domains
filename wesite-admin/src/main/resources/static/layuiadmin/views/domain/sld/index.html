@@ -1,231 +1,216 @@
+<title>二级保留域名管理</title>
 
-
-<title>网站用户</title>
-  
 <div class="layui-card layadmin-header">
   <div class="layui-breadcrumb" lay-filter="breadcrumb">
     <a lay-href="">主页</a>
-    <a><cite>域名</cite></a>
+    <a><cite>域名管理</cite></a>
     <a><cite>二级保留域名</cite></a>
   </div>
 </div>
 
 <div class="layui-fluid">
   <div class="layui-card">
-    <div class="layui-form layui-card-header layuiadmin-card-header-auto" lay-filter="layadmin-userfront-formlist">
+    <div class="layui-form layui-card-header layuiadmin-card-header-auto" lay-filter="domain-sld-search-form">
       <div class="layui-form-item">
         <div class="layui-inline">
-          <label class="layui-form-label">关键词</label>
-          <div class="layui-input-block">
-            <input type="text" name="keyword" placeholder="请输入" autocomplete="off" class="layui-input">
+          <label class="layui-form-label" for="domain-sld-keyword">关键词</label>
+          <div class="layui-input-inline">
+            <input id="domain-sld-keyword" type="text" name="keyword" placeholder="二级保留域名名称" autocomplete="off" class="layui-input">
           </div>
         </div>
         <div class="layui-inline">
-          <button class="layui-btn layuiadmin-btn-useradmin" lay-submit lay-filter="LAY-user-front-search">
-            <i class="layui-icon layui-icon-search layuiadmin-button-btn"></i>
+          <button type="submit" class="layui-btn" lay-submit lay-filter="domain-sld-search">
+            <i class="layui-icon layui-icon-search"></i> 查询
           </button>
         </div>
       </div>
     </div>
-    
+
     <div class="layui-card-body">
       <table id="LAY-domain-slds" lay-filter="LAY-domain-slds"></table>
-      <script type="text/html" id="imgTpl"> 
-        <img style="display: inline-block; width: 50%; height: 100%;" src= {{ d.avatar }}>
-      </script> 
-      <script type="text/html" id="table-domain-tlds-btns">
-        <a class="layui-btn layui-btn-normal layui-btn-xs" lay-event="edit"><i class="layui-icon layui-icon-edit"></i>编辑</a>
-      </script>
-      <script type="text/html" id="toolbar01">
-      	<button class="layui-btn layui-btn-sm layuiadmin-btn-useradmin" lay-event="refresh"><i class="layui-icon layui-icon-refresh"></i>刷新</button>
-		<button class="layui-btn layui-btn-sm layuiadmin-btn-useradmin" lay-event="add"><i class="layui-icon layui-icon-addition"></i>增加</button>
-      </script>
     </div>
   </div>
 </div>
 
+<script type="text/html" id="domain-sld-toolbar">
+  <button type="button" class="layui-btn layui-btn-sm" lay-event="refresh">
+    <i class="layui-icon layui-icon-refresh"></i> 刷新
+  </button>
+  <button type="button" class="layui-btn layui-btn-sm" lay-event="add">
+    <i class="layui-icon layui-icon-addition"></i> 新增
+  </button>
+</script>
+
+<script type="text/html" id="domain-sld-actions">
+  <button type="button" class="layui-btn layui-btn-normal layui-btn-xs" lay-event="edit">
+    <i class="layui-icon layui-icon-edit"></i> 编辑
+  </button>
+</script>
+
 <script>
-layui.use(['admin', 'table'], function(){
-  var $ = layui.$
-  ,admin = layui.admin
-  ,view = layui.view
-  ,table = layui.table
-  ,form = layui.form;
-  
-  form.render(null, 'layadmin-userfront-formlist');
-  
-  table.render({
-    elem: '#LAY-domain-slds'
-    ,url: './domain/sld/list' //模拟接口
-    ,method: 'post'
-    ,contentType: 'application/json;charset=UTF-8'
-    ,toolbar: '#toolbar01'
-    ,cols: [[
-      {type: 'numbers', fixed: 'left', title: '#'}
-      ,{field: 'name', title: '名称', width: 180}
-      ,{field: 'tldName', title: '顶级域名', width: 180}
-      ,{field: 'countryName', title: '国家', width: 300}
-      ,{field: 'statusText', title: '状态', width: 60}
-      ,{field: 'note', title: '备注'}
-      ,{field: 'createTimeText', width: 170, title: '创建时间'}
-      ,{field: 'updateTimeText', width: 170, title: '更新时间'}
-      ,{title: '操作', width: 150, align:'center', fixed: 'right', toolbar: '#table-domain-tlds-btns'}
-    ]]
-    ,page: true
-    ,limit: 20
-    ,height: 'full-320'
-    ,text: {none: '无数据'}
-  });
-  
-	//工具条
-  table.on('tool(LAY-domain-slds)', function(obj){
-    var data = obj.data;
-    if(obj.event === 'edit'){
-    	admin.popup({
-            title: '编辑'
-            ,area: ['800px', '400px']
-            ,id: 'LAY-popup-sld-edit'
-            ,success: function(layero, index){
-              view(this.id).render('domain/sld/edit', data).done(function(){
-                form.render(null, 'layuiadmin-form-sld-edit');
-                
-                //开启提交
-                form.on('submit(layuiadmin-form-sld-edit-btn)', function(data){
-                  var field = data.field; //获取提交的字段
-                  if (!field.status) {
-                	  field.status = 2;
-                  }
+layui.use(['admin', 'table', 'form', 'util'], function(){
+  var $ = layui.$;
+  var admin = layui.admin;
+  var table = layui.table;
+  var form = layui.form;
+  var view = layui.view;
+  var editRequestSequence = 0;
 
-                  //提交 Ajax 成功后，关闭当前弹层并重载表格
-                  admin.req({
-                	  type : 'post',
-          			  url : '/domain/sld/save',
-          			  contentType: 'application/json;charset=UTF-8',
-          			  data: JSON.stringify(field),
-          			  success : function(resp) {
-          				if (resp.code == 0) {
-          					layui.table.reload('LAY-domain-slds'); //重载表格
-          	                layer.close(index); //执行关闭 
-          				} else {
-          					layer.msg(resp.msg);
-          				}
-          			}
-                  });
-                  
-                });
-              });
-            }
-          });
-    } else if(obj.event === 'del'){
-    	layer.confirm('确认删除？', function(index){
-            admin.req({
-  		      url: '/listing/delete'
-  		      ,type: 'post'
-  		      ,contentType: 'application/json;charset=UTF-8'
-  		      ,data: JSON.stringify(data)
-  		  	  ,success: function(response) {
-  		  		  if (response && response.code === 0) {
-  		  			layer.msg("已删除");
-  		  			layer.close(index); //执行关闭 
-  		  			layui.table.reload('LAY-user-manage'); //重载表格
-  		  		  }
-  		  	  }
-  		  });
-          });
+  function safeText(value) {
+    return layui.util.escape(value == null ? '' : String(value));
+  }
+
+  function setBusy(button, busy) {
+    button.data('busy', busy);
+    button.prop('disabled', busy).toggleClass('layui-disabled', busy);
+  }
+
+  function reloadSlds() {
+    table.reload('LAY-domain-slds');
+  }
+
+  function sldPayload(field) {
+    var payload = {
+      name: $.trim(field.name || ''),
+      countryName: $.trim(field.countryName || ''),
+      note: $.trim(field.note || '')
+    };
+    if (field.id) {
+      payload.id = $.trim(field.id);
+      payload.status = Number(field.status);
     }
-  });
-	
-	table.on('toolbar(LAY-domain-slds)', function(obj){
-		var data = obj.data;
-	    if(obj.event === 'refresh'){
-	      layui.table.reloadData('LAY-domain-slds');
-	    } else if (obj.event === 'add') {
-	    	admin.popup({
-	            title: '添加列表'
-	            ,area: ['800px', '400px']
-	            ,id: 'LAY-popup-sld-add'
-	            ,success: function(layero, index){
-	              view(this.id).render('domain/sld/add').done(function(){
-	                form.render(null, 'layuiadmin-form-sld-add');
-	                
-	                //开启提交
-	                form.on('submit(layuiadmin-form-sld-add-btn)', function(data){
-	                  var field = data.field; //获取提交的字段
-	                  if (!field.status) {
-	                	  field.status = 2;
-	                  }
+    return payload;
+  }
 
-	                  //提交 Ajax 成功后，关闭当前弹层并重载表格
-	                  admin.req({
-	                	  type : 'post',
-	          			  url : '/domain/sld/save',
-	          			  contentType: 'application/json;charset=UTF-8',
-	          			  data: JSON.stringify(field),
-	          			  success : function(resp) {
-	          				if (resp.code == 0) {
-	          					layui.table.reload('LAY-domain-slds'); //重载表格
-	          	                layer.close(index); //执行关闭 
-	          				} else {
-	          					layer.msg(resp.msg);
-	          				}
-	          			}
-	                  });
-	                  
-	                });
-	              });
-	            }
-	          });
-	    }
-	});
-  
-  //开启搜索
-  form.on('submit(LAY-user-front-search)', function(data){
-    var field = data.field;
-    
-    //执行重载
-    table.reload('LAY-domain-slds', {
-      where: field
-    });
-  });
-
-  //事件
-  var active = {
-    batchdel: function(){
-      var checkStatus = table.checkStatus('LAY-user-manage')
-      ,checkData = checkStatus.data; //得到选中的数据
-
-      if(checkData.length === 0){
-        return layer.msg('请选择数据');
+  function saveSld(field, button) {
+    if (button.data('busy')) {
+      return false;
+    }
+    var submittedPopupIndex = button.data('popupIndex');
+    setBusy(button, true);
+    admin.req({
+      type: 'post',
+      url: '/domain/sld/save',
+      contentType: 'application/json;charset=UTF-8',
+      data: JSON.stringify(sldPayload(field)),
+      success: function(response) {
+        if (response && response.code === 0) {
+          layer.msg('二级保留域名已保存');
+          if (submittedPopupIndex != null) {
+            layer.close(submittedPopupIndex);
+          }
+          reloadSlds();
+        } else {
+          layer.msg(response && response.msg ? safeText(response.msg) : '保存失败');
+        }
+      },
+      complete: function() {
+        setBusy(button, false);
       }
-      
-      layer.prompt({
-        formType: 1
-        ,title: '敏感操作，请验证口令'
-      }, function(value, index){
-        layer.close(index);
-        
-        layer.confirm('确定删除吗？', function(index) {
-          
-          //执行 Ajax 后重载
-          /*
-          admin.req({
-            url: 'xxx'
-            //,……
-          });
-          */
-          table.reload('LAY-user-manage');
-          layer.msg('已删除');
+    });
+    return false;
+  }
+
+  function openAdd() {
+    admin.popup({
+      title: '新增二级保留域名',
+      area: ['92%', '70%'],
+      id: 'domain-sld-add-popup',
+      success: function(layero, index) {
+        view(this.id).render('domain/sld/add').done(function() {
+          form.render(null, 'domain-sld-add-form');
+          layero.find('[lay-filter="domain-sld-add-submit"]').data('popupIndex', index);
         });
-      });
+      }
+    });
+  }
+
+  function openEdit(data, button) {
+    if (button.data('busy')) {
+      return;
     }
-    ,add: function(){
-      
+    var requestSequence = ++editRequestSequence;
+    setBusy(button, true);
+    admin.req({
+      type: 'post',
+      url: '/domain/sld/detail',
+      contentType: 'application/json;charset=UTF-8',
+      data: JSON.stringify({id: data.id}),
+      success: function(response) {
+        if (requestSequence !== editRequestSequence) {
+          return;
+        }
+        if (!response || response.code !== 0 || !response.data) {
+          layer.msg(response && response.msg ? safeText(response.msg) : '二级保留域名详情加载失败');
+          return;
+        }
+        var detail = response.data;
+        admin.popup({
+          title: '编辑二级保留域名',
+          area: ['92%', '70%'],
+          id: 'domain-sld-edit-popup',
+          success: function(layero, index) {
+            view(this.id).render('domain/sld/edit').done(function() {
+              form.val('domain-sld-edit-form', {
+                id: detail.id || '',
+                name: detail.name || '',
+                countryName: detail.countryName || '',
+                status: String(detail.status || 1),
+                note: detail.note || ''
+              });
+              form.render(null, 'domain-sld-edit-form');
+              layero.find('[lay-filter="domain-sld-edit-submit"]').data('popupIndex', index);
+            });
+          }
+        });
+      },
+      complete: function() {
+        setBusy(button, false);
+      }
+    });
+  }
+
+  form.render(null, 'domain-sld-search-form');
+  table.render({
+    elem: '#LAY-domain-slds', id: 'LAY-domain-slds',
+    url: '/domain/sld/list', method: 'post',
+    contentType: 'application/json;charset=UTF-8',
+    toolbar: '#domain-sld-toolbar', page: true, limit: 20,
+    limits: [20, 50, 100], height: 'full-285', text: {none: '暂无二级保留域名'},
+    cols: [[
+      {type: 'numbers', title: '序号', width: 70, fixed: 'left'},
+      {field: 'name', title: '名称', minWidth: 180, templet: function(data) { return safeText(data.name); }},
+      {field: 'tldName', title: '所属顶级域名', width: 160, templet: function(data) { return safeText(data.tldName); }},
+      {field: 'countryName', title: '国家/地区', width: 160, templet: function(data) { return safeText(data.countryName); }},
+      {field: 'statusText', title: '状态', width: 100, templet: function(data) { return safeText(data.statusText); }},
+      {field: 'note', title: '备注', minWidth: 200, templet: function(data) { return safeText(data.note); }},
+      {field: 'createTimeText', title: '创建时间', width: 180, templet: function(data) { return safeText(data.createTimeText); }},
+      {field: 'updateTimeText', title: '更新时间', width: 180, templet: function(data) { return safeText(data.updateTimeText); }},
+      {title: '操作', width: 100, align: 'center', fixed: 'right', toolbar: '#domain-sld-actions'}
+    ]]
+  });
+
+  form.on('submit(domain-sld-search)', function(data) {
+    table.reload('LAY-domain-slds', {page: {curr: 1}, where: {keyword: $.trim(data.field.keyword || '')}});
+    return false;
+  });
+  form.on('submit(domain-sld-add-submit)', function(data) {
+    return saveSld(data.field, $(data.elem));
+  });
+  form.on('submit(domain-sld-edit-submit)', function(data) {
+    return saveSld(data.field, $(data.elem));
+  });
+  table.on('toolbar(LAY-domain-slds)', function(obj) {
+    if (obj.event === 'refresh') {
+      reloadSlds();
+    } else if (obj.event === 'add') {
+      openAdd();
     }
-  };
-  
-  $('.layui-btn.layuiadmin-btn-useradmin').on('click', function(){
-    var type = $(this).data('type');
-    active[type] ? active[type].call(this) : '';
+  });
+  table.on('tool(LAY-domain-slds)', function(obj) {
+    if (obj.event === 'edit') {
+      openEdit(obj.data, obj.tr.find('[lay-event="edit"]'));
+    }
   });
 });
 </script>

@@ -1,9 +1,9 @@
 package info.wesite.admin.controller;
 
 import java.util.Date;
+import java.util.Locale;
 
 import org.apache.commons.lang3.StringUtils;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -28,10 +28,13 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 @RequestMapping("/domain")
 public class DomainController {
 
-	@Autowired
-	private DomainTldService domainTldService;
-	@Autowired
-	private DomainTldExtService domainTldExtService;
+	private final DomainTldService domainTldService;
+	private final DomainTldExtService domainTldExtService;
+
+	public DomainController(DomainTldService domainTldService, DomainTldExtService domainTldExtService) {
+		this.domainTldService = domainTldService;
+		this.domainTldExtService = domainTldExtService;
+	}
 
 	@PostMapping("/tld/list")
 	public ResponseJson<DomainTld> tldList(@RequestBody SearchParam param) {
@@ -56,13 +59,14 @@ public class DomainController {
 
 	@PostMapping("/tld/detail")
 	public ResponseJson<DomainTld> tldDetail(@RequestBody DomainTld param) {
-		if (StringUtils.isBlank(param.getId())) {
-			return ResponseJson.failure("id is required.");
+		String id = param == null ? null : StringUtils.trimToNull(param.getId());
+		if (id == null) {
+			return ResponseJson.failure("顶级域名ID不能为空");
 		}
 
-		DomainTld byId = domainTldService.getById(param.getId());
+		DomainTld byId = domainTldService.getById(id);
 		if (byId == null) {
-			return ResponseJson.failure("id is invalid.");
+			return ResponseJson.failure("顶级域名不存在");
 		}
 
 		return ResponseJson.success(byId);
@@ -70,13 +74,14 @@ public class DomainController {
 
 	@PostMapping("/tld/save")
 	public ResponseJson<DomainTld> tldSave(@RequestBody DomainTld param) {
-		if (StringUtils.isBlank(param.getId())) {
-			return ResponseJson.failure("id is required.");
+		String id = param == null ? null : StringUtils.trimToNull(param.getId());
+		if (id == null) {
+			return ResponseJson.failure("顶级域名ID不能为空");
 		}
 
-		DomainTld byId = domainTldService.getById(param.getId());
+		DomainTld byId = domainTldService.getById(id);
 		if (byId == null) {
-			return ResponseJson.failure("id is invalid.");
+			return ResponseJson.failure("顶级域名不存在");
 		}
 
 		byId.setOrgName(param.getOrgName());
@@ -105,7 +110,7 @@ public class DomainController {
 		if (domainTldService.updateById(byId)) {
 			return ResponseJson.success();
 		} else {
-			return ResponseJson.failure("Fail to save.");
+			return ResponseJson.failure("保存失败");
 		}
 	}
 
@@ -132,13 +137,14 @@ public class DomainController {
 
 	@PostMapping("/sld/detail")
 	public ResponseJson<DomainTldExt> sldDetail(@RequestBody DomainTldExt param) {
-		if (StringUtils.isBlank(param.getId())) {
-			return ResponseJson.failure("id is required.");
+		String id = param == null ? null : StringUtils.trimToNull(param.getId());
+		if (id == null) {
+			return ResponseJson.failure("二级保留域名ID不能为空");
 		}
 
-		DomainTldExt byId = domainTldExtService.getById(param.getId());
+		DomainTldExt byId = domainTldExtService.getById(id);
 		if (byId == null) {
-			return ResponseJson.failure("id is invalid.");
+			return ResponseJson.failure("二级保留域名不存在");
 		}
 
 		return ResponseJson.success(byId);
@@ -146,35 +152,40 @@ public class DomainController {
 
 	@PostMapping("/sld/save")
 	public ResponseJson<DomainTldExt> sldSave(@RequestBody DomainTldExt param) {
-		if (StringUtils.isBlank(param.getName())) {
-			return ResponseJson.failure("Name is required.");
+		String name = param == null ? null : StringUtils.trimToNull(param.getName());
+		if (name == null) {
+			return ResponseJson.failure("二级保留域名名称不能为空");
 		}
+		name = name.toLowerCase(Locale.ROOT);
+		String id = StringUtils.trimToNull(param.getId());
 
-		String name = param.getName().toLowerCase();
+		if (id != null && !isEditableStatus(param.getStatus())) {
+			return ResponseJson.failure("二级保留域名状态只能是启用或禁用");
+		}
 
 		DomainTldExt byName = domainTldExtService
 				.getOne(Wrappers.<DomainTldExt>lambdaQuery().eq(DomainTldExt::getName, name));
-		if (byName != null && (StringUtils.isBlank(param.getId()) || !param.getId().equals(byName.getId()))) {
-			return ResponseJson.failure("Name " + param.getName() + " already exists.");
+		if (byName != null && (id == null || !id.equals(byName.getId()))) {
+			return ResponseJson.failure("二级保留域名名称已存在");
 		}
 
-		String tldName = DomainUtils.getTldName(param.getName());
+		String tldName = DomainUtils.getTldName(name);
 		DomainTld tld = domainTldService.getOne(Wrappers.<DomainTld>lambdaQuery().eq(DomainTld::getDotName, tldName));
 		if (tld == null) {
-			return ResponseJson.failure("TLD " + tldName + " doesn't exist.");
+			return ResponseJson.failure("所属顶级域名不存在");
 		}
 
 		DomainTldExt ext = null;
-		if (StringUtils.isBlank(param.getId())) {
+		if (id == null) {
 			ext = new DomainTldExt();
 			ext.setId(RandomUtils.generateId());
 			ext.setStatus(DomainTldExt.STATUS_ACTIVE);
 			ext.setCreateBy("admin");
 			ext.setCreateTime(new Date());
 		} else {
-			ext = domainTldExtService.getById(param.getId());
+			ext = domainTldExtService.getById(id);
 			if (ext == null) {
-				return ResponseJson.failure("id is invalid.");
+				return ResponseJson.failure("二级保留域名不存在");
 			}
 
 			ext.setStatus(param.getStatus());
@@ -191,8 +202,13 @@ public class DomainController {
 		if (domainTldExtService.saveOrUpdate(ext)) {
 			return ResponseJson.success();
 		} else {
-			return ResponseJson.failure("Fail to save.");
+			return ResponseJson.failure("保存失败");
 		}
+	}
+
+	private static boolean isEditableStatus(Integer status) {
+		return status != null
+				&& (status == DomainTldExt.STATUS_ACTIVE || status == DomainTldExt.STATUS_INACTIVE);
 	}
 
 }

@@ -1,232 +1,201 @@
+<title>顶级域名管理</title>
 
-
-<title>网站用户</title>
-  
 <div class="layui-card layadmin-header">
   <div class="layui-breadcrumb" lay-filter="breadcrumb">
     <a lay-href="">主页</a>
-    <a><cite>域名</cite></a>
+    <a><cite>域名管理</cite></a>
     <a><cite>顶级域名</cite></a>
   </div>
 </div>
 
 <div class="layui-fluid">
   <div class="layui-card">
-    <div class="layui-form layui-card-header layuiadmin-card-header-auto" lay-filter="layadmin-userfront-formlist">
+    <div class="layui-form layui-card-header layuiadmin-card-header-auto" lay-filter="domain-tld-search-form">
       <div class="layui-form-item">
         <div class="layui-inline">
-          <label class="layui-form-label">关键词</label>
-          <div class="layui-input-block">
-            <input type="text" name="keyword" placeholder="请输入" autocomplete="off" class="layui-input">
+          <label class="layui-form-label" for="domain-tld-keyword">关键词</label>
+          <div class="layui-input-inline">
+            <input id="domain-tld-keyword" type="text" name="keyword" placeholder="名称或显示名称" autocomplete="off" class="layui-input">
           </div>
         </div>
         <div class="layui-inline">
-          <button class="layui-btn layuiadmin-btn-useradmin" lay-submit lay-filter="LAY-user-front-search">
-            <i class="layui-icon layui-icon-search layuiadmin-button-btn"></i>
+          <button type="submit" class="layui-btn" lay-submit lay-filter="domain-tld-search">
+            <i class="layui-icon layui-icon-search"></i> 查询
           </button>
         </div>
       </div>
     </div>
-    
+
     <div class="layui-card-body">
       <table id="LAY-domain-tlds" lay-filter="LAY-domain-tlds"></table>
-      <script type="text/html" id="imgTpl"> 
-        <img style="display: inline-block; width: 50%; height: 100%;" src= {{ d.avatar }}>
-      </script> 
-      <script type="text/html" id="table-domain-tlds-btns">
-        <a class="layui-btn layui-btn-normal layui-btn-xs" lay-event="edit"><i class="layui-icon layui-icon-edit"></i>编辑</a>
-      </script>
-      <script type="text/html" id="toolbar01">
-      	<button class="layui-btn layui-btn-sm layuiadmin-btn-useradmin" lay-event="refresh"><i class="layui-icon layui-icon-addition"></i>刷新</button>
-      </script>
     </div>
   </div>
 </div>
 
+<script type="text/html" id="domain-tld-toolbar">
+  <button type="button" class="layui-btn layui-btn-sm" lay-event="refresh">
+    <i class="layui-icon layui-icon-refresh"></i> 刷新
+  </button>
+</script>
+
+<script type="text/html" id="domain-tld-actions">
+  <button type="button" class="layui-btn layui-btn-normal layui-btn-xs" lay-event="edit">
+    <i class="layui-icon layui-icon-edit"></i> 编辑
+  </button>
+</script>
+
 <script>
-layui.use(['admin', 'table'], function(){
-  var $ = layui.$
-  ,admin = layui.admin
-  ,view = layui.view
-  ,table = layui.table
-  ,form = layui.form;
-  
-  form.render(null, 'layadmin-userfront-formlist');
-  
-  table.render({
-    elem: '#LAY-domain-tlds'
-    ,url: './domain/tld/list' //模拟接口
-    ,method: 'post'
-    ,contentType: 'application/json;charset=UTF-8'
-    ,toolbar: '#toolbar01'
-    ,cols: [[
-      {type: 'numbers', fixed: 'left', title: '#'}
-      ,{field: 'name', title: '名称', width: 180}
-      ,{field: 'displayName', title: '显示名称', width: 180}
-      ,{field: 'orgName', title: '组织名称', width: 300}
-      ,{field: 'orgCountry', title: '组织国家'}
-      ,{field: 'adminCountry', title: '管理人国家'}
-      ,{field: 'techCountry', title: '技术人国家'}
-      ,{field: 'statusText', title: '状态', width: 60}
-      ,{field: 'createTimeText', width: 170, title: '创建时间'}
-      ,{field: 'updateTimeText', width: 170, title: '更新时间'}
-      ,{title: '操作', width: 150, align:'center', fixed: 'right', toolbar: '#table-domain-tlds-btns'}
-    ]]
-    ,page: true
-    ,limit: 20
-    ,height: 'full-320'
-    ,text: {none: '无数据'}
-  });
-  
-	//工具条
-  table.on('tool(LAY-domain-tlds)', function(obj){
-    var data = obj.data;
-    if(obj.event === 'edit'){
-    	admin.popup({
-            title: '编辑'
-            ,area: ['800px', '800px']
-            ,id: 'LAY-popup-tld-edit'
-            ,success: function(layero, index){
-              view(this.id).render('domain/tld/edit', data).done(function(){
-                form.render(null, 'layuiadmin-form-tld-edit');
-                
-                //开启提交
-                form.on('submit(layuiadmin-form-tld-edit-btn)', function(data){
-                  var field = data.field; //获取提交的字段
-                  if (!field.status) {
-                	  field.status = 2;
-                  }
+layui.use(['admin', 'table', 'form', 'util'], function(){
+  var $ = layui.$;
+  var admin = layui.admin;
+  var table = layui.table;
+  var form = layui.form;
+  var view = layui.view;
+  var editRequestSequence = 0;
 
-                  //提交 Ajax 成功后，关闭当前弹层并重载表格
-                  admin.req({
-                	  type : 'post',
-          			  url : '/domain/tld/save',
-          			  contentType: 'application/json;charset=UTF-8',
-          			  data: JSON.stringify(field),
-          			  success : function(resp) {
-          				if (resp.code == 0) {
-          					layui.table.reload('LAY-domain-tlds'); //重载表格
-          	                layer.close(index); //执行关闭 
-          				} else {
-          					layer.msg(resp.msg);
-          				}
-          			}
-                  });
-                  
-                });
-              });
-            }
-          });
-    } else if(obj.event === 'del'){
-    	layer.confirm('确认删除？', function(index){
-            admin.req({
-  		      url: '/listing/delete'
-  		      ,type: 'post'
-  		      ,contentType: 'application/json;charset=UTF-8'
-  		      ,data: JSON.stringify(data)
-  		  	  ,success: function(response) {
-  		  		  if (response && response.code === 0) {
-  		  			layer.msg("已删除");
-  		  			layer.close(index); //执行关闭 
-  		  			layui.table.reload('LAY-user-manage'); //重载表格
-  		  		  }
-  		  	  }
-  		  });
-          });
-    }
-  });
-	
-	table.on('toolbar(LAY-user-manage)', function(obj){
-		var data = obj.data;
-	    if(obj.event === 'refresh'){
-	      layui.table.reloadData('LAY-user-manage');
-	    } else if (obj.event === 'add') {
-	    	admin.popup({
-	            title: '添加列表'
-	            ,area: ['600px', '350px']
-	            ,id: 'LAY-popup-website-add'
-	            ,success: function(layero, index){
-	              view(this.id).render('listing/add').done(function(){
-	                form.render(null, 'layuiadmin-form-useradmin');
-	                
-	                //开启提交
-	                form.on('submit(LAY-user-front-submit)', function(data){
-	                  var field = data.field; //获取提交的字段
-	                  if (!field.status) {
-	                	  field.status = 2;
-	                  }
+  function safeText(value) {
+    return layui.util.escape(value == null ? '' : String(value));
+  }
 
-	                  //提交 Ajax 成功后，关闭当前弹层并重载表格
-	                  admin.req({
-	                	  type : 'post',
-	          			  url : '/listing/save',
-	          			  contentType: 'application/json;charset=UTF-8',
-	          			  data: JSON.stringify(field),
-	          			  success : function(resp) {
-	          				if (resp.code == 0) {
-	          					layui.table.reload('LAY-user-manage'); //重载表格
-	          	                layer.close(index); //执行关闭 
-	          				} else {
-	          					layer.msg(resp.msg);
-	          				}
-	          			}
-	                  });
-	                  
-	                });
-	              });
-	            }
-	          });
-	    }
-	});
-  
-  //开启搜索
-  form.on('submit(LAY-user-front-search)', function(data){
-    var field = data.field;
-    
-    //执行重载
-    table.reload('LAY-domain-tlds', {
-      where: field
+  function setBusy(button, busy) {
+    button.data('busy', busy);
+    button.prop('disabled', busy).toggleClass('layui-disabled', busy);
+  }
+
+  function reloadTlds() {
+    table.reload('LAY-domain-tlds');
+  }
+
+  function tldPayload(field) {
+    var names = [
+      'orgName', 'orgAddr', 'orgAddr2', 'orgCountry',
+      'adminName', 'adminOrg', 'adminAddr', 'adminAddr2', 'adminCountry',
+      'adminEmail', 'adminPhone', 'adminFax',
+      'techName', 'techOrg', 'techAddr', 'techAddr2', 'techCountry',
+      'techEmail', 'techPhone', 'techFax'
+    ];
+    var payload = {id: $.trim(field.id || '')};
+    names.forEach(function(name) {
+      payload[name] = $.trim(field[name] || '');
     });
+    if (field.status) {
+      payload.status = Number(field.status);
+    }
+    return payload;
+  }
+
+  function saveTld(field, button) {
+    if (button.data('busy')) {
+      return false;
+    }
+    var submittedPopupIndex = button.data('popupIndex');
+    setBusy(button, true);
+    admin.req({
+      type: 'post',
+      url: '/domain/tld/save',
+      contentType: 'application/json;charset=UTF-8',
+      data: JSON.stringify(tldPayload(field)),
+      success: function(response) {
+        if (response && response.code === 0) {
+          layer.msg('顶级域名已保存');
+          if (submittedPopupIndex != null) {
+            layer.close(submittedPopupIndex);
+          }
+          reloadTlds();
+        } else {
+          layer.msg(response && response.msg ? safeText(response.msg) : '保存失败');
+        }
+      },
+      complete: function() {
+        setBusy(button, false);
+      }
+    });
+    return false;
+  }
+
+  function openEdit(data, button) {
+    if (button.data('busy')) {
+      return;
+    }
+    var requestSequence = ++editRequestSequence;
+    setBusy(button, true);
+    admin.req({
+      type: 'post',
+      url: '/domain/tld/detail',
+      contentType: 'application/json;charset=UTF-8',
+      data: JSON.stringify({id: data.id}),
+      success: function(response) {
+        if (requestSequence !== editRequestSequence) {
+          return;
+        }
+        if (!response || response.code !== 0 || !response.data) {
+          layer.msg(response && response.msg ? safeText(response.msg) : '顶级域名详情加载失败');
+          return;
+        }
+        var detail = response.data;
+        admin.popup({
+          title: '编辑顶级域名',
+          area: ['92%', '86%'],
+          id: 'domain-tld-edit-popup',
+          success: function(layero, index) {
+            view(this.id).render('domain/tld/edit').done(function() {
+              form.val('domain-tld-edit-form', {
+                id: detail.id || '',
+                orgName: detail.orgName || '', orgAddr: detail.orgAddr || '',
+                orgAddr2: detail.orgAddr2 || '', orgCountry: detail.orgCountry || '',
+                adminName: detail.adminName || '', adminOrg: detail.adminOrg || '',
+                adminAddr: detail.adminAddr || '', adminAddr2: detail.adminAddr2 || '',
+                adminCountry: detail.adminCountry || '', adminEmail: detail.adminEmail || '',
+                adminPhone: detail.adminPhone || '', adminFax: detail.adminFax || '',
+                techName: detail.techName || '', techOrg: detail.techOrg || '',
+                techAddr: detail.techAddr || '', techAddr2: detail.techAddr2 || '',
+                techCountry: detail.techCountry || '', techEmail: detail.techEmail || '',
+                techPhone: detail.techPhone || '', techFax: detail.techFax || '',
+                status: String(detail.status || 1)
+              });
+              form.render(null, 'domain-tld-edit-form');
+              layero.find('[lay-filter="domain-tld-edit-submit"]').data('popupIndex', index);
+            });
+          }
+        });
+      },
+      complete: function() {
+        setBusy(button, false);
+      }
+    });
+  }
+
+  form.render(null, 'domain-tld-search-form');
+  table.render({
+    elem: '#LAY-domain-tlds', id: 'LAY-domain-tlds',
+    url: '/domain/tld/list', method: 'post',
+    contentType: 'application/json;charset=UTF-8',
+    toolbar: '#domain-tld-toolbar', page: true, limit: 20,
+    limits: [20, 50, 100], height: 'full-285', text: {none: '暂无顶级域名'},
+    cols: [[
+      {type: 'numbers', title: '序号', width: 70, fixed: 'left'},
+      {field: 'displayName', title: '顶级域名', width: 140, templet: function(data) { return safeText(data.displayName); }},
+      {field: 'type', title: '类型', width: 130, templet: function(data) { return safeText(data.type); }},
+      {field: 'orgName', title: '管理机构', minWidth: 220, templet: function(data) { return safeText(data.orgName); }},
+      {field: 'orgCountry', title: '国家/地区', width: 140, templet: function(data) { return safeText(data.orgCountry); }},
+      {field: 'statusText', title: '状态', width: 100, templet: function(data) { return safeText(data.statusText); }},
+      {field: 'updateTimeText', title: '更新时间', width: 180, templet: function(data) { return safeText(data.updateTimeText); }},
+      {title: '操作', width: 100, align: 'center', fixed: 'right', toolbar: '#domain-tld-actions'}
+    ]]
   });
 
-  //事件
-  var active = {
-    batchdel: function(){
-      var checkStatus = table.checkStatus('LAY-user-manage')
-      ,checkData = checkStatus.data; //得到选中的数据
-
-      if(checkData.length === 0){
-        return layer.msg('请选择数据');
-      }
-      
-      layer.prompt({
-        formType: 1
-        ,title: '敏感操作，请验证口令'
-      }, function(value, index){
-        layer.close(index);
-        
-        layer.confirm('确定删除吗？', function(index) {
-          
-          //执行 Ajax 后重载
-          /*
-          admin.req({
-            url: 'xxx'
-            //,……
-          });
-          */
-          table.reload('LAY-user-manage');
-          layer.msg('已删除');
-        });
-      });
-    }
-    ,add: function(){
-      
-    }
-  };
-  
-  $('.layui-btn.layuiadmin-btn-useradmin').on('click', function(){
-    var type = $(this).data('type');
-    active[type] ? active[type].call(this) : '';
+  form.on('submit(domain-tld-search)', function(data) {
+    table.reload('LAY-domain-tlds', {page: {curr: 1}, where: {keyword: $.trim(data.field.keyword || '')}});
+    return false;
+  });
+  form.on('submit(domain-tld-edit-submit)', function(data) {
+    return saveTld(data.field, $(data.elem));
+  });
+  table.on('toolbar(LAY-domain-tlds)', function(obj) {
+    if (obj.event === 'refresh') { reloadTlds(); }
+  });
+  table.on('tool(LAY-domain-tlds)', function(obj) {
+    if (obj.event === 'edit') { openEdit(obj.data, obj.tr.find('[lay-event="edit"]')); }
   });
 });
 </script>
