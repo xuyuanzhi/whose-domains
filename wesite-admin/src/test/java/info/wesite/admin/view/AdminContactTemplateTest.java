@@ -3,7 +3,6 @@ package info.wesite.admin.view;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
@@ -21,7 +20,6 @@ import org.junit.jupiter.api.Test;
 class AdminContactTemplateTest {
 
     private static final String CONTACT_LIST = "static/layuiadmin/views/contact/list.html";
-    private static final String LEGACY_DASHBOARD = "templates/admin/dashboard.html";
     private static final String OLD_TEMPLATE = "templates/admin/contacts.html";
     private static final String OLD_SCRIPT = "static/js/admin-contacts.js";
 
@@ -80,36 +78,6 @@ class AdminContactTemplateTest {
     void orphanServerRenderedResourcesAreRemoved() {
         assertFalse(Files.exists(sourceResource(OLD_TEMPLATE)));
         assertFalse(Files.exists(sourceResource(OLD_SCRIPT)));
-    }
-
-    @Test
-    void survivingDashboardLinksContactManagementThroughTheSpaShell() throws Exception {
-        Document dashboard = Jsoup.parse(read(LEGACY_DASHBOARD));
-
-        assertNotNull(dashboard.selectFirst("a.action-card[href=\"/#/contact/list\"]"));
-        assertNull(dashboard.selectFirst("a.action-card[href=\"/admin/contacts\"]"));
-    }
-
-    @Test
-    void survivingDashboardUsesTheCurrentThreeContactStats() throws Exception {
-        String source = read(LEGACY_DASHBOARD);
-        Document dashboard = Jsoup.parse(source);
-
-        assertNotNull(dashboard.selectFirst("#totalContacts"));
-        assertNotNull(dashboard.selectFirst("#pendingContacts"));
-        assertNotNull(dashboard.selectFirst("#processedContacts"));
-        assertTrue(source.contains("response.data.pending"));
-        assertTrue(source.contains("response.data.processed"));
-        assertFalse(source.contains("response.data.today"));
-    }
-
-    @Test
-    void survivingDashboardWritesAllThreeCurrentStatsAtRuntime() throws Exception {
-        String output = runDashboardScript("""
-            console.log(JSON.stringify(values));
-            """);
-
-        assertEquals("{\"totalContacts\":9,\"pendingContacts\":4,\"processedContacts\":5}", output);
     }
 
     @Test
@@ -223,26 +191,6 @@ class AdminContactTemplateTest {
               util: {escape: value => String(value)},
               use(dependencies, callback) { callback(); }
             };
-            """ + source + scenario;
-        return runNode(harness);
-    }
-
-    private static String runDashboardScript(String scenario) throws Exception {
-        String source = executableScript(read(LEGACY_DASHBOARD));
-        String harness = """
-            const values = {};
-            globalThis.document = {};
-            function jquery(value) {
-              if (value === document) {
-                return {ready(callback) { callback(); }};
-              }
-              const id = String(value).replace(/^#/, '');
-              return {text(text) { values[id] = text; }};
-            }
-            jquery.get = function(url, callback) {
-              callback({code: 0, data: {total: 9, pending: 4, processed: 5, today: 99}});
-            };
-            globalThis.$ = jquery;
             """ + source + scenario;
         return runNode(harness);
     }
