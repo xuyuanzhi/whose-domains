@@ -30,6 +30,10 @@ layui.define(['all'], function(exports){
     interceptor: true, // 是否开启未登入拦截
     
     // 自定义请求字段
+    name: 'Whose.Domains Admin',
+    tableName: 'whoseDomainsAdmin',
+    debug: false,
+
     request: {
       tokenName: 'access_token' // 自动携带 token 的字段名。可设置 false 不携带。
     },
@@ -46,7 +50,7 @@ layui.define(['all'], function(exports){
     },
     
     // 独立页面路由（无菜单的全屏页）
-    indPage: [],
+    indPage: ['/user/login'],
 
     // 主题配置
     theme: {

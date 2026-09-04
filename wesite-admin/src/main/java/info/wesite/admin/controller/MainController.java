@@ -1,8 +1,9 @@
 package info.wesite.admin.controller;
 
+import java.util.Objects;
+
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -20,6 +21,7 @@ import info.wesite.core.service.UserService;
 import info.wesite.core.utils.TokenUtils;
 import info.wesite.core.view.LoginParam;
 import info.wesite.core.view.ResponseJson;
+import info.wesite.admin.view.AdminSessionView;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
@@ -27,8 +29,13 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 @Controller
 public class MainController {
 
-    @Autowired
-    private UserService userService;
+    private static final String INVALID_CREDENTIALS = "用户名或密码错误";
+
+    private final UserService userService;
+
+    public MainController(UserService userService) {
+        this.userService = userService;
+    }
     
     // 版本号，解决缓存问题
  	private static final String version = "9." + String.valueOf(System.currentTimeMillis());
@@ -57,12 +64,12 @@ public class MainController {
 
         User user = userService
                 .getOne(new QueryWrapper<User>().eq("PHONE_NO", param.getUsername()).eq("USER_TYPE", User.TYPE_ADMIN));
-        if (user == null || user.getStatus() != User.STATUS_ACTIVE) {
-            return ResponseJson.failure("用户不存在或已禁用");
+        if (!isActiveAdmin(user)) {
+            return ResponseJson.failure(INVALID_CREDENTIALS);
         }
 
-        if (!user.getPassword().equals(DigestUtils.md5Hex(param.getPassword() + "#" + user.getSecureKey()))) {
-            return ResponseJson.failure("用户名或密码错误");
+        if (!StringUtils.equals(user.getPassword(), DigestUtils.md5Hex(param.getPassword() + "#" + user.getSecureKey()))) {
+            return ResponseJson.failure(INVALID_CREDENTIALS);
         }
 
         String token = TokenUtils.createToken(user, 240);
@@ -78,8 +85,8 @@ public class MainController {
     
     @GetMapping("/userInfo")
     @ResponseBody
-    public ResponseJson<User> userInfo() {
-		return ResponseJson.success(UserHolder.get());
+    public ResponseJson<AdminSessionView> userInfo() {
+		return ResponseJson.success(AdminSessionView.from(UserHolder.get()));
 	}
     
     @GetMapping("/logout")
@@ -87,4 +94,11 @@ public class MainController {
     public ResponseJson<User> logout() {
 		return ResponseJson.success();
 	}
+
+    private static boolean isActiveAdmin(User user) {
+        return user != null
+            && Objects.equals(user.getStatus(), User.STATUS_ACTIVE)
+            && (user.getDeleted() == null || user.getDeleted() == 0)
+            && User.TYPE_ADMIN.equals(user.getUserType());
+    }
 }
