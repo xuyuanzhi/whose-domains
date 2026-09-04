@@ -11,9 +11,12 @@ import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
 import java.lang.reflect.Constructor;
+import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
@@ -59,12 +62,45 @@ class DomainControllerTest {
     void tldSaveTrimsIdAndRejectsUnknownTldWithChineseMessage() {
         DomainTld request = new DomainTld();
         request.setId("  tld-1  ");
+        request.setStatus(DomainTld.STATUS_ACTIVE);
         when(tlds.getById("tld-1")).thenReturn(null);
 
         ResponseJson<?> response = controller.tldSave(request);
 
         assertFailure(response, "顶级域名不存在");
         verify(tlds).getById("tld-1");
+    }
+
+    @Test
+    void tldSavePersistsAnEditableStatusOnTheUpdatedRecord() {
+        DomainTld existing = new DomainTld();
+        existing.setId("tld-1");
+        existing.setStatus(DomainTld.STATUS_ACTIVE);
+        when(tlds.getById("tld-1")).thenReturn(existing);
+        when(tlds.updateById(any(DomainTld.class))).thenReturn(true);
+
+        DomainTld request = new DomainTld();
+        request.setId("tld-1");
+        request.setStatus(DomainTld.STATUS_INACTIVE);
+
+        ResponseJson<?> response = controller.tldSave(request);
+
+        assertEquals(ResponseJson.CODE_SUCCESS, response.getCode());
+        verify(tlds).updateById(argThat(updated ->
+            "tld-1".equals(updated.getId())
+                && updated.getStatus() == DomainTld.STATUS_INACTIVE));
+    }
+
+    @Test
+    void tldSaveRejectsUnsupportedStatus() {
+        DomainTld request = new DomainTld();
+        request.setId("tld-1");
+        request.setStatus(99);
+
+        ResponseJson<?> response = controller.tldSave(request);
+
+        assertFailure(response, "顶级域名状态只能是启用或禁用");
+        verify(tlds, never()).updateById(any(DomainTld.class));
     }
 
     @Test
@@ -94,7 +130,7 @@ class DomainControllerTest {
         DomainTld tld = new DomainTld();
         tld.setDotName(".cn");
         when(slds.getOne(any(Wrapper.class))).thenReturn(null);
-        when(tlds.getOne(any(Wrapper.class))).thenReturn(tld);
+        when(tlds.list(any(Wrapper.class))).thenReturn(List.of(tld));
         when(slds.saveOrUpdate(any(DomainTldExt.class))).thenReturn(true);
 
         DomainTldExt request = sld(null, "  GOV.CN  ", DomainTldExt.STATUS_INACTIVE);
@@ -115,6 +151,40 @@ class DomainControllerTest {
     }
 
     @Test
+    void acceptsComCnAsAValidSldName() {
+        DomainTld tld = new DomainTld();
+        tld.setDotName(".cn");
+        when(slds.getOne(any(Wrapper.class))).thenReturn(null);
+        when(tlds.list(any(Wrapper.class))).thenReturn(List.of(tld));
+        when(slds.saveOrUpdate(any(DomainTldExt.class))).thenReturn(true);
+
+        ResponseJson<?> response = controller.sldSave(
+            sld(null, "com.cn", DomainTldExt.STATUS_INACTIVE));
+
+        assertEquals(ResponseJson.CODE_SUCCESS, response.getCode());
+        verify(slds).saveOrUpdate(argThat(saved -> "com.cn".equals(saved.getName())));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {".cn", "foo..cn", "foo_1.cn"})
+    void rejectsMalformedSldNames(String name) {
+        ResponseJson<?> response = controller.sldSave(
+            sld(null, name, DomainTldExt.STATUS_ACTIVE));
+
+        assertFailure(response, "二级保留域名格式不正确");
+        verify(slds, never()).saveOrUpdate(any(DomainTldExt.class));
+    }
+
+    @Test
+    void rejectsSldNamesLongerThanTheDatabaseColumn() {
+        ResponseJson<?> response = controller.sldSave(
+            sld(null, "abcdefgh.cn", DomainTldExt.STATUS_ACTIVE));
+
+        assertFailure(response, "二级保留域名长度必须为3到10个字符");
+        verify(slds, never()).saveOrUpdate(any(DomainTldExt.class));
+    }
+
+    @Test
     void rejectsDuplicateNormalizedSldName() {
         DomainTldExt duplicate = sld("sld-existing", "gov.cn", DomainTldExt.STATUS_ACTIVE);
         when(slds.getOne(any(Wrapper.class))).thenReturn(duplicate);
@@ -129,13 +199,30 @@ class DomainControllerTest {
     @Test
     void rejectsSldWhoseTldDoesNotExist() {
         when(slds.getOne(any(Wrapper.class))).thenReturn(null);
-        when(tlds.getOne(any(Wrapper.class))).thenReturn(null);
+        when(tlds.list(any(Wrapper.class))).thenReturn(List.of());
 
         ResponseJson<?> response = controller.sldSave(
-            sld(null, "  GOV.INVALID  ", DomainTldExt.STATUS_ACTIVE));
+            sld(null, "  GOV.XY  ", DomainTldExt.STATUS_ACTIVE));
 
         assertFailure(response, "所属顶级域名不存在");
         verify(slds, never()).saveOrUpdate(any(DomainTldExt.class));
+    }
+
+    @Test
+    void rejectsDuplicateTldRowsWithChineseRepairMessage() {
+        DomainTld first = new DomainTld();
+        first.setId("tld-1");
+        DomainTld second = new DomainTld();
+        second.setId("tld-2");
+        when(slds.getOne(any(Wrapper.class))).thenReturn(null);
+        when(tlds.list(any(Wrapper.class))).thenReturn(List.of(first, second));
+
+        ResponseJson<?> response = controller.sldSave(
+            sld(null, "com.cn", DomainTldExt.STATUS_ACTIVE));
+
+        assertFailure(response, "顶级域名数据重复，请先修复");
+        verify(slds, never()).saveOrUpdate(any(DomainTldExt.class));
+        verify(tlds).list(any(Wrapper.class));
     }
 
     @Test
@@ -144,7 +231,7 @@ class DomainControllerTest {
         DomainTld tld = new DomainTld();
         tld.setDotName(".cn");
         when(slds.getOne(any(Wrapper.class))).thenReturn(null);
-        when(tlds.getOne(any(Wrapper.class))).thenReturn(tld);
+        when(tlds.list(any(Wrapper.class))).thenReturn(List.of(tld));
         when(slds.getById("sld-1")).thenReturn(existing);
         when(slds.saveOrUpdate(any(DomainTldExt.class))).thenReturn(true);
 
@@ -165,7 +252,7 @@ class DomainControllerTest {
         DomainTld tld = new DomainTld();
         tld.setDotName(".cn");
         when(slds.getOne(any(Wrapper.class))).thenReturn(null);
-        when(tlds.getOne(any(Wrapper.class))).thenReturn(tld);
+        when(tlds.list(any(Wrapper.class))).thenReturn(List.of(tld));
         when(slds.getById("sld-1")).thenReturn(existing);
 
         ResponseJson<?> response = controller.sldSave(sld("sld-1", "gov.cn", 99));

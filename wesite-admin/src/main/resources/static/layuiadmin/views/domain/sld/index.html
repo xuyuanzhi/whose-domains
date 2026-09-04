@@ -112,6 +112,7 @@ layui.use(['admin', 'table', 'form', 'util'], function(){
   }
 
   function openAdd() {
+    editRequestSequence++;
     admin.popup({
       title: '新增二级保留域名',
       area: ['92%', '70%'],

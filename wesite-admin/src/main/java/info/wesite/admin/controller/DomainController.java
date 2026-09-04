@@ -1,6 +1,7 @@
 package info.wesite.admin.controller;
 
 import java.util.Date;
+import java.util.List;
 import java.util.Locale;
 
 import org.apache.commons.lang3.StringUtils;
@@ -78,6 +79,9 @@ public class DomainController {
 		if (id == null) {
 			return ResponseJson.failure("顶级域名ID不能为空");
 		}
+		if (!isEditableStatus(param.getStatus())) {
+			return ResponseJson.failure("顶级域名状态只能是启用或禁用");
+		}
 
 		DomainTld byId = domainTldService.getById(id);
 		if (byId == null) {
@@ -104,6 +108,7 @@ public class DomainController {
 		byId.setTechEmail(param.getTechEmail());
 		byId.setTechPhone(param.getTechPhone());
 		byId.setTechFax(param.getTechFax());
+		byId.setStatus(param.getStatus());
 		byId.setUpdateBy("admin");
 		byId.setUpdateTime(new Date());
 
@@ -157,6 +162,12 @@ public class DomainController {
 			return ResponseJson.failure("二级保留域名名称不能为空");
 		}
 		name = name.toLowerCase(Locale.ROOT);
+		if (name.length() < 3 || name.length() > 10) {
+			return ResponseJson.failure("二级保留域名长度必须为3到10个字符");
+		}
+		if (!isValidSldName(name)) {
+			return ResponseJson.failure("二级保留域名格式不正确");
+		}
 		String id = StringUtils.trimToNull(param.getId());
 
 		if (id != null && !isEditableStatus(param.getStatus())) {
@@ -170,9 +181,13 @@ public class DomainController {
 		}
 
 		String tldName = DomainUtils.getTldName(name);
-		DomainTld tld = domainTldService.getOne(Wrappers.<DomainTld>lambdaQuery().eq(DomainTld::getDotName, tldName));
-		if (tld == null) {
+		List<DomainTld> matchingTlds = domainTldService
+				.list(Wrappers.<DomainTld>lambdaQuery().eq(DomainTld::getDotName, tldName));
+		if (matchingTlds.isEmpty()) {
 			return ResponseJson.failure("所属顶级域名不存在");
+		}
+		if (matchingTlds.size() > 1) {
+			return ResponseJson.failure("顶级域名数据重复，请先修复");
 		}
 
 		DomainTldExt ext = null;
@@ -209,6 +224,19 @@ public class DomainController {
 	private static boolean isEditableStatus(Integer status) {
 		return status != null
 				&& (status == DomainTldExt.STATUS_ACTIVE || status == DomainTldExt.STATUS_INACTIVE);
+	}
+
+	private static boolean isValidSldName(String name) {
+		String[] labels = name.split("\\.", -1);
+		if (labels.length < 2) {
+			return false;
+		}
+		for (String label : labels) {
+			if (!label.matches("[a-z0-9](?:[a-z0-9-]*[a-z0-9])?")) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 }
