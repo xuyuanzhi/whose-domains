@@ -1,49 +1,70 @@
 <title>管理员登录</title>
-<style>
-.admin-visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-</style>
 <div class="layadmin-user-login" id="LAY-user-login">
-  <div class="layadmin-user-login-main">
-    <div class="layadmin-user-login-box layadmin-user-login-header">
-      <h2>Whose.Domains Admin</h2>
-      <p>管理员控制台</p>
-    </div>
-    <form class="layui-form layadmin-user-login-box layadmin-user-login-body" lay-filter="admin-login-submit">
+  <header class="admin-login-brand">
+    <svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><circle cx="16" cy="16" r="13"/><ellipse cx="16" cy="16" rx="6" ry="13"/><path d="M3 16h26M6 8h20M6 24h20"/></svg>
+    <span>Whose.Domains</span><span class="admin-login-brand-label">管理后台</span>
+  </header>
+  <main class="layadmin-user-login-main">
+    <section class="admin-login-intro" aria-labelledby="admin-login-intro-title">
+      <div class="admin-login-intro-copy">
+        <span class="admin-login-eyebrow">域名与站点管理</span>
+        <h2 id="admin-login-intro-title">让每一个域名，<br>都井然有序。</h2>
+        <p>连接域名、内容与用户，<br>从这里开始日常管理。</p>
+      </div>
+      <svg class="admin-login-network" viewBox="0 0 440 270" fill="none" aria-hidden="true">
+        <g stroke="currentColor" stroke-width="1">
+          <ellipse cx="220" cy="138" rx="162" ry="94" transform="rotate(-22 220 138)"/>
+          <ellipse cx="220" cy="138" rx="130" ry="72" transform="rotate(25 220 138)"/>
+          <circle cx="220" cy="138" r="79"/><ellipse cx="220" cy="138" rx="34" ry="79"/>
+          <path d="M141 138h158M153 96h134M153 180h134M220 59v158M66 170l91-115M289 67l85 105M279 208l95-36"/>
+        </g>
+        <g fill="#97b7ff"><circle cx="66" cy="170" r="5"/><circle cx="157" cy="55" r="4"/><circle cx="289" cy="67" r="5"/><circle cx="374" cy="172" r="4"/><circle cx="279" cy="208" r="4"/></g>
+        <g fill="#182f58" stroke="#5b78a6"><rect x="36" y="193" width="67" height="32" rx="8"/><rect x="321" y="70" width="69" height="32" rx="8"/></g>
+        <g fill="#d5e3ff" font-family="Consolas, monospace" font-size="14" text-anchor="middle"><text x="69" y="214">.com</text><text x="356" y="91">.io</text></g>
+      </svg>
+      <p class="admin-login-intro-footer">Whose.Domains Admin</p>
+    </section>
+    <section class="admin-login-panel" aria-labelledby="admin-login-title">
+      <div class="layadmin-user-login-box layadmin-user-login-header">
+        <span class="admin-login-panel-label">管理员控制台</span>
+        <h1 id="admin-login-title">欢迎回来</h1>
+        <p>登录管理员账号，继续管理你的站点。</p>
+      </div>
+    <form class="layui-form layadmin-user-login-box layadmin-user-login-body" lay-filter="admin-login-submit" novalidate>
       <div class="layui-form-item">
-        <label class="layui-form-label admin-visually-hidden" for="admin-login-username">管理员账号</label>
-        <i class="layui-icon layui-icon-username layadmin-user-login-icon"></i>
-        <input id="admin-login-username" type="text" name="username" required lay-verify="required" autocomplete="username" placeholder="管理员账号" class="layui-input">
+        <label class="admin-login-label" for="admin-login-username">管理员账号</label>
+        <div class="admin-login-input-wrap">
+          <i class="layui-icon layui-icon-username layadmin-user-login-icon" aria-hidden="true"></i>
+          <input id="admin-login-username" type="text" name="username" required aria-describedby="admin-login-feedback" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="请输入管理员账号" class="layui-input">
+        </div>
       </div>
       <div class="layui-form-item">
-        <label class="layui-form-label admin-visually-hidden" for="admin-login-password">密码</label>
-        <i class="layui-icon layui-icon-password layadmin-user-login-icon"></i>
-        <input id="admin-login-password" type="password" name="password" required lay-verify="required" autocomplete="current-password" placeholder="密码" class="layui-input">
-        <button class="layui-btn layui-btn-primary layui-btn-sm" type="button" aria-controls="admin-login-password" aria-label="显示密码" id="admin-login-password-toggle" style="position:absolute;right:4px;top:3px;">显示</button>
+        <label class="admin-login-label" for="admin-login-password">密码</label>
+        <div class="admin-login-input-wrap">
+          <i class="layui-icon layui-icon-password layadmin-user-login-icon" aria-hidden="true"></i>
+          <input id="admin-login-password" type="password" name="password" required aria-describedby="admin-login-feedback" autocomplete="current-password" placeholder="请输入密码" class="layui-input">
+          <button class="admin-login-password-toggle" type="button" aria-controls="admin-login-password" aria-label="显示密码" aria-pressed="false" id="admin-login-password-toggle">显示</button>
+        </div>
       </div>
-      <div class="layui-form-item">
-        <button class="layui-btn layui-btn-fluid" lay-submit lay-filter="admin-login-submit" type="submit">登录</button>
+      <p id="admin-login-feedback" class="admin-login-feedback" role="alert" aria-atomic="true"></p>
+      <div class="layui-form-item admin-login-submit-row">
+        <button class="layui-btn layui-btn-fluid admin-login-submit" lay-submit lay-filter="admin-login-submit" type="submit" aria-live="polite">登录控制台</button>
       </div>
+      <p class="admin-login-help"><i class="layui-icon layui-icon-password" aria-hidden="true"></i> 仅限授权管理员访问</p>
     </form>
-  </div>
+    </section>
+  </main>
+  <footer class="admin-login-footer">Whose.Domains <span>域名与站点管理平台</span></footer>
 </div>
 
 <script>
-layui.use(['admin', 'form', 'setter'], function(){
+layui.use(['form', 'setter'], function(){
   var $ = layui.$;
-  var admin = layui.admin;
   var form = layui.form;
   var setter = layui.setter;
   var password = $('#admin-login-password');
+  var username = $('#admin-login-username');
+  var feedback = $('#admin-login-feedback');
   var toggle = $('#admin-login-password-toggle');
 
   function decodeRedirect(value) {
@@ -64,29 +85,67 @@ layui.use(['admin', 'form', 'setter'], function(){
 
   function setBusy(button, busy) {
     button.prop('disabled', busy).toggleClass('layui-btn-disabled', busy);
+    button.attr('aria-busy', busy ? 'true' : 'false').text(busy ? '正在登录…' : '登录控制台');
   }
+
+  function clearFeedback() {
+    feedback.text('');
+    username.attr('aria-invalid', 'false');
+    password.attr('aria-invalid', 'false');
+  }
+
+  username.on('input', clearFeedback);
+  password.on('input', clearFeedback);
 
   toggle.on('click', function(){
     var shown = password.attr('type') === 'text';
     password.attr('type', shown ? 'password' : 'text');
     toggle.text(shown ? '显示' : '隐藏').attr('aria-label', shown ? '显示密码' : '隐藏密码');
+    toggle.attr('aria-pressed', shown ? 'false' : 'true');
   });
 
   form.on('submit(admin-login-submit)', function(data){
     var button = $(data.elem);
     var field = data.field;
+    if (button.prop('disabled')) return false;
+    clearFeedback();
+    if (!field.username || !field.username.trim()) {
+      feedback.text('请输入管理员账号。');
+      username.attr('aria-invalid', 'true').trigger('focus');
+      return false;
+    }
+    if (!field.password) {
+      feedback.text('请输入密码。');
+      password.attr('aria-invalid', 'true').trigger('focus');
+      return false;
+    }
     setBusy(button, true);
-    admin.req({
+    // Login owns its feedback; the shared admin wrapper opens blocking error dialogs.
+    $.ajax({
       url: '/login',
       type: 'post',
       contentType: 'application/json',
+      dataType: 'json',
+      timeout: 15000,
       data: JSON.stringify(field),
       success: function(response){
-        if (response.code === 0 && response.data && response.data.token) {
+        if (response && response.code === 0 && response.data && response.data.token) {
           layui.data(setter.tableName, { key: setter.request.tokenName, value: response.data.token });
           location.hash = redirectFromRouter();
         } else {
-          layer.msg(response.msg || '登录失败');
+          var message = response && typeof response.msg === 'string' ? response.msg : '';
+          feedback.text(message === '用户名或密码错误'
+            ? '用户名或密码错误，请检查后重试。'
+            : (response && response.code !== 0 && message ? message : '暂时无法登录，请稍后重试。'));
+        }
+      },
+      error: function(xhr, status){
+        if (xhr.status === 429) {
+          feedback.text('尝试次数过多，请稍后再试。');
+        } else if (xhr.status === 401 || xhr.status === 403) {
+          feedback.text('登录未通过验证，请检查账号和密码后重试。');
+        } else {
+          feedback.text(status === 'timeout' ? '登录请求超时，请稍后重试。' : '暂时无法连接服务，请检查网络后重试。');
         }
       },
       complete: function(){

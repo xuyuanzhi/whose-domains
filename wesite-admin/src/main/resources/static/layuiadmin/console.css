@@ -1,0 +1,178 @@
+/* Shared business UI. Keep vendor CSS and the standalone login page isolated. */
+:root {
+  --console-ink: #25364b;
+  --console-muted: #65758a;
+  --console-border: #dfe6ee;
+  --console-surface: #f3f6f9;
+  --console-accent: #137d79;
+  --console-accent-hover: #0e6663;
+  --console-focus: #168f8b;
+}
+
+.layui-layout-admin .layui-body { background: var(--console-surface); color: var(--console-ink); }
+.layui-layout-admin .layui-fluid { padding: 20px; }
+.layui-layout-admin .layui-card { border-radius: 8px; box-shadow: 0 1px 3px rgb(24 46 72 / 5%); }
+.layui-layout-admin .layui-card-body { padding: 16px; }
+.layui-layout-admin .layadmin-header { border-radius: 0; box-shadow: none; border-bottom: 1px solid var(--console-border); }
+.layui-layout-admin .layui-header { box-shadow: 0 1px 0 var(--console-border); }
+.layui-layout-admin .layui-header .layui-layout-right { right: 20px; }
+.layui-layout-admin .layui-breadcrumb a { color: var(--console-muted) !important; }
+.layui-layout-admin .layui-breadcrumb cite { color: var(--console-ink); }
+
+/* Align icons in buttons; vendor card-header icons are absolutely positioned. */
+.layui-layout-admin .layui-btn,
+.layui-layer-page .layui-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  vertical-align: middle;
+  box-sizing: border-box;
+  height: 38px;
+  padding: 0 16px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: var(--console-accent);
+  color: #fff;
+  font-size: 14px;
+  line-height: 1;
+  white-space: nowrap;
+  transition: background-color 150ms, border-color 150ms;
+}
+.layui-layout-admin .layui-btn > .layui-icon,
+.layui-layout-admin .layui-table-cell .layui-btn > .layui-icon,
+.layui-layer-page .layui-btn > .layui-icon {
+  position: static;
+  inset: auto;
+  flex: 0 0 auto;
+  margin: 0;
+  width: auto;
+  height: auto;
+  font-size: 16px;
+  line-height: 1;
+}
+.layui-layout-admin .layui-btn:hover,
+.layui-layer-page .layui-btn:hover { background: var(--console-accent-hover); opacity: 1; color: #fff; }
+.layui-layout-admin .layui-btn-sm,
+.layui-layer-page .layui-btn-sm { height: 34px; padding: 0 12px; font-size: 13px; }
+.layui-layout-admin .layui-btn-xs,
+.layui-layer-page .layui-btn-xs { height: 28px; padding: 0 10px; gap: 4px; font-size: 12px; }
+.layui-layout-admin .layui-btn + .layui-btn,
+.layui-layer-page .layui-btn + .layui-btn { margin-left: 8px; }
+.layui-layout-admin .layui-btn-primary,
+.layui-layer-page .layui-btn-primary { border-color: #cbd5e1; color: #44566c; background: #fff; }
+.layui-layout-admin .layui-btn-normal,
+.layui-layer-page .layui-btn-normal { border-color: #cbdceb; color: #214f7b; background: #edf4fb; }
+.layui-layout-admin .layui-btn-danger,
+.layui-layer-page .layui-btn-danger { border-color: #efd0d0; color: #a83232; background: #fff4f4; }
+.layui-layout-admin .layui-btn-warm,
+.layui-layer-page .layui-btn-warm { border-color: #ead5b0; color: #865817; background: #fff8e9; }
+.layui-layout-admin .layui-btn-primary:hover,
+.layui-layer-page .layui-btn-primary:hover { color: #263e57; background: #f0f4f8; border-color: #9fb1c5; }
+.layui-layout-admin .layui-btn-normal:hover,
+.layui-layer-page .layui-btn-normal:hover { color: #173e66; background: #dceaf7; border-color: #a8c4df; }
+.layui-layout-admin .layui-btn-danger:hover,
+.layui-layer-page .layui-btn-danger:hover { color: #8e2020; background: #fde5e5; border-color: #dfa9a9; }
+.layui-layout-admin .layui-btn-warm:hover,
+.layui-layer-page .layui-btn-warm:hover { color: #70450d; background: #fcedcb; border-color: #d7b474; }
+.layui-layout-admin .layui-btn:disabled,
+.layui-layer-page .layui-btn:disabled { opacity: .55; cursor: not-allowed; }
+.layui-layout-admin button:focus-visible,
+.layui-layer-page button:focus-visible { outline: 2px solid var(--console-focus); outline-offset: 3px; }
+
+/* Search controls wrap as complete label/input groups on narrower screens. */
+.layui-layout-admin .layuiadmin-card-header-auto { padding: 16px 20px; border-bottom-color: var(--console-border); }
+.layuiadmin-card-header-auto .layui-form-item { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; }
+.layuiadmin-card-header-auto .layui-form-item > .layui-inline { display: flex; align-items: center; gap: 10px; margin: 0; }
+.layuiadmin-card-header-auto .layui-form-label { float: none; width: auto; padding: 0; flex: 0 0 auto; color: #526277; }
+.layuiadmin-card-header-auto .layui-input-inline { float: none; width: 240px; margin: 0; }
+.layui-layout-admin .layui-input,
+.layui-layout-admin .layui-textarea,
+.layui-layer-page .layui-input,
+.layui-layer-page .layui-textarea { border-color: #cfd8e3; border-radius: 5px; color: var(--console-ink); }
+.layui-layout-admin .layui-input::placeholder,
+.layui-layer-page .layui-input::placeholder { color: #8390a0; }
+.layui-layout-admin .layui-input:focus,
+.layui-layout-admin .layui-textarea:focus,
+.layui-layer-page .layui-input:focus,
+.layui-layer-page .layui-textarea:focus { border-color: var(--console-focus) !important; box-shadow: 0 0 0 3px rgb(22 143 139 / 10%); }
+
+/* Shared row geometry keeps fixed columns aligned with the scrolling body. */
+.layui-layout-admin .layui-table-view { margin: 0; border-color: var(--console-border); border-radius: 6px; }
+.layui-layout-admin .layui-table-view .layui-table th,
+.layui-layout-admin .layui-table-view .layui-table td { border-color: #e6ecf2; padding: 6px 0; }
+.layui-layout-admin .layui-table-view .layui-table-cell { height: 32px; line-height: 32px; padding: 0 14px; }
+.layui-layout-admin .layui-table-header,
+.layui-layout-admin .layui-table-header th,
+.layui-layout-admin .layui-table-patch { background: #f5f8fb; }
+.layui-layout-admin .layui-table-header .layui-table-cell { color: #4b5d72; font-size: 13px; font-weight: 600; }
+.layui-layout-admin .layui-table-body td { color: #3a4b60; }
+.layui-layout-admin .layui-table tbody tr:hover,
+.layui-layout-admin .layui-table-hover { background: #f0f7f8; }
+.layui-layout-admin .layui-table-tool { background: #fff; border-bottom-color: var(--console-border); padding: 12px 14px; }
+.layui-layout-admin .layui-table-tool-self { top: 14px; }
+.layui-layout-admin .layui-table-fixed-r { box-shadow: -4px 0 10px rgb(33 58 82 / 6%); }
+.layui-layout-admin .layui-table-page { height: auto; min-height: 48px; padding: 10px 12px; border-top-color: var(--console-border); }
+.layui-layout-admin .layui-laypage .layui-laypage-curr .layui-laypage-em { background: var(--console-accent); border-radius: 4px; }
+.layui-layout-admin .layui-laypage a:hover { color: var(--console-accent); }
+.layui-layout-admin .layui-badge { border-radius: 4px; }
+.layui-layout-admin .layui-badge.layui-bg-green { background: #e2f2eb !important; color: #25654c !important; }
+.layui-layout-admin .layui-badge.layui-bg-orange { background: #fff0d2 !important; color: #835514 !important; }
+
+/* A single navy family for navigation, with a restrained teal selection marker. */
+#LAY-system-side-menu .layui-nav-item > a { color: #c6d4e4; font-weight: 400; }
+#LAY-system-side-menu .layui-nav-itemed > a { color: #eef5fb !important; background: transparent !important; }
+#LAY-system-side-menu .layui-nav-child { background: #15304f !important; }
+#LAY-system-side-menu .layui-nav-child a { color: #bdcddd; }
+#LAY-system-side-menu .layui-nav-item > a:hover,
+#LAY-system-side-menu .layui-nav-child a:hover { background: #224564 !important; color: #fff !important; }
+#LAY-system-side-menu .layui-this { background: transparent !important; }
+#LAY-system-side-menu .layui-this > a,
+#LAY-system-side-menu .layui-nav-child dd.layui-this > a {
+  background: #254e65 !important;
+  color: #fff !important;
+  box-shadow: inset 3px 0 #57c4b7;
+  font-weight: 600;
+}
+#LAY-system-side-menu .layui-nav-bar { background: #57c4b7 !important; }
+.layui-layout-admin .layui-logo { color: #f0f5fb; font-size: 15px; }
+.layui-layout-admin .contact-summary { border-color: var(--console-border); border-radius: 8px; overflow: hidden; }
+.layui-layout-admin .contact-summary__item::before { background: #39668e; }
+.layui-layout-admin .contact-summary__item--pending::before { background: #c69139; }
+.layui-layout-admin .contact-summary__item--processed::before { background: var(--console-accent); }
+.layui-layer-page .blog-editor-actions { flex-wrap: wrap; }
+.layui-layer-page .blog-editor-actions .layui-btn { margin-left: 0; }
+.layui-layer-page { border-radius: 8px; }
+.layui-layer-page .layui-layer-title { background: #17365d; color: #fff; border-radius: 8px 8px 0 0; }
+.layui-layer-page .layui-layer-setwin .layui-icon { color: #fff; }
+
+@media (max-width: 640px), (max-height: 600px) {
+  /* Avoid a near-zero body from full-height tables and keep every column reachable. */
+  .layui-layout-admin .layui-table-view { height: auto !important; }
+  .layui-layout-admin .layui-table-main { height: 320px !important; }
+  .layui-layout-admin .layui-table-fixed { display: none !important; }
+}
+
+@media (max-width: 640px) {
+  .layui-layout-admin .layui-header .layui-layout-right { right: 12px; }
+  .layui-layout-admin .layui-fluid { padding: 12px; }
+  .layui-layout-admin .layui-card-body { padding: 10px; }
+  .layui-layout-admin .layuiadmin-card-header-auto { padding: 14px; }
+  .layuiadmin-card-header-auto .layui-form-item { gap: 12px; }
+  .layuiadmin-card-header-auto .layui-form-item > .layui-inline { width: 100%; }
+  .layuiadmin-card-header-auto .layui-form-label { width: 48px; text-align: left; }
+  .layuiadmin-card-header-auto .layui-input-inline { flex: 1; min-width: 0; width: auto; }
+  .layuiadmin-card-header-auto .layui-btn { margin-left: 58px; }
+  .layui-layout-admin .layui-table-page > div { height: auto; white-space: normal; }
+  .layui-layout-admin .layui-table-tool-temp { padding-right: 0; }
+  .layui-layout-admin .layui-table-tool-self { position: static; margin-top: 10px; text-align: right; }
+  .layui-layer-page form[lay-filter^="person-"],
+  .layui-layer-page form[lay-filter^="domain-"] { padding: 16px !important; }
+  .layui-layer-page .layui-form-label { float: none; width: auto; padding: 0 0 6px; text-align: left; }
+  .layui-layer-page .layui-input-block { margin-left: 0; }
+  .layui-layer-page .blog-editor-note { margin-left: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .layui-layout-admin .layui-btn,
+  .layui-layer-page .layui-btn { transition: none; }
+}

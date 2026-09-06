@@ -3,6 +3,7 @@ package info.wesite.admin.view;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
@@ -24,10 +25,19 @@ class AdminNavigationTemplateTest {
     private static final Pattern MENU_JUMP = Pattern.compile("\\\"jump\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"");
 
     @Test
+    void everyMenuDestinationResolvesToAnExistingView() throws Exception {
+        for (String destination : menuDestinations(read("static/layuiadmin/json/menu.js"))) {
+            String view = "/".equals(destination) ? "index" : destination;
+            assertNotNull(getClass().getClassLoader().getResource("static/layuiadmin/views/" + view + ".html"),
+                "Missing view for menu route: " + destination);
+        }
+    }
+
+    @Test
     void menuExposesOnlyTheSixSupportedAdminDestinations() throws Exception {
         String menu = read("static/layuiadmin/json/menu.js");
 
-        assertEquals(List.of("/", "person/list", "domain/tld", "domain/sld", "blog/list", "contact/list"),
+        assertEquals(List.of("/", "person/list", "domain/tld/index", "domain/sld/index", "blog/list", "contact/list"),
             menuDestinations(menu), "菜单只能链接到当前后台已支持的页面");
         for (String demoEntry : List.of("senior", "template", "app", "component", "www.baidu.com")) {
             assertFalse(menu.contains(demoEntry), "菜单不得保留演示入口：" + demoEntry);

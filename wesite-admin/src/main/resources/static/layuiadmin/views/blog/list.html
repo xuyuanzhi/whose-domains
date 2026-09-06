@@ -138,17 +138,17 @@ layui.use(['admin', 'table', 'form', 'util'], function(){
       {field: 'slug', title: 'Slug', minWidth: 210, templet: function(data) {
         return '<code>' + safeText(data.slug) + '</code>';
       }},
-      {field: 'category', title: '分类', width: 130, templet: function(data) {
+      {field: 'category', title: '分类', minWidth: 150, templet: function(data) {
         return safeText(data.category);
       }},
       {field: 'status', title: '状态', width: 90, align: 'center', templet: '#blog-status-template'},
-      {field: 'publishDate', title: '发布时间', width: 180, templet: function(data) {
+      {field: 'publishDate', title: '发布时间', width: 300, templet: function(data) {
         return safeText(data.publishDate || '—');
       }},
-      {field: 'contentUpdatedAt', title: '内容更新', width: 180, templet: function(data) {
+      {field: 'contentUpdatedAt', title: '内容更新', width: 300, templet: function(data) {
         return safeText(data.contentUpdatedAt || '—');
       }},
-      {title: '操作', width: 220, align: 'center', fixed: 'right', toolbar: '#blog-actions-template'}
+      {title: '操作', width: 240, align: 'center', fixed: 'right', toolbar: '#blog-actions-template'}
     ]]
   });
 

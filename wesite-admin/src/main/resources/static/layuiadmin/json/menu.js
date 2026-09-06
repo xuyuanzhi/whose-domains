@@ -22,12 +22,12 @@
         {
           "name": "tld",
           "title": "顶级域名",
-          "jump": "domain/tld"
+          "jump": "domain/tld/index"
         },
         {
           "name": "sld",
           "title": "二级保留域名",
-          "jump": "domain/sld"
+          "jump": "domain/sld/index"
         }
       ]
     },

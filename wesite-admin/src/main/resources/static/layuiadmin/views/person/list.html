@@ -112,7 +112,7 @@ layui.use(['admin', 'table', 'form', 'util'], function(){
   function openAdd() {
     admin.popup({
       title: '新增用户',
-      area: ['520px', '360px'],
+      area: ['min(520px, 92vw)', 'min(420px, 86vh)'],
       id: 'person-add-popup',
       success: function(layero, index) {
         view(this.id).render('person/add').done(function() {
@@ -145,7 +145,7 @@ layui.use(['admin', 'table', 'form', 'util'], function(){
         var detail = response.data;
         admin.popup({
           title: '编辑用户',
-          area: ['520px', '360px'],
+          area: ['min(520px, 92vw)', 'min(420px, 86vh)'],
           id: 'person-edit-popup',
           success: function(layero, index) {
             view(this.id).render('person/edit').done(function() {
@@ -221,13 +221,13 @@ layui.use(['admin', 'table', 'form', 'util'], function(){
       {field: 'statusText', title: '状态', width: 100, templet: function(data) {
         return safeText(data.statusText);
       }},
-      {field: 'createTimeText', title: '创建时间', width: 180, templet: function(data) {
+      {field: 'createTimeText', title: '创建时间', width: 190, templet: function(data) {
         return safeText(data.createTimeText);
       }},
-      {field: 'updateTimeText', title: '更新时间', width: 180, templet: function(data) {
+      {field: 'updateTimeText', title: '更新时间', width: 190, templet: function(data) {
         return safeText(data.updateTimeText);
       }},
-      {title: '操作', width: 150, align: 'center', fixed: 'right', toolbar: '#person-row-actions'}
+      {title: '操作', width: 200, align: 'center', fixed: 'right', toolbar: '#person-row-actions'}
     ]]
   });
 

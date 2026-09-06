@@ -175,12 +175,12 @@ layui.use(['admin', 'table', 'form', 'util'], function(){
     cols: [[
       {type: 'numbers', title: '序号', width: 70, fixed: 'left'},
       {field: 'displayName', title: '顶级域名', width: 140, templet: function(data) { return safeText(data.displayName); }},
-      {field: 'type', title: '类型', width: 130, templet: function(data) { return safeText(data.type); }},
-      {field: 'orgName', title: '管理机构', minWidth: 220, templet: function(data) { return safeText(data.orgName); }},
-      {field: 'orgCountry', title: '国家/地区', width: 140, templet: function(data) { return safeText(data.orgCountry); }},
+      {field: 'type', title: '类型', minWidth: 190, templet: function(data) { return safeText(data.type); }},
+      {field: 'orgName', title: '管理机构', minWidth: 300, templet: function(data) { return safeText(data.orgName); }},
+      {field: 'orgCountry', title: '国家/地区', minWidth: 180, templet: function(data) { return safeText(data.orgCountry); }},
       {field: 'statusText', title: '状态', width: 100, templet: function(data) { return safeText(data.statusText); }},
-      {field: 'updateTimeText', title: '更新时间', width: 180, templet: function(data) { return safeText(data.updateTimeText); }},
-      {title: '操作', width: 100, align: 'center', fixed: 'right', toolbar: '#domain-tld-actions'}
+      {field: 'updateTimeText', title: '更新时间', width: 190, templet: function(data) { return safeText(data.updateTimeText); }},
+      {title: '操作', width: 120, align: 'center', fixed: 'right', toolbar: '#domain-tld-actions'}
     ]]
   });
 

@@ -182,12 +182,12 @@ layui.use(['admin', 'table', 'form', 'util'], function(){
       {type: 'numbers', title: '序号', width: 70, fixed: 'left'},
       {field: 'name', title: '名称', minWidth: 180, templet: function(data) { return safeText(data.name); }},
       {field: 'tldName', title: '所属顶级域名', width: 160, templet: function(data) { return safeText(data.tldName); }},
-      {field: 'countryName', title: '国家/地区', width: 160, templet: function(data) { return safeText(data.countryName); }},
+      {field: 'countryName', title: '国家/地区', minWidth: 180, templet: function(data) { return safeText(data.countryName); }},
       {field: 'statusText', title: '状态', width: 100, templet: function(data) { return safeText(data.statusText); }},
       {field: 'note', title: '备注', minWidth: 200, templet: function(data) { return safeText(data.note); }},
-      {field: 'createTimeText', title: '创建时间', width: 180, templet: function(data) { return safeText(data.createTimeText); }},
-      {field: 'updateTimeText', title: '更新时间', width: 180, templet: function(data) { return safeText(data.updateTimeText); }},
-      {title: '操作', width: 100, align: 'center', fixed: 'right', toolbar: '#domain-sld-actions'}
+      {field: 'createTimeText', title: '创建时间', width: 190, templet: function(data) { return safeText(data.createTimeText); }},
+      {field: 'updateTimeText', title: '更新时间', width: 190, templet: function(data) { return safeText(data.updateTimeText); }},
+      {title: '操作', width: 120, align: 'center', fixed: 'right', toolbar: '#domain-sld-actions'}
     ]]
   });
 

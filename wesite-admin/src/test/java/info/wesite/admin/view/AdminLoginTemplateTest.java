@@ -2,6 +2,7 @@ package info.wesite.admin.view;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
@@ -16,6 +17,25 @@ import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 class AdminLoginTemplateTest {
+
+    @Test
+    void mainEntryLoadsVersionedLoginStylesBeforeSpaRendering() throws Exception {
+        Document entry = Jsoup.parse(read("views/index.html"));
+        Element loginStyles = entry.select("link[rel=stylesheet]").stream()
+            .filter(link -> link.attr("th:href")
+                .contains("static/layuiadmin/adminui/dist/css/login.css"))
+            .findFirst()
+            .orElse(null);
+
+        assertNotNull(loginStyles,
+            "the entry page must load the login layout stylesheet before rendering the login view");
+        assertTrue(loginStyles.attr("th:href").contains("v={v}"),
+            "the login stylesheet must use the shared cache-busting version");
+
+        String loginCss = read("static/layuiadmin/adminui/dist/css/login.css");
+        assertTrue(loginCss.contains(".layadmin-user-login-main"));
+        assertTrue(loginCss.contains("@media screen and (max-width:768px)"));
+    }
 
     @Test
     void loginFormSupportsAccessiblePasswordEntryAndSafeSubmission() throws Exception {
@@ -84,6 +104,23 @@ class AdminLoginTemplateTest {
 
         assertEquals(0, process.waitFor());
         assertEquals("[\"/domain/list\",\"/\",\"/\",\"/\"]", output);
+    }
+
+    @Test
+    void loginFeedbackIsNotDuplicatedByTheSharedRequestWrapper() throws Exception {
+        assumeNodeAvailable();
+        ClassLoader loader = AdminLoginTemplateTest.class.getClassLoader();
+        for (String bundle : new String[] {"src", "dist"}) {
+            Process process = new ProcessBuilder("node",
+                java.nio.file.Path.of(loader.getResource("admin-login-feedback.cjs").toURI()).toString(),
+                java.nio.file.Path.of(loader.getResource("static/layuiadmin/config.js").toURI()).toString(),
+                java.nio.file.Path.of(loader.getResource("static/layuiadmin/adminui/" + bundle + "/modules/view.js").toURI()).toString(),
+                java.nio.file.Path.of(loader.getResource("static/layuiadmin/views/user/login.html").toURI()).toString())
+                .redirectErrorStream(true)
+                .start();
+            String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            assertEquals(0, process.waitFor(), bundle + ": " + output);
+        }
     }
 
     private static void assumeNodeAvailable() {

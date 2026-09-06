@@ -171,7 +171,8 @@ layui.use(['admin', 'table', 'util'], function(){
     setSafeText(content, 'requestIp', detail.requestIp);
     setSafeText(content, 'createTimeText', detail.createTimeText);
     setSafeText(content, 'message', detail.message);
-    return content;
+    // Layer only wraps existing DOM nodes; pass escaped markup for this detached clone.
+    return content.prop('outerHTML');
   }
 
   function openDetail(data, button) {
@@ -291,18 +292,18 @@ layui.use(['admin', 'table', 'util'], function(){
     },
     cols: [[
       {type: 'checkbox', fixed: 'left'},
-      {field: 'name', title: '姓名', width: 130, templet: function(data) { return safeText(data.name); }},
-      {field: 'email', title: '邮箱', minWidth: 190, templet: function(data) { return safeText(data.email); }},
+      {field: 'name', title: '姓名', minWidth: 150, templet: function(data) { return safeText(data.name); }},
+      {field: 'email', title: '邮箱', minWidth: 240, templet: function(data) { return safeText(data.email); }},
       {field: 'subject', title: '主题', minWidth: 180, templet: function(data) { return safeText(data.subject); }},
       {field: 'message', title: '消息', minWidth: 240, templet: function(data) { return '<div class="contact-message-cell">' + safeText(data.message) + '</div>'; }},
-      {field: 'requestIp', title: 'IP 地址', width: 140, templet: function(data) { return safeText(data.requestIp); }},
-      {field: 'createTimeText', title: '提交时间', width: 172, templet: function(data) { return safeText(data.createTimeText); }},
+      {field: 'requestIp', title: 'IP 地址', minWidth: 320, templet: function(data) { return safeText(data.requestIp); }},
+      {field: 'createTimeText', title: '提交时间', width: 190, templet: function(data) { return safeText(data.createTimeText); }},
       {field: 'status', title: '状态', width: 96, align: 'center', templet: function(data) {
         return Number(data.status) === 1
           ? '<span class="layui-badge layui-bg-orange">待处理</span>'
           : '<span class="layui-badge layui-bg-green">已处理</span>';
       }},
-      {title: '操作', width: 210, align: 'center', fixed: 'right', toolbar: '#contact-actions'}
+      {title: '操作', width: 260, align: 'center', fixed: 'right', toolbar: '#contact-actions'}
     ]]
   });
 

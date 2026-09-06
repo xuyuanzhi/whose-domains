@@ -25,6 +25,16 @@ class AdminDashboardTemplateTest {
     private static final String LEGACY_DASHBOARD = "templates/admin/dashboard.html";
 
     @Test
+    void everyQuickLinkResolvesToAnExistingView() throws Exception {
+        Document document = Jsoup.parse(read(DASHBOARD));
+        for (var link : document.select("[data-quick-link][lay-href]")) {
+            assertNotNull(getClass().getClassLoader().getResource(
+                "static/layuiadmin/views/" + link.attr("lay-href") + ".html"),
+                "Missing view for quick link: " + link.attr("lay-href"));
+        }
+    }
+
+    @Test
     void dashboardShowsAllBusinessMetricsAndRealQuickLinks() throws Exception {
         Document document = Jsoup.parse(read(DASHBOARD));
 
@@ -37,7 +47,7 @@ class AdminDashboardTemplateTest {
         Set<String> quickLinks = document.select("[data-quick-link][lay-href]").stream()
             .map(element -> element.attr("lay-href"))
             .collect(Collectors.toSet());
-        assertEquals(Set.of("person/list", "domain/tld", "domain/sld", "blog/list", "contact/list"), quickLinks);
+        assertEquals(Set.of("person/list", "domain/tld/index", "domain/sld/index", "blog/list", "contact/list"), quickLinks);
     }
 
     @Test
