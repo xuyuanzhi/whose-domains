@@ -136,8 +136,13 @@ layui.use(['admin', 'form'], function(){
     $('#blog-tags').val(detail.tags || '');
     $('#blog-meta-title').val(detail.metaTitle || '');
     $('#blog-meta-description').val(detail.metaDescription || '');
+    var archived = detail.status === 2;
+    $('#blog-editor-form :input').prop('disabled', archived);
     $('#blog-slug').prop('readonly', detail.status === 1);
-    $('#blog-publish-button').toggle(detail.status !== 1);
+    $('#blog-publish-button').toggle(detail.status === 0);
+    $('#blog-save-button').toggle(!archived);
+    $('#blog-review-button').toggle(!archived);
+    $('#blog-review').text(archived ? '已归档：原文仅供查看。如需修改，请先在列表中恢复为草稿。' : '请检查当前内容并核实来源。');
     form.render(null, 'blog-editor-form');
   }
 

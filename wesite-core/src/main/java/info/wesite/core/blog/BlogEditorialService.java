@@ -112,6 +112,7 @@ public class BlogEditorialService {
         }
         lockEditorialWrites();
         BlogPost stored = requireLocked(command.id());
+        requireNotArchived(stored);
         NormalizedEdit edit = normalizeAndValidate(command);
         if (Objects.equals(stored.getStatus(), BlogPost.POST_STATUS_PUBLISHED)
                 && !Objects.equals(stored.getSlug(), edit.slug())) {
@@ -140,6 +141,7 @@ public class BlogEditorialService {
         String actor = requiredActor(actorId);
         lockEditorialWrites();
         BlogPost stored = requireLocked(id);
+        requireNotArchived(stored);
         validateHtmlSize(stored.getContent());
         String sanitized = sanitizer.sanitize(stored.getContent());
         validatePublishable(stored, sanitized);
@@ -185,6 +187,43 @@ public class BlogEditorialService {
             throw new BlogEditorialException("Post not found");
         }
         return stored;
+    }
+
+    @Transactional
+    public BlogPost archive(String id, String actorId) {
+        String actor = requiredActor(actorId);
+        lockEditorialWrites();
+        BlogPost stored = requireLocked(id);
+        if (!Objects.equals(stored.getStatus(), BlogPost.POST_STATUS_DRAFT)
+                && !Objects.equals(stored.getStatus(), BlogPost.POST_STATUS_PUBLISHED)) {
+            throw new BlogEditorialException("Only drafts or published posts can be archived");
+        }
+        preserveAiProvenance(stored);
+        stored.setStatus(BlogPost.POST_STATUS_ARCHIVED);
+        setUpdateAudit(stored, actor, time.now());
+        update(stored);
+        return stored;
+    }
+
+    @Transactional
+    public BlogPost restore(String id, String actorId) {
+        String actor = requiredActor(actorId);
+        lockEditorialWrites();
+        BlogPost stored = requireLocked(id);
+        if (!Objects.equals(stored.getStatus(), BlogPost.POST_STATUS_ARCHIVED)) {
+            throw new BlogEditorialException("Only archived posts can be restored");
+        }
+        preserveAiProvenance(stored);
+        stored.setStatus(BlogPost.POST_STATUS_DRAFT);
+        setUpdateAudit(stored, actor, time.now());
+        update(stored);
+        return stored;
+    }
+
+    private static void requireNotArchived(BlogPost post) {
+        if (Objects.equals(post.getStatus(), BlogPost.POST_STATUS_ARCHIVED)) {
+            throw new BlogEditorialException("Restore the archived post to a draft before editing or publishing");
+        }
     }
 
     private static void preserveAiProvenance(BlogPost post) {

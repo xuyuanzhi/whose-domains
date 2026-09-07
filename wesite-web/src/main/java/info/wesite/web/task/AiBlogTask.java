@@ -122,6 +122,7 @@ public class AiBlogTask {
         List<String> recentTitles = blogPostService.list(
                 Wrappers.<BlogPost>lambdaQuery()
                     .select(BlogPost::getTitle)
+                    .in(BlogPost::getStatus, BlogPost.POST_STATUS_DRAFT, BlogPost.POST_STATUS_PUBLISHED)
                     .orderByDesc(BlogPost::getCreateTime)
                     .orderByDesc(BlogPost::getId)
                     .last("LIMIT 100"))

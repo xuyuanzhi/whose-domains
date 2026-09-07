@@ -63,6 +63,37 @@ class BlogEditorialServiceTest {
     }
 
     @Test
+    void archiveAndRestorePreserveContentAndReturnOnlyToDraft() {
+        BlogPost stored = publishablePost("duplicate", BlogPost.POST_STATUS_PUBLISHED);
+        stored.setPublishDate(new Date(1000));
+        stored.setContentUpdatedAt(new Date(2000));
+        String original = stored.getContent();
+        when(mapper.selectByIdForUpdate(stored.getId())).thenReturn(stored);
+        when(mapper.updateById(any(BlogPost.class))).thenReturn(1);
+        when(time.now()).thenReturn(new Date(3000));
+        assertEquals(BlogPost.POST_STATUS_ARCHIVED, service.archive(stored.getId(), "admin-1").getStatus());
+        assertEquals(original, stored.getContent());
+        assertEquals(new Date(1000), stored.getPublishDate());
+        assertEquals(new Date(2000), stored.getContentUpdatedAt());
+        assertEquals("admin-1", stored.getUpdateBy());
+        assertEquals(BlogPost.POST_STATUS_DRAFT, service.restore(stored.getId(), "admin-1").getStatus());
+        assertEquals(original, stored.getContent());
+        verify(mapper, org.mockito.Mockito.times(2)).lockEditorialWrites();
+    }
+
+    @Test
+    void archivedArticleCannotBeEditedOrPublishedAndActiveArticleCannotBeRestored() {
+        BlogPost stored = publishablePost("archived", BlogPost.POST_STATUS_ARCHIVED);
+        when(mapper.selectByIdForUpdate(stored.getId())).thenReturn(stored);
+        assertThrows(BlogEditorialException.class, () -> service.save(edit(stored, stored.getSlug(), "Changed"), "admin-1"));
+        assertThrows(BlogEditorialException.class, () -> service.publish(stored.getId(), "admin-1"));
+        assertThrows(BlogEditorialException.class, () -> service.archive(stored.getId(), "admin-1"));
+        stored.setStatus(BlogPost.POST_STATUS_DRAFT);
+        assertThrows(BlogEditorialException.class, () -> service.restore(stored.getId(), "admin-1"));
+        verify(mapper, never()).updateById(any(BlogPost.class));
+    }
+
+    @Test
     void publicationRejectsAnArticleWithNoEvidenceOrPracticalDetail() {
         BlogPost stored = publishablePost("thin-post", BlogPost.POST_STATUS_DRAFT);
         when(mapper.selectByIdForUpdate(stored.getId())).thenReturn(stored);

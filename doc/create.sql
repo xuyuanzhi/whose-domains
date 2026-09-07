@@ -384,7 +384,7 @@ CREATE TABLE `WEB_BLOG_POST` (
   `VIEW_COUNT`       int           NOT NULL DEFAULT '0',
   `META_TITLE`       varchar(300)  COMMENT 'SEO meta title',
   `META_DESCRIPTION` varchar(600)  COMMENT 'SEO meta description',
-  `STATUS`           tinyint(1)    NOT NULL DEFAULT '1' COMMENT '0=draft, 1=published',
+  `STATUS`           tinyint(1)    NOT NULL DEFAULT '1' COMMENT '0=draft, 1=published, 2=archived',
   `DELETED`          tinyint(1)    NOT NULL DEFAULT '0',
   `CREATE_BY`        varchar(64),
   `CREATE_TIME`      datetime      NOT NULL DEFAULT CURRENT_TIMESTAMP,

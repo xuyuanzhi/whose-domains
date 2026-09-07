@@ -20,6 +20,7 @@ public class BlogPost extends BaseEntity {
 
     public static final int POST_STATUS_DRAFT     = 0;
     public static final int POST_STATUS_PUBLISHED = 1;
+    public static final int POST_STATUS_ARCHIVED  = 2;
     public static final String SITE_AUTHOR = "Whose.Domains";
 
     /** URL 友好标识，如 how-to-check-domain-expiry */

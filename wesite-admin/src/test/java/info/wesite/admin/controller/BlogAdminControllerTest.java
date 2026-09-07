@@ -115,7 +115,7 @@ class BlogAdminControllerTest {
     void listRejectsInvalidBoundsAndFiltersBeforeQuerying() throws Exception {
         assertListFailure("{\"page\":0,\"limit\":20}");
         assertListFailure("{\"page\":1,\"limit\":101}");
-        assertListFailure("{\"page\":1,\"limit\":20,\"status\":2}");
+        assertListFailure("{\"page\":1,\"limit\":20,\"status\":3}");
         assertListFailure("{\"page\":1,\"limit\":20,\"keyword\":\"" + "x".repeat(201) + "\"}");
         verify(posts, never()).page(any(Page.class), any(Wrapper.class));
     }
@@ -168,6 +168,22 @@ class BlogAdminControllerTest {
         PreviewResponse preview = assertInstanceOf(PreviewResponse.class, response.getData());
         assertEquals("<p>safe</p>", preview.html());
         assertEquals(1, preview.getClass().getRecordComponents().length);
+    }
+
+    @Test
+    void archiveAndRestoreRequireActorAndPassCurrentAdministrator() throws Exception {
+        mvc.perform(post("/blog/archive").contentType(APPLICATION_JSON).content("{\"id\":\"post-1\"}"))
+            .andExpect(jsonPath("$.code").value(ResponseJson.CODE_FAILURE));
+        verify(editorial, never()).archive(any(), any());
+        UserHolder.set(admin("admin-archive"));
+        mvc.perform(post("/blog/archive").contentType(APPLICATION_JSON).content("{\"id\":\"post-1\"}"))
+            .andExpect(jsonPath("$.code").value(ResponseJson.CODE_SUCCESS));
+        mvc.perform(post("/blog/restore").contentType(APPLICATION_JSON).content("{\"id\":\"post-1\"}"))
+            .andExpect(jsonPath("$.code").value(ResponseJson.CODE_SUCCESS));
+        verify(editorial).archive("post-1", "admin-archive");
+        verify(editorial).restore("post-1", "admin-archive");
+        mvc.perform(post("/blog/restore").contentType(APPLICATION_JSON).content("{\"id\":\" \"}"))
+            .andExpect(jsonPath("$.code").value(ResponseJson.CODE_FAILURE));
     }
 
     @Test

@@ -17,7 +17,7 @@ public interface BlogPostMapper extends BaseMapper<BlogPost> {
     Integer lockEditorialWrites();
 
     @Select("SELECT ID, SLUG, TITLE, SUMMARY, CONTENT, META_DESCRIPTION, STATUS FROM WEB_BLOG_POST "
-        + "WHERE DELETED = 0 AND (#{afterId} IS NULL OR ID > #{afterId}) ORDER BY ID LIMIT #{limit}")
+        + "WHERE DELETED = 0 AND STATUS IN (0, 1) AND (#{afterId} IS NULL OR ID > #{afterId}) ORDER BY ID LIMIT #{limit}")
     List<BlogPost> selectReviewBatch(@Param("afterId") String afterId, @Param("limit") int limit);
 
     @Select("SELECT * FROM WEB_BLOG_POST WHERE ID = #{id} AND DELETED = 0 FOR UPDATE")

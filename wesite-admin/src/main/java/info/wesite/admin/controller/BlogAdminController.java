@@ -164,6 +164,22 @@ public class BlogAdminController {
         }
     }
 
+    @PostMapping("/archive")
+    public ResponseJson<?> archive(@RequestBody IdRequest request) {
+        return editorialOperation("archive", () -> {
+            editorial.archive(requireId(request), currentActorId());
+            return ResponseJson.success();
+        });
+    }
+
+    @PostMapping("/restore")
+    public ResponseJson<?> restore(@RequestBody IdRequest request) {
+        return editorialOperation("restore", () -> {
+            editorial.restore(requireId(request), currentActorId());
+            return ResponseJson.success();
+        });
+    }
+
     private ResponseJson<?> unexpected(String operation, Exception exception) {
         LOGGER.error("Unexpected blog operation failure: operation={}, errorType={}, correlationId={}",
             operation, exception.getClass().getName(), UUID.randomUUID());
@@ -182,8 +198,9 @@ public class BlogAdminController {
         }
         if (status != null
                 && status != BlogPost.POST_STATUS_DRAFT
-                && status != BlogPost.POST_STATUS_PUBLISHED) {
-            throw new BlogEditorialException("Status must be 0 or 1");
+                && status != BlogPost.POST_STATUS_PUBLISHED
+                && status != BlogPost.POST_STATUS_ARCHIVED) {
+            throw new BlogEditorialException("Status must be 0, 1 or 2");
         }
     }
 

@@ -61,6 +61,33 @@ class BlogContentReviewMySqlTest {
     void reset() throws Exception { execute("DELETE FROM WEB_BLOG_POST"); }
 
     @Test
+    void archivingLegacyDuplicateUnblocksRetainedArticleAndRestoringRejoinsDeduplication() throws Exception {
+        String body = "<h2>Steps</h2><p>" + "Inspect records and compare authoritative DNS responses carefully. ".repeat(30)
+            + "</p><ol><li>Query the authoritative server.</li></ol><h2>Limitations</h2><p>Cached data may differ.</p>"
+            + "<a href=\"https://www.rfc-editor.org/rfc/rfc1035\">Reference</a>";
+        var retained = transactions.execute(status -> editorial.createAiDraft(draft("retained", "DNS checks", body)));
+        transactions.execute(status -> editorial.publish(retained.getId(), "editor"));
+        try (var connection = source.getConnection(); var statement = connection.prepareStatement(
+                "INSERT INTO WEB_BLOG_POST (ID, SLUG, TITLE, SUMMARY, CONTENT, META_DESCRIPTION, STATUS, DELETED) "
+                + "SELECT 'duplicate', 'duplicate', TITLE, SUMMARY, CONTENT, META_DESCRIPTION, 1, 0 FROM WEB_BLOG_POST WHERE ID = ?")) {
+            statement.setString(1, retained.getId()); statement.executeUpdate();
+        }
+        var edit = new BlogEditCommand(retained.getId(), retained.getSlug(), retained.getTitle(), retained.getSummary(),
+            body, "Verified Editor", retained.getCategory(), retained.getTags(), retained.getMetaTitle(), retained.getMetaDescription());
+        assertThrows(BlogEditorialException.class, () -> transactions.execute(status -> editorial.save(edit, "editor")));
+        transactions.execute(status -> editorial.archive("duplicate", "editor"));
+        assertDoesNotThrow(() -> transactions.execute(status -> editorial.save(edit, "editor")));
+        assertEquals(body, posts.selectById("duplicate").getContent());
+        assertEquals(2, posts.selectById("duplicate").getStatus());
+        assertEquals(1, reviews.audit().scanned());
+        assertTrue(posts.selectById(retained.getId()).isAiAssisted());
+        transactions.execute(status -> editorial.restore("duplicate", "editor"));
+        assertEquals(0, posts.selectById("duplicate").getStatus());
+        assertTrue(reviews.review(posts.selectById(retained.getId())).hasDuplicate());
+        assertThrows(BlogEditorialException.class, () -> transactions.execute(status -> editorial.publish("duplicate", "editor")));
+    }
+
+    @Test
     void provenanceMigrationBackfillsOnlyKnownOriginsAndSurvivesBylineEditingAndReruns() throws Exception {
         execute("ALTER TABLE WEB_BLOG_POST DROP COLUMN AI_GENERATED");
         execute("INSERT INTO WEB_BLOG_POST (ID, SLUG, TITLE, AUTHOR, CREATE_BY, STATUS, DELETED) VALUES "

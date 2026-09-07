@@ -71,3 +71,19 @@ test('failed review request recovers controls without offering publication', () 
   assert.equal(e.requests.length, 1);
   assert.equal(e.$('.blog-editor-action').props.disabled, false);
 });
+
+test('archived articles render read-only and restoring a draft re-enables editing', () => {
+  const e = editor();
+  e.init('archived');
+  e.respond(e.requests[0], { id: 'archived', status: 2, content: '<p>Preserved</p>' });
+  assert.equal(e.$('#blog-content').value, '<p>Preserved</p>');
+  assert.equal(e.$('#blog-editor-form :input').props.disabled, true);
+  assert.equal(e.$('#blog-save-button').visible, false);
+  assert.equal(e.$('#blog-publish-button').visible, false);
+  e.respond(e.requests[1], { html: '<p>Preserved</p>' });
+  e.init('archived');
+  e.respond(e.requests[2], { id: 'archived', status: 0, content: '<p>Preserved</p>' });
+  assert.equal(e.$('#blog-editor-form :input').props.disabled, false);
+  assert.equal(e.$('#blog-save-button').visible, true);
+  assert.equal(e.$('#blog-publish-button').visible, true);
+});
