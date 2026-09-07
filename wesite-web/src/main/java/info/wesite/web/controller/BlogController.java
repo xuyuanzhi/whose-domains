@@ -149,13 +149,13 @@ public class BlogController {
             post.getCover(), "https://whose.domains/og-image.png?type=blog"));
 
         JSONObject author = new JSONObject();
-        if (StringUtils.isBlank(post.getAuthor())) {
+        if (post.isOrganizationAuthor()) {
             author.put("@type", "Organization");
-            author.put("name", "Whose.Domains");
+            author.put("name", post.getEffectiveAuthor());
             author.put("url", "https://whose.domains");
         } else {
             author.put("@type", "Person");
-            author.put("name", post.getAuthor().trim());
+            author.put("name", post.getEffectiveAuthor());
             author.put("url", "https://whose.domains/blog");
         }
 

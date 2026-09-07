@@ -12,6 +12,11 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.junit.jupiter.api.Test;
+import org.thymeleaf.spring6.SpringTemplateEngine;
+import org.thymeleaf.context.Context;
+import org.thymeleaf.templateresolver.StringTemplateResolver;
+
+import info.wesite.core.entity.BlogPost;
 
 class BlogDetailTemplateTest {
 
@@ -46,6 +51,36 @@ class BlogDetailTemplateTest {
                 throw new IOException("Missing resource: " + path);
             }
             return new String(input.readAllBytes(), StandardCharsets.UTF_8);
+        }
+    }
+
+    @Test
+    void rendersHonestBylinesAndDisclosesOnlyIdentifiableAiContent() throws Exception {
+        SpringTemplateEngine engine = new SpringTemplateEngine();
+        engine.setTemplateResolver(new StringTemplateResolver());
+        String article = Jsoup.parse(resource("/views/blog/detail.html")).selectFirst("article").outerHtml();
+        for (String author : new String[] {"James Chen", "Mark Zhang", "Whose.Domains", "Ada Example", " ", null}) {
+            BlogPost post = new BlogPost();
+            post.setAuthor(author);
+            post.setTitle("Test article");
+            post.setContent("<p>Body</p>");
+            Context context = new Context();
+            context.setVariable("post", post);
+            String rendered = Jsoup.parse(engine.process(article, context)).text();
+            boolean legacy = "James Chen".equals(author) || "Mark Zhang".equals(author);
+            assertTrue(rendered.contains("Ada Example".equals(author) ? author : "Whose.Domains"));
+            assertTrue(rendered.contains("AI-assisted") == legacy);
+            if (legacy) {
+                assertFalse(rendered.contains(author));
+            }
+            post.setCreateBy("ai");
+            assertTrue(Jsoup.parse(engine.process(article, context)).text().contains("AI-assisted"));
+            post.setCreateBy(null);
+            post.setAiGenerated(true);
+            post.setAuthor("Verified Editor");
+            String edited = Jsoup.parse(engine.process(article, context)).text();
+            assertTrue(edited.contains("Verified Editor"));
+            assertTrue(edited.contains("AI-assisted"));
         }
     }
 }

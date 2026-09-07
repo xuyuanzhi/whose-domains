@@ -2,6 +2,8 @@ package info.wesite.core.entity;
 
 import java.util.Date;
 
+import org.apache.commons.lang3.StringUtils;
+
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 
@@ -18,6 +20,7 @@ public class BlogPost extends BaseEntity {
 
     public static final int POST_STATUS_DRAFT     = 0;
     public static final int POST_STATUS_PUBLISHED = 1;
+    public static final String SITE_AUTHOR = "Whose.Domains";
 
     /** URL 友好标识，如 how-to-check-domain-expiry */
     private String slug;
@@ -36,6 +39,9 @@ public class BlogPost extends BaseEntity {
 
     /** 作者名 */
     private String author;
+
+    /** Persisted AI provenance; independent of the editable public byline. */
+    private Boolean aiGenerated;
 
     /** 标签，逗号分隔，如 "whois,domain,lookup" */
     private String tags;
@@ -65,6 +71,28 @@ public class BlogPost extends BaseEntity {
 
     @TableField(exist = false)
     private String[] tagArray;
+
+    /** Public attribution also covers the random pen names used by the legacy generator. */
+    public String getEffectiveAuthor() {
+        String name = StringUtils.trimToNull(author);
+        return name == null || isLegacyGeneratedAuthor() || SITE_AUTHOR.equalsIgnoreCase(name)
+            ? SITE_AUTHOR : name;
+    }
+
+    public boolean isOrganizationAuthor() {
+        return SITE_AUTHOR.equals(getEffectiveAuthor());
+    }
+
+    /** Do not infer AI provenance from a blank or organization byline alone. */
+    public boolean isAiAssisted() {
+        return Boolean.TRUE.equals(aiGenerated)
+            || "ai".equalsIgnoreCase(StringUtils.trimToEmpty(getCreateBy())) || isLegacyGeneratedAuthor();
+    }
+
+    private boolean isLegacyGeneratedAuthor() {
+        String name = StringUtils.trimToEmpty(author);
+        return "James Chen".equalsIgnoreCase(name) || "Mark Zhang".equalsIgnoreCase(name);
+    }
 
     public String getEffectiveMetaTitle() {
         return metaTitle != null && !metaTitle.isEmpty() ? metaTitle : title;

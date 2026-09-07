@@ -103,6 +103,19 @@ class BlogControllerSeoTest {
         return JSON.parseObject((String) model.getAttribute("_blogSchema"));
     }
 
+    @Test
+    void siteAndLegacyGeneratedAuthorsUseOrganizationSchema() {
+        for (String author : new String[] {"Whose.Domains", " whose.domains ", "James Chen", "Mark Zhang"}) {
+            BlogPost post = publishedPost();
+            post.setAuthor(author);
+            when(posts.getOne(org.mockito.ArgumentMatchers.<Wrapper<BlogPost>>any())).thenReturn(post);
+            JSONObject schema = renderSchema(post).getJSONObject("author");
+            assertEquals("Organization", schema.getString("@type"), author);
+            assertEquals("Whose.Domains", schema.getString("name"), author);
+            assertEquals("https://whose.domains", schema.getString("url"), author);
+        }
+    }
+
     private static BlogPost publishedPost() {
         BlogPost post = new BlogPost();
         post.setId("post-1");

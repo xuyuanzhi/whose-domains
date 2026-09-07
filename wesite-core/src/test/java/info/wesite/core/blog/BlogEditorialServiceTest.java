@@ -45,7 +45,23 @@ class BlogEditorialServiceTest {
     }
 
     @Test
-    void createsSanitizedUnownedDraftWithAuditAndEditorialTime() {
+    void editingLegacyBylinePreservesAiDisclosureWithoutRewritingCreationAudit() {
+        BlogPost stored = publishablePost("legacy", BlogPost.POST_STATUS_DRAFT);
+        stored.setAuthor("James Chen");
+        when(mapper.selectByIdForUpdate("legacy")).thenReturn(stored);
+        when(mapper.selectCount(any())).thenReturn(0L);
+        when(mapper.updateById(any(BlogPost.class))).thenReturn(1);
+        when(time.now()).thenReturn(new Date());
+        BlogPost saved = service.save(new BlogEditCommand("legacy", stored.getSlug(), stored.getTitle(),
+            stored.getSummary(), stored.getContent(), "Whose.Domains", null, null, null,
+            stored.getMetaDescription()), "admin-1");
+        org.junit.jupiter.api.Assertions.assertTrue(saved.isAiAssisted());
+        assertEquals(Boolean.TRUE, saved.getAiGenerated());
+        assertNull(saved.getCreateBy());
+    }
+
+    @Test
+    void createsSanitizedSiteAuthoredDraftWithAuditAndEditorialTime() {
         Date now = new Date(1_800_000_000_000L);
         when(time.now()).thenReturn(now);
         when(mapper.selectCount(any())).thenReturn(0L);
@@ -68,7 +84,7 @@ class BlogEditorialServiceTest {
         assertEquals(BlogPost.POST_STATUS_DRAFT, result.getStatus());
         assertEquals(0, result.getViewCount());
         assertEquals(0, result.getDeleted());
-        assertNull(result.getAuthor());
+        assertEquals("Whose.Domains", result.getAuthor());
         assertNull(result.getPublishDate());
         assertEquals("ai", result.getCreateBy());
         assertEquals(now, result.getCreateTime());

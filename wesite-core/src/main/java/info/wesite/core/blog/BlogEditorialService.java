@@ -69,7 +69,8 @@ public class BlogEditorialService {
         post.setTitle(title);
         post.setSummary(summary);
         post.setContent(content);
-        post.setAuthor(null);
+        post.setAuthor(BlogPost.SITE_AUTHOR);
+        post.setAiGenerated(true);
         post.setCategory(category);
         post.setTags(tags);
         post.setMetaTitle(metaTitle);
@@ -112,6 +113,7 @@ public class BlogEditorialService {
         ensureSlugAvailable(edit.slug(), stored.getId());
 
         boolean materialChange = differsFromPersisted(stored, edit);
+        preserveAiProvenance(stored);
         applyEditableFields(stored, edit);
         Date now = time.now();
         if (materialChange) {
@@ -129,6 +131,7 @@ public class BlogEditorialService {
         validateHtmlSize(stored.getContent());
         String sanitized = sanitizer.sanitize(stored.getContent());
         validatePublishable(stored, sanitized);
+        preserveAiProvenance(stored);
 
         Date now = time.now();
         if (!Objects.equals(sanitized, stored.getContent())) {
@@ -169,6 +172,10 @@ public class BlogEditorialService {
             throw new BlogEditorialException("Post not found");
         }
         return stored;
+    }
+
+    private static void preserveAiProvenance(BlogPost post) {
+        if (post.isAiAssisted()) post.setAiGenerated(true);
     }
 
     private NormalizedEdit normalizeAndValidate(BlogEditCommand command) {

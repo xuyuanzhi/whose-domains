@@ -370,6 +370,7 @@ CREATE TABLE `WEB_BLOG_POST` (
   `CONTENT`          longtext      COMMENT 'HTML body',
   `COVER`            varchar(500)  COMMENT 'Cover image URL',
   `AUTHOR`           varchar(100),
+  `AI_GENERATED`     tinyint NULL COMMENT 'Known AI-assisted origin, independent of byline',
   `TAGS`             varchar(300)  COMMENT 'Comma-separated tags',
   `CATEGORY`         varchar(100)  COMMENT 'Category slug',
   `PUBLISH_DATE`     datetime,

@@ -338,6 +338,20 @@ The first result set is a single readiness row, the second is a daily closed-coh
 
 ## Blog editorial workflow deployment
 
+Blog attribution: new AI drafts store `Whose.Domains` as their author. Public
+bylines and JSON-LD share the same attribution rules: blank authors, the site
+name, and the legacy generator's random pen names (`James Chen`, `Mark Zhang`)
+display as `Whose.Domains` with schema type `Organization`. Other named authors
+remain `Person`. The legacy mapping is a read-time compatibility rule; it does
+not rewrite stored authors or require a database migration.
+
+Articles with persisted `AI_GENERATED=1`, `CREATE_BY=ai`, or a legacy generator
+pen name show an AI-assisted disclosure. Apply `doc/alter_blog_ai_provenance.sql`
+before deploying: it backfills known AI origins so future byline edits cannot
+erase the disclosure. A blank or organization byline alone is not evidence of AI use.
+Only enter a personal byline after that person has substantially edited and
+verified the article. No reviewer attribution is inferred automatically.
+
 Treat the editorial schema migration and one-time HTML sanitization as a
 coordinated maintenance operation outside both routine Jenkins jobs. Keep
 normal writers stopped from the backup through the apply step and retain every
