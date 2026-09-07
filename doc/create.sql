@@ -362,6 +362,12 @@ CREATE TABLE `WEB_REGISTRAR` (
 -- -----------------------------------------------------------------------------
 -- WEB_BLOG_POST — blog articles
 -- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `WEB_BLOG_EDITORIAL_LOCK` (
+  `ID` tinyint NOT NULL,
+  PRIMARY KEY (`ID`)
+) ENGINE=InnoDB;
+INSERT IGNORE INTO `WEB_BLOG_EDITORIAL_LOCK` (`ID`) VALUES (1);
+
 CREATE TABLE `WEB_BLOG_POST` (
   `ID`               varchar(32)   NOT NULL,
   `SLUG`             varchar(200)  NOT NULL COMMENT 'URL-friendly identifier',

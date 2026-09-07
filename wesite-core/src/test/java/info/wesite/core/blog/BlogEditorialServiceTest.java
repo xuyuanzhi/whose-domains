@@ -41,7 +41,9 @@ class BlogEditorialServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new BlogEditorialService(mapper, new BlogHtmlSanitizer(), time);
+        BlogHtmlSanitizer sanitizer = new BlogHtmlSanitizer();
+        service = new BlogEditorialService(mapper, sanitizer, time, new BlogReviewService(mapper, sanitizer));
+        org.mockito.Mockito.lenient().when(mapper.lockEditorialWrites()).thenReturn(1);
     }
 
     @Test
@@ -58,6 +60,17 @@ class BlogEditorialServiceTest {
         org.junit.jupiter.api.Assertions.assertTrue(saved.isAiAssisted());
         assertEquals(Boolean.TRUE, saved.getAiGenerated());
         assertNull(saved.getCreateBy());
+    }
+
+    @Test
+    void publicationRejectsAnArticleWithNoEvidenceOrPracticalDetail() {
+        BlogPost stored = publishablePost("thin-post", BlogPost.POST_STATUS_DRAFT);
+        when(mapper.selectByIdForUpdate(stored.getId())).thenReturn(stored);
+        org.mockito.Mockito.lenient().when(time.now()).thenReturn(new Date());
+        org.mockito.Mockito.lenient().when(mapper.updateById(any(BlogPost.class))).thenReturn(1);
+
+        assertThrows(BlogEditorialException.class, () -> service.publish(stored.getId(), "admin-1"));
+        verify(mapper, never()).updateById(any(BlogPost.class));
     }
 
     @Test
@@ -90,6 +103,60 @@ class BlogEditorialServiceTest {
         assertEquals(now, result.getCreateTime());
         assertEquals(now, result.getContentUpdatedAt());
         assertFalse(result.getContent().contains("script"));
+    }
+
+    @Test
+    void rejectsCopiedBodyEvenWhenGeneratedSlugAndTitleAreDifferent() {
+        BlogPost existing = publishablePost("older", BlogPost.POST_STATUS_PUBLISHED);
+        existing.setContent("<p>Copied material</p>");
+        when(mapper.selectCount(any())).thenReturn(0L);
+        when(time.now()).thenReturn(new Date());
+        when(mapper.selectReviewBatch(null, 100)).thenReturn(java.util.List.of(existing));
+
+        assertThrows(BlogEditorialException.class, () -> service.createAiDraft(
+            draft("new-url", "New title", "<p><strong>Copied</strong> material!</p>")));
+        verify(mapper, never()).insert(any(BlogPost.class));
+        var order = org.mockito.Mockito.inOrder(mapper);
+        order.verify(mapper).lockEditorialWrites();
+        order.verify(mapper).selectCount(any());
+        order.verify(mapper).selectReviewBatch(null, 100);
+    }
+
+    @Test
+    void draftCanBeEditedToResolveDuplicateButCannotBePublishedUntilResolved() {
+        BlogPost stored = publishablePost("draft", BlogPost.POST_STATUS_DRAFT);
+        BlogPost existing = publishablePost("older", BlogPost.POST_STATUS_PUBLISHED);
+        stored.setContent(BlogContentReviewTest.completeArticle());
+        existing.setContent(stored.getContent());
+        when(mapper.selectByIdForUpdate(stored.getId())).thenReturn(stored);
+        when(mapper.selectCount(any())).thenReturn(0L);
+        when(mapper.updateById(any(BlogPost.class))).thenReturn(1);
+        when(time.now()).thenReturn(new Date());
+        assertDoesNotThrowSave(stored);
+        when(mapper.selectReviewBatch(null, 100)).thenReturn(java.util.List.of(existing));
+        assertThrows(BlogEditorialException.class, () -> service.publish(stored.getId(), "admin-1"));
+        assertEquals(BlogPost.POST_STATUS_DRAFT, stored.getStatus());
+    }
+
+    private void assertDoesNotThrowSave(BlogPost stored) {
+        org.junit.jupiter.api.Assertions.assertDoesNotThrow(() -> service.save(edit(stored, stored.getSlug(), stored.getTitle()), "admin-1"));
+    }
+
+    @Test
+    void editingPublishedContentCannotBypassQualityChecks() {
+        BlogPost stored = publishablePost("public", BlogPost.POST_STATUS_PUBLISHED);
+        when(mapper.selectByIdForUpdate(stored.getId())).thenReturn(stored);
+        when(mapper.selectCount(any())).thenReturn(0L);
+        assertThrows(BlogEditorialException.class, () -> service.save(edit(stored, stored.getSlug(), "Updated title"), "admin-1"));
+        verify(mapper, never()).updateById(any(BlogPost.class));
+    }
+
+    @Test
+    void missingDatabaseLockPreventsAnyPublicationReadOrWrite() {
+        when(mapper.lockEditorialWrites()).thenReturn(null);
+        assertThrows(BlogEditorialException.class, () -> service.publish("post", "admin-1"));
+        verify(mapper, never()).selectByIdForUpdate(any());
+        verify(mapper, never()).updateById(any(BlogPost.class));
     }
 
     @ParameterizedTest(name = "rejects overlong {0}")
@@ -239,6 +306,7 @@ class BlogEditorialServiceTest {
         Date firstNow = new Date(1_800_000_000_000L);
         Date secondNow = new Date(1_800_000_100_000L);
         BlogPost stored = publishablePost("post-4", BlogPost.POST_STATUS_DRAFT);
+        stored.setContent(BlogContentReviewTest.completeArticle());
         when(mapper.selectByIdForUpdate(stored.getId())).thenReturn(stored);
         when(mapper.updateById(any(BlogPost.class))).thenReturn(1);
         when(time.now()).thenReturn(firstNow, secondNow);
@@ -258,7 +326,7 @@ class BlogEditorialServiceTest {
         Date oldEditorialTime = new Date(1_790_000_000_000L);
         Date now = new Date(1_800_000_000_000L);
         BlogPost stored = publishablePost("post-5", BlogPost.POST_STATUS_DRAFT);
-        stored.setContent("<p>Body</p><script>alert(1)</script>");
+        stored.setContent(BlogContentReviewTest.completeArticle() + "<script>alert(1)</script>");
         stored.setContentUpdatedAt(oldEditorialTime);
         when(mapper.selectByIdForUpdate(stored.getId())).thenReturn(stored);
         when(mapper.updateById(any(BlogPost.class))).thenReturn(1);
@@ -266,7 +334,7 @@ class BlogEditorialServiceTest {
 
         BlogPost result = service.publish(stored.getId(), "admin-1");
 
-        assertEquals("<p>Body</p>", result.getContent());
+        assertEquals(BlogContentReviewTest.completeArticle(), result.getContent());
         assertEquals(now, result.getContentUpdatedAt());
     }
 

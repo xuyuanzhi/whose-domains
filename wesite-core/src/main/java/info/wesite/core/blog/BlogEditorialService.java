@@ -24,14 +24,17 @@ public class BlogEditorialService {
     private final BlogPostMapper mapper;
     private final BlogHtmlSanitizer sanitizer;
     private final BlogTimeProvider time;
+    private final BlogReviewService review;
 
     public BlogEditorialService(
             BlogPostMapper mapper,
             BlogHtmlSanitizer sanitizer,
-            BlogTimeProvider time) {
+            BlogTimeProvider time,
+            BlogReviewService review) {
         this.mapper = mapper;
         this.sanitizer = sanitizer;
         this.time = time;
+        this.review = review;
     }
 
     @Transactional
@@ -60,6 +63,7 @@ public class BlogEditorialService {
         if (!sanitizer.hasVisibleContent(content)) {
             throw new BlogEditorialException("Content is required");
         }
+        lockEditorialWrites();
         ensureSlugAvailable(slug, null);
 
         Date now = time.now();
@@ -83,6 +87,8 @@ public class BlogEditorialService {
         post.setCreateTime(now);
         post.setContentUpdatedAt(now);
 
+        review.requireUnique(post);
+
         try {
             if (mapper.insert(post) != 1) {
                 throw new BlogEditorialException("Failed to create draft");
@@ -104,6 +110,7 @@ public class BlogEditorialService {
         if (command == null) {
             throw new BlogEditorialException("Edit is required");
         }
+        lockEditorialWrites();
         BlogPost stored = requireLocked(command.id());
         NormalizedEdit edit = normalizeAndValidate(command);
         if (Objects.equals(stored.getStatus(), BlogPost.POST_STATUS_PUBLISHED)
@@ -115,6 +122,10 @@ public class BlogEditorialService {
         boolean materialChange = differsFromPersisted(stored, edit);
         preserveAiProvenance(stored);
         applyEditableFields(stored, edit);
+        if (Objects.equals(stored.getStatus(), BlogPost.POST_STATUS_PUBLISHED)) {
+            validatePublishable(stored, stored.getContent());
+            review.requirePublishable(stored);
+        }
         Date now = time.now();
         if (materialChange) {
             stored.setContentUpdatedAt(now);
@@ -127,10 +138,12 @@ public class BlogEditorialService {
     @Transactional
     public BlogPost publish(String id, String actorId) {
         String actor = requiredActor(actorId);
+        lockEditorialWrites();
         BlogPost stored = requireLocked(id);
         validateHtmlSize(stored.getContent());
         String sanitized = sanitizer.sanitize(stored.getContent());
         validatePublishable(stored, sanitized);
+        review.requirePublishable(stored);
         preserveAiProvenance(stored);
 
         Date now = time.now();
@@ -176,6 +189,21 @@ public class BlogEditorialService {
 
     private static void preserveAiProvenance(BlogPost post) {
         if (post.isAiAssisted()) post.setAiGenerated(true);
+    }
+
+    @Transactional(readOnly = true)
+    public BlogContentReview.Report review(BlogEditCommand command) {
+        if (command == null) throw new BlogEditorialException("Edit is required");
+        BlogPost candidate = new BlogPost();
+        candidate.setId(required(command.id(), "Post ID is required"));
+        applyEditableFields(candidate, normalizeAndValidate(command));
+        return review.review(candidate);
+    }
+
+    private void lockEditorialWrites() {
+        if (!Integer.valueOf(1).equals(mapper.lockEditorialWrites())) {
+            throw new BlogEditorialException("Blog editorial lock missing; apply the blog content review migration first");
+        }
     }
 
     private NormalizedEdit normalizeAndValidate(BlogEditCommand command) {

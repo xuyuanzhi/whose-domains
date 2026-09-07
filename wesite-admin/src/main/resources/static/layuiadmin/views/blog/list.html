@@ -174,10 +174,8 @@ layui.use(['admin', 'table', 'form', 'util'], function(){
     } else if (obj.event === 'view') {
       window.open('https://whose.domains/blog/' + encodeURIComponent(data.slug), '_blank', 'noopener,noreferrer');
     } else if (obj.event === 'publish') {
-      layer.confirm('发布后文章将立即对外可见，确认发布？', function(index) {
-        layer.close(index);
-        changeState('/blog/publish', data, button, '文章已发布');
-      });
+      // Review the content and sources in the editor before publication.
+      openEditor(data);
     } else if (obj.event === 'unpublish') {
       layer.confirm('撤回后公开页面将不可访问，确认撤回？', function(index) {
         layer.close(index);

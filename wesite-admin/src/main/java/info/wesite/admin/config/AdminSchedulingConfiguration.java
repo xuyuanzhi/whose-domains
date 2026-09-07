@@ -6,6 +6,6 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 
 @Configuration(proxyBeanMethods = false)
 @EnableScheduling
-@Profile("!blog-sanitize")
+@Profile("!blog-sanitize & !blog-audit")
 public class AdminSchedulingConfiguration {
 }

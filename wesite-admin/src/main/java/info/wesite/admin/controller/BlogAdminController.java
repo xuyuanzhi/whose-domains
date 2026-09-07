@@ -72,7 +72,8 @@ public class BlogAdminController {
                 query.eq(BlogPost::getStatus, value.status());
             }
             query.orderByDesc(BlogPost::getPublishDate)
-                .orderByDesc(BlogPost::getCreateTime);
+                .orderByDesc(BlogPost::getCreateTime)
+                .orderByDesc(BlogPost::getId);
 
             Page<BlogPost> result = posts.page(Page.of(pageNumber, limit), query);
             List<ListItemResponse> items = result.getRecords().stream()
@@ -124,6 +125,16 @@ public class BlogAdminController {
                 throw new BlogEditorialException("Preview is required");
             }
             return ResponseJson.success(new PreviewResponse(editorial.sanitizePreview(request.content())));
+        });
+    }
+
+    @PostMapping("/review")
+    public ResponseJson<?> review(@RequestBody SaveRequest request) {
+        return editorialOperation("review", () -> {
+            if (request == null) throw new BlogEditorialException("Edit is required");
+            return ResponseJson.success(editorial.review(new BlogEditCommand(
+                request.id(), request.slug(), request.title(), request.summary(), request.content(),
+                request.author(), request.category(), request.tags(), request.metaTitle(), request.metaDescription())));
         });
     }
 

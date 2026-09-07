@@ -23,7 +23,7 @@ class BlogAdminTemplateTest {
 
         assertTrue(menu.contains("博客管理"));
         assertTrue(menu.contains("blog/list"));
-        assertTrue(list.contains("/blog/publish"));
+        assertTrue(list.contains("openEditor(data)"));
         assertTrue(list.contains("/blog/unpublish"));
         Element preview = edit.selectFirst("iframe#blog-preview");
         assertNotNull(preview);
@@ -77,7 +77,7 @@ class BlogAdminTemplateTest {
         String edit = read("static/layuiadmin/views/blog/edit.html");
 
         assertTrue(list.contains("AI 生成的文章会先进入草稿。请完成内容审核和安全预览后再发布。"));
-        assertTrue(list.contains("发布后文章将立即对外可见，确认发布？"));
+        assertTrue(edit.contains("请先核实参考来源支持结论"));
         assertTrue(edit.contains("文章发布后 Slug 不可修改，避免已有链接失效。"));
         assertTrue(edit.contains("保存当前修改并发布文章？"));
         assertFalse((list + edit).contains("�"));

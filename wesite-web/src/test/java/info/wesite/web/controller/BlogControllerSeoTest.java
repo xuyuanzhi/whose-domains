@@ -69,6 +69,20 @@ class BlogControllerSeoTest {
     }
 
     @Test
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    void listUsesIdToBreakPublicationDateTies() {
+        var result = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<BlogPost>(1, 10);
+        result.setRecords(List.of());
+        when(posts.page(any(com.baomidou.mybatisplus.extension.plugins.pagination.Page.class), any(Wrapper.class)))
+            .thenReturn(result);
+        controller.index(1, null, null, new ExtendedModelMap(), new MockHttpServletRequest("GET", "/blog"));
+        var query = org.mockito.ArgumentCaptor.forClass(Wrapper.class);
+        org.mockito.Mockito.verify(posts).page(any(com.baomidou.mybatisplus.extension.plugins.pagination.Page.class), query.capture());
+        String sql = query.getValue().getSqlSegment().toUpperCase(java.util.Locale.ROOT).replaceAll("\\s+", " ");
+        assertTrue(sql.matches(".*ORDER BY PUBLISH_DATE DESC,\\s*ID DESC.*"), sql);
+    }
+
+    @Test
     void schemaUsesOrganizationForBlankAuthorAndPersonForNamedAuthor() {
         BlogPost post = publishedPost();
         post.setAuthor("  ");

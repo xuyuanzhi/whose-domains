@@ -53,7 +53,8 @@ public class BlogController {
                 .eq(BlogPost::getStatus, BlogPost.POST_STATUS_PUBLISHED)
                 .eq(StringUtils.isNotBlank(category), BlogPost::getCategory, category)
                 .like(StringUtils.isNotBlank(tag), BlogPost::getTags, tag)
-                .orderByDesc(BlogPost::getPublishDate);
+                .orderByDesc(BlogPost::getPublishDate)
+                .orderByDesc(BlogPost::getId);
 
         Page<BlogPost> pageResult = blogPostService.page(new Page<>(page, PAGE_SIZE), wrapper);
         formatDates(pageResult.getRecords());
@@ -114,6 +115,7 @@ public class BlogController {
                         .eq(StringUtils.isNotBlank(post.getCategory()), BlogPost::getCategory, post.getCategory())
                         .ne(BlogPost::getId, post.getId())
                         .orderByDesc(BlogPost::getPublishDate)
+                        .orderByDesc(BlogPost::getId)
                         .last("LIMIT 3"));
         formatDates(related);
 

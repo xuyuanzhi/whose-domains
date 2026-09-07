@@ -68,6 +68,24 @@ class BlogAdminControllerTest {
     }
 
     @Test
+    void reviewUsesUnsavedFieldsAndReturnsActionableIssuesWithoutPublishing() throws Exception {
+        var report = new info.wesite.core.blog.BlogContentReview.Report(3,
+            java.util.List.of(new info.wesite.core.blog.BlogContentReview.Issue("THIN_CONTENT", "Add practical detail")),
+            java.util.List.of(), java.util.List.of());
+        when(editorial.review(any())).thenReturn(report);
+        mvc.perform(post("/blog/review").contentType(APPLICATION_JSON)
+                .content("{\"id\":\"draft-1\",\"slug\":\"dns\",\"title\":\"New unsaved title\",\"content\":\"<p>Short</p>\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.publishable").value(false))
+            .andExpect(jsonPath("$.data.blockers[0].code").value("THIN_CONTENT"));
+        ArgumentCaptor<BlogEditCommand> command = ArgumentCaptor.forClass(BlogEditCommand.class);
+        verify(editorial).review(command.capture());
+        assertEquals("New unsaved title", command.getValue().title());
+        verify(editorial, never()).save(any(), any());
+        verify(editorial, never()).publish(any(), any());
+    }
+
+    @Test
     void controllerRequiresAnAuthenticatedSession() {
         AccessControl access = BlogAdminController.class.getAnnotation(AccessControl.class);
         assertEquals(AccessControl.Level.SESSION, access.level());

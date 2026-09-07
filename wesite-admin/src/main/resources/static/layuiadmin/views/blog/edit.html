@@ -17,7 +17,7 @@
 <div class="blog-editor-layout">
   <section class="blog-editor-panel" aria-labelledby="blog-fields-heading">
     <h3 id="blog-fields-heading">文章内容</h3>
-    <form class="layui-form" lay-filter="blog-editor-form">
+    <form id="blog-editor-form" class="layui-form" lay-filter="blog-editor-form">
       <input type="hidden" id="blog-id" name="id">
       <div class="layui-form-item">
         <label class="layui-form-label" for="blog-title">标题</label>
@@ -79,6 +79,8 @@
   </section>
 
   <section class="blog-editor-panel" aria-labelledby="blog-preview-heading">
+    <h3>发布前审查</h3>
+    <div id="blog-review" role="status" aria-live="polite" style="margin-bottom:20px; white-space:pre-wrap; line-height:1.8;">检查当前编辑内容的重复情况、参考来源、操作示例和适用限制。自动检查不能代替人工核实事实。</div>
     <h3 id="blog-preview-heading">安全预览</h3>
     <iframe id="blog-preview" sandbox title="博客文章预览"></iframe>
   </section>
@@ -86,6 +88,7 @@
 
 <div class="blog-editor-actions">
   <button type="button" class="layui-btn layui-btn-primary blog-editor-action" id="blog-preview-button">更新预览</button>
+  <button type="button" class="layui-btn layui-btn-primary blog-editor-action" id="blog-review-button">检查重复与质量</button>
   <button type="button" class="layui-btn layui-btn-normal blog-editor-action" id="blog-save-button">保存草稿</button>
   <button type="button" class="layui-btn blog-editor-action" id="blog-publish-button">保存并发布</button>
 </div>
@@ -176,6 +179,30 @@ layui.use(['admin', 'form'], function(){
     });
   }
 
+  function reviewBlog(done) {
+    setEditorBusy(true);
+    admin.req({
+      type: 'post',
+      url: '/blog/review',
+      contentType: 'application/json;charset=UTF-8',
+      data: JSON.stringify(collectFields()),
+      done: function(resp) {
+        var report = resp.data;
+        var lines = ['正文说明词数：' + report.wordCount];
+        (report.blockers || []).forEach(function(issue) { lines.push('需修改：' + issue.message); });
+        (report.warnings || []).forEach(function(issue) { lines.push('需核实：' + issue.message); });
+        (report.matches || []).forEach(function(match) {
+          lines.push('相关文章：' + match.title + ' [ID: ' + match.id + ', ' + match.kind + ', /blog/' + match.slug + ']');
+        });
+        if (report.publishable) lines.unshift('自动检查通过，请继续人工核实事实、引用和示例。');
+        // Report fields originate in article text; never render them as HTML.
+        $('#blog-review').text(lines.join('\n'));
+        if (typeof done === 'function') done(report);
+      },
+      complete: function() { setEditorBusy(false); }
+    });
+  }
+
   function publishBlog() {
     setEditorBusy(true);
     admin.req({
@@ -215,14 +242,21 @@ layui.use(['admin', 'form'], function(){
   }
 
   $('#blog-preview-button').on('click', previewBlog);
+  $('#blog-review-button').on('click', function() { reviewBlog(); });
+  $('#blog-editor-form input, #blog-editor-form textarea').on('input', function() {
+    $('#blog-review').text('内容已修改，请重新检查。');
+  });
   $('#blog-save-button').on('click', function() {
     saveBlog();
   });
   $('#blog-publish-button').on('click', function() {
-    layer.confirm('保存当前修改并发布文章？', function(index) {
-      layer.close(index);
-      saveBlog(function() {
-        publishBlog();
+    reviewBlog(function(report) {
+      if (!report.publishable) return;
+      layer.confirm('保存当前修改并发布文章？请先核实参考来源支持结论、示例可复现，且本文没有重复选题。', function(index) {
+        layer.close(index);
+        saveBlog(function() {
+          publishBlog();
+        });
       });
     });
   });

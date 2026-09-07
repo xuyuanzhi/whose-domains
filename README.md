@@ -338,6 +338,9 @@ The first result set is a single readiness row, the second is a daily closed-coh
 
 ## Blog editorial workflow deployment
 
+For duplicate detection, publication quality checks, the required singleton-lock
+migration, and the read-only legacy-content audit, see [Blog content review](doc/blog-content-review.md).
+
 Blog attribution: new AI drafts store `Whose.Domains` as their author. Public
 bylines and JSON-LD share the same attribution rules: blank authors, the site
 name, and the legacy generator's random pen names (`James Chen`, `Mark Zhang`)

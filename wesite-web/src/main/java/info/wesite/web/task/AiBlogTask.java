@@ -15,6 +15,7 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 
 import info.wesite.core.blog.BlogDraftCommand;
 import info.wesite.core.blog.BlogEditorialService;
+import info.wesite.core.blog.BlogReviewService;
 import info.wesite.core.entity.BlogPost;
 import info.wesite.core.service.BlogPostService;
 import info.wesite.web.ai.DeepSeekClient;
@@ -42,6 +43,9 @@ public class AiBlogTask {
     @Autowired
     private BlogEditorialService editorial;
 
+    @Autowired
+    private BlogReviewService review;
+
     /**
      * 每3天凌晨2点执行一次（避免流量高峰）
      * cron: 秒 分 时 日 月 周
@@ -61,6 +65,11 @@ public class AiBlogTask {
                 return;
             }
             log.info("[AiBlogTask] Generated topic: {} [{}]", topic.title, topic.category);
+
+            if (review.topicExists(topic.title)) {
+                log.info("[AiBlogTask] Topic already exists; update the existing article instead.");
+                return;
+            }
 
             String slug = toSlug(topic.title);
 
@@ -113,8 +122,9 @@ public class AiBlogTask {
         List<String> recentTitles = blogPostService.list(
                 Wrappers.<BlogPost>lambdaQuery()
                     .select(BlogPost::getTitle)
-                    .orderByDesc(BlogPost::getPublishDate)
-                    .last("LIMIT 30"))
+                    .orderByDesc(BlogPost::getCreateTime)
+                    .orderByDesc(BlogPost::getId)
+                    .last("LIMIT 100"))
             .stream().map(BlogPost::getTitle).toList();
 
         String existing = recentTitles.isEmpty() ? "none"
@@ -122,7 +132,9 @@ public class AiBlogTask {
 
         String systemPrompt = """
                 You are an editorial planner for Whose.Domains, a website offering domain lookup, WHOIS, DNS, SSL, and network tools.
-                Your job is to propose ONE unique, SEO-friendly blog article topic.
+                Your job is to propose ONE specific reader problem that deserves a useful technical guide.
+                Prefer reproducible troubleshooting scenarios over generic introductions or best-tools listicles.
+                Do not recycle an existing topic by changing the year, wording, or audience.
                 The topic must be relevant to at least one of: domain names, WHOIS, RDAP, DNS, SSL/TLS, IP addresses,
                 domain investing, brand protection, cybersecurity, or web hosting.
                 Respond ONLY with these three lines, no extra text:
@@ -131,7 +143,7 @@ public class AiBlogTask {
                 TAGS: <comma-separated keywords, 3-6 tags>
                 """;
 
-        String userPrompt = "Already published topics (avoid repeating or being too similar):\n- " + existing
+        String userPrompt = "Existing draft and published topics (avoid repeating or being too similar):\n- " + existing
             + "\n\nPropose a fresh, interesting topic that hasn't been covered yet.";
 
         try {
@@ -197,22 +209,29 @@ public class AiBlogTask {
         return """
                 You are a professional technical writer for Whose.Domains, a domain lookup and network tools website.
                 Write in a clear, informative, and slightly casual tone. Target audience: website owners, developers, and domain investors.
-                Output clean HTML suitable for direct embedding in a blog page (use <h2>, <h3>, <p>, <ul>, <li>, <strong>, <em>, <code>, <a> tags).
+                Output clean HTML suitable for direct embedding in a blog page (use <h2>, <h3>, <p>, <ul>, <ol>, <li>, <strong>, <em>, <pre>, <code>, <table>, <a> tags).
+                Answer one concrete reader question with reproducible steps and clearly labelled illustrative examples.
+                Include a Limitations section explaining assumptions, exceptions, and common mistakes.
+                Cite relevant primary documentation using external HTTPS links only when you know the exact source.
+                Never invent sources, quotes, measurements, firsthand tests, people, or product capabilities.
+                If evidence is unavailable, explicitly identify what an editor must verify; do not claim verification.
+                Explain what each cited source supports. Prefer useful detail over SEO filler or repeated conclusions.
                 Do NOT include <html>, <head>, <body>, or <style> tags.
                 Always structure your response with these exact section markers on their own lines:
                 ===SUMMARY===
                 (2-3 sentence plain-text summary, no HTML)
                 ===CONTENT===
-                (full article HTML, minimum 600 words)
+                (full article HTML with concrete steps, evidence, and limitations)
                 ===META_DESCRIPTION===
                 (plain-text SEO meta description, 150-160 characters)
                 """ + TOOL_LINKS_HINT;
     }
 
     private String buildUserPrompt(String title) {
-        return "Write a comprehensive, SEO-optimized blog article titled: \"" + title + "\"\n"
-             + "Include practical tips, real-world examples, and actionable advice. "
-             + "Aim for 700-1000 words in the CONTENT section. "
+        return "Write a useful technical draft titled: \"" + title + "\"\n"
+             + "Start with a direct answer, explain a reproducible procedure, show a labelled example, "
+             + "and explain limitations and common failure cases. Include primary references for factual claims. "
+             + "Use the length needed to solve the problem without padding. This draft will require human fact-checking. "
              + "Where it feels natural, link to relevant tools on Whose.Domains using the anchor tags described in the system instructions — but do not force links if they don't fit the context.";
     }
 

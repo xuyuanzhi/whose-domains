@@ -13,6 +13,13 @@ import info.wesite.core.entity.BlogPost;
 
 public interface BlogPostMapper extends BaseMapper<BlogPost> {
 
+    @Select("SELECT ID FROM WEB_BLOG_EDITORIAL_LOCK WHERE ID = 1 FOR UPDATE")
+    Integer lockEditorialWrites();
+
+    @Select("SELECT ID, SLUG, TITLE, SUMMARY, CONTENT, META_DESCRIPTION, STATUS FROM WEB_BLOG_POST "
+        + "WHERE DELETED = 0 AND (#{afterId} IS NULL OR ID > #{afterId}) ORDER BY ID LIMIT #{limit}")
+    List<BlogPost> selectReviewBatch(@Param("afterId") String afterId, @Param("limit") int limit);
+
     @Select("SELECT * FROM WEB_BLOG_POST WHERE ID = #{id} AND DELETED = 0 FOR UPDATE")
     BlogPost selectByIdForUpdate(@Param("id") String id);
 

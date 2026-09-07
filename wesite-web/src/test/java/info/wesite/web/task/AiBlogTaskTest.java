@@ -27,11 +27,33 @@ import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import info.wesite.core.blog.BlogDraftCommand;
 import info.wesite.core.blog.BlogEditorialException;
 import info.wesite.core.blog.BlogEditorialService;
+import info.wesite.core.blog.BlogReviewService;
 import info.wesite.core.entity.BlogPost;
 import info.wesite.core.service.BlogPostService;
 import info.wesite.web.ai.DeepSeekClient;
 
 class AiBlogTaskTest {
+
+    @Test
+    void existingTopicSkipsTheExpensiveBodyGeneration() throws Exception {
+        TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), "preflight"), BlogPost.class);
+        DeepSeekClient client = mock(DeepSeekClient.class);
+        BlogPostService posts = mock(BlogPostService.class);
+        BlogEditorialService editorial = mock(BlogEditorialService.class);
+        BlogReviewService review = mock(BlogReviewService.class);
+        when(client.isConfigured()).thenReturn(true);
+        when(posts.list(org.mockito.ArgumentMatchers.<Wrapper<BlogPost>>any())).thenReturn(List.of());
+        when(client.chat(contains("editorial planner"), anyString())).thenReturn("TITLE: Existing topic\nCATEGORY: dns\nTAGS: dns");
+        when(review.topicExists("Existing topic")).thenReturn(true);
+        AiBlogTask task = new AiBlogTask();
+        ReflectionTestUtils.setField(task, "deepSeekClient", client);
+        ReflectionTestUtils.setField(task, "blogPostService", posts);
+        ReflectionTestUtils.setField(task, "editorial", editorial);
+        ReflectionTestUtils.setField(task, "review", review);
+        task.generateBlogPost();
+        verify(client, never()).chat(contains("professional technical writer"), anyString());
+        verify(editorial, never()).createAiDraft(any());
+    }
 
     @Test
     void canonicalizesLinksThenCreatesDraftThroughEditorialService() throws Exception {
@@ -62,6 +84,7 @@ class AiBlogTaskTest {
         ReflectionTestUtils.setField(task, "deepSeekClient", client);
         ReflectionTestUtils.setField(task, "blogPostService", posts);
         ReflectionTestUtils.setField(task, "editorial", editorial);
+        ReflectionTestUtils.setField(task, "review", mock(BlogReviewService.class));
 
         task.generateBlogPost();
 
@@ -120,6 +143,7 @@ class AiBlogTaskTest {
         ReflectionTestUtils.setField(task, "deepSeekClient", client);
         ReflectionTestUtils.setField(task, "blogPostService", posts);
         ReflectionTestUtils.setField(task, "editorial", editorial);
+        ReflectionTestUtils.setField(task, "review", mock(BlogReviewService.class));
 
         assertDoesNotThrow(task::generateBlogPost);
         verify(editorial).createAiDraft(any(BlogDraftCommand.class));
