@@ -89,8 +89,8 @@
       <h3 id="blog-optimize-heading" tabindex="-1">文章优化</h3>
       <label class="blog-assist-field" for="blog-optimize-focus">优化要求（可选）</label>
       <textarea id="blog-optimize-focus" class="layui-textarea" maxlength="1000" placeholder="例如：保留现有案例，补充排查步骤和适用限制"></textarea>
-      <label class="blog-assist-field" for="blog-optimize-references">参考资料（可选）</label>
-      <textarea id="blog-optimize-references" class="layui-textarea" maxlength="6000" placeholder="填写已核实的来源链接及相关摘录；AI 不会自动打开链接或验证事实"></textarea>
+      <label class="blog-assist-field" for="blog-optimize-references">补充参考资料（可选，留空也会自动查找）</label>
+      <textarea id="blog-optimize-references" class="layui-textarea" maxlength="6000" placeholder="系统会自动定位并读取支持的官方文档，补充有依据的引用；也可填写指定来源和摘录"></textarea>
       <p id="blog-optimize-state" role="status" aria-live="polite" style="margin:12px 0;">一键优化会将当前文章及所填资料发送给已配置的 AI 服务，生成待确认稿。</p>
       <button type="button" id="blog-optimize-button" class="layui-btn layui-btn-normal blog-editor-action">一键优化</button>
       <button type="button" id="blog-resume-optimization" class="layui-btn layui-btn-primary blog-editor-action" hidden>恢复查看</button>
@@ -170,7 +170,7 @@ layui.use(['admin', 'form'], function(){
         delivered = true;
         optimizationEnabled = resp.data.optimizationEnabled === true;
         $('#blog-optimize-state').text(optimizationEnabled
-          ? '一键优化会将当前文章及所填资料发送给已配置的 AI 服务，生成待确认稿。'
+          ? '一键优化会自动查找并读取官方资料，将文章及资料发送给 AI，生成带引用的待确认稿；请审核重要结论。'
           : '尚未启用文章优化：请为 Admin 配置 DEEPSEEK_API_KEY 并重启服务。质量检查和文章编辑仍可使用。');
         updateOptimizationButton();
       },

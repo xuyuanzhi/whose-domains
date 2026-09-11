@@ -15,9 +15,11 @@ class BlogOptimizationServiceTest {
     BlogAiClient ai = mock(BlogAiClient.class);
     BlogEditorialService editorial = mock(BlogEditorialService.class);
     BlogPostService posts = mock(BlogPostService.class);
-    BlogOptimizationService service = new BlogOptimizationService(ai, editorial, posts);
+    BlogSourceResearch research = mock(BlogSourceResearch.class);
+    BlogOptimizationService service = new BlogOptimizationService(ai, editorial, posts, research);
     BlogPost stored;
-    @BeforeEach void setup() {
+    @BeforeEach void setup() throws Exception {
+        when(research.research(any(), any())).thenReturn(new BlogSourceResearch.Result(List.of(), List.of()));
         stored = new BlogPost(); stored.setId("p1"); stored.setStatus(1);
         when(posts.getById("p1")).thenReturn(stored);
         when(ai.isConfigured()).thenReturn(true);
@@ -32,7 +34,7 @@ class BlogOptimizationServiceTest {
     @Test void proposalSanitizesModelHtmlPreservesIdentityAndDoesNotSaveOrPublish() throws Exception {
         when(ai.complete(any(), any())).thenReturn(new ObjectMapper().writeValueAsString(Map.of(
             "title", "Improved", "summary", "Better summary", "content", "<h2>Steps</h2><p>Details</p><script>alert(1)</script>",
-            "metaTitle", "Better meta", "metaDescription", "Better description", "notes", "Check sources", "slug", "hijacked")));
+            "metaTitle", "Better meta", "metaDescription", "Better description", "notes", "Check sources", "slug", "hijacked", "citations", List.of())));
         var result = service.optimize(request());
         assertEquals("keep-url", result.article().slug());
         assertEquals("Named editor", result.article().author());
@@ -51,6 +53,38 @@ class BlogOptimizationServiceTest {
         stored.setStatus(0); when(ai.isConfigured()).thenReturn(false);
         assertThrows(BlogEditorialException.class, () -> service.optimize(request()));
         verify(ai, never()).complete(any(), any());
+    }
+    @Test void automaticallyAddsReadSourceAndItsClaimToArticle() throws Exception {
+        String url = "https://www.rfc-editor.org/rfc/rfc1035.html";
+        when(research.research(any(), any())).thenReturn(new BlogSourceResearch.Result(
+            List.of(new BlogSourceResearch.Source(url, "DNS", "TTL controls cache lifetime")), List.of()));
+        when(ai.complete(any(), any())).thenReturn(new ObjectMapper().writeValueAsString(Map.of(
+            "title", "Improved", "summary", "Summary", "content", "<p>Cache explanation</p>",
+            "metaTitle", "Meta", "metaDescription", "Description", "notes", "补充缓存依据",
+            "citations", List.of(Map.of("url", url, "claim", "TTL 控制缓存期限")))));
+        var result = service.optimize(request());
+        assertTrue(result.article().content().contains(url));
+        assertTrue(result.article().content().contains("TTL 控制缓存期限"));
+        verify(ai).complete(anyString(), contains("TTL controls cache lifetime"));
+        verify(editorial, never()).save(any(), any());
+    }
+    @Test void rejectsFabricatedCitationEvenIfModelClaimsItWasRead() throws Exception {
+        when(ai.complete(any(), any())).thenReturn(new ObjectMapper().writeValueAsString(Map.of(
+            "title", "Improved", "summary", "Summary", "content", "<p>Body</p>",
+            "metaTitle", "Meta", "metaDescription", "Description", "notes", "Claims",
+            "citations", List.of(Map.of("url", "https://invented.example/fake", "claim", "Unsupported")))));
+        assertThrows(BlogEditorialException.class, () -> service.optimize(request()));
+    }
+    @Test void rejectsUnfetchedLinksWithMixedCaseAndWhitespace() throws Exception {
+        for (String href : List.of("HTTPS://invented.example/fake", "  hTtPs://invented.example/fake",
+                "ht&#9;tps://invented.example/fake", "//invented.example/fake",
+                "https://invented.example/fake&#x2028;", "https://invented.example/fake&#x85;",
+                "https://invented.example/fake&#x2029;")) {
+            when(ai.complete(any(), any())).thenReturn(new ObjectMapper().writeValueAsString(Map.of(
+                "title", "Improved", "summary", "Summary", "content", "<p><a href=\"" + href + "\">Source</a></p>",
+                "metaTitle", "Meta", "metaDescription", "Description", "notes", "Claims", "citations", List.of())));
+            assertThrows(BlogEditorialException.class, () -> service.optimize(request()), href);
+        }
     }
     @Test void malformedOrIncompleteAiOutputCannotBecomeAnEditableProposal() throws Exception {
         when(ai.complete(any(), any())).thenReturn("not json", "{\"title\":\"Incomplete\"}");

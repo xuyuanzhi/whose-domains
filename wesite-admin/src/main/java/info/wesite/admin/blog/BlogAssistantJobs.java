@@ -50,7 +50,7 @@ public class BlogAssistantJobs {
         optimizer.validate(request);
         Job job = begin(owner, "OPTIMIZE");
         submit(job, () -> {
-            update(job, "正在生成优化稿并重新检查，通常需要 1–3 分钟", 0, 1);
+            update(job, "正在查找并读取官方资料、生成优化稿和复检，最多约 6 分钟", 0, 1);
             try { return optimizer.optimize(request); }
             catch (BlogEditorialException e) { throw e; }
             catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new BlogEditorialException("任务已中断，请重试。"); }
