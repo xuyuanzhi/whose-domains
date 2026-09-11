@@ -28,6 +28,15 @@ function page(){
 }
 const findings=[{id:'one',title:'<img src=x onerror=alert(1)>',status:1,review:{wordCount:57,blockers:[{code:'THIN_CONTENT',message:'<b>Short</b>'}],matches:[]}},
   {id:'two',title:'Other',status:0,review:{wordCount:900,blockers:[{code:'MISSING_SOURCE',message:'Source'}],matches:[]}}];
+test('rejected resubmission keeps the original scan recoverable',()=>{
+  const p=page();p.$('#blog-scan-button').handlers.click();
+  p.respond(p.requests[0],{id:'original',status:'RUNNING',message:'Checking'});
+  p.timers.shift()();p.requests[1].complete();
+  p.$('#blog-scan-button').handlers.click();p.requests[2].complete();
+  assert.equal(p.$('#blog-scan-resume').props.hidden,false);
+  p.$('#blog-scan-resume').handlers.click();p.timers.shift()();
+  assert.equal(JSON.parse(p.requests[3].data).id,'original');
+});
 test('scan result renders counts, escapes article text and filters without another server scan',()=>{
   const p=page();p.$('#blog-scan-button').handlers.click();
   assert.equal(p.requests[0].url,'/blog/assist/scan');

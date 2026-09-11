@@ -203,6 +203,7 @@ layui.use(['admin', 'table', 'form', 'util'], function(){
       return;
     }
     setBusy($('#blog-scan-button'), false);
+    scanJob = null;
     if (job.status !== 'SUCCEEDED') return;
     scanResult = job.result;
     $('#blog-audit-results').prop('hidden', false);
@@ -226,7 +227,13 @@ layui.use(['admin', 'table', 'form', 'util'], function(){
     var delivered = false;
     admin.req({ type: 'post', url: '/blog/assist/scan', contentType: 'application/json;charset=UTF-8', data: '{}',
       done: function(resp) { delivered = true; pollScan(resp.data); },
-      complete: function() { if (!delivered && isCurrentScanPage()) { setBusy($('#blog-scan-button'), false); $('#blog-audit-state').text('扫描未成功提交，请查看错误提示后重试。'); } }
+      complete: function() {
+        if (!delivered && isCurrentScanPage()) {
+          setBusy($('#blog-scan-button'), false);
+          $('#blog-scan-resume').prop('hidden', !scanJob);
+          $('#blog-audit-state').text(scanJob ? '新扫描未成功提交，可恢复查看上一次扫描。' : '扫描未成功提交，请查看错误提示后重试。');
+        }
+      }
     });
   });
   $('#blog-scan-resume').on('click', function() {

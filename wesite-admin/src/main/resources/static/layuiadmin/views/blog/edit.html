@@ -313,6 +313,7 @@ layui.use(['admin', 'form'], function(){
       return;
     }
     finishOptimization();
+    pendingOptimization = null;
     if (job.status !== 'SUCCEEDED') return;
     optimization = { source: source, proposal: job.result };
     var result = job.result;
@@ -348,6 +349,10 @@ layui.use(['admin', 'form'], function(){
       complete: function() {
         if (!delivered && generation === editorGeneration) {
           $('#blog-optimize-state').text('优化任务未成功提交，请根据错误提示检查 AI 配置或稍后重试。');
+          if (pendingOptimization) {
+            $('#blog-resume-optimization').prop('hidden', false);
+            $('#blog-optimize-state').text('新任务未成功提交，可点击“恢复查看”继续获取上一次优化结果。');
+          }
           finishOptimization();
         }
       }

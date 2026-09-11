@@ -100,6 +100,20 @@ function proposal() {
     before:{wordCount:20, blockers:[{message:'Missing source'}]}, after:{wordCount:250, blockers:[], matches:[]}, notes:'Review the evidence'};
 }
 
+test('rejected resubmission preserves recovery of the original optimization job', () => {
+  const e = editor();
+  e.$('#blog-optimize-button').handlers.click();
+  e.respond(e.requests[0], {id:'original', status:'RUNNING'});
+  e.timers.shift()(); e.requests[1].complete();
+  e.$('#blog-optimize-button').handlers.click();
+  e.requests[2].complete();
+  assert.equal(e.$('#blog-resume-optimization').props.hidden, false);
+  e.$('#blog-resume-optimization').handlers.click(); e.timers.shift()();
+  assert.equal(JSON.parse(e.requests[3].data).id, 'original');
+  e.respond(e.requests[3], {id:'original', status:'SUCCEEDED', result:proposal()});
+  assert.equal(e.$('#blog-proposal').props.hidden, false);
+});
+
 test('late optimization response cannot mutate a newly mounted editor or unlock its controls', () => {
   const e = editor();
   e.$('#blog-id').val('A'); e.$('#blog-optimize-button').handlers.click();
