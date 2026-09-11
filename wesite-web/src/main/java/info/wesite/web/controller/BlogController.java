@@ -33,7 +33,7 @@ import jakarta.servlet.http.HttpServletRequest;
 @RequestMapping("/blog")
 public class BlogController {
 
-    private static final int PAGE_SIZE = 10;
+    private static final int PAGE_SIZE = 12;
 
     @Autowired
     private BlogPostService blogPostService;

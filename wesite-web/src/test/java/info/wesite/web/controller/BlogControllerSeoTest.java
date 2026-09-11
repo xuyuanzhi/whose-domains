@@ -71,7 +71,7 @@ class BlogControllerSeoTest {
     @Test
     @SuppressWarnings({"unchecked", "rawtypes"})
     void listUsesIdToBreakPublicationDateTies() {
-        var result = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<BlogPost>(1, 10);
+        var result = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<BlogPost>(1, 12);
         result.setRecords(List.of());
         when(posts.page(any(com.baomidou.mybatisplus.extension.plugins.pagination.Page.class), any(Wrapper.class)))
             .thenReturn(result);
