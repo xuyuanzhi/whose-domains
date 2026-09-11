@@ -8,6 +8,10 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.nio.ByteBuffer;
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.concurrent.*;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -70,25 +74,64 @@ public class DeepSeekClient {
 
         String bodyJson = objectMapper.writeValueAsString(body);
 
+        URI endpoint = URI.create(baseUrl.replaceAll("/+$", "") + "/chat/completions");
+        if (!"https".equalsIgnoreCase(endpoint.getScheme()) || endpoint.getUserInfo() != null)
+            throw new IOException("AI endpoint must use HTTPS without embedded credentials");
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(baseUrl + "/chat/completions"))
+                .uri(endpoint)
                 .header("Content-Type", "application/json")
                 .header("Authorization", "Bearer " + apiKey)
                 .timeout(Duration.ofSeconds(timeoutSeconds))
                 .POST(HttpRequest.BodyPublishers.ofString(bodyJson))
                 .build();
 
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-
-        if (response.statusCode() != 200) {
-            throw new IOException("DeepSeek API error [" + response.statusCode() + "]: " + response.body());
+        var pending = httpClient.sendAsync(request, info -> new LimitedBody());
+        try {
+            var response = pending.get(timeoutSeconds, TimeUnit.SECONDS);
+            if (response.statusCode() != 200) throw new IOException("DeepSeek API error [" + response.statusCode() + "]");
+            return parseResponse(new String(response.body(), StandardCharsets.UTF_8));
+        } catch (ExecutionException | TimeoutException e) {
+            throw new IOException("AI request failed, timed out or exceeded response limit");
+        } finally {
+            if (!pending.isDone()) pending.cancel(true);
         }
+    }
 
-        JsonNode root = objectMapper.readTree(response.body());
-        return root.path("choices").get(0).path("message").path("content").asText();
+    String parseResponse(String body) throws IOException {
+        if (body == null || body.length() > 512 * 1024) throw new IOException("AI response missing or oversized");
+        JsonNode root;
+        try { root = objectMapper.readTree(body); }
+        catch (IOException e) { throw new IOException("Invalid AI response JSON"); }
+        JsonNode choice = root == null ? null : root.path("choices").path(0);
+        if (choice == null || !"stop".equals(choice.path("finish_reason").asText()))
+            throw new IOException("AI response incomplete; generation stopped without a complete result");
+        JsonNode content = choice.path("message").path("content");
+        if (!content.isTextual() || content.asText().isBlank()) throw new IOException("AI response contains no text");
+        return content.asText();
     }
 
     public boolean isConfigured() {
         return apiKey != null && !apiKey.isBlank();
+    }
+
+    static final class LimitedBody implements HttpResponse.BodySubscriber<byte[]> {
+        private final CompletableFuture<byte[]> body = new CompletableFuture<>();
+        private final ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        private Flow.Subscription subscription;
+        public CompletionStage<byte[]> getBody() { return body; }
+        public void onSubscribe(Flow.Subscription value) { subscription = value; value.request(1); }
+        public void onNext(List<ByteBuffer> chunks) {
+            for (ByteBuffer chunk : chunks) {
+                if (bytes.size() + chunk.remaining() > 512 * 1024) {
+                    subscription.cancel();
+                    body.completeExceptionally(new IOException("AI response too large"));
+                    return;
+                }
+                byte[] data = new byte[chunk.remaining()]; chunk.get(data); bytes.writeBytes(data);
+            }
+            subscription.request(1);
+        }
+        public void onError(Throwable error) { body.completeExceptionally(error); }
+        public void onComplete() { body.complete(bytes.toByteArray()); }
     }
 }

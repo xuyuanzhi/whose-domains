@@ -34,6 +34,14 @@ import info.wesite.web.ai.DeepSeekClient;
 
 class AiBlogTaskTest {
 
+    private void attachQuality(AiBlogTask task, DeepSeekClient client, BlogEditorialService editorial) throws Exception {
+        when(editorial.sanitizePreview(anyString())).thenAnswer(call -> new info.wesite.core.blog.BlogHtmlSanitizer().sanitize(call.getArgument(0)));
+        when(editorial.reviewDraft(any())).thenReturn(new info.wesite.core.blog.BlogContentReview.Report(250, List.of(), List.of(), List.of()));
+        when(client.chat(contains("independent technical editorial reviewer"), anyString()))
+            .thenReturn("{\"approved\":true,\"issues\":[],\"rationale\":\"Specific problem and evidence aligned\"}");
+        ReflectionTestUtils.setField(task, "quality", new info.wesite.web.ai.BlogGenerationQuality(client, editorial));
+    }
+
     @Test
     void existingTopicSkipsTheExpensiveBodyGeneration() throws Exception {
         TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), "preflight"), BlogPost.class);
@@ -50,6 +58,7 @@ class AiBlogTaskTest {
         ReflectionTestUtils.setField(task, "blogPostService", posts);
         ReflectionTestUtils.setField(task, "editorial", editorial);
         ReflectionTestUtils.setField(task, "review", review);
+        attachQuality(task, client, editorial);
         task.generateBlogPost();
         verify(client, never()).chat(contains("professional technical writer"), anyString());
         verify(editorial, never()).createAiDraft(any());
@@ -85,6 +94,7 @@ class AiBlogTaskTest {
         ReflectionTestUtils.setField(task, "blogPostService", posts);
         ReflectionTestUtils.setField(task, "editorial", editorial);
         ReflectionTestUtils.setField(task, "review", mock(BlogReviewService.class));
+        attachQuality(task, client, editorial);
 
         task.generateBlogPost();
 
@@ -144,6 +154,7 @@ class AiBlogTaskTest {
         ReflectionTestUtils.setField(task, "blogPostService", posts);
         ReflectionTestUtils.setField(task, "editorial", editorial);
         ReflectionTestUtils.setField(task, "review", mock(BlogReviewService.class));
+        attachQuality(task, client, editorial);
 
         assertDoesNotThrow(task::generateBlogPost);
         verify(editorial).createAiDraft(any(BlogDraftCommand.class));

@@ -237,6 +237,17 @@ public class BlogEditorialService {
     }
 
     @Transactional(readOnly = true)
+    public BlogContentReview.Report reviewDraft(BlogDraftCommand command) {
+        if (command == null) throw new BlogEditorialException("Draft is required");
+        BlogPost candidate = new BlogPost();
+        // No persisted identity: compare against every existing article without excluding a row.
+        applyEditableFields(candidate, normalizeAndValidate(new BlogEditCommand(null, command.slug(), command.title(),
+            command.summary(), command.content(), BlogPost.SITE_AUTHOR, command.category(), command.tags(),
+            command.metaTitle(), command.metaDescription())));
+        return review.review(candidate);
+    }
+
+    @Transactional(readOnly = true)
     public BlogContentReview.Report review(BlogEditCommand command) {
         if (command == null) throw new BlogEditorialException("Edit is required");
         BlogPost candidate = new BlogPost();

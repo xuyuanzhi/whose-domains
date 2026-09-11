@@ -1,0 +1,14 @@
+Editorial evidence pack, reviewed 2026-09-11. These are scoped paraphrases, not live lookup results.
+Only generate English articles about the DNS/RDAP mechanisms supported below. Do not infer current provider behaviour, prices, security advice, investment returns or real measurements. Examples must be labelled illustrative; commands and results need human verification. These historical standards have updates; do not describe this pack as an exhaustive or current implementation specification.
+
+Source: https://www.rfc-editor.org/rfc/rfc1035.html
+Scope: DNS resource records, section 3.2.1; resolver and authoritative data distinction, section 2.1.
+Evidence: A resource record carries a TTL in seconds that limits how long it can be cached before consulting its source again. A zero TTL means use only for the current transaction rather than caching. Authoritative zone data and cached resolver data serve different roles; a cached answer is not proof of the current authoritative state.
+
+Source: https://www.rfc-editor.org/rfc/rfc2308.html
+Scope: negative DNS answers, sections 2 and 5.
+Evidence: NXDOMAIN denotes a name error, while NODATA describes a response with no relevant answer records for the requested type; they must not be treated as interchangeable. Negative answers can be cached. The negative caching TTL is derived from the smaller of the SOA record TTL and the SOA MINIMUM value. Do not infer domain registration availability from an NXDOMAIN response.
+
+Source: https://www.rfc-editor.org/rfc/rfc9082.html
+Scope: RDAP domain query construction, section 3.1.3.
+Evidence: A domain lookup appends domain/<domain name> to an RDAP base URL. A known correct service base is required; this query format alone does not discover the registry's endpoint. This source specifies request syntax, not a guarantee that registrant contact data is public or that a domain is available to register.
