@@ -68,6 +68,48 @@ class BlogOptimizationServiceTest {
         verify(ai).complete(anyString(), contains("TTL controls cache lifetime"));
         verify(editorial, never()).save(any(), any());
     }
+    @Test void repeatedOptimizationMergesReferencesWithoutDiscardingDistinctClaims() throws Exception {
+        String url = "https://www.rfc-editor.org/rfc/rfc1035.html";
+        when(research.research(any(), any())).thenReturn(new BlogSourceResearch.Result(
+            List.of(new BlogSourceResearch.Source(url, "DNS", "TTL controls caching; DNS records have a type")), List.of()));
+        String body = "<p>DNS explanation</p>";
+        for (int round = 0; round < 2; round++) {
+            when(ai.complete(any(), any())).thenReturn(new ObjectMapper().writeValueAsString(Map.of(
+                "title", "DNS", "summary", "Summary", "content", body,
+                "metaTitle", "Meta", "metaDescription", "Description", "notes", "Preserve useful sources",
+                "citations", List.of(Map.of("url", url, "claim", "TTL controls caching"),
+                    Map.of("url", url, "claim", "DNS records have a type")))));
+            var old = request().article();
+            var input = new BlogAdminModels.SaveRequest(old.id(), old.slug(), old.title(), old.summary(), body,
+                old.author(), old.category(), old.tags(), old.metaTitle(), old.metaDescription());
+            body = service.optimize(new BlogOptimizationService.Request(input, "", "")).article().content();
+            var document = org.jsoup.Jsoup.parseBodyFragment(body);
+            assertEquals(1, document.select("h2").size());
+            assertEquals(2, document.select("li").size());
+            assertTrue(document.text().contains("TTL controls caching"));
+            assertTrue(document.text().contains("DNS records have a type"));
+        }
+    }
+    @Test void mergesExistingReferenceListsAndPreservesUnrelatedContent() throws Exception {
+        String url = "https://www.rfc-editor.org/rfc/rfc1035.html";
+        when(research.research(any(), any())).thenReturn(new BlogSourceResearch.Result(
+            List.of(new BlogSourceResearch.Source(url, "DNS", "TTL controls caching")), List.of()));
+        String entry = "<li>TTL controls caching — <a href=\"" + url + "\">" + url + "</a></li>";
+        String body = "<h2>Steps</h2><ul><li>Keep this step</li></ul>"
+            + "<h2>References</h2><ul>" + entry + "</ul><p>Keep this paragraph</p>"
+            + "<h3>参考资料</h3><ul>" + entry + "<li>Keep editorial note</li></ul>";
+        when(ai.complete(any(), any())).thenReturn(new ObjectMapper().writeValueAsString(Map.of(
+            "title", "DNS", "summary", "Summary", "content", body,
+            "metaTitle", "Meta", "metaDescription", "Description", "notes", "Merge sources",
+            "citations", List.of(Map.of("url", url, "claim", "TTL controls caching")))));
+        var document = org.jsoup.Jsoup.parseBodyFragment(service.optimize(request()).article().content());
+        assertEquals(2, document.select("h2, h3").size());
+        assertEquals(2, document.select("ul").size());
+        assertEquals(1, document.select("a[href]").size());
+        assertTrue(document.text().contains("Keep this step"));
+        assertTrue(document.text().contains("Keep this paragraph"));
+        assertTrue(document.text().contains("Keep editorial note"));
+    }
     @Test void rejectsFabricatedCitationEvenIfModelClaimsItWasRead() throws Exception {
         when(ai.complete(any(), any())).thenReturn(new ObjectMapper().writeValueAsString(Map.of(
             "title", "Improved", "summary", "Summary", "content", "<p>Body</p>",

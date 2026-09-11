@@ -88,13 +88,17 @@ public class BlogOptimizationService {
                 throw new BlogEditorialException("AI 添加了未读取的外部引用，请重试。");
         }
         if (!citations.isEmpty()) {
-            var section = document.body().appendElement("section");
-            section.appendElement("h2").text("参考资料 / References");
-            var list = section.appendElement("ul");
+            var list = referenceList(document);
             for (var citation : citations) {
                 String url = field(citation, "url", 2000), claim = field(citation, "claim", 600);
                 if (!fetched.contains(url)) throw new BlogEditorialException("AI 引用了未读取的资料，请重试。");
                 list.appendElement("li").text(claim + " — ").appendElement("a").attr("href", url).text(url);
+            }
+            java.util.Set<String> entries = new java.util.HashSet<>();
+            for (var item : list.children()) {
+                String key = item.text() + "\n" + item.select("a[href]").stream()
+                    .map(a -> a.attr("href")).collect(java.util.stream.Collectors.joining("\n"));
+                if (!entries.add(key)) item.remove();
             }
         }
         html = editorial.sanitizePreview(document.body().html());
@@ -107,6 +111,27 @@ public class BlogOptimizationService {
         notes += "\n已读取官方页面 " + evidence.sources().size() + " 个，引用 " + citations.size() + " 项。页面读取不等于事实认证。";
         if (citations.isEmpty()) notes += "\n未添加引用：未获得可支持本文结论的资料，仍需补充或调整相关结论。";
         return new Proposal(candidate, before, editorial.review(candidate), notes);
+    }
+    private static org.jsoup.nodes.Element referenceList(org.jsoup.nodes.Document document) {
+        org.jsoup.nodes.Element list = null;
+        for (var heading : document.select("h2, h3")) {
+            String label = heading.text().trim();
+            if (!label.equalsIgnoreCase("参考资料 / References") && !label.equalsIgnoreCase("References")
+                    && !label.equals("参考资料")) continue;
+            var next = heading.nextElementSibling();
+            if (next == null || !next.tagName().equals("ul")) continue;
+            if (list == null) list = next;
+            else {
+                for (var item : next.children()) list.appendChild(item);
+                next.remove();
+                heading.remove();
+            }
+        }
+        if (list == null) {
+            document.body().appendElement("h2").text("参考资料 / References");
+            list = document.body().appendElement("ul");
+        }
+        return list;
     }
     private static String field(JsonNode node, String name, int max) {
         JsonNode field = node.path(name);
