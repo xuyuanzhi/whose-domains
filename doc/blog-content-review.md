@@ -14,6 +14,8 @@
 
 ## 历史文章只读审计
 
+当前服务器的具体执行方式及逐篇整理表见 [线上博客整理执行清单](blog-online-cleanup.md)。已有部署可使用 `scripts/server/legacy/blog-audit.sh`，它采用 `/usr/java/jar/wesite-admin-1.0.0.jar` 和 `/usr/java/config/admin/`，并在审计成功后单独输出 JSON 报告。
+
 在正式环境使用已有数据库配置运行新 Admin JAR。此命令无 apply 模式，不改文章；`blog-audit` profile 禁用 Admin 定时任务，且必须以非 Web 模式运行。建议使用数据库只读账号（通过现有外部配置提供凭据），不要把密码写进命令行。
 
 ```bash
