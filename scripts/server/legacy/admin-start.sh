@@ -22,14 +22,28 @@ exec 9>/usr/java/bin/.admin-control.lock
 flock -x -w 120 9 || { echo 'Another Admin operation is in progress.' >&2; exit 1; }
 
 matches_admin() {
-  local executable argument
+  local executable argument previous='' profiles jar_found=0
   executable=$(readlink "/proc/$1/exe" 2>/dev/null) || return 1
   [[ "$executable" == */java || "$executable" == */'java (deleted)' ]] || return 1
   [[ -r "/proc/$1/cmdline" ]] || return 1
   while IFS= read -r -d '' argument; do
-    [[ "$argument" != "$JAR" ]] || return 0
+    # Examine all arguments: maintenance options occur after the shared JAR.
+    if [[ "$previous" == -jar && "$argument" == "$JAR" ]]; then jar_found=1; fi
+    case "$argument" in
+      --spring.main.web-application-type=none|-Dspring.main.web-application-type=none) return 1 ;;
+    esac
+    if [[ "$previous" == --spring.main.web-application-type && "$argument" == none ]]; then return 1; fi
+    profiles=''
+    case "$argument" in
+      --spring.profiles.active=*|-Dspring.profiles.active=*) profiles=${argument#*=} ;;
+    esac
+    if [[ "$previous" == --spring.profiles.active ]]; then profiles=$argument; fi
+    case ",${profiles//[[:space:]]/}," in
+      *,blog-audit,*|*,blog-sanitize,*) return 1 ;;
+    esac
+    previous=$argument
   done < "/proc/$1/cmdline"
-  return 1
+  [[ "$jar_found" == 1 ]]
 }
 
 for process in /proc/[0-9]*; do
