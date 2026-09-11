@@ -23,7 +23,17 @@ public final class BlogAdminModels {
             String category,
             String tags,
             String metaTitle,
-            String metaDescription) {
+            String metaDescription,
+            Boolean aiAssisted) {
+        public SaveRequest(String id, String slug, String title, String summary, String content,
+                String author, String category, String tags, String metaTitle, String metaDescription) {
+            this(id, slug, title, summary, content, author, category, tags, metaTitle, metaDescription, null);
+        }
+
+        public info.wesite.core.blog.BlogEditCommand toCommand() {
+            return new info.wesite.core.blog.BlogEditCommand(id, slug, title, summary, content,
+                author, category, tags, metaTitle, metaDescription);
+        }
     }
 
     public record PreviewRequest(String content) {

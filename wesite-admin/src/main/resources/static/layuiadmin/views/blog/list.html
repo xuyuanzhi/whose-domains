@@ -1,4 +1,7 @@
 <title>博客管理</title>
+<style>
+  #blog-scan-resume[hidden], #blog-audit-results[hidden] { display: none !important; }
+</style>
 
 <div class="layui-card layadmin-header">
   <div class="layui-breadcrumb" lay-filter="breadcrumb">
@@ -37,6 +40,28 @@
     </div>
 
     <div class="layui-card-body">
+      <section aria-labelledby="blog-audit-heading" style="padding:16px;border:1px solid #e6e6e6;margin-bottom:20px;">
+        <h2 id="blog-audit-heading" style="font-size:18px;margin-bottom:12px;">博客内容检查</h2>
+        <button type="button" id="blog-scan-button" class="layui-btn">扫描全部文章</button>
+        <button type="button" id="blog-scan-resume" class="layui-btn layui-btn-primary" hidden>恢复查看</button>
+        <p id="blog-audit-state" role="status" aria-live="polite" style="margin:12px 0;">扫描所有草稿和已发布文章，汇总质量问题与重复匹配。不会修改文章或调用 AI。</p>
+        <div id="blog-audit-results" hidden>
+          <p id="blog-audit-summary" style="line-height:1.8;margin-bottom:12px;"></p>
+          <label for="blog-audit-filter">筛选问题：</label>
+          <select id="blog-audit-filter" style="padding:8px;max-width:100%;">
+            <option value="">全部需审阅文章</option>
+            <option value="MISSING_SOURCE">缺参考来源</option>
+            <option value="MISSING_LIMITATIONS">缺适用限制</option>
+            <option value="MISSING_EXAMPLE">缺步骤或实例</option>
+            <option value="THIN_CONTENT">正文过薄</option>
+            <option value="DUPLICATE">重复匹配</option>
+          </select>
+          <table id="blog-audit-table" lay-filter="blog-audit-table"></table>
+          <h3 style="margin:16px 0 8px;">选题重叠候选</h3>
+          <p>从存在问题的文章标题中分析，最多展示 100 对。候选需比较全文，不代表确认重复，也不会自动归档。</p>
+          <div id="blog-topic-candidates" style="white-space:pre-wrap;line-height:1.8;margin-top:8px;"></div>
+        </div>
+      </section>
       <div class="layui-text" style="margin-bottom: 12px; color: #666;">
         AI 生成的文章会先进入草稿。请完成内容审核和安全预览后再发布。
       </div>
@@ -57,6 +82,10 @@
 
 <script type="text/html" id="blog-actions-template">
   <button type="button" class="layui-btn layui-btn-xs layui-btn-normal" lay-event="edit">编辑</button>
+  {{# if (d.status !== 2) { }}
+    <button type="button" class="layui-btn layui-btn-xs layui-btn-primary" lay-event="review">检查</button>
+    <button type="button" class="layui-btn layui-btn-xs" lay-event="optimize">优化</button>
+  {{# } }}
   {{# if (d.status === 1) { }}
     <button type="button" class="layui-btn layui-btn-xs layui-btn-warm" lay-event="unpublish">撤回</button>
     <button type="button" class="layui-btn layui-btn-xs layui-btn-primary" lay-event="view">查看</button>
@@ -91,16 +120,17 @@ layui.use(['admin', 'table', 'form', 'util'], function(){
 
   function reloadTable() {
     table.reload('blog-table');
+    if (scanResult) $('#blog-audit-state').text('文章已修改，当前报告可能过期，请重新扫描。');
   }
 
-  function openEditor(data) {
+  function openEditor(data, checkImmediately, focusOptimization) {
     admin.popup({
-      title: '编辑博客文章',
+      title: focusOptimization ? '优化博客文章' : '编辑博客文章',
       area: ['94%', '92%'],
       id: 'blog-editor-popup',
       success: function() {
         view(this.id).render('blog/edit').done(function() {
-          layui.blogEditor.init(data.id, reloadTable);
+          layui.blogEditor.init(data.id, reloadTable, checkImmediately, focusOptimization);
         });
       }
     });
@@ -125,6 +155,88 @@ layui.use(['admin', 'table', 'form', 'util'], function(){
       }
     });
   }
+
+  var scanResult = null;
+  var scanJob = null;
+  var scanRoot = document.getElementById('blog-scan-button');
+  function isCurrentScanPage() { return scanRoot && document.getElementById('blog-scan-button') === scanRoot; }
+  function renderScan() {
+    var filter = $('#blog-audit-filter').val();
+    var findings = scanResult.findings.filter(function(item) {
+      if (!filter) return true;
+      if (filter === 'DUPLICATE') return (item.review.matches || []).some(function(m) { return m.kind !== 'SIMILAR_TITLE'; });
+      return (item.review.blockers || []).some(function(i) { return i.code === filter; });
+    });
+    table.render({ elem: '#blog-audit-table', id: 'blog-audit-table', data: findings, page: true, limit: 10,
+      cols: [[
+        {field: 'title', title: '文章', minWidth: 240, templet: function(row) { return safeText(row.title); }},
+        {title: '状态', width: 90, templet: function(row) { return row.status === 1 ? '已发布' : '草稿'; }},
+        {title: '词数', width: 80, templet: function(row) { return Number(row.review.wordCount); }},
+        {title: '检查结果', minWidth: 300, templet: function(row) {
+          var issues = (row.review.blockers || []).map(function(i) { return i.message; });
+          (row.review.matches || []).forEach(function(m) { issues.push('相关文章：' + m.title + '（' + m.kind + '）'); });
+          return safeText(issues.join('；') || '选题需人工复核');
+        }},
+        {title: '操作', width: 130, toolbar: '<div><button type="button" class="layui-btn layui-btn-xs" lay-event="edit">检查与优化</button></div>'}
+      ]], text: {none: '没有符合条件的问题文章'}
+    });
+  }
+  function pollScan(job) {
+    if (!isCurrentScanPage()) return;
+    scanJob = job.id;
+    $('#blog-audit-state').text(job.message + (job.total ? '（' + job.completed + '/' + job.total + '）' : ''));
+    if (job.status === 'RUNNING') {
+      setTimeout(function() {
+        if (!isCurrentScanPage()) return;
+        var delivered = false;
+        admin.req({ type: 'post', url: '/blog/assist/job', contentType: 'application/json;charset=UTF-8',
+          data: JSON.stringify({id: job.id}), done: function(resp) { delivered = true; pollScan(resp.data); },
+          complete: function() {
+            if (!delivered && isCurrentScanPage()) {
+              setBusy($('#blog-scan-button'), false);
+              $('#blog-scan-resume').prop('hidden', false);
+              $('#blog-audit-state').text('获取扫描状态失败，可恢复查看；无需重复提交。');
+            }
+          }
+        });
+      }, 1500);
+      return;
+    }
+    setBusy($('#blog-scan-button'), false);
+    if (job.status !== 'SUCCEEDED') return;
+    scanResult = job.result;
+    $('#blog-audit-results').prop('hidden', false);
+    var issues = scanResult.issues;
+    $('#blog-audit-summary').text('扫描 ' + scanResult.scanned + ' 篇；需审阅 ' + scanResult.affected + ' 篇。'
+      + ' 缺来源 ' + (issues.MISSING_SOURCE || 0) + '；缺限制 ' + (issues.MISSING_LIMITATIONS || 0)
+      + '；缺实例 ' + (issues.MISSING_EXAMPLE || 0) + '；正文过薄 ' + (issues.THIN_CONTENT || 0)
+      + '。问题可重叠，自动检查不验证事实。');
+    var topics = scanResult.topics || [];
+    $('#blog-topic-candidates').text(topics.map(function(p) {
+      return p.firstTitle + ' [ID: ' + p.firstId + ']\n↔ ' + p.secondTitle + ' [ID: ' + p.secondId + ']';
+    }).join('\n\n') || '未发现达到标题相似规则的候选；这不代表没有重复选题。');
+    renderScan();
+  }
+  $('#blog-scan-button').on('click', function() {
+    if ($('#blog-scan-button').data('busy')) return;
+    setBusy($('#blog-scan-button'), true);
+    $('#blog-audit-results').prop('hidden', true);
+    $('#blog-scan-resume').prop('hidden', true);
+    $('#blog-audit-state').text('正在提交扫描…');
+    var delivered = false;
+    admin.req({ type: 'post', url: '/blog/assist/scan', contentType: 'application/json;charset=UTF-8', data: '{}',
+      done: function(resp) { delivered = true; pollScan(resp.data); },
+      complete: function() { if (!delivered && isCurrentScanPage()) { setBusy($('#blog-scan-button'), false); $('#blog-audit-state').text('扫描未成功提交，请查看错误提示后重试。'); } }
+    });
+  });
+  $('#blog-scan-resume').on('click', function() {
+    if (!scanJob) return;
+    $('#blog-scan-resume').prop('hidden', true);
+    setBusy($('#blog-scan-button'), true);
+    pollScan({id: scanJob, status: 'RUNNING', message: '正在恢复扫描状态'});
+  });
+  $('#blog-audit-filter').on('change', function() { if (scanResult) renderScan(); });
+  table.on('tool(blog-audit-table)', function(obj) { if (obj.event === 'edit') openEditor(obj.data, true); });
 
   form.render(null, 'blog-list-filter');
 
@@ -156,7 +268,7 @@ layui.use(['admin', 'table', 'form', 'util'], function(){
       {field: 'contentUpdatedAt', title: '内容更新', width: 300, templet: function(data) {
         return safeText(data.contentUpdatedAt || '—');
       }},
-      {title: '操作', width: 340, align: 'center', fixed: 'right', toolbar: '#blog-actions-template'}
+      {title: '操作', width: 400, align: 'center', fixed: 'right', toolbar: '#blog-actions-template'}
     ]]
   });
 
@@ -179,6 +291,10 @@ layui.use(['admin', 'table', 'form', 'util'], function(){
     }
     if (obj.event === 'edit') {
       openEditor(data);
+    } else if (obj.event === 'review') {
+      openEditor(data, true);
+    } else if (obj.event === 'optimize') {
+      openEditor(data, true, true);
     } else if (obj.event === 'view') {
       window.open('https://whose.domains/blog/' + encodeURIComponent(data.slug), '_blank', 'noopener,noreferrer');
     } else if (obj.event === 'publish') {

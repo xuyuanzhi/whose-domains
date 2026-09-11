@@ -113,7 +113,8 @@ public class BlogAdminController {
                 request.id(), request.slug(), request.title(), request.summary(), request.content(),
                 request.author(), request.category(), request.tags(), request.metaTitle(),
                 request.metaDescription());
-            editorial.save(command, currentActorId());
+            if (Boolean.TRUE.equals(request.aiAssisted())) editorial.save(command, currentActorId(), true);
+            else editorial.save(command, currentActorId());
             return ResponseJson.success();
         });
     }

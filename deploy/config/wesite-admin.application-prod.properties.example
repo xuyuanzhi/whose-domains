@@ -26,6 +26,11 @@ server.tomcat.remoteip.internal-proxies=${WESITE_TRUSTED_PROXY_REGEX:127\\.0\\.0
 app.jwt.secret=${JWT_SECRET:please-change-this-default-secret-key-in-production}
 app.jwt.issuer=system
 
+# Blog one-click optimization (optional; scanning works without an AI key).
+ai.deepseek.api-key=${DEEPSEEK_API_KEY:}
+ai.deepseek.base-url=https://api.deepseek.com/v1
+ai.deepseek.model=deepseek-chat
+
 #database
 spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
 spring.datasource.url=${WD_DB_URL:jdbc:mysql://localhost:3306/wesitedb?allowMultiQueries=true&useUnicode=true&characterEncoding=UTF-8&useSSL=false&autoReconnect=true&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true}

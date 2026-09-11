@@ -63,6 +63,20 @@ class BlogEditorialServiceTest {
     }
 
     @Test
+    void explicitlySavingAiOptimizationMarksPreviouslyHumanDraftWithoutChangingCreationAudit() {
+        BlogPost stored = publishablePost("human", BlogPost.POST_STATUS_DRAFT);
+        stored.setAuthor("Human editor"); stored.setCreateBy("original-editor");
+        when(mapper.selectByIdForUpdate("human")).thenReturn(stored);
+        when(mapper.selectCount(any())).thenReturn(0L);
+        when(mapper.updateById(any(BlogPost.class))).thenReturn(1);
+        when(time.now()).thenReturn(new Date());
+        var saved = service.save(edit(stored, stored.getSlug(), "AI edited title"), "admin", true);
+        assertEquals(Boolean.TRUE, saved.getAiGenerated());
+        assertEquals("original-editor", saved.getCreateBy());
+        assertEquals(BlogPost.POST_STATUS_DRAFT, saved.getStatus());
+    }
+
+    @Test
     void archiveAndRestorePreserveContentAndReturnOnlyToDraft() {
         BlogPost stored = publishablePost("duplicate", BlogPost.POST_STATUS_PUBLISHED);
         stored.setPublishDate(new Date(1000));

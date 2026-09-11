@@ -106,6 +106,11 @@ public class BlogEditorialService {
 
     @Transactional
     public BlogPost save(BlogEditCommand command, String actorId) {
+        return save(command, actorId, false);
+    }
+
+    @Transactional
+    public BlogPost save(BlogEditCommand command, String actorId, boolean aiAssisted) {
         String actor = requiredActor(actorId);
         if (command == null) {
             throw new BlogEditorialException("Edit is required");
@@ -122,6 +127,7 @@ public class BlogEditorialService {
 
         boolean materialChange = differsFromPersisted(stored, edit);
         preserveAiProvenance(stored);
+        if (aiAssisted) stored.setAiGenerated(true);
         applyEditableFields(stored, edit);
         if (Objects.equals(stored.getStatus(), BlogPost.POST_STATUS_PUBLISHED)) {
             validatePublishable(stored, stored.getContent());

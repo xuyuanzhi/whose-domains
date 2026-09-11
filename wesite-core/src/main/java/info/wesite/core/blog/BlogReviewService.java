@@ -56,14 +56,23 @@ public class BlogReviewService {
 
     @Transactional(readOnly = true)
     public AuditReport audit() {
+        return audit((done, total) -> {});
+    }
+
+    @Transactional(readOnly = true)
+    public AuditReport audit(java.util.function.BiConsumer<Integer, Integer> progress) {
         List<BlogContentReview.Facts> corpus = corpus();
         List<AuditItem> findings = new ArrayList<>();
+        progress.accept(0, corpus.size());
+        int completed = 0;
         for (BlogContentReview.Facts facts : corpus) {
+            if (Thread.currentThread().isInterrupted()) throw new BlogEditorialException("Blog audit interrupted");
             BlogContentReview.Report report = policy.review(facts, corpus);
             if (!report.isPublishable() || !report.matches().isEmpty()) {
                 BlogPost post = facts.post();
                 findings.add(new AuditItem(post.getId(), post.getSlug(), post.getTitle(), post.getStatus(), report));
             }
+            progress.accept(++completed, corpus.size());
         }
         return new AuditReport(corpus.size(), List.copyOf(findings));
     }
