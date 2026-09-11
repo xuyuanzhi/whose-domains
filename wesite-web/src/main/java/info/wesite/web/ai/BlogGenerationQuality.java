@@ -18,7 +18,10 @@ import info.wesite.web.seo.CanonicalToolRoutes;
 public class BlogGenerationQuality {
     private final DeepSeekClient ai;
     private final BlogEditorialService editorial;
-    private final ObjectMapper json = new ObjectMapper();
+    private final ObjectMapper json = new ObjectMapper()
+        .enable(com.fasterxml.jackson.core.JsonParser.Feature.STRICT_DUPLICATE_DETECTION)
+        .enable(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
+    private static final Pattern SECTION_MARKER = Pattern.compile("(?m)^\\h*===(?:SUMMARY|CONTENT|META_DESCRIPTION)===\\h*$");
     private static final int MAX_REVISIONS = 2;
     @Value("${ai.blog.evidence-location:classpath:blog/generation-evidence.txt}")
     private String evidenceLocation = "classpath:blog/generation-evidence.txt";
@@ -90,8 +93,10 @@ public class BlogGenerationQuality {
         if (!matcher.matches()) throw new BlogEditorialException("OUTPUT_SECTIONS_MISSING_OR_OUT_OF_ORDER");
         String summary = matcher.group(1).trim(), content = matcher.group(2).trim(), meta = matcher.group(3).trim();
         if (summary.isBlank() || summary.length() > 600 || meta.isBlank() || meta.length() > 600
-                || content.isBlank() || summary.contains("===") || content.contains("===") || meta.contains("==="))
+                || content.isBlank())
             throw new BlogEditorialException("OUTPUT_FIELDS_MISSING_OR_INVALID");
+        if (SECTION_MARKER.matcher(summary).find() || SECTION_MARKER.matcher(content).find() || SECTION_MARKER.matcher(meta).find())
+            throw new BlogEditorialException("OUTPUT_REPEATED_SECTION_MARKER: use each section header exactly once on its own line");
         if (!Jsoup.parseBodyFragment(summary).body().children().isEmpty()
                 || !Jsoup.parseBodyFragment(meta).body().children().isEmpty())
             throw new BlogEditorialException("METADATA_MUST_BE_PLAIN_TEXT");

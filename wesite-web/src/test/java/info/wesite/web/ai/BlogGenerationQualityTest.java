@@ -33,6 +33,24 @@ class BlogGenerationQualityTest {
         verify(ai).chat(eq("writer"), contains("Editorial evidence"));
         verify(editorial, never()).createAiDraft(any());
     }
+    @Test void codeOperatorsAndOutputSeparatorsAreNotSectionMarkers() throws Exception {
+        String example = "<pre><code>if (answer.ttl === 0) { inspect(); }\n===\n==== output ====</code></pre>";
+        when(ai.chat(eq("writer"), anyString())).thenReturn(article.replace("===CONTENT===\n", "===CONTENT===\n" + example));
+        assertTrue(generate().content().contains("answer.ttl === 0"));
+        verify(ai, times(1)).chat(eq("writer"), anyString());
+    }
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {
+        "{\"approved\":true,\"issues\":[],\"rationale\":\"ok\"} {\"approved\":false,\"issues\":[\"unsupported\"],\"rationale\":\"correction\"}",
+        "{\"approved\":false,\"issues\":[\"unsupported\"],\"approved\":true,\"issues\":[],\"rationale\":\"ok\"}",
+        "{\"approved\":true,\"issues\":[],\"rationale\":\"ok\"} trailing text"
+    })
+    void rejectsTrailingContentAndDuplicateVerdictFields(String verdict) throws Exception {
+        when(ai.chat(eq("writer"), anyString())).thenReturn(article);
+        when(ai.chat(contains("independent technical editorial reviewer"), anyString())).thenReturn(verdict);
+        assertTrue(assertThrows(BlogEditorialException.class, this::generate).getMessage().contains("SEMANTIC_REVIEW_INVALID"));
+        verify(editorial, never()).createAiDraft(any());
+    }
     @Test void missingFieldsAndThinProseAreRepairedBeforeReturning() throws Exception {
         when(ai.chat(eq("writer"), anyString())).thenReturn("===CONTENT===\n<p>Partial</p>", article);
         assertNotNull(generate());
