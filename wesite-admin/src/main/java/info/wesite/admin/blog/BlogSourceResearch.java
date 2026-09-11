@@ -28,9 +28,10 @@ public class BlogSourceResearch {
 
     public Result research(BlogEditCommand article, String notes) throws Exception {
         LinkedHashSet<String> candidates = new LinkedHashSet<>();
-        Jsoup.parseBodyFragment(article.content()).select("a[href]").forEach(a -> candidates.add(a.attr("href")));
+        LinkedHashSet<String> fallback = new LinkedHashSet<>();
         var supplied = java.util.regex.Pattern.compile("https://[^\\s<>\"']+").matcher(notes == null ? "" : notes);
-        while (supplied.find()) candidates.add(supplied.group());
+        while (supplied.find()) fallback.add(supplied.group());
+        Jsoup.parseBodyFragment(article.content()).select("a[href]").forEach(a -> fallback.add(a.attr("href")));
         List<String> warnings = new ArrayList<>();
         try {
             String response = ai.complete("""
@@ -46,6 +47,8 @@ public class BlogSourceResearch {
             for (var url : urls) if (url.isTextual()) candidates.add(url.asText());
         } catch (InterruptedException e) { throw e; }
         catch (Exception e) { warnings.add("自动定位参考文档失败，将尝试读取原文和补充资料中的官方链接。"); }
+        // Fresh candidates get a chance before stale article links consume the finite budget.
+        candidates.addAll(fallback);
         List<Source> sources = new ArrayList<>();
         int attempts = 0;
         for (String candidate : candidates) {
@@ -97,9 +100,18 @@ public class BlogSourceResearch {
         try {
             var response = pending.get(10, TimeUnit.SECONDS);
             if (response.statusCode() != 200) throw new IllegalArgumentException("Source unavailable");
-            String type = response.headers().firstValue("content-type").orElse("").toLowerCase(Locale.ROOT);
-            if (!type.startsWith("text/html") && !type.startsWith("text/plain")) throw new IllegalArgumentException("Unsupported source format");
-            var document = Jsoup.parse(new java.io.ByteArrayInputStream(response.body()), null, url);
+            var type = org.springframework.util.MimeTypeUtils.parseMimeType(response.headers().firstValue("content-type").orElse(""));
+            boolean plain = "text".equals(type.getType()) && "plain".equals(type.getSubtype());
+            if (!plain && !("text".equals(type.getType()) && "html".equals(type.getSubtype())))
+                throw new IllegalArgumentException("Unsupported source format");
+            if (plain) {
+                String text = new String(response.body(), type.getCharset() == null
+                    ? java.nio.charset.StandardCharsets.UTF_8 : type.getCharset());
+                if (text.strip().length() < 100) throw new IllegalArgumentException("Source has no usable text");
+                return new Source(url, url, text);
+            }
+            var document = Jsoup.parse(new java.io.ByteArrayInputStream(response.body()),
+                type.getCharset() == null ? null : type.getCharset().name(), url);
             document.select("script,style,nav,header,footer,form").remove();
             var main = document.selectFirst("main,article");
             String text = (main == null ? document.body() : main).text();
