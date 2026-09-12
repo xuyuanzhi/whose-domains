@@ -2,6 +2,10 @@ package info.wesite.web.task;
 
 import java.io.File;
 import java.net.MalformedURLException;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.Date;
 import java.util.List;
 
@@ -120,19 +124,33 @@ public class SitemapTask {
 	public void createFile() {
 		logger.info("定时任务生成sitemap开始（全量）");
 
-		File folder = new File(sitemapRoot);
-		if (!folder.exists()) {
-			folder.mkdirs();
-		}
-
-		// 删除所有旧 sitemap 文件，全量重新生成
-		deleteFilesWithPrefix(folder, "sitemap_");
-
+		Path staging = null;
 		try {
-			List<File> files = generateFullSitemap(folder);
+			Path folder = Path.of(sitemapRoot);
+			Files.createDirectories(folder);
+			// Generate on the same filesystem, keeping the published file available
+			// even if the database, XML generation or final publication fails.
+			staging = Files.createTempDirectory(folder, ".sitemap-");
+			List<File> files = generateFullSitemap(staging.toFile());
+			if (files.size() != 1 || !files.get(0).getName().equals("sitemap_all.xml")) {
+				throw new IOException("Sitemap exceeds single-file contract; a sitemap index is required");
+			}
+			Files.move(files.get(0).toPath(), folder.resolve("sitemap_all.xml"),
+					StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
 			logger.info("定时任务生成sitemap结束，共{}个文件", files.size());
 		} catch (Exception e) {
 			logger.error("生成sitemap失败", e);
+		} finally {
+			if (staging != null) {
+				try {
+					try (var files = Files.list(staging)) {
+						for (Path file : files.toList()) Files.deleteIfExists(file);
+					}
+					Files.deleteIfExists(staging);
+				} catch (IOException e) {
+					logger.warn("Could not clean sitemap staging directory {}", staging, e);
+				}
+			}
 		}
 	}
 
@@ -227,13 +245,4 @@ public class SitemapTask {
 		return gen.write();
 	}
 
-	/** 删除 folder 下以 prefix 开头的文件，避免残留旧分页文件 */
-	private void deleteFilesWithPrefix(File folder, String prefix) {
-		File[] old = folder.listFiles(f -> f.getName().startsWith(prefix));
-		if (old != null) {
-			for (File f : old) {
-				if (f.delete()) logger.debug("已删除旧sitemap文件: {}", f.getName());
-			}
-		}
-	}
 }

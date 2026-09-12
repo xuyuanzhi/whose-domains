@@ -15,6 +15,8 @@ import java.util.List;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.ui.ExtendedModelMap;
@@ -28,6 +30,7 @@ import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import info.wesite.core.blog.BlogHtmlSanitizer;
 import info.wesite.core.entity.BlogPost;
 import info.wesite.core.service.BlogPostService;
+import info.wesite.web.config.GlobalExceptionHandler;
 
 class BlogControllerSeoTest {
 
@@ -66,6 +69,72 @@ class BlogControllerSeoTest {
         assertFalse(schema.contains("2026-09-02"));
         assertFalse(schema.contains("</script>"));
         assertTrue(schema.contains("\\u003C/script\\u003E"));
+    }
+
+    @Test
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    void paginationKeepsDistinctCanonicalsAndPreservesContentFilters() {
+        var result = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<BlogPost>(1, 12);
+        result.setTotal(36);
+        result.setRecords(List.of(publishedPost()));
+        when(posts.page(any(com.baomidou.mybatisplus.extension.plugins.pagination.Page.class), any(Wrapper.class)))
+            .thenReturn(result);
+        Object[][] cases = {
+            {1, null, null, "/blog", "https://whose.domains/blog"},
+            {2, null, null, "/blog", "https://whose.domains/blog?page=2"},
+            {3, "security", null, "/blog", "https://whose.domains/blog?category=security&page=3"},
+            {2, "security", null, "/blog/category/security", "https://whose.domains/blog?category=security&page=2"},
+            {2, null, "dns & email", "/blog", "https://whose.domains/blog?tag=dns+%26+email&page=2"},
+            {1, " ", "", "/blog/", "https://whose.domains/blog"}
+        };
+        for (Object[] c : cases) {
+            ExtendedModelMap model = new ExtendedModelMap();
+            MockHttpServletRequest request = new MockHttpServletRequest("GET", (String) c[3]);
+            request.setAttribute("canonicalUrl", "https://whose.domains/blog");
+            request.setQueryString("utm_source=test&page=" + c[0]);
+            controller.index((int) c[0], (String) c[1], (String) c[2], model, request);
+            assertEquals(c[4], model.getAttribute("canonicalUrl"));
+        }
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "/blog, 0, 24, 404",
+        "/blog, -1, 24, 404",
+        "/blog, 3, 24, 404",
+        "/blog, 9999, 24, 404",
+        "/blog, 2, 0, 404",
+        "/blog, 1, 0, 200",
+        "/blog, 2, 24, 200",
+        "/blog, 3, 25, 200",
+        "/blog/category/security, 3, 24, 404",
+        "/blog?tag=dns, 2, 0, 404"
+    })
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    void pageBoundsReturn404WithoutPublishingAnEmptyCanonical(
+            String path, int page, long total, int expectedStatus) throws Exception {
+        when(posts.page(any(com.baomidou.mybatisplus.extension.plugins.pagination.Page.class), any(Wrapper.class)))
+            .thenAnswer(invocation -> {
+                var result = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<BlogPost>(page, 12, total);
+                result.setRecords(page > 0 && page <= result.getPages() ? List.of(publishedPost()) : List.of());
+                return result;
+            });
+        var mvc = org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(controller)
+            .setControllerAdvice(new GlobalExceptionHandler()).build();
+
+        var response = mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(path)
+                .param("page", Integer.toString(page)))
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().is(expectedStatus))
+            .andReturn();
+
+        if (expectedStatus == 404) {
+            assertFalse(response.getModelAndView().getModel().containsKey("canonicalUrl"));
+            assertFalse(response.getModelAndView().getModel().containsKey("posts"));
+        } else {
+            assertEquals("blog/index", response.getModelAndView().getViewName());
+            assertEquals("https://whose.domains/blog" + (page > 1 ? "?page=" + page : ""),
+                response.getModelAndView().getModel().get("canonicalUrl"));
+        }
     }
 
     @Test

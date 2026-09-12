@@ -1,6 +1,9 @@
 package info.wesite.web.controller;
 
 import java.text.SimpleDateFormat;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.time.ZoneOffset;
 import java.util.Date;
 import java.util.List;
@@ -25,6 +28,7 @@ import info.wesite.core.entity.BlogPost;
 import info.wesite.core.service.BlogPostService;
 import info.wesite.core.utils.Constants;
 import info.wesite.web.config.ResourceNotFoundException;
+import info.wesite.web.seo.CanonicalUrlService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 
@@ -49,6 +53,10 @@ public class BlogController {
             @RequestParam(required = false) String tag,
             Model model, HttpServletRequest request) {
 
+        if (page < 1) {
+            throw new ResourceNotFoundException("Blog page not found: " + page);
+        }
+
         var wrapper = Wrappers.<BlogPost>lambdaQuery()
                 .eq(BlogPost::getStatus, BlogPost.POST_STATUS_PUBLISHED)
                 .eq(StringUtils.isNotBlank(category), BlogPost::getCategory, category)
@@ -57,6 +65,11 @@ public class BlogController {
                 .orderByDesc(BlogPost::getId);
 
         Page<BlogPost> pageResult = blogPostService.page(new Page<>(page, PAGE_SIZE), wrapper);
+        // Keep the empty collection's first page usable, but never publish
+        // an out-of-range page as a separate indexable URL.
+        if (page > 1 && page > pageResult.getPages()) {
+            throw new ResourceNotFoundException("Blog page not found: " + page);
+        }
         formatDates(pageResult.getRecords());
 
         model.addAttribute("posts", pageResult.getRecords());
@@ -65,6 +78,18 @@ public class BlogController {
         model.addAttribute("totalPosts", pageResult.getTotal());
         model.addAttribute("category", category);
         model.addAttribute("tag", tag);
+        // Pagination is distinct content. Preserve only content-selecting parameters,
+        // and consolidate the category route with the links used by our navigation.
+        List<String> canonicalQuery = new ArrayList<>();
+        if (StringUtils.isNotBlank(category)) {
+            canonicalQuery.add("category=" + URLEncoder.encode(category, StandardCharsets.UTF_8));
+        }
+        if (StringUtils.isNotBlank(tag)) {
+            canonicalQuery.add("tag=" + URLEncoder.encode(tag, StandardCharsets.UTF_8));
+        }
+        if (page > 1) canonicalQuery.add("page=" + page);
+        model.addAttribute("canonicalUrl", CanonicalUrlService.ORIGIN + "/blog"
+                + (canonicalQuery.isEmpty() ? "" : "?" + String.join("&", canonicalQuery)));
         model.addAttribute("_page_title", "Blog - Domain Tips, Guides & Insights | Whose.Domains");
         model.addAttribute("_page_metaDescription",
                 "Expert guides on domain registration, WHOIS lookup, DNS records, SSL certificates, and domain investing. Stay informed with Whose.Domains.");

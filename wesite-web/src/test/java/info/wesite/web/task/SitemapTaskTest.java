@@ -33,6 +33,64 @@ class SitemapTaskTest {
     Path output;
 
     @Test
+    void failedRefreshKeepsPreviouslyPublishedSitemap() throws Exception {
+        com.baomidou.mybatisplus.core.metadata.TableInfoHelper.initTableInfo(
+                new org.apache.ibatis.builder.MapperBuilderAssistant(
+                        new com.baomidou.mybatisplus.core.MybatisConfiguration(), "SitemapTaskTest-failure"),
+                BlogPost.class);
+        Path sitemap = output.resolve("sitemap_all.xml");
+        String previous = "<urlset><url><loc>https://whose.domains/</loc></url></urlset>";
+        Files.writeString(sitemap, previous);
+        BlogPostService posts = mock(BlogPostService.class);
+        when(posts.list(org.mockito.ArgumentMatchers
+                .<com.baomidou.mybatisplus.core.conditions.Wrapper<BlogPost>>any()))
+                .thenAnswer(invocation -> {
+                    assertTrue(Files.exists(sitemap), "Published sitemap must remain available during generation");
+                    throw new IllegalStateException("Database temporarily unavailable");
+                });
+        SitemapTask task = new SitemapTask();
+        ReflectionTestUtils.setField(task, "sitemapRoot", output.toString());
+        ReflectionTestUtils.setField(task, "blogPostService", posts);
+
+        task.createFile();
+
+        assertEquals(previous, Files.readString(sitemap));
+        try (var files = Files.list(output)) {
+            assertEquals(List.of("sitemap_all.xml"), files.map(p -> p.getFileName().toString()).toList());
+        }
+    }
+
+    @Test
+    void successfulRefreshReplacesSitemapWithoutRemovingOtherPublishedFiles() throws Exception {
+        com.baomidou.mybatisplus.core.metadata.TableInfoHelper.initTableInfo(
+                new org.apache.ibatis.builder.MapperBuilderAssistant(
+                        new com.baomidou.mybatisplus.core.MybatisConfiguration(), "SitemapTaskTest-replace"),
+                BlogPost.class);
+        Path sitemap = output.resolve("sitemap_all.xml");
+        Files.writeString(sitemap, "previous sitemap");
+        Path other = output.resolve("sitemap_other.xml");
+        Files.writeString(other, "independent sitemap");
+        BlogPostService posts = mock(BlogPostService.class);
+        when(posts.list(org.mockito.ArgumentMatchers
+                .<com.baomidou.mybatisplus.core.conditions.Wrapper<BlogPost>>any()))
+                .thenAnswer(invocation -> {
+                    assertEquals("previous sitemap", Files.readString(sitemap));
+                    return List.of();
+                });
+        SitemapTask task = new SitemapTask();
+        ReflectionTestUtils.setField(task, "sitemapRoot", output.toString());
+        ReflectionTestUtils.setField(task, "blogPostService", posts);
+
+        task.createFile();
+
+        assertTrue(Files.readString(sitemap).contains("https://whose.domains/tools/whois-lookup"));
+        assertEquals("independent sitemap", Files.readString(other));
+        try (var files = Files.list(output)) {
+            assertEquals(2, files.count(), "Temporary generation files must be cleaned up");
+        }
+    }
+
+    @Test
     void generatedSitemapUsesOnlyCanonicalToolRoutes() throws Exception {
         com.baomidou.mybatisplus.core.metadata.TableInfoHelper.initTableInfo(
                 new org.apache.ibatis.builder.MapperBuilderAssistant(
