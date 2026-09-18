@@ -372,6 +372,7 @@ public class ViewController {
             // 5. 兜底：通过DNS检查
             return DomainUtils.isDnsEnabled(domainName);
         } catch (Exception e) {
+            info.wesite.core.diagnostics.DiagnosticRecorder.markCurrent(e);
             log.error("Error checking domain availability for: {}", domainName, e);
             return false;
         }
@@ -525,6 +526,7 @@ public class ViewController {
                 (registrar != null ? registrar : "Unknown") + (expiry != null ? ", expires " + expiry : ""));
             return ResponseJson.success(data);
         } catch (Exception e) {
+            info.wesite.core.diagnostics.DiagnosticRecorder.markCurrent(e);
             log.error("Error performing WHOIS lookup for domain: {}", domain, e);
             return ResponseJson.failure("An error occurred during WHOIS lookup: " + e.getMessage());
         }
@@ -655,6 +657,7 @@ public class ViewController {
             RateLimitUtils.incrementRequestCount(ip);
             return ResponseJson.success(data);
         } catch (Exception e) {
+            info.wesite.core.diagnostics.DiagnosticRecorder.markCurrent(e);
             log.error("Error performing RDAP lookup for domain: {}", domain, e);
             return ResponseJson.failure("An error occurred during RDAP lookup: " + e.getMessage());
         }
@@ -707,6 +710,7 @@ public class ViewController {
             
             return ResponseJson.success(certInfo);
         } catch (Exception e) {
+            info.wesite.core.diagnostics.DiagnosticRecorder.markCurrent(e);
             log.error("Error checking SSL certificate for domain: {}", domain, e);
             return ResponseJson.failure("An error occurred while checking SSL certificate: " + e.getMessage());
         }
@@ -759,6 +763,7 @@ public class ViewController {
             socket.close();
             return info;
         } catch (Exception e) {
+            info.wesite.core.diagnostics.DiagnosticRecorder.markCurrent(e);
             log.error("Error retrieving SSL certificate for: " + hostname, e);
             return null;
         }
@@ -1271,6 +1276,7 @@ public class ViewController {
 				}
 			}
 		} catch (Exception e) {
+			info.wesite.core.diagnostics.DiagnosticRecorder.markCurrent(e);
 			log.error("Error parsing city response", e);
 		}
 	}
@@ -1302,6 +1308,7 @@ public class ViewController {
 				ipInfo.setAsn("AS" + asn);
 			}
 		} catch (Exception e) {
+			info.wesite.core.diagnostics.DiagnosticRecorder.markCurrent(e);
 			log.error("Error parsing ASN response", e);
 		}
 	}

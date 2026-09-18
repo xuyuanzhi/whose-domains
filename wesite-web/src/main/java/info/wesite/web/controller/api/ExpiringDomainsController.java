@@ -139,6 +139,7 @@ public class ExpiringDomainsController {
             return ResponseJson.success(response);
 
         } catch (Exception e) {
+            info.wesite.core.diagnostics.DiagnosticRecorder.markCurrent(e);
             log.error("Error listing expiring domains", e);
             return ResponseJson.failure("Failed to list expiring domains: " + e.getMessage());
         }

@@ -54,6 +54,7 @@ class NotificationDeliveryTaskTest {
     private NotificationDeliveryCoordinator coordinator;
     private MailSender mailSender;
     private NotificationDeliveryTask task;
+    private info.wesite.core.diagnostics.DiagnosticRecorder diagnostics;
 
     @BeforeEach
     void setUp() {
@@ -73,6 +74,8 @@ class NotificationDeliveryTaskTest {
         when(mailSender.send(any(Mail.class))).thenReturn(MailSendResult.ok());
         task = new NotificationDeliveryTask(
             notificationMapper, eventService, coordinator, mailSender, CLOCK);
+        diagnostics = mock(info.wesite.core.diagnostics.DiagnosticRecorder.class);
+        org.springframework.test.util.ReflectionTestUtils.setField(task, "diagnosticRecorder", diagnostics);
     }
 
     @Test
@@ -106,6 +109,7 @@ class NotificationDeliveryTaskTest {
         task.deliverImmediate();
 
         verify(mailSender, never()).send(any(Mail.class));
+        verify(diagnostics).task(eq("NotificationDeliveryTask"), any(IllegalStateException.class));
     }
 
     @Test

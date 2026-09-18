@@ -22,6 +22,9 @@ import info.wesite.core.service.DomainSiteService;
 @Profile({ "prod" })
 @Component
 public class DnsTask {
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private info.wesite.core.diagnostics.DiagnosticRecorder diagnosticRecorder;
+
 
 	protected static Logger logger = LoggerFactory.getLogger(DnsTask.class);
 
@@ -63,6 +66,7 @@ public class DnsTask {
 
 					logger.info("域名 {} 刷新DNS数据成功！", d.getName());
 				} catch (Exception e) {
+                    if (diagnosticRecorder != null) diagnosticRecorder.task("DnsTask", e);
 					logger.error("域名 {} 刷新DNS数据失败！！！", d.getName(), e);
 				} finally {
 					try {
@@ -104,6 +108,7 @@ public class DnsTask {
 
 					logger.info("子域名 {} 刷新DNS数据成功！", d.getName());
 				} catch (Exception e) {
+                    if (diagnosticRecorder != null) diagnosticRecorder.task("DnsTask", e);
 					logger.error("子域名 {} 刷新DNS数据失败！！！", d.getName(), e);
 				} finally {
 					try {

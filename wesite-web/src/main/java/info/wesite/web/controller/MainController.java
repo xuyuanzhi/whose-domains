@@ -224,6 +224,7 @@ public class MainController {
 					try {
 						domainDnsService.refreshByDomain(domain);
 					} catch (Exception e) {
+						info.wesite.core.diagnostics.DiagnosticRecorder.mark(request, e);
 						logger.error("Failed to refresh DNS for domain: {}", domainName, e);
 					}
 				}
@@ -264,6 +265,7 @@ public class MainController {
 				try {
 					domainSnapshotService.saveSnapshotIfChanged(domain, IpUtils.getRequestIp(request));
 				} catch (Exception e) {
+					info.wesite.core.diagnostics.DiagnosticRecorder.mark(request, e);
 					logger.warn("保存域名 {} 的WHOIS快照失败: {}", domainName, e.getMessage());
 				}
 
@@ -284,6 +286,7 @@ public class MainController {
 					try {
 						domainDnsService.refreshByDomainSite(site);
 					} catch (Exception e) {
+						info.wesite.core.diagnostics.DiagnosticRecorder.mark(request, e);
 						logger.error("Failed to refresh DNS for sub-domain: {}", domainName, e);
 					}
 
@@ -478,6 +481,7 @@ public class MainController {
 				try {
 					domainDnsService.refreshByDomain(newOne);
 				} catch (Exception e) {
+					info.wesite.core.diagnostics.DiagnosticRecorder.mark(req, e);
 					logger.error("Failed to refresh DNS for new domain: {}", domainName, e);
 				}
 				
@@ -494,6 +498,7 @@ public class MainController {
 					try {
 						domainDnsService.refreshByDomainSite(wwwSite);
 					} catch (Exception e) {
+						info.wesite.core.diagnostics.DiagnosticRecorder.mark(req, e);
 						logger.error("Failed to refresh DNS for www sub-domain: {}", domainName, e);
 					}
 				}
@@ -558,6 +563,7 @@ public class MainController {
 				try {
 					domainDnsService.refreshByDomainSite(newOne);
 				} catch (Exception e) {
+					info.wesite.core.diagnostics.DiagnosticRecorder.mark(req, e);
 					logger.error("Failed to refresh DNS for new site: {}", domainName, e);
 				}
 
@@ -575,6 +581,7 @@ public class MainController {
 				try {
 					domainDnsService.refreshByDomainSite(site);
 				} catch (Exception e) {
+					info.wesite.core.diagnostics.DiagnosticRecorder.mark(req, e);
 					logger.error("Failed to refresh DNS for site: {}", domainName, e);
 				}
 			} else {

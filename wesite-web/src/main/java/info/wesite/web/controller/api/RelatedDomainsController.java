@@ -245,6 +245,7 @@ public class RelatedDomainsController {
             return ResponseJson.success(result);
 
         } catch (Exception e) {
+            info.wesite.core.diagnostics.DiagnosticRecorder.markCurrent(e);
             log.error("Error finding related domains for: {}", mainDomain, e);
             return ResponseJson.failure("Failed to find related domains: " + e.getMessage());
         }

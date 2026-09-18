@@ -54,6 +54,12 @@
           "jump": "contact/list"
         }
       ]
+    },
+    {
+      "name": "issues",
+      "title": "问题中心",
+      "icon": "layui-icon-survey",
+      "jump": "issues/index"
     }
   ]
 }

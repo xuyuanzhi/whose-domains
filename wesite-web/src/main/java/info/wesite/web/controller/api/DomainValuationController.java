@@ -623,6 +623,7 @@ public class DomainValuationController {
             return ResponseJson.success(result);
 
         } catch (Exception e) {
+            info.wesite.core.diagnostics.DiagnosticRecorder.markCurrent(e);
             log.error("Valuation error for {}", domain, e);
             return ResponseJson.failure("Valuation failed: " + e.getMessage());
         }

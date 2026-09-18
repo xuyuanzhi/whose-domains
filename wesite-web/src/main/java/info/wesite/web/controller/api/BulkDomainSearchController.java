@@ -146,6 +146,7 @@ public class BulkDomainSearchController {
 
             return ResponseJson.success(response);
         } catch (Exception e) {
+            info.wesite.core.diagnostics.DiagnosticRecorder.markCurrent(e);
             log.error("Bulk domain search error", e);
             return ResponseJson.failure("Bulk search failed: " + e.getMessage());
         }

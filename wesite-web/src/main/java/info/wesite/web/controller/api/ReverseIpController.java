@@ -141,6 +141,7 @@ public class ReverseIpController {
             RateLimitUtils.incrementRequestCount(clientIp);
             return ResponseJson.success(result);
         } catch (Exception e) {
+            info.wesite.core.diagnostics.DiagnosticRecorder.markCurrent(e);
             log.error("Error performing reverse IP lookup for: {}", ip, e);
             return ResponseJson.failure("Reverse IP lookup failed: " + e.getMessage());
         }

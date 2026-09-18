@@ -24,6 +24,9 @@ import info.wesite.core.utils.DomainUtils;
 @Profile({ "prod" })
 @Component
 public class RefreshDomainTask {
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private info.wesite.core.diagnostics.DiagnosticRecorder diagnosticRecorder;
+
 
 	protected static Logger logger = LoggerFactory.getLogger(RefreshDomainTask.class);
 
@@ -76,6 +79,7 @@ public class RefreshDomainTask {
 				
 				logger.info("域名 {} 刷新完成", d.getName());
 			} catch (Exception e) {
+                    if (diagnosticRecorder != null) diagnosticRecorder.task("RefreshDomainTask", e);
 				logger.error("域名 {} 刷新失败", d.getName(), e);
 			}
 		}

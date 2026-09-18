@@ -40,6 +40,9 @@ import info.wesite.web.notification.NotificationDispatchDecision;
 @Profile({"prod", "mac"})
 @Component
 public class NotificationDeliveryTask {
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private info.wesite.core.diagnostics.DiagnosticRecorder diagnosticRecorder;
+
 
     private static final Logger log = LoggerFactory.getLogger(NotificationDeliveryTask.class);
     private static final int IMMEDIATE_PAGE_SIZE = 500;
@@ -123,6 +126,7 @@ public class NotificationDeliveryTask {
             coordinator.finalizeExpiredCancelled(mode.name(), clock.instant());
             coordinator.finalizeExpiredExhausted(mode.name(), clock.instant());
         } catch (RuntimeException failure) {
+            if (diagnosticRecorder != null) diagnosticRecorder.task("NotificationDeliveryTask", failure);
             log.error("Failed to finalize exhausted {} notification leases", mode, failure);
             return;
         }
@@ -133,6 +137,7 @@ public class NotificationDeliveryTask {
             try {
                 retry = coordinator.retryNext(mode.name(), now, leaseUntil(now));
             } catch (RuntimeException failure) {
+            if (diagnosticRecorder != null) diagnosticRecorder.task("NotificationDeliveryTask", failure);
                 log.error("Failed to start a durable {} retry", mode, failure);
                 return;
             }
@@ -156,6 +161,7 @@ public class NotificationDeliveryTask {
                     coordinator.startImmediate(id, now, leaseUntil(now))
                         .ifPresent(claim -> deliverClaimSafely(claim, false, period));
                 } catch (RuntimeException failure) {
+            if (diagnosticRecorder != null) diagnosticRecorder.task("NotificationDeliveryTask", failure);
                     log.error("Failed to durably start immediate notification {}", id, failure);
                 }
             }
@@ -185,6 +191,7 @@ public class NotificationDeliveryTask {
                         cutoff, now, leaseUntil(now))
                         .ifPresent(claim -> deliverClaimSafely(claim, true, period));
                 } catch (RuntimeException failure) {
+            if (diagnosticRecorder != null) diagnosticRecorder.task("NotificationDeliveryTask", failure);
                     log.error("Failed to durably start {} digest for user {}", period,
                         candidate.getUserId(), failure);
                 }
@@ -203,6 +210,7 @@ public class NotificationDeliveryTask {
         try {
             outcome = attemptDelivery(claim, digest, period);
         } catch (RuntimeException failure) {
+            if (diagnosticRecorder != null) diagnosticRecorder.task("NotificationDeliveryTask", failure);
             outcome = DeliveryOutcome.failed(errorMessage(failure));
         }
 
@@ -215,6 +223,7 @@ public class NotificationDeliveryTask {
                 completedAt,
                 completedAt.plus(5L * Math.max(1, claim.attempt()), ChronoUnit.MINUTES));
         } catch (RuntimeException persistenceFailure) {
+            if (diagnosticRecorder != null) diagnosticRecorder.task("NotificationDeliveryTask.persist", persistenceFailure);
             log.error("Delivery batch {} remains leased because completion persistence failed",
                 claim.batchId(), persistenceFailure);
         }
@@ -264,8 +273,12 @@ public class NotificationDeliveryTask {
     private MailSendResult sendSafely(Mail mail) {
         try {
             MailSendResult result = mailSender.send(mail);
+            if ((result == null || !result.isSuccess()) && diagnosticRecorder != null) {
+                diagnosticRecorder.task("NotificationDeliveryTask.send", new IllegalStateException());
+            }
             return result == null ? MailSendResult.fail("mail sender returned no result") : result;
         } catch (RuntimeException failure) {
+            if (diagnosticRecorder != null) diagnosticRecorder.task("NotificationDeliveryTask", failure);
             return MailSendResult.fail(errorMessage(failure));
         }
     }

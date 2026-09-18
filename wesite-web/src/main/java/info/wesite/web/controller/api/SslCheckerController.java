@@ -79,6 +79,7 @@ public class SslCheckerController {
             RateLimitUtils.incrementRequestCount(ip);
             return ResponseJson.success(result);
         } catch (Exception e) {
+            info.wesite.core.diagnostics.DiagnosticRecorder.markCurrent(e);
             log.error("Error checking SSL for domain: {}", domainName, e);
             return ResponseJson.failure("SSL check failed: " + e.getMessage());
         }

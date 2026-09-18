@@ -57,6 +57,9 @@ import info.wesite.web.monitor.WebsiteMonitorCollector;
 @Component
 @EnableScheduling
 public class DomainWatchTask {
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private info.wesite.core.diagnostics.DiagnosticRecorder diagnosticRecorder;
+
 
     private static final Logger log = LoggerFactory.getLogger(DomainWatchTask.class);
     private static final Duration WATCH_TIMEOUT = Duration.ofSeconds(25);
@@ -157,6 +160,7 @@ public class DomainWatchTask {
                         updated++;
                     }
                 } catch (RuntimeException failure) {
+                    if (diagnosticRecorder != null) diagnosticRecorder.task("DomainWatchTask.refresh", failure);
                     releaseScan(watch, claimToken);
                     log.error("Failed to refresh monitored domain {}", watch.getDomainName(), failure);
                 }

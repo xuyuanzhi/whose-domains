@@ -101,6 +101,7 @@ public class DomainAnalysisApiController {
             
             return ResponseJson.success(analysisResult);
         } catch (Exception e) {
+            info.wesite.core.diagnostics.DiagnosticRecorder.markCurrent(e);
             log.error("Error analyzing domain: {}", domainName, e);
             return ResponseJson.failure("Error analyzing domain: " + e.getMessage());
         }
@@ -125,6 +126,7 @@ public class DomainAnalysisApiController {
             
             return ResponseJson.success(dnsAnalysis);
         } catch (Exception e) {
+            info.wesite.core.diagnostics.DiagnosticRecorder.markCurrent(e);
             log.error("Error analyzing DNS for domain: {}", domainName, e);
             return ResponseJson.failure("Error analyzing DNS: " + e.getMessage());
         }

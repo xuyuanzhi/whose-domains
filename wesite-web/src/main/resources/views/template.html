@@ -2,7 +2,9 @@
 <html lang="en">
 <head th:fragment="template_head">
 	<title th:text="${_page_title}"></title>
-    <meta charset="UTF-8">
+    <script src="/diagnostics/bootstrap.js"></script>
+<script src="/static/js/diagnostics.js"></script>
+<meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="Description" th:content="${_page_metaDescription}">
     <meta th:if="${_page_keywords != null}" name="keywords" th:content="${_page_keywords}">

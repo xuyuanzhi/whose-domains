@@ -58,13 +58,14 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(Exception.class)
     public Object handleGenericException(Exception ex, HttpServletRequest request, HttpServletResponse response) {
+        info.wesite.core.diagnostics.DiagnosticRecorder.mark(request, ex);
         logger.error("Unexpected error occurred", ex);
         
         // API请求返回JSON格式
         String uri = request.getRequestURI();
         if (uri != null && uri.startsWith("/api/")) {
             return ResponseEntity.status(HttpStatus.OK)
-                    .body(ResponseJson.failure("Server error: " + ex.getMessage()));
+                    .body(ResponseJson.failure("An unexpected server error occurred. Please try again later."));
         }
         
         response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR.value());

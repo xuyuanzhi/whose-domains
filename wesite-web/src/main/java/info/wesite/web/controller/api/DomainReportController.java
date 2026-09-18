@@ -220,6 +220,7 @@ public class DomainReportController {
 
             return ResponseEntity.ok().headers(headers).body(jsonStr);
         } catch (Exception e) {
+            info.wesite.core.diagnostics.DiagnosticRecorder.markCurrent(e);
             log.error("Error generating report for domain: {}", mainDomain, e);
             return ResponseEntity.internalServerError().body("{\"error\":\"Failed to generate report.\"}");
         }

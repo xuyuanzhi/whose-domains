@@ -124,6 +124,7 @@ public class WhoisCompareController {
             RateLimitUtils.incrementRequestCount(ip);
             return ResponseJson.success(result);
         } catch (Exception e) {
+            info.wesite.core.diagnostics.DiagnosticRecorder.markCurrent(e);
             log.error("Error comparing domains {} vs {}", domain1, domain2, e);
             return ResponseJson.failure("Comparison failed: " + e.getMessage());
         }

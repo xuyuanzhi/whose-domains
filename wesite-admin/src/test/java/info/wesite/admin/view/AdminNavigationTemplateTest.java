@@ -34,10 +34,10 @@ class AdminNavigationTemplateTest {
     }
 
     @Test
-    void menuExposesOnlyTheSixSupportedAdminDestinations() throws Exception {
+    void menuExposesOnlySupportedAdminDestinations() throws Exception {
         String menu = read("static/layuiadmin/json/menu.js");
 
-        assertEquals(List.of("/", "person/list", "domain/tld/index", "domain/sld/index", "blog/list", "contact/list"),
+        assertEquals(List.of("/", "person/list", "domain/tld/index", "domain/sld/index", "blog/list", "contact/list", "issues/index"),
             menuDestinations(menu), "菜单只能链接到当前后台已支持的页面");
         for (String demoEntry : List.of("senior", "template", "app", "component", "www.baidu.com")) {
             assertFalse(menu.contains(demoEntry), "菜单不得保留演示入口：" + demoEntry);

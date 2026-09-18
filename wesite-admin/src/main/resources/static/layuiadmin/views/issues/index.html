@@ -1,0 +1,46 @@
+<title>问题中心</title>
+<style>
+.issue-center {padding:20px;color:#333}
+.issue-toolbar,.issue-filters {display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
+.issue-toolbar h2 {font-size:22px;margin-right:auto}
+.issue-filters label {display:flex;align-items:center;gap:6px}
+.issue-filters input,.issue-filters select,.issue-detail input,.issue-detail select,.issue-detail textarea {border:1px solid #ddd;padding:8px;background:#fff;box-sizing:border-box}
+.issue-table-wrap {overflow:auto;background:#fff}
+.issue-table {width:100%;min-width:950px;border-collapse:collapse}
+.issue-table th,.issue-table td {padding:12px;text-align:left;border-bottom:1px solid #eee}
+.issue-table th {background:#f2f2f2;white-space:nowrap}
+.issue-table button {max-width:420px;text-align:left;white-space:normal;overflow-wrap:anywhere;cursor:pointer;border:0;background:none;color:#009688}
+.issue-muted {color:#777;font-size:13px;line-height:1.8}
+.issue-error {color:#b8321c;white-space:pre-wrap;margin:12px 0}
+.issue-detail {position:fixed;right:0;top:0;bottom:0;width:min(760px,100%);background:#fff;box-shadow:-4px 0 18px #0002;z-index:10000;overflow:auto;padding:24px;box-sizing:border-box}
+.issue-detail[hidden] {display:none}
+.issue-detail h3 {margin:20px 0 12px;font-size:18px}
+.issue-detail label {display:block;margin:12px 0}
+.issue-detail textarea {display:block;width:100%;min-height:90px}
+.issue-detail pre {white-space:pre-wrap;overflow-wrap:anywhere;background:#f2f2f2;padding:12px}
+.issue-detail article {padding:12px 0;border-bottom:1px solid #eee;overflow-wrap:anywhere}
+.issue-pager {display:flex;gap:12px;align-items:center;margin:16px 0}
+@media(max-width:640px){.issue-center{padding:12px}.issue-filters label{width:100%}.issue-filters input,.issue-filters select{flex:1;min-width:0}.issue-detail{padding:16px}}
+</style>
+<section id="issue-center" class="issue-center">
+ <div class="issue-toolbar"><h2>问题中心</h2><span data-environment class="issue-muted"></span><button class="layui-btn layui-btn-sm" data-refresh>刷新</button></div>
+ <form class="issue-filters">
+  <label>状态 <select name="status"><option value="open">待处理</option><option value="in_progress">处理中</option><option value="resolved">已解决</option><option value="ignored">已忽略</option><option value="">全部</option></select></label>
+  <label>应用 <select name="app"><option value="">全部</option><option value="web">网站</option><option value="admin">管理后台</option></select></label>
+  <label>来源 <select name="source"><option value="">全部</option><option value="server_error">服务端异常</option><option value="client_error">脚本异常</option><option value="request_failure">请求失败</option><option value="task_error">任务异常</option></select></label>
+  <label>开始 <input type="date" name="from"></label><label>结束 <input type="date" name="to"></label>
+  <label>关键词 <input name="keyword" maxlength="100" placeholder="异常类型或位置"></label><button class="layui-btn layui-btn-sm">查询</button>
+ </form>
+ <p class="issue-muted">次数为累计发生次数，事件明细按保留期清理。相同请求的前后端报告只计一次。</p>
+ <p data-message role="status"></p><div class="issue-table-wrap"><table class="issue-table"><thead><tr><th>问题 / 位置</th><th>应用 / 来源</th><th>状态</th><th>次数</th><th>首次发生</th><th>最近发生</th></tr></thead><tbody></tbody></table></div>
+ <div data-pager class="issue-pager"></div>
+ <aside class="issue-detail" role="dialog" aria-modal="true" aria-label="问题详情" hidden tabindex="-1">
+  <div class="issue-toolbar"><h2>问题详情</h2><button data-close class="layui-btn layui-btn-primary layui-btn-sm">关闭</button><button data-reload class="layui-btn layui-btn-sm">刷新详情</button></div>
+  <p data-detail-error role="status" class="issue-error"></p><div data-detail-body></div>
+ </aside>
+</section>
+<script>
+layui.use(['admin'], function(){
+  if (window.WesiteIssueCenter) window.WesiteIssueCenter.mount(document.getElementById('issue-center'), layui.admin);
+});
+</script>

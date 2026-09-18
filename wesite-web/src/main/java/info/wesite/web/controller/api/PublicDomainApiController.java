@@ -47,6 +47,7 @@ public class PublicDomainApiController {
             redis.opsForSet().add("api:usage:active", apiKey.getUserId() + ":" + LocalDate.now());
             if (used != null && used == 1) redis.expire(usageKey, java.time.Duration.ofDays(2));
         } catch (Exception e) {
+            info.wesite.core.diagnostics.DiagnosticRecorder.mark(request, e);
             return ResponseEntity.status(503).body(Map.of("error", "Usage metering is temporarily unavailable."));
         }
         if (used == null) return ResponseEntity.status(503).body(Map.of("error", "Usage metering is temporarily unavailable."));

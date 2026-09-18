@@ -130,6 +130,7 @@ public class DomainScoreController {
             RateLimitUtils.incrementRequestCount(ip);
             return ResponseJson.success(result);
         } catch (Exception e) {
+            info.wesite.core.diagnostics.DiagnosticRecorder.markCurrent(e);
             log.error("Error scoring domain: {}", mainDomain, e);
             return ResponseJson.failure("Scoring failed: " + e.getMessage());
         }
