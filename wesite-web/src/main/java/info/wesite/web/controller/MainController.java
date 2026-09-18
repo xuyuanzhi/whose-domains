@@ -539,6 +539,14 @@ public class MainController {
 					return null;
 				}
 
+				// Creating the parent also discovers and saves its www site.
+				// Reuse that record instead of inserting the requested site twice.
+				DomainSite existing = domainSiteService
+						.getOne(Wrappers.<DomainSite>lambdaQuery().eq(DomainSite::getName, domainName));
+				if (existing != null) {
+					return existing;
+				}
+
 				newOne.setDomainId(domain.getId());
 				newOne.setMainName(mainName);
 				newOne.setName(domainName);

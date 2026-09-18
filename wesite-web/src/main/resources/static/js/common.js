@@ -97,46 +97,38 @@ async function performSearch() {
 
     showLoader();
 
-    const resp = await fetch('/domain/' + domain + '/search', {method:'POST'});
-    const respData = await resp.json();
+    try {
+        const resp = await fetch('/domain/' + domain + '/search', {method: 'POST'});
+        if (!resp.ok) {
+            throw new Error('Domain search failed: HTTP ' + resp.status);
+        }
+        const respData = await resp.json();
 
-    if (respData.code != 0) {
-    	showNotification(respData.msg, 'warning');
-    	hideLoader();
-        return;
+        if (respData.code != 0) {
+            showNotification(respData.msg || 'Unable to look up this domain. Please try again.', 'warning');
+            return;
+        }
+
+        if (respData.data && respData.data.rdapUrl) {
+            try {
+                const resp2 = await fetch(respData.data.rdapUrl, {method: 'GET'});
+                const resp2Data = await resp2.json();
+                if (resp2Data && resp2Data.ldhName && resp2Data.ldhName == domain) {
+                    await fetch('/domain/updateText', {method: 'POST', body: JSON.stringify(resp2Data)});
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        window.location.href = '/domain/' + domain;
+    } catch (e) {
+        console.error(e);
+        showNotification('Unable to look up this domain. Please try again.', 'error');
+    } finally {
+        hideLoader();
     }
 
-    if (respData.data && respData.data.rdapUrl) {
-    	try {
-    		const resp2 = await fetch(respData.data.rdapUrl, {method:'GET'});
-            const resp2Data = await resp2.json();
-            if (resp2Data && resp2Data.ldhName && resp2Data.ldhName == domain) {
-            	const resp3 = await fetch('/domain/updateText', {method:'POST',body:JSON.stringify(resp2Data)});
-            	const resp3Data = await resp3.json();
-            	console.log(resp3Data);
-            }
-    	} catch (e) {
-    		console.error(e);
-    	}
-	}
-
-	hideLoader();
-	window.location.href = '/domain/' + domain;
-    
-    
-    /** fetch('/domain/' + domain + '/search', {method:'POST'})
-    .then(resp => {
-    	return resp.json();
-    })
-    .then(resp => {
-    	console.log(resp);
-    	if (resp.data.rdapUrl) {
-    		getDomainInfo(resp.data.rdapUrl);
-    	} else {
-    		window.location.href = '/domain/' + domain;
-    	}
-    }).catch(err => console.log('Fail to search domain.', err)); **/
-    
 }
 
 $(document).ready(function() {
