@@ -138,6 +138,7 @@ public class MainController {
 							.eq(DomainTldExt::getTldName, tld.getDotName()).orderByAsc(DomainTldExt::getName));
 
 			List<Domain> list = domainService.list(Wrappers.<Domain>lambdaQuery()
+					.select(Domain::getName) // The TLD list only renders names; omit WHOIS/RDAP payloads.
 					.eq(Domain::getStatus, Domain.STATUS_ACTIVE).eq(Domain::getTldName, tld.getDotName())
 					.orderByDesc(Domain::getUpdateTime, Domain::getCreateTime).last("limit 100"));
 
