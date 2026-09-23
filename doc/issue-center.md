@@ -6,7 +6,7 @@
 
 1. 在目标环境备份后应用 `doc/alter_issue_center.sql`。脚本只新建四张问题中心表。已有问题中心表的环境须在更新应用前执行 `doc/upgrade_issue_center_resolved_at.sql`（可重复执行），补充独立解决时间并从状态记录回填。
 2. 部署 core、web、admin 对应的新构建；默认采集关闭，未迁移数据库时不会主动写入诊断表。
-3. 给两端设置相同的 `WESITE_ENVIRONMENT`（例如 `production` 或 `staging`，使用各自独立数据库），设置 `WESITE_RELEASE`（例如 Git SHA）。
+3. 给两端设置相同的 `WESITE_ENVIRONMENT`（例如 `production` 或 `staging`，使用各自独立数据库）。
 4. 设置 `WESITE_DIAGNOSTICS_ENABLED=true` 并重启。后台会显示当前环境和采集开关状态。发布前检查 `/diagnostics/bootstrap.js` 返回的 enabled 配置。
 5. 在测试环境验证一次异常采集、后台详情、状态保存及复发；生产不提供人为制造异常的接口。公开上报端点为 POST `/diagnostics/events`，不需要账户。
 
@@ -16,10 +16,10 @@
 
 ## 数据与容量
 
-- 环境/应用/版本由服务端配置决定；浏览器不能覆盖这些字段。
+- 环境/应用由服务端配置决定；浏览器不能覆盖这些字段。
 - 默认单工作线程、500项队列；满队列直接丢弃，不切换到请求线程写库。SQL查询超时3秒，单次写入事务超时5秒，连接获取使用当前数据源连接池配置。
 - 浏览器队列20项，每批10项，每分钟60事件，上报5秒超时，无无限重试。请求体最大16KB，服务器还限制每实例每IP的请求数和事件数。
-- 记录异常类、自有代码调用位置、规范化路由、请求ID、时间和版本；不保存异常消息、请求/响应正文、Cookie、凭据或查询字符串。
+- 记录异常类、自有代码调用位置、规范化路由、请求ID和时间；不保存异常消息、请求/响应正文、Cookie、凭据或查询字符串。
 - 前端只接受允许的错误类型、部署脚本路径与后端路由模板。动态域名和用户ID不入库；第三方广告错误被过滤。
 - 带服务端请求ID的前端失败只设置关联标记，同请求不重复计数。请求失败但无响应ID时作为独立前端问题。
 - 并发写入通过数据库唯一键和事务锁完成；重复事件不重复计数，不重新打开已解决问题。
@@ -33,7 +33,6 @@
 | wesite.diagnostics.enabled | false |
 | wesite.diagnostics.app | 两端分别为 web/admin |
 | wesite.diagnostics.environment | WESITE_ENVIRONMENT，未设置为 local |
-| wesite.diagnostics.release | WESITE_RELEASE，未设置为 unknown |
 | wesite.diagnostics.queue-capacity | 500 |
 | wesite.diagnostics.event-retention-days | 30 |
 | wesite.diagnostics.issue-retention-days | 180，必须不少于明细保留期 |
@@ -81,3 +80,5 @@ mvn -pl wesite-admin -am -Dtest=IssueBrowserTest -Dsurefire.failIfNoSpecifiedTes
 审核补充：复发按事件发生时间判断。解决前发生但因队列延迟才入库的事件只更新次数，不重新打开；重复上报同样不重开。
 
 复发比较事件发生时间与最近一次进入 resolved 的时间；补充备注或发布版本不改变该时间。异步请求在完成时采集最终响应状态。浏览器错误按脚本路径及行列位置聚合，避免同脚本不同错误混合；版本更新移动代码位置可能产生新问题。Java 错误按类与方法聚合，忽略行号变化。
+
+问题中心无需配置发布版本。旧版数据库的版本字段仅为兼容保留，新采集写入空值，页面不再展示或要求填写版本；已有表无需迁移。

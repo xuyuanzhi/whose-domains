@@ -27,7 +27,7 @@ const {chromium}=require(process.env.PLAYWRIGHT_MODULE || 'playwright');
   const first=page.locator('tbody button').first();await first.waitFor();await first.click();
   await page.getByText('客户端也观察到此请求失败',{exact:true}).waitFor();
   assert.equal(await page.locator('.issue-detail').innerText().then(t=>t.includes('sensitive information')),false);
-  await page.getByLabel('处理状态').selectOption('resolved');await page.getByLabel('修复版本').fill('v-test');await page.getByLabel('新增处理备注').fill('Browser verified');
+  await page.getByLabel('处理状态').selectOption('resolved');await page.getByLabel('新增处理备注').fill('Browser verified');
   await page.getByRole('button',{name:'保存处理记录'}).click();await page.getByText('Browser verified',{exact:true}).waitFor();
   await page.getByRole('button',{name:'关闭',exact:true}).click();
   await page.getByText('当前筛选下暂无问题。',{exact:true}).waitFor();

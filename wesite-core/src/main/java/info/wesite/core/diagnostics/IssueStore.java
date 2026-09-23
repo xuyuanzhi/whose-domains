@@ -44,16 +44,16 @@ public class IssueStore {
         jdbc.update("INSERT INTO WEB_SYSTEM_ISSUE(id,app,environment,fingerprint,source,summary,route,exception_type,first_seen_at,last_seen_at,last_release) "
             + "VALUES(?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE id=id", UUID.randomUUID().toString(), app, env,
             fingerprint, e.source(), DiagnosticSanitizer.truncate(e.exceptionType()+" · "+e.route(),400),
-            e.route(), e.exceptionType(), e.time(), e.time(), config.getRelease());
+            e.route(), e.exceptionType(), e.time(), e.time(), "");
         String id = jdbc.queryForObject("SELECT id FROM WEB_SYSTEM_ISSUE WHERE app=? AND environment=? AND fingerprint=? FOR UPDATE",
             String.class, app, env, fingerprint);
         jdbc.update("INSERT INTO WEB_SYSTEM_ISSUE_EVENT(id,issue_id,app,environment,occurrence_key,route,method,http_status,exception_type,safe_frames,request_id,release_name,occurred_at) "
             + "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)", UUID.randomUUID().toString(), id, app, env, e.key(), e.route(), e.method(),
-            e.status(), e.exceptionType(), e.frames(), e.requestId(), config.getRelease(), e.time());
+            e.status(), e.exceptionType(), e.frames(), e.requestId(), "", e.time());
         jdbc.update("UPDATE WEB_SYSTEM_ISSUE SET occurrence_count=occurrence_count+1,first_seen_at=LEAST(first_seen_at,?),"
             + "last_release=IF(last_seen_at<=?,?,last_release),last_seen_at=GREATEST(last_seen_at,?),"
             + "status=IF(status='resolved' AND ?>resolved_at,'open',status),version=version+1 WHERE id=?",
-            e.time(), e.time(), config.getRelease(), e.time(), e.time(), id);
+            e.time(), e.time(), "", e.time(), e.time(), id);
     }
 
     public Map<String,Object> list(int page, int size, String status, String app, String source, Long from, Long to, String keyword) {

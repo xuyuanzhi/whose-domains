@@ -52,18 +52,17 @@
         }
         function renderDetail(seq) {
             detailBody.replaceChildren();
-            detailBody.append(node('h3',detail.summary),node('p','累计 '+detail.occurrence_count+' 次 · 首次 '+time(detail.first_seen_at)+' · 最近 '+time(detail.last_seen_at),'issue-muted'),node('p','最近版本：'+detail.last_release,'issue-muted'));
+            detailBody.append(node('h3',detail.summary),node('p','累计 '+detail.occurrence_count+' 次 · 首次 '+time(detail.first_seen_at)+' · 最近 '+time(detail.last_seen_at),'issue-muted'));
             var form=node('form'),statusLabel=node('label','处理状态 '),select=node('select');
             Object.keys(statuses).forEach(function(key){var option=node('option',statuses[key]);option.value=key;select.append(option);});select.value=detail.status;statusLabel.append(select);
-            var releaseLabel=node('label','修复版本 '),release=node('input');release.value=detail.resolved_release||'';release.maxLength=64;release.pattern='[a-zA-Z0-9.:_+\\-]*';releaseLabel.append(release);
             var noteLabel=node('label','新增处理备注'),note=node('textarea');note.maxLength=1000;noteLabel.append(note);
-            var save=node('button','保存处理记录','layui-btn layui-btn-sm');form.append(statusLabel,releaseLabel,noteLabel,save);detailBody.append(form);
+            var save=node('button','保存处理记录','layui-btn layui-btn-sm');form.append(statusLabel,noteLabel,save);detailBody.append(form);
             form.onsubmit=async function(event){
                 event.preventDefault();if(saving || seq!==detailSeq)return;
-                var target=selected;saving=true;save.disabled=true;select.disabled=true;release.disabled=true;note.disabled=true;detailError.textContent='';
-                try {await request('/'+encodeURIComponent(target)+'/status',{status:select.value,note:note.value,resolvedRelease:release.value,version:detail.version});saving=false;load();await open(target);}
+                var target=selected;saving=true;save.disabled=true;select.disabled=true;note.disabled=true;detailError.textContent='';
+                try {await request('/'+encodeURIComponent(target)+'/status',{status:select.value,note:note.value,resolvedRelease:'',version:detail.version});saving=false;load();await open(target);}
                 catch(error){if(seq===detailSeq)detailError.textContent=error.message;}
-                finally {saving=false;save.disabled=false;select.disabled=false;release.disabled=false;note.disabled=false;}
+                finally {saving=false;save.disabled=false;select.disabled=false;note.disabled=false;}
             };
             section('events','事件明细',seq);section('notes','处理记录',seq);
         }
@@ -80,10 +79,10 @@
                     result.items.forEach(function(item){
                         var article=node('article');
                         if(kind==='events') {
-                            article.append(node('strong',time(item.occurred_at)+' · '+item.exception_type),node('p',item.method+' '+item.route+' · HTTP '+item.http_status),node('p','请求 ID：'+(item.request_id||'—')+' · 版本：'+item.release_name,'issue-muted'));
+                            article.append(node('strong',time(item.occurred_at)+' · '+item.exception_type),node('p',item.method+' '+item.route+' · HTTP '+item.http_status),node('p','请求 ID：'+(item.request_id||'—'),'issue-muted'));
                             if(item.client_reported)article.append(node('p','客户端也观察到此请求失败','issue-muted'));
                             if(item.safe_frames)article.append(node('pre',item.safe_frames));
-                        } else article.append(node('strong',time(item.created_at)+' · '+item.actor_id),node('p',statuses[item.old_status]+' → '+statuses[item.new_status]+' · 修复版本：'+(item.resolved_release||'—')),node('pre',item.note||'（无备注）'));
+                        } else article.append(node('strong',time(item.created_at)+' · '+item.actor_id),node('p',statuses[item.old_status]+' → '+statuses[item.new_status]),node('pre',item.note||'（无备注）'));
                         rows.append(article);
                     });pager(pages,p,result.total,run);
                 }catch(error){if(seq===detailSeq && local===serial)status.textContent=error.message;}
