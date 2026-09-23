@@ -18,7 +18,6 @@ import info.wesite.core.entity.BaseEntity;
 import info.wesite.core.entity.Domain;
 import info.wesite.core.entity.DomainDns;
 import info.wesite.core.entity.DomainSite;
-import info.wesite.core.handler.Geoip2Handler;
 import info.wesite.core.mapper.DomainDnsMapper;
 import info.wesite.core.mapper.DomainMapper;
 import info.wesite.core.mapper.DomainSiteMapper;
@@ -32,7 +31,7 @@ public class DomainDnsServiceImpl extends ServiceImpl<DomainDnsMapper, DomainDns
 	@Autowired
 	private DomainSiteMapper domainSiteMapper;
 	@Autowired
-	private Geoip2Handler geoip2Handler;
+	private DomainDnsRecordWriter recordWriter;
 
 	@Transactional
 	@Override
@@ -53,41 +52,7 @@ public class DomainDnsServiceImpl extends ServiceImpl<DomainDnsMapper, DomainDns
 			org.xbill.DNS.Record[] rs = lookup.run();
 			if (rs != null) {
 				for (org.xbill.DNS.Record r : rs) {
-					DomainDns selOne = getBaseMapper().selectOne(Wrappers.<DomainDns>lambdaQuery()
-							.eq(DomainDns::getDomainId, domain.getId()).eq(DomainDns::getName, r.getName().toString())
-							.eq(DomainDns::getValue, r.rdataToString())
-							.eq(DomainDns::getType, Type.string(r.getType())));
-					if (selOne == null) {
-						DomainDns dd = new DomainDns();
-						dd.setDomainId(domain.getId());
-						dd.setName(r.getName().toString());
-						dd.setValue(r.rdataToString());
-						dd.setType(Type.string(r.getType()));
-						if (r.getType() == Type.A || r.getType() == Type.AAAA) {
-							String asnJson = geoip2Handler.getAsnJson(r.rdataToString());
-							if (asnJson == null) {
-								dd.setAsnJson("{}");
-							} else {
-								dd.setAsnJson(asnJson);
-							}
-							String cityJson = geoip2Handler.getCityJson(r.rdataToString());
-							if (cityJson == null) {
-								dd.setCityJson("{}");
-							} else {
-								dd.setCityJson(cityJson);
-							}
-						}
-						dd.setTtl(r.getTTL());
-						dd.setStatus(DomainDns.STATUS_ACTIVE);
-						dd.setCreateBy("task");
-						dd.setCreateTime(new Date());
-						getBaseMapper().insert(dd);
-					} else {
-						selOne.setStatus(DomainDns.STATUS_ACTIVE);
-						selOne.setUpdateBy("task");
-						selOne.setUpdateTime(new Date());
-						getBaseMapper().updateById(selOne);
-					}
+					recordWriter.saveObserved(domain.getId(), r);
 				}
 			}
 		}
@@ -115,41 +80,7 @@ public class DomainDnsServiceImpl extends ServiceImpl<DomainDnsMapper, DomainDns
 			org.xbill.DNS.Record[] rs = lookup.run();
 			if (rs != null) {
 				for (org.xbill.DNS.Record r : rs) {
-					DomainDns selOne = getBaseMapper().selectOne(Wrappers.<DomainDns>lambdaQuery()
-							.eq(DomainDns::getDomainId, site.getDomainId()).eq(DomainDns::getName, r.getName().toString())
-							.eq(DomainDns::getValue, r.rdataToString())
-							.eq(DomainDns::getType, Type.string(r.getType())));
-					if (selOne == null) {
-						DomainDns dd = new DomainDns();
-						dd.setDomainId(site.getDomainId());
-						dd.setName(r.getName().toString());
-						dd.setValue(r.rdataToString());
-						dd.setType(Type.string(r.getType()));
-						if (r.getType() == Type.A || r.getType() == Type.AAAA) {
-							String asnJson = geoip2Handler.getAsnJson(r.rdataToString());
-							if (asnJson == null) {
-								dd.setAsnJson("{}");
-							} else {
-								dd.setAsnJson(asnJson);
-							}
-							String cityJson = geoip2Handler.getCityJson(r.rdataToString());
-							if (cityJson == null) {
-								dd.setCityJson("{}");
-							} else {
-								dd.setCityJson(cityJson);
-							}
-						}
-						dd.setTtl(r.getTTL());
-						dd.setStatus(DomainDns.STATUS_ACTIVE);
-						dd.setCreateBy("task");
-						dd.setCreateTime(new Date());
-						getBaseMapper().insert(dd);
-					} else {
-						selOne.setStatus(DomainDns.STATUS_ACTIVE);
-						selOne.setUpdateBy("task");
-						selOne.setUpdateTime(new Date());
-						getBaseMapper().updateById(selOne);
-					}
+					recordWriter.saveObserved(site.getDomainId(), r);
 				}
 			}
 		}

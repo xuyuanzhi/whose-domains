@@ -11,6 +11,20 @@ import info.wesite.core.entity.DomainDns;
 
 public interface DomainDnsMapper extends BaseMapper<DomainDns> {
 
+    /** Exact DNS identity; the ordinary DOMAIN_ID predicate retains index access.
+     * A locking read after a duplicate-key conflict sees the committed winner even
+     * when the caller already has a REPEATABLE READ snapshot. */
+    @Select("<script>SELECT * FROM WEB_DOMAIN_DNS WHERE DELETED = 0 " +
+        "AND DOMAIN_ID = #{domainId} " +
+        "AND CAST(DOMAIN_ID AS BINARY) = CAST(#{domainId} AS BINARY) " +
+        "AND CAST(NAME AS BINARY) = CAST(#{name} AS BINARY) " +
+        "AND CAST(TYPE AS BINARY) = CAST(#{type} AS BINARY) " +
+        "AND CAST(VALUE AS BINARY) = CAST(#{value} AS BINARY) " +
+        "LIMIT 2 <if test='locking'>FOR UPDATE</if></script>")
+    List<DomainDns> findExact(@Param("domainId") String domainId, @Param("name") String name,
+        @Param("type") String type, @Param("value") String value, @Param("locking") boolean locking);
+
+
     /**
      * 统计托管在指定IP上的域名数量（去重）
      * 使用子查询避免 COUNT(DISTINCT)，配合覆盖索引性能更优
