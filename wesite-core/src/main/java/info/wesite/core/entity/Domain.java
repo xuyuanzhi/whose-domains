@@ -78,10 +78,12 @@ public class Domain extends BaseEntity {
 	private String registrantCity;
 	private String registrantState;
 	private String registrantCountry;
+	@TableField(updateStrategy = FieldStrategy.NOT_NULL)
 	private String registrantPhone;
 	private String registrantEmail;
 
 	private String techName;
+	@TableField(updateStrategy = FieldStrategy.NOT_NULL)
 	private String techPhone;
 	private String techEmail;
 
@@ -115,6 +117,35 @@ public class Domain extends BaseEntity {
 	// 请求刷新的IP
 	@TableField(updateStrategy = FieldStrategy.ALWAYS)
 	private String requestRefreshIp;
+
+	/**
+	 * Keep absent fields null, but explicitly clear unavailable values. Empty
+	 * strings participate in partial updates; null fields do not. Raw responses
+	 * remain in the WHOIS/RDAP text fields.
+	 */
+	public void setRegistrantPhone(String phone) {
+		this.registrantPhone = normalizePhone(phone, 50);
+	}
+
+	public void setTechPhone(String phone) {
+		this.techPhone = normalizePhone(phone, 200);
+	}
+
+	private static String normalizePhone(String phone, int maxCharacters) {
+		if (phone == null) {
+			return null;
+		}
+		String value = phone.strip();
+		String lower = value.toLowerCase(Locale.ROOT);
+		if (value.codePointCount(0, value.length()) > maxCharacters
+				|| lower.startsWith("redacted")
+				|| lower.contains("not be publicly disclosed")
+				|| lower.equals("not disclosed") || lower.equals("data protected")
+				|| lower.equals("not provided") || lower.equals("n/a")) {
+			return "";
+		}
+		return value;
+	}
 
 	// 请求刷新按钮是否显示
 	public boolean isRequestRefreshBtnEnable() {
