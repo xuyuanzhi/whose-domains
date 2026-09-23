@@ -338,7 +338,14 @@
         if (!dtVal) { setStatus('warn', 'Please select a date and time'); return; }
         var srcTZ = document.getElementById('sourceTimezone').value;
         var targets = document.querySelectorAll('.targetTimezoneSelect');
-        var utcMs = getUTCMs(dtVal, srcTZ);
+        var utcMs;
+        try {
+            utcMs = getUTCMs(dtVal, srcTZ);
+        } catch (error) {
+            document.getElementById('resultsPanel').style.display = 'none';
+            setStatus('warn', escHtml(error.message));
+            return;
+        }
         var srcInfo = getTZInfo(new Date(utcMs), srcTZ);
         var html = '';
         targets.forEach(function (sel) {
@@ -458,10 +465,32 @@
     }
 
     function getUTCMs(dtLocalStr, tz) {
-        var trial = new Date(dtLocalStr);
-        var utcD = new Date(trial.toLocaleString('en-US', { timeZone: 'UTC' }));
-        var tzD  = new Date(trial.toLocaleString('en-US', { timeZone: tz }));
-        return trial.getTime() + (utcD - tzD);
+        // Interpret the input as wall time in the selected zone, never the browser zone.
+        var match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(dtLocalStr);
+        if (!match) throw new Error('Please select a valid date and time.');
+        var wall = Date.UTC(+match[1], +match[2] - 1, +match[3], +match[4], +match[5], +(match[6] || 0));
+        var formatter = new Intl.DateTimeFormat('en-GB', {
+            timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit',
+            hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23'
+        });
+        function wallAt(instant) {
+            var fields = {};
+            formatter.formatToParts(new Date(instant)).forEach(function (part) { fields[part.type] = part.value; });
+            return Date.UTC(+fields.year, +fields.month - 1, +fields.day, +fields.hour, +fields.minute, +fields.second);
+        }
+        // Sample both sides of a possible DST transition, then verify each candidate.
+        var offsets = new Set(), candidates = new Set();
+        for (var hours = -36; hours <= 36; hours += 6) {
+            var sample = wall + hours * 3600000;
+            offsets.add(wallAt(sample) - sample);
+        }
+        offsets.forEach(function (offset) {
+            var candidate = wall - offset;
+            if (wallAt(candidate) === wall) candidates.add(candidate);
+        });
+        if (!candidates.size) throw new Error('This time does not exist in the selected zone because the clocks change. Choose another time.');
+        if (candidates.size > 1) throw new Error('This time occurs twice when the clocks change. Choose an unambiguous time or convert from UTC.');
+        return Array.from(candidates)[0];
     }
 
     function offsetDiff(fromTZ, toTZ, date) {

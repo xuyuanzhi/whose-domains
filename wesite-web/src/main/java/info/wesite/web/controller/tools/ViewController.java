@@ -623,30 +623,36 @@ public class ViewController {
 
             Map<String, Object> data = new LinkedHashMap<>();
 
+            if (StringUtils.isBlank(rdapText)) {
+                return ResponseJson.failure("No RDAP response is available for this domain. Try WHOIS Lookup instead.");
+            }
+
+            // Derive every summary field from exactly the raw response shown below.
+            Domain snapshot = RdapSnapshot.parse(domain, rdapText);
             // 基本解析字段（与whois类似但标注数据来源为RDAP）
-            data.put("domainName", domainEntity.getName());
-            data.put("handle", domainEntity.getRegistryDomainID());
-            data.put("status", domainEntity.getDomainStatus());
-            data.put("secureDNS", domainEntity.getDnssec());
-            data.put("createdAt", domainEntity.getRegistCreateDateText());
-            data.put("updatedAt", domainEntity.getRegistUpdateDateText());
-            data.put("expiresAt", domainEntity.getRegistExpiryDateText());
-            data.put("nameservers", domainEntity.getNameServerList());
+            data.put("domainName", snapshot.getName());
+            data.put("handle", snapshot.getRegistryDomainID());
+            data.put("status", snapshot.getDomainStatus());
+            data.put("secureDNS", snapshot.getDnssec());
+            data.put("createdAt", snapshot.getRegistCreateDateText());
+            data.put("updatedAt", snapshot.getRegistUpdateDateText());
+            data.put("expiresAt", snapshot.getRegistExpiryDateText());
+            data.put("nameservers", snapshot.getNameServerList());
 
             // Registrar
             Map<String, Object> registrar = new LinkedHashMap<>();
-            registrar.put("name", domainEntity.getRegistrar());
-            registrar.put("ianaId", domainEntity.getRegistrarIanaID());
-            registrar.put("url", domainEntity.getRegistrarUrl());
+            registrar.put("name", snapshot.getRegistrar());
+            registrar.put("ianaId", snapshot.getRegistrarIanaID());
+            registrar.put("url", snapshot.getRegistrarUrl());
             data.put("registrar", registrar);
 
             // Registrant
             Map<String, Object> registrant = new LinkedHashMap<>();
-            registrant.put("organization", domainEntity.getRegistrantOrg());
-            registrant.put("name", domainEntity.getRegistrantName());
-            registrant.put("email", domainEntity.getRegistrantEmail());
-            registrant.put("phone", domainEntity.getRegistrantPhone());
-            registrant.put("country", domainEntity.getRegistrantCountry());
+            registrant.put("organization", snapshot.getRegistrantOrg());
+            registrant.put("name", snapshot.getRegistrantName());
+            registrant.put("email", snapshot.getRegistrantEmail());
+            registrant.put("phone", snapshot.getRegistrantPhone());
+            registrant.put("country", snapshot.getRegistrantCountry());
             data.put("registrant", registrant);
 
             // RDAP 特有：原始JSON文本和服务器URL
@@ -659,7 +665,7 @@ public class ViewController {
         } catch (Exception e) {
             info.wesite.core.diagnostics.DiagnosticRecorder.markCurrent(e);
             log.error("Error performing RDAP lookup for domain: {}", domain, e);
-            return ResponseJson.failure("An error occurred during RDAP lookup: " + e.getMessage());
+            return ResponseJson.failure("The RDAP response could not be read. Please try again later.");
         }
     }
     

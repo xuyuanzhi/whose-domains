@@ -259,15 +259,17 @@
 	            
 	            <div class="results-grid" th:if="${domain.finalWhoisText != null or domain.prettyRdapText != null}" style="grid-template-columns: 1fr;">
 	                <div class="result-card" style="grid-column: 1 / span 1;" th:if="${domain.finalWhoisText == null and domain.prettyRdapText != null}">
-	                    <h3><i class="fas fa-cog"></i> RDAP Data</h3>
+	                    <h3><i class="fas fa-cog"></i> Stored RDAP response</h3>
+	                    <p class="raw-data-provenance">Capture time is unknown for this stored response. The summary above combines separately updated registration and DNS data and may differ. <a href="/tools/rdap-lookup" th:href="@{/tools/rdap-lookup(d=${domain.name})}">View a summary of this RDAP response</a>.</p>
 	                    <div class="info-row">
-	                        <pre style="text-wrap:auto;overflow:auto;">[[${domain.prettyRdapText}]]</pre>
+	                        <pre class="domain-raw-response">[[${domain.prettyRdapText}]]</pre>
 	                    </div>
 	                </div>
 	                <div class="result-card" style="grid-column: 1 / span 1;" th:if="${domain.finalWhoisText != null}">
-	                    <h3><i class="fas fa-cog"></i> Raw WHOIS Data</h3>
+	                    <h3><i class="fas fa-cog"></i> Stored WHOIS response</h3>
+	                    <p class="raw-data-provenance">Capture time is unknown for this stored response. The summary above may include separately updated registration and DNS data.</p>
 	                    <div class="info-row">
-	                        <pre style="text-wrap:auto;overflow:auto;">[[${domain.finalWhoisText}]]</pre>
+	                        <pre class="domain-raw-response">[[${domain.finalWhoisText}]]</pre>
 	                    </div>
 	                </div>
 	            </div>

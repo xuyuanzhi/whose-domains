@@ -57,6 +57,23 @@ class ProtectedPageLoginRedirectTest {
     }
 
     @Test
+    void proxySchemeCannotDowngradeLoginRedirect() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/user/api-keys");
+        request.setScheme("http");
+        request.setServerName("whose.domains");
+        // Model containers that expand sendRedirect against the upstream HTTP request.
+        MockHttpServletResponse response = new MockHttpServletResponse() {
+            @Override
+            public void sendRedirect(String location) throws java.io.IOException {
+                super.sendRedirect("http://whose.domains" + location);
+            }
+        };
+        assertFalse(interceptor().preHandle(request, response, protectedPageHandler()));
+        assertEquals(302, response.getStatus());
+        assertEquals("/login?returnTo=%2Fuser%2Fapi-keys", response.getHeader("Location"));
+    }
+
+    @Test
     void realRestControllerFetchWithBrowserDefaultHeadersKeepsExistingNoAuthResponse() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/user/api-keys/list");
         request.addHeader("Accept", "*/*");

@@ -162,7 +162,10 @@ public class WebInterceptor implements HandlerInterceptor {
             if (StringUtils.isNotBlank(request.getQueryString())) {
                 target += "?" + request.getQueryString();
             }
-            response.sendRedirect(returnTargetService.loginUrl(target));
+            // Keep the browser's HTTPS origin even when the upstream request uses HTTP.
+            // sendRedirect may expand the URL against the proxy-facing scheme/host.
+            response.setStatus(HttpServletResponse.SC_FOUND);
+            response.setHeader("Location", returnTargetService.loginUrl(target));
         }
 
         return false;

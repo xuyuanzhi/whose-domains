@@ -725,6 +725,7 @@ header {
 }
 
 .result-card {
+    min-width: 0;
     background: var(--card-bg);
     border-radius: var(--radius);
     padding: 24px;
@@ -775,6 +776,8 @@ header {
 }
 
 .info-value {
+    min-width: 0;
+    overflow-wrap: anywhere;
     text-align: right;
     max-width: 60%;
     word-break: break-word;
@@ -3842,8 +3845,9 @@ ul.tld-list li {list-style: none; font-size: 1.1rem;}
     .analysis-grid,
     .dns-analysis-grid { grid-template-columns: 1fr; }
     .analysis-card.full-width { grid-column: 1; }
-    .dns-table th:nth-child(3),
-    .dns-table td:nth-child(3) { display: none; }
+    .dns-table { width: 100%; table-layout: fixed; }
+    .dns-table th, .dns-table td { overflow-wrap: anywhere; }
+    .dns-table th { white-space: normal; }
     .simple-table th:nth-child(4),
     .simple-table td:nth-child(4) { display: none; }
 }
@@ -4458,3 +4462,22 @@ ul.tld-list li {list-style: none; font-size: 1.1rem;}
     .channel-list label { grid-template-columns: 34px minmax(0, 1fr) auto; }
     .channel-list small { line-height: 1.4; }
 }
+
+/* Keep long domain responses and API examples inside their own cards. */
+.domain-raw-response {
+    box-sizing: border-box;
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    overflow-x: auto;
+}
+.raw-data-provenance { color: var(--gray); font-size: 13px; line-height: 1.6; }
+.api-documentation .container, .api-documentation .api-section,
+.api-documentation .api-docs-public-card { min-width: 0; max-width: 100%; }
+.api-documentation .api-endpoint { overflow-wrap: anywhere; }
+.api-documentation pre, .api-documentation code { max-width: 100%; overflow-wrap: anywhere; }
+.api-documentation pre { overflow-x: auto; }
+.api-documentation code { overflow-x: auto; }
+.api-documentation table { display: block; max-width: 100%; overflow-x: auto; }

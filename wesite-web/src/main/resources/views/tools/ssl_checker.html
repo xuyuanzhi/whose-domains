@@ -560,8 +560,8 @@
             // === Certificate Info ===
             document.getElementById('pubKeyAlgorithm').textContent = cert.publicKeyAlgorithm || '-';
             var keySize = cert.publicKeySize || '';
-            var bits = parseInt(keySize);
-            var keySizeHtml = keySize ? '<span class="' + (bits >= 2048 ? 'badge-good' : 'badge-warn') + '">' + esc(String(keySize)) + '</span>' : '-';
+            var keyAssessment = assessPublicKey(cert);
+            var keySizeHtml = keySize ? '<span class="' + (keyAssessment.strong === true ? 'badge-good' : keyAssessment.strong === false ? 'badge-warn' : '') + '">' + esc(String(keySize)) + '</span>' : '-';
             document.getElementById('pubKeySize').innerHTML = keySizeHtml;
             var chainDepth = cert.chainDepth;
             if (chainDepth) {
@@ -623,6 +623,13 @@
             return 'A';
         }
         
+        function assessPublicKey(cert) {
+            var algorithm = String(cert.publicKeyAlgorithm || '').toUpperCase();
+            var bits = parseInt(cert.publicKeySize, 10);
+            var minimum = algorithm === 'RSA' || algorithm === 'RSASSA-PSS' ? 2048 : algorithm === 'EC' || algorithm === 'ECDSA' ? 256 : null;
+            return {strong: minimum && bits > 0 ? bits >= minimum : null, minimum: minimum, algorithm: algorithm};
+        }
+
         function updateBestPractices(data) {
             var cert = data.certificate || {};
             var validity = data.validity || {};
@@ -643,9 +650,9 @@
             if (protocols.indexOf('TLSv1.3') >= 0) practices.push('✅ Supports modern TLS 1.3 protocol');
             else practices.push('⚠️ Consider enabling TLS 1.3 for improved performance and security');
             if (protocols.indexOf('TLSv1') >= 0 || protocols.indexOf('TLSv1.1') >= 0) practices.push('🚨 Legacy TLS 1.0/1.1 detected — should be disabled');
-            var bits = parseInt(cert.publicKeySize || '0');
-            if (bits >= 2048) practices.push('✅ Strong key size (' + cert.publicKeySize + ')');
-            else if (bits > 0) practices.push('⚠️ Key size (' + cert.publicKeySize + ') is weak — use 2048+ bits for RSA');
+            var keyAssessment = assessPublicKey(cert);
+            if (keyAssessment.strong === true) practices.push('✅ Strong key size (' + parseInt(cert.publicKeySize, 10) + ' bits, ' + esc(keyAssessment.algorithm) + ')');
+            else if (keyAssessment.strong === false) practices.push('⚠️ Key size (' + parseInt(cert.publicKeySize, 10) + ' bits) is weak — use ' + keyAssessment.minimum + '+ bits for ' + esc(keyAssessment.algorithm));
             var sigAlg = cert.signatureAlgorithm || '';
             if (sigAlg.indexOf('SHA256') >= 0 || sigAlg.indexOf('SHA384') >= 0 || sigAlg.indexOf('SHA512') >= 0)
                 practices.push('✅ Strong signature algorithm (' + sigAlg + ')');
