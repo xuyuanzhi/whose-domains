@@ -23,7 +23,7 @@
     <section class="api-docs-public-card">
         <div class="api-docs-public-card__heading"><div><p class="api-key-console__eyebrow">Public API</p><h2>Start with an API key</h2></div><a href="/user/api-keys" class="api-key-button api-key-button--primary"><i class="fas fa-key" aria-hidden="true"></i> Manage API keys</a></div>
         <div class="api-start-steps"><div><span>1</span><p>Sign in to your account</p></div><div><span>2</span><p>Create and copy an API key</p></div><div><span>3</span><p>Send it as <code>X-API-Key</code></p></div></div>
-        <p>Free accounts share 100 requests per day across all keys. Public API responses exclude registrant and technical-contact PII.</p>
+        <p>Each account has a plan that sets its daily and monthly request allowance. Free accounts share a limited daily allowance across all keys. Public API responses exclude registrant and technical-contact PII.</p>
         <code style="display:block;white-space:pre;overflow:auto;">curl -H "X-API-Key: wd_your_key" https://whose.domains/api/v1/domains/example.com
 
 python -c "import requests; print(requests.get('https://whose.domains/api/v1/domains/example.com', headers={'X-API-Key':'wd_your_key'}).json())"

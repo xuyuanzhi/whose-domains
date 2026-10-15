@@ -24,4 +24,7 @@ public class User extends BaseEntity {
     private String vcode;
     private Date vcodeTime;
     private String userType;
+
+    /** Effective {@code WEB_API_PLAN.ID}; null means the free plan. */
+    private String planId;
 }

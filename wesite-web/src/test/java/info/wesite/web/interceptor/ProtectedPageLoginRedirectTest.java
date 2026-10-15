@@ -22,6 +22,7 @@ import org.springframework.web.method.HandlerMethod;
 import info.wesite.core.entity.User;
 import info.wesite.web.retention.AuthenticatedActivityRecorder;
 import info.wesite.core.service.ApiKeyService;
+import info.wesite.core.service.ApiPlanService;
 import info.wesite.core.utils.ApiTokenUtils;
 import info.wesite.core.utils.Constants;
 import info.wesite.core.utils.TokenUtils;
@@ -143,7 +144,7 @@ class ProtectedPageLoginRedirectTest {
 
     private HandlerMethod apiKeyListHandler() throws NoSuchMethodException {
         Method method = ApiKeyController.class.getMethod("list");
-        return new HandlerMethod(new ApiKeyController(mock(ApiKeyService.class)), method);
+        return new HandlerMethod(new ApiKeyController(mock(ApiKeyService.class), mock(ApiPlanService.class)), method);
     }
 
     private HandlerMethod userSessionHandler() throws NoSuchMethodException {

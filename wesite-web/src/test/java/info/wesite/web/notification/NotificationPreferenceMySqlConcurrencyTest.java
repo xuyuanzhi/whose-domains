@@ -340,7 +340,7 @@ class NotificationPreferenceMySqlConcurrencyTest {
     }
 
     private static void createTables() throws Exception {
-        execute("CREATE TABLE SYS_USER (ID varchar(32) PRIMARY KEY, DELETED smallint NOT NULL DEFAULT 0) ENGINE=InnoDB");
+        execute("CREATE TABLE SYS_USER (ID varchar(32) PRIMARY KEY, DELETED smallint NOT NULL DEFAULT 0, PLAN_ID varchar(32)) ENGINE=InnoDB");
         execute("CREATE TABLE WEB_DOMAIN_WATCH (ID varchar(32) PRIMARY KEY, STATUS smallint, DELETED smallint, "
             + "USER_ID varchar(32), DOMAIN_NAME varchar(255), NOTIFY_TYPE smallint, NOTIFY_EMAIL varchar(254)) ENGINE=InnoDB");
         execute("CREATE TABLE WEB_MONITOR_EVENT (ID varchar(32) PRIMARY KEY, WATCH_ID varchar(32), "

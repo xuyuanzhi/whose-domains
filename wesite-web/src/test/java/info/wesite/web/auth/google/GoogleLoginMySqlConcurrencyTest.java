@@ -95,6 +95,7 @@ class GoogleLoginMySqlConcurrencyTest {
                       VCODE varchar(50),
                       VCODE_TIME datetime,
                       USER_TYPE varchar(20),
+                      PLAN_ID varchar(32),
                       PRIMARY KEY (ID),
                       UNIQUE KEY IDX_USER_EMAIL (EMAIL),
                       UNIQUE KEY IDX_USER_GOOGLE_SUB (GOOGLE_SUB)

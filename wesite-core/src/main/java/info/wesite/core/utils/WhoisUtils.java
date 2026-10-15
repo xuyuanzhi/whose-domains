@@ -315,6 +315,8 @@ public class WhoisUtils {
 		WhoisClient client = new WhoisClient();
 		try {
 			client.setConnectTimeout(10000);
+			// Bound the read as well: without this a slow registry can hang the caller indefinitely.
+			client.setDefaultTimeout(15000);
 			client.connect(whoisServer);
 			return client.query(domain);
 		} catch (SocketException e1) {

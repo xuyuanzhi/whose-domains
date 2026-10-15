@@ -14,6 +14,12 @@
 			<artifactId>wesite-core</artifactId>
 			<version>1.0.0</version>
 		</dependency>
+		<!-- Official MCP Java SDK: Streamable HTTP servlet transport for the ChatGPT/Codex connector. -->
+		<dependency>
+			<groupId>io.modelcontextprotocol.sdk</groupId>
+			<artifactId>mcp</artifactId>
+			<version>2.0.1</version>
+		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-oauth2-client</artifactId>

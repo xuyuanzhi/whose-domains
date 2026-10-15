@@ -10,6 +10,7 @@ import info.wesite.core.config.AccessControl;
 import info.wesite.core.config.UserHolder;
 import info.wesite.core.entity.ApiKey;
 import info.wesite.core.service.ApiKeyService;
+import info.wesite.core.service.ApiPlanService;
 import info.wesite.core.utils.ApiKeyUtils;
 import info.wesite.core.utils.RandomUtils;
 import info.wesite.core.view.ResponseJson;
@@ -19,7 +20,11 @@ import info.wesite.core.view.ResponseJson;
 @AccessControl(level = AccessControl.Level.SESSION)
 public class ApiKeyController {
     private final ApiKeyService apiKeyService;
-    public ApiKeyController(ApiKeyService apiKeyService) { this.apiKeyService = apiKeyService; }
+    private final ApiPlanService apiPlanService;
+    public ApiKeyController(ApiKeyService apiKeyService, ApiPlanService apiPlanService) {
+        this.apiKeyService = apiKeyService;
+        this.apiPlanService = apiPlanService;
+    }
 
     @GetMapping("/list")
     public ResponseJson<Map<String, Object>> list() {
@@ -38,8 +43,11 @@ public class ApiKeyController {
         String name = StringUtils.defaultIfBlank(param.get("name"), "Default key").trim();
         if (name.length() > 100) return ResponseJson.failure("Key name is too long.");
         synchronized (("api-key:" + userId).intern()) {
+            int maxActiveKeys = apiPlanService.resolveForUser(userId).effectiveMaxActiveKeys();
             long count = apiKeyService.count(new QueryWrapper<ApiKey>().eq("USER_ID", userId).isNull("REVOKED_AT"));
-            if (count >= 3) return ResponseJson.failure("Free accounts can create up to 3 active API keys.");
+            if (maxActiveKeys != Integer.MAX_VALUE && count >= maxActiveKeys) {
+                return ResponseJson.failure("Your plan allows up to " + maxActiveKeys + " active API keys.");
+            }
             String plainKey = ApiKeyUtils.generate();
             ApiKey key = new ApiKey();
             key.setId(RandomUtils.generateId()); key.setUserId(userId); key.setName(name);

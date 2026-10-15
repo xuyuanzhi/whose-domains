@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
 import com.alibaba.fastjson2.JSON;
@@ -62,6 +63,56 @@ public class RdapUtils {
 		}
 	}
 	
+	/** Outcome of an RDAP lookup: a real record, an authoritative "no record", or a failure. */
+	public enum RdapOutcome { OK, NOT_FOUND, ERROR }
+
+	/** Typed RDAP response so callers stop conflating HTTP 404 with network/parse errors. */
+	public static final class RdapResponse {
+		public final RdapOutcome outcome;
+		public final String body;
+		public final String message;
+
+		private RdapResponse(RdapOutcome outcome, String body, String message) {
+			this.outcome = outcome;
+			this.body = body;
+			this.message = message;
+		}
+
+		public static RdapResponse ok(String body) {
+			return new RdapResponse(RdapOutcome.OK, body, null);
+		}
+
+		public static RdapResponse notFound() {
+			return new RdapResponse(RdapOutcome.NOT_FOUND, null, "not found");
+		}
+
+		public static RdapResponse error(String message) {
+			return new RdapResponse(RdapOutcome.ERROR, null, message);
+		}
+	}
+
+	/**
+	 * Fetches an RDAP record, preserving the distinction between "registered" (OK),
+	 * "no such domain" (404 -> NOT_FOUND) and any other failure (ERROR).
+	 */
+	public static RdapResponse fetch(String domain, String server) {
+		String url = server + "domain/" + domain;
+		try {
+			ResponseEntity<String> resp = s_restTemplate.getForEntity(url, String.class);
+			if (resp.getStatusCode().is2xxSuccessful() && StringUtils.isNotBlank(resp.getBody())) {
+				return new RdapResponse(RdapOutcome.OK, resp.getBody(), null);
+			}
+			return new RdapResponse(RdapOutcome.ERROR, null, "empty response");
+		} catch (HttpClientErrorException e) {
+			if (e.getStatusCode().value() == 404) {
+				return new RdapResponse(RdapOutcome.NOT_FOUND, null, "not found");
+			}
+			return new RdapResponse(RdapOutcome.ERROR, null, "HTTP " + e.getStatusCode().value());
+		} catch (Exception e) {
+			return new RdapResponse(RdapOutcome.ERROR, null, e.getClass().getSimpleName());
+		}
+	}
+
 	public static String getTextByUrl(String rdapUrl) {
 		try {
 			ResponseEntity<String> resp = s_restTemplate.getForEntity(rdapUrl, String.class);

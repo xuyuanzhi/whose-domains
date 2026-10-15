@@ -29,10 +29,12 @@ CREATE TABLE `SYS_USER` (
   `VCODE`       varchar(50),
   `VCODE_TIME`  datetime,
   `USER_TYPE`   varchar(20),
+  `PLAN_ID`     varchar(32)  NULL,
   PRIMARY KEY (`ID`),
   UNIQUE KEY `IDX_USER_PHONE` (`PHONE_NO`),
   UNIQUE KEY `IDX_USER_EMAIL` (`EMAIL`),
-  UNIQUE KEY `IDX_USER_GOOGLE_SUB` (`GOOGLE_SUB`)
+  UNIQUE KEY `IDX_USER_GOOGLE_SUB` (`GOOGLE_SUB`),
+  KEY `IDX_USER_PLAN` (`PLAN_ID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 CREATE TABLE `WEB_EMAIL_LOGIN_LINK` (
@@ -68,6 +70,32 @@ CREATE TABLE `WEB_API_USAGE_DAILY` (
   `USER_ID` varchar(32) NOT NULL, `USAGE_DATE` char(10) NOT NULL, `REQUEST_COUNT` int NOT NULL DEFAULT 0,
   PRIMARY KEY (`ID`), UNIQUE KEY `UK_API_USAGE_USER_DAY` (`USER_ID`, `USAGE_DATE`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
+-- Configurable API plans. Prices/limits are operator-editable defaults (minor currency units);
+-- business logic never references literal values. See also doc/alter_api_plan.sql.
+CREATE TABLE `WEB_API_PLAN` (
+  `ID` varchar(32) NOT NULL, `STATUS` smallint(1) DEFAULT '1', `DELETED` smallint(1) DEFAULT '0',
+  `CREATE_BY` varchar(50), `CREATE_TIME` datetime, `UPDATE_BY` varchar(50), `UPDATE_TIME` datetime,
+  `CODE` varchar(32) NOT NULL, `NAME` varchar(64) NOT NULL, `DESCRIPTION` varchar(255),
+  `PRICE_CENTS` int NOT NULL DEFAULT 0, `CURRENCY` char(3) NOT NULL DEFAULT 'USD',
+  `BILLING_PERIOD` varchar(16) NOT NULL DEFAULT 'NONE',
+  `DAILY_REQUEST_LIMIT` int NOT NULL DEFAULT 0, `MONTHLY_REQUEST_LIMIT` int NOT NULL DEFAULT 0,
+  `MAX_DOMAINS_PER_BATCH` int NOT NULL DEFAULT 0, `REQUESTS_PER_MINUTE` int NOT NULL DEFAULT 0,
+  `MAX_ACTIVE_KEYS` int NOT NULL DEFAULT 0, `SORT_ORDER` int NOT NULL DEFAULT 0,
+  PRIMARY KEY (`ID`), UNIQUE KEY `UK_API_PLAN_CODE` (`CODE`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
+INSERT INTO `WEB_API_PLAN`
+  (`ID`, `STATUS`, `DELETED`, `CREATE_TIME`, `CODE`, `NAME`, `DESCRIPTION`,
+   `PRICE_CENTS`, `CURRENCY`, `BILLING_PERIOD`, `DAILY_REQUEST_LIMIT`, `MONTHLY_REQUEST_LIMIT`,
+   `MAX_DOMAINS_PER_BATCH`, `REQUESTS_PER_MINUTE`, `MAX_ACTIVE_KEYS`, `SORT_ORDER`)
+VALUES
+  ('plan_free_00000000000000000001', 1, 0, NOW(), 'free', 'Free',
+   'Free tier for evaluation and light usage.', 0, 'USD', 'NONE', 100, 3000, 10, 120, 3, 0),
+  ('plan_dev_000000000000000000002', 1, 0, NOW(), 'developer', 'Developer',
+   'For independent developers and small projects.', 900, 'USD', 'MONTHLY', 2000, 60000, 50, 600, 10, 10),
+  ('plan_biz_000000000000000000003', 1, 0, NOW(), 'business', 'Business',
+   'High-volume and commercial applications.', 4900, 'USD', 'MONTHLY', 20000, 600000, 100, 3000, 25, 20);
 
 -- -----------------------------------------------------------------------------
 -- WEB_DOMAIN_TLD — top-level domain registry profile (.com, .net, .io …)
