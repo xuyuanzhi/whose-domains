@@ -128,5 +128,44 @@ mvn -pl wesite-web -am test
 
 New coverage: `DomainIntelServiceImplTest`, `DomainNameValidatorTest`, `ApiQuotaServiceImplTest`,
 `ApiPlanServiceImplTest`, `DomainIntelMcpToolsTest`, `McpQuotaFilterTest`,
-`PublicDomainApiControllerTest`. Integration against a live MySQL and an end-to-end MCP client
-session with ChatGPT are **not** covered here and remain to be validated.
+`PublicDomainApiControllerTest`, `UsageControllerTest`, `PricingPagesTemplateTest` and
+`McpEndpointEndToEndTest`.
+
+`McpEndpointEndToEndTest` is a real end-to-end check of the connector wire protocol: it boots an
+embedded servlet container hosting the Streamable HTTP transport and drives it with the official MCP
+Java client (`initialize` → `tools/list` → `tools/call`), using a stubbed domain service. It needs no
+MySQL, Redis or Spring context, so it runs anywhere:
+
+```bash
+mvn -pl wesite-web -am test -Dtest=McpEndpointEndToEndTest
+```
+
+Integration against a live MySQL and a real ChatGPT session are **not** covered automatically.
+
+## 7. Local end-to-end run
+
+Prerequisites: Java 17, MySQL and Redis reachable from `application-dev.properties` (default
+`localhost:3306` / `localhost:6379`). Start Redis if needed:
+
+```bash
+docker run --rm -p 6379:6379 redis:7
+```
+
+Enable MCP and run the web app on a free port with the dev profile:
+
+```bash
+# Windows PowerShell
+$env:WESITE_MCP_ENABLED = 'true'
+mvn -pl wesite-web -am spring-boot:run -Dspring-boot.run.profiles=dev -Dspring-boot.run.arguments=--server.port=18080
+```
+
+Then either use the MCP Inspector, or the bundled smoke script that performs the JSON-RPC
+handshake directly:
+
+```bash
+npx @modelcontextprotocol/inspector     # Streamable HTTP -> http://localhost:18080/mcp
+pwsh scripts/check-mcp.ps1 -BaseUrl http://localhost:18080 -Domain example.com
+```
+
+`check-mcp.ps1` calls `initialize`, `notifications/initialized`, `tools/list` and `tools/call`, so a
+passing run proves a client can connect and invoke the tools against a live server.
