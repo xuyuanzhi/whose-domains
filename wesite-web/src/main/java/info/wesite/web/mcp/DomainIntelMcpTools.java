@@ -7,14 +7,20 @@ import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import com.alibaba.fastjson2.JSON;
 
+import info.wesite.core.entity.ApiPlan;
 import info.wesite.core.model.DomainIntelResult;
+import info.wesite.core.model.QuotaDecision;
+import info.wesite.core.service.ApiPlanService;
+import info.wesite.core.service.ApiQuotaService;
 import info.wesite.core.service.DomainIntelService;
 import info.wesite.core.utils.DomainNameValidator;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
+import io.modelcontextprotocol.server.McpSyncServerExchange;
 import io.modelcontextprotocol.spec.McpSchema.CallToolRequest;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
 import io.modelcontextprotocol.spec.McpSchema.Tool;
@@ -35,10 +41,21 @@ public class DomainIntelMcpTools {
 
     private final DomainIntelService domainIntelService;
     private final McpProperties properties;
+    private final ApiPlanService apiPlanService;
+    private final ApiQuotaService apiQuotaService;
 
+    /** Anonymous-only wiring: per-IP quota is enforced by the transport filter. */
     public DomainIntelMcpTools(DomainIntelService domainIntelService, McpProperties properties) {
+        this(domainIntelService, properties, null, null);
+    }
+
+    @Autowired
+    public DomainIntelMcpTools(DomainIntelService domainIntelService, McpProperties properties,
+            ApiPlanService apiPlanService, ApiQuotaService apiQuotaService) {
         this.domainIntelService = domainIntelService;
         this.properties = properties;
+        this.apiPlanService = apiPlanService;
+        this.apiQuotaService = apiQuotaService;
     }
 
     public List<SyncToolSpecification> specifications() {
@@ -59,7 +76,7 @@ public class DomainIntelMcpTools {
                 .annotations(readOnlyAnnotations("Check domain registration"))
                 .build();
         return SyncToolSpecification.builder().tool(tool)
-                .callHandler((exchange, request) -> singleResult(arguments(request), "check_domain"))
+                .callHandler((exchange, request) -> singleResult(exchange, arguments(request), "check_domain"))
                 .build();
     }
 
@@ -73,7 +90,7 @@ public class DomainIntelMcpTools {
                 .annotations(readOnlyAnnotations("Get domain information"))
                 .build();
         return SyncToolSpecification.builder().tool(tool)
-                .callHandler((exchange, request) -> singleResult(arguments(request), "get_domain_info"))
+                .callHandler((exchange, request) -> singleResult(exchange, arguments(request), "get_domain_info"))
                 .build();
     }
 
@@ -99,21 +116,25 @@ public class DomainIntelMcpTools {
                 .annotations(readOnlyAnnotations("Check multiple domain registrations"))
                 .build();
         return SyncToolSpecification.builder().tool(tool)
-                .callHandler((exchange, request) -> batchResult(arguments(request), limit))
+                .callHandler((exchange, request) -> batchResult(exchange, arguments(request), limit))
                 .build();
     }
 
-    private CallToolResult singleResult(Map<String, Object> arguments, String tool) {
+    private CallToolResult singleResult(McpSyncServerExchange exchange, Map<String, Object> arguments, String tool) {
         String raw = asString(arguments.get("domain"));
         String normalized = DomainNameValidator.normalize(raw);
         if (raw == null || normalized == null || !DomainNameValidator.isValid(normalized)) {
             return error("Invalid argument: 'domain' must be a valid domain name such as example.com.");
         }
+        CallToolResult denied = enforceQuota(exchange, 1);
+        if (denied != null) {
+            return denied;
+        }
         DomainIntelResult result = domainIntelService.check(normalized);
         return ok(result, "get_domain_info".equals(tool));
     }
 
-    private CallToolResult batchResult(Map<String, Object> arguments, int limit) {
+    private CallToolResult batchResult(McpSyncServerExchange exchange, Map<String, Object> arguments, int limit) {
         Object value = arguments.get("domains");
         if (!(value instanceof List<?> rawList) || rawList.isEmpty()) {
             return error("Invalid argument: 'domains' must be a non-empty array of domain names.");
@@ -134,6 +155,10 @@ public class DomainIntelMcpTools {
         }
         if (unique.size() > limit) {
             return error("Too many domains: at most " + limit + " domains are allowed per call.");
+        }
+        CallToolResult denied = enforceQuota(exchange, unique.size());
+        if (denied != null) {
+            return denied;
         }
 
         List<Map<String, Object>> results = new ArrayList<>(unique.size());
@@ -158,6 +183,35 @@ public class DomainIntelMcpTools {
 
     private CallToolResult ok(DomainIntelResult result, boolean detailed) {
         return text(toMap(result, detailed));
+    }
+
+    /**
+     * Charges the authenticated account's plan when the request carries a validated bearer token.
+     * Returns an error result when the quota is exhausted, or {@code null} when the call may proceed
+     * (anonymous callers are limited by the transport filter instead).
+     */
+    private CallToolResult enforceQuota(McpSyncServerExchange exchange, int units) {
+        if (apiQuotaService == null || apiPlanService == null || exchange == null
+                || exchange.transportContext() == null) {
+            return null;
+        }
+        Object userIdValue = exchange.transportContext().get("userId");
+        if (!(userIdValue instanceof String userId) || userId.isBlank()) {
+            return null;
+        }
+        ApiPlan plan = apiPlanService.resolveForUser(userId);
+        QuotaDecision decision;
+        try {
+            decision = apiQuotaService.consume(userId, plan, null, Math.max(1, units));
+        } catch (RuntimeException e) {
+            log.warn("MCP quota check failed for user {}", userId, e);
+            return error("Usage metering is temporarily unavailable. Please retry shortly.");
+        }
+        if (!decision.isAllowed()) {
+            return error("API quota exceeded (" + decision.getReason()
+                    + "). Please retry later or review your plan at /pricing.");
+        }
+        return null;
     }
 
     private CallToolResult error(String message) {

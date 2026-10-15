@@ -4,8 +4,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
@@ -16,10 +20,16 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import info.wesite.core.entity.ApiPlan;
 import info.wesite.core.model.DomainIntelResult;
+import info.wesite.core.model.QuotaDecision;
 import info.wesite.core.model.RegistrationStatus;
+import info.wesite.core.service.ApiPlanService;
+import info.wesite.core.service.ApiQuotaService;
 import info.wesite.core.service.DomainIntelService;
+import io.modelcontextprotocol.common.McpTransportContext;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
+import io.modelcontextprotocol.server.McpSyncServerExchange;
 import io.modelcontextprotocol.spec.McpSchema.CallToolRequest;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
 
@@ -45,6 +55,17 @@ class DomainIntelMcpToolsTest {
 
     private CallToolResult call(SyncToolSpecification spec, Map<String, Object> arguments) {
         return spec.callHandler().apply(null, new CallToolRequest(spec.tool().name(), arguments));
+    }
+
+    private CallToolResult callWith(McpSyncServerExchange exchange, SyncToolSpecification spec,
+            Map<String, Object> arguments) {
+        return spec.callHandler().apply(exchange, new CallToolRequest(spec.tool().name(), arguments));
+    }
+
+    private McpSyncServerExchange authenticatedExchange() {
+        McpSyncServerExchange exchange = mock(McpSyncServerExchange.class);
+        when(exchange.transportContext()).thenReturn(McpTransportContext.create(Map.of("userId", "user-1")));
+        return exchange;
     }
 
     @Test
@@ -114,5 +135,49 @@ class DomainIntelMcpToolsTest {
         List<Map<String, Object>> results = (List<Map<String, Object>>) structured.get("results");
         assertEquals(2, results.size());
         assertTrue(results.stream().allMatch(r -> "unknown".equals(r.get("status"))));
+    }
+
+    @Test
+    void authenticatedCallIsChargedAgainstTheUsersPlan() {
+        ApiPlan plan = new ApiPlan();
+        plan.setCode("developer");
+        ApiPlanService plans = mock(ApiPlanService.class);
+        ApiQuotaService quota = mock(ApiQuotaService.class);
+        when(plans.resolveForUser("user-1")).thenReturn(plan);
+        when(quota.consume(eq("user-1"), eq(plan), isNull(), anyInt()))
+                .thenReturn(QuotaDecision.allowed(1, 100, 1, 1000));
+        DomainIntelResult checked = new DomainIntelResult();
+        checked.setDomain("example.com");
+        checked.setStatus(RegistrationStatus.REGISTERED);
+        checked.setCheckedAt("2026-10-15T00:00:00Z");
+        when(service.check("example.com")).thenReturn(checked);
+        DomainIntelMcpTools authenticated = new DomainIntelMcpTools(service, properties, plans, quota);
+
+        CallToolResult result = callWith(authenticatedExchange(), specOf(authenticated, "check_domain"),
+                Map.of("domain", "example.com"));
+
+        assertFalse(result.isError());
+        verify(quota).consume(eq("user-1"), eq(plan), isNull(), eq(1));
+    }
+
+    @Test
+    void authenticatedCallIsRejectedWhenQuotaIsExhausted() {
+        ApiPlan plan = new ApiPlan();
+        plan.setCode("free");
+        ApiPlanService plans = mock(ApiPlanService.class);
+        ApiQuotaService quota = mock(ApiQuotaService.class);
+        when(plans.resolveForUser("user-1")).thenReturn(plan);
+        when(quota.consume(eq("user-1"), eq(plan), isNull(), anyInt()))
+                .thenReturn(QuotaDecision.denied("daily", 100, 100, 0, 1000));
+        DomainIntelMcpTools authenticated = new DomainIntelMcpTools(service, properties, plans, quota);
+
+        CallToolResult result = callWith(authenticatedExchange(), specOf(authenticated, "check_domain"),
+                Map.of("domain", "example.com"));
+
+        assertTrue(result.isError());
+    }
+
+    private static SyncToolSpecification specOf(DomainIntelMcpTools tools, String name) {
+        return tools.specifications().stream().filter(s -> s.tool().name().equals(name)).findFirst().orElseThrow();
     }
 }

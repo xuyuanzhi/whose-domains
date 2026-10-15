@@ -103,9 +103,12 @@ This phase targets states 1 and 2 only, per the agreed scope.
 
 ## 5. External dependencies / explicitly out of scope
 
-- **OAuth 2.1 for per-user MCP identity** — deferred. The plugin is anonymous/read-only for now.
-  Note the official portal does **not** support API-key auth for MCP connections, so OAuth (or
-  `noauth`) is required for any future public submission.
+- **OAuth 2.1 for per-user MCP identity** — **partially implemented** (see section 8). The resource
+  server, protected-resource metadata and per-user quota plumbing are done and tested; the
+  authorization server's interactive code/token flow is **not yet working** and is gated off by
+  default. Until it works, the plugin remains anonymous/read-only. Note the official portal does
+  **not** support API-key auth for MCP connections, so OAuth (or `noauth`) is required for any future
+  public submission.
 - **Payments** — no integration. Only the plan/quota infrastructure exists. Per OpenAI plugin
   guidelines, digital subscriptions/credits may not be sold or advertised inside a plugin; paid API
   plans must be sold on whose.domains via external checkout.
@@ -181,3 +184,40 @@ and Redis running. `initialize` reported server `whose-domains 1.0.0` (protocol 
 three tools were listed, and `check_domain`, `check_domains` and `get_domain_info` each returned
 `{"status":"registered","source":"database", ...}` for `example.com`. Redis-backed anonymous quota
 and per-IP rate limiting were active during the calls.
+
+## 8. OAuth 2.1 (in progress)
+
+All OAuth support is gated behind `wesite.mcp.oauth.enabled` (**default false**).
+
+Implemented and verified:
+
+- **Resource server** — `/mcp` validates bearer JWTs; an invalid token returns `401` (verified live),
+  while anonymous requests still work (mixed auth).
+- **Protected resource metadata** — `GET /.well-known/oauth-protected-resource` (RFC 9728) returns
+  `resource`, `authorization_servers` and `scopes_supported` (verified live).
+- **Authorization server metadata** — `GET /.well-known/oauth-authorization-server` (served by Spring
+  Authorization Server) advertises PKCE `S256` (verified live).
+- **Per-user identity** — `McpRequestContextExtractor` reads the token subject (user id) and passes it
+  to the tools through the MCP transport context; authenticated calls are metered against the
+  account's plan (`ApiQuotaService`) instead of the anonymous subnet budget. Unit-tested.
+- `CookieAuthenticationFilter` authenticates the authorization endpoint with the existing session
+  cookie so a signed-in user does not have to log in twice.
+
+**Not working yet:** the authorization server's interactive `authorization_code` endpoint. In local
+testing `GET /oauth2/authorize` reaches the authorization-server filter chain but is not handled by
+`OAuth2AuthorizationEndpointFilter`, falling through to a 404. The token endpoint therefore cannot
+issue tokens yet. This is the next piece to fix (and to verify with a real PKCE exchange) before OAuth
+can be enabled.
+
+Configuration (`application.properties`, all overridable by env):
+
+| Property | Env var | Default |
+| --- | --- | --- |
+| `wesite.mcp.oauth.enabled` | `WESITE_MCP_OAUTH_ENABLED` | `false` |
+| `wesite.mcp.oauth.issuer` | `WESITE_MCP_OAUTH_ISSUER` | `https://whose.domains` |
+| `wesite.mcp.oauth.resource` | `WESITE_MCP_OAUTH_RESOURCE` | `https://whose.domains/mcp` |
+| `wesite.mcp.oauth.client-id` | `WESITE_MCP_OAUTH_CLIENT_ID` | `chatgpt` |
+| `wesite.mcp.oauth.client-secret` | `WESITE_MCP_OAUTH_CLIENT_SECRET` | (blank = public client) |
+| `wesite.mcp.oauth.redirect-uris` | `WESITE_MCP_OAUTH_REDIRECT_URIS` | (none) |
+| `wesite.mcp.oauth.scopes` | `WESITE_MCP_OAUTH_SCOPES` | `domain.read` |
+| `wesite.mcp.oauth.jwk-file` | `WESITE_MCP_OAUTH_JWK_FILE` | (blank = ephemeral key) |

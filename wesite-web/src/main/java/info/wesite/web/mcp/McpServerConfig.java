@@ -3,6 +3,7 @@ package info.wesite.web.mcp;
 import java.time.Duration;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.boot.web.servlet.ServletRegistrationBean;
 import org.springframework.context.annotation.Bean;
@@ -12,8 +13,10 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import io.modelcontextprotocol.json.McpJsonDefaults;
 import io.modelcontextprotocol.server.McpServer;
 import io.modelcontextprotocol.server.McpSyncServer;
+import io.modelcontextprotocol.server.McpTransportContextExtractor;
 import io.modelcontextprotocol.server.transport.HttpServletStreamableServerTransportProvider;
 import io.modelcontextprotocol.spec.McpSchema.ServerCapabilities;
+import jakarta.servlet.http.HttpServletRequest;
 
 /**
  * Registers a read-only, anonymous MCP endpoint over the MCP Streamable HTTP transport (the
@@ -28,12 +31,18 @@ import io.modelcontextprotocol.spec.McpSchema.ServerCapabilities;
 public class McpServerConfig {
 
     @Bean
-    public HttpServletStreamableServerTransportProvider mcpTransportProvider(McpProperties properties) {
-        return HttpServletStreamableServerTransportProvider.builder()
-                .jsonMapper(McpJsonDefaults.getMapper())
-                .mcpEndpoint(properties.getEndpoint())
-                .keepAliveInterval(Duration.ofSeconds(30))
-                .build();
+    public HttpServletStreamableServerTransportProvider mcpTransportProvider(McpProperties properties,
+            ObjectProvider<McpTransportContextExtractor<HttpServletRequest>> contextExtractor) {
+        HttpServletStreamableServerTransportProvider.Builder builder =
+                HttpServletStreamableServerTransportProvider.builder()
+                        .jsonMapper(McpJsonDefaults.getMapper())
+                        .mcpEndpoint(properties.getEndpoint())
+                        .keepAliveInterval(Duration.ofSeconds(30));
+        McpTransportContextExtractor<HttpServletRequest> extractor = contextExtractor.getIfAvailable();
+        if (extractor != null) {
+            builder.contextExtractor(extractor);
+        }
+        return builder.build();
     }
 
     @Bean
