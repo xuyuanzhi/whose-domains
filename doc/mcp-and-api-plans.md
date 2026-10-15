@@ -113,8 +113,10 @@ This phase targets states 1 and 2 only, per the agreed scope.
   (`.well-known/openai-apps-challenge`), an OAuth or noauth server, listing URLs (website/support/
   privacy/terms), a square icon, 5 positive + 3 negative test cases, a demo video and a
   non-MFA reviewer test account.
-- **UI** — pricing, usage/quota, billing/subscription and AI-connection pages are not built yet.
-  Existing API docs copy no longer hard-codes quota numbers.
+- **UI** — implemented: `/pricing` (plan cards from `WEB_API_PLAN`), `/user/usage` (plan + remaining
+  allowance + recent history via `GET /api/user/usage`), `/ai-connection` (MCP connection guide), plus
+  navigation/footer links. Payments/checkout and billing pages are intentionally absent; plan changes
+  are handled offline. The pages reuse the existing Thymeleaf layout.
 
 ## 6. Tests
 

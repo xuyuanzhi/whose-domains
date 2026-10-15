@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+<header th:replace="~{template::template_header}"></header>
+
+<main class="api-key-console">
+    <div class="container api-key-console__container">
+        <section class="api-key-console__hero">
+            <div>
+                <p class="api-key-console__eyebrow"><i class="fas fa-gauge-high" aria-hidden="true"></i> Usage</p>
+                <h1>Plan &amp; usage</h1>
+                <p class="api-key-console__intro">Your plan sets the daily and monthly request allowance shared across all of your API keys. Usage counters reset on a rolling calendar basis.</p>
+            </div>
+            <a class="api-key-console__docs-link" href="/pricing"><i class="fas fa-tags" aria-hidden="true"></i> Compare plans</a>
+        </section>
+
+        <p id="usageStatus" class="api-key-status" role="status" aria-live="polite"></p>
+
+        <section id="usagePanel" hidden>
+            <div id="planSummary" class="api-key-quota-grid" aria-label="Current plan"></div>
+
+            <section class="api-key-workspace" aria-labelledby="historyTitle" style="margin-top:24px;">
+                <div class="api-key-workspace__header">
+                    <div><h2 id="historyTitle">Recent usage</h2><p>Daily request counts recorded for your account over the last 30 days.</p></div>
+                </div>
+                <div id="usageHistory" class="api-key-list" aria-live="polite"></div>
+            </section>
+        </section>
+    </div>
+</main>
+
+<footer th:replace="~{template::template_footer}"></footer>
+<script>
+(() => {
+    const status = document.getElementById('usageStatus');
+    const panel = document.getElementById('usagePanel');
+    const planSummary = document.getElementById('planSummary');
+    const history = document.getElementById('usageHistory');
+
+    function setStatus(message, type) { status.textContent = message || ''; status.className = 'api-key-status' + (type ? ' api-key-status--' + type : ''); }
+    function limited(value) { return value === null || value === undefined || value === 0 ? 'Unlimited' : value; }
+    function card(icon, title, subtitle) {
+        return '<article class="api-key-quota-card"><span class="api-key-quota-card__icon"><i class="fas ' + icon + '" aria-hidden="true"></i></span><div><strong>' + title + '</strong><span>' + subtitle + '</span></div></article>';
+    }
+
+    async function loadUsage() {
+        try {
+            const response = await fetch('/api/user/usage', {credentials:'include'});
+            const body = await response.json();
+            if (!response.ok || body.code !== 0) throw new Error(body.msg || 'Could not load usage.');
+            const data = body.data || {};
+            const plan = data.plan || {};
+            const quota = data.quota || {};
+
+            planSummary.innerHTML =
+                card('fa-id-badge', escapeHtml(plan.name || plan.code || 'Free'), 'Current plan') +
+                card('fa-calendar-day', limited(quota.dailyUsed) + ' / ' + limited(quota.dailyLimit), 'Requests used today') +
+                card('fa-calendar-days', limited(quota.monthlyUsed) + ' / ' + limited(quota.monthlyLimit), 'Requests used this month') +
+                card('fa-key', limited(plan.maxActiveKeys), 'Active API keys allowed');
+
+            const rows = data.history || [];
+            history.innerHTML = rows.length
+                ? rows.map(function (item) { return '<article class="api-key-row"><div class="api-key-row__identity"><span class="api-key-row__icon"><i class="fas fa-calendar-day" aria-hidden="true"></i></span><div><h3>' + escapeHtml(item.date) + '</h3><code>' + escapeHtml(String(item.count)) + ' requests</code></div></div></article>'; }).join('')
+                : '<div class="api-key-empty-state"><span><i class="fas fa-chart-simple" aria-hidden="true"></i></span><h3>No usage recorded yet</h3><p>Make an authenticated request with an API key and your usage will appear here.</p></div>';
+
+            panel.hidden = false;
+        } catch (error) {
+            setStatus(error.message, 'error');
+        }
+    }
+
+    function escapeHtml(value) { const element = document.createElement('span'); element.textContent = value == null ? '' : value; return element.innerHTML; }
+
+    loadUsage();
+})();
+</script>
+</body>
+</html>

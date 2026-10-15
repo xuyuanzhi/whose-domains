@@ -190,6 +190,8 @@
                 <ul class="nav-links" id="navLinks">
                     <li><a href="/" th:class="${requestURI == '/'?'active':''}">Home</a></li>
                     <li><a href="/api-docs" th:class="${requestURI == '/api-docs'?'active':''}">API Docs</a></li>
+                    <li><a href="/pricing" th:class="${requestURI == '/pricing'?'active':''}">Pricing</a></li>
+                    <li><a href="/ai-connection" th:class="${requestURI == '/ai-connection'?'active':''}">AI</a></li>
                     <li><a href="/tools" th:class="${requestURI != null && requestURI.startsWith('/tools')?'active':''}">Tools</a></li>
                     <li><a href="/top-level-domains" th:class="${requestURI == '/top-level-domains'?'active':''}">TLDs</a></li>
                     <li><a href="/expiring-domains" th:class="${requestURI == '/expiring-domains'?'active':''}">Expiring Domains</a></li>
@@ -212,6 +214,7 @@
                                 <a href="/user/notifications"><i class="fas fa-wave-square"></i> Signal Center</a>
                                 <a href="/user/notification-settings"><i class="fas fa-sliders"></i> Notification Settings</a>
                                 <a href="/user/api-keys"><i class="fas fa-key"></i> API Keys</a>
+                                <a href="/user/usage"><i class="fas fa-gauge-high"></i> Usage &amp; Plan</a>
                                 <a href="/user/watchlist"><i class="fas fa-bell"></i> My Watchlist</a>
                                 <button type="button" class="dropdown-menu-action" onclick="openLogoutConfirm(this)"><i class="fas fa-sign-out-alt"></i> Sign Out</button>
                             </div>
@@ -632,6 +635,8 @@
                         <li><a href="/tools/timezone-converter"><i class="fas fa-globe"></i> Time Zone Converter</a></li>
                         <li><a href="/top-level-domains"><i class="fas fa-sitemap"></i> Top Level Domains</a></li>
                         <li><a href="/api-docs"><i class="fas fa-book"></i> API Documentation</a></li>
+                        <li><a href="/pricing"><i class="fas fa-tags"></i> Plans &amp; Pricing</a></li>
+                        <li><a href="/ai-connection"><i class="fas fa-robot"></i> AI Connection</a></li>
                     </ul>
                 </div>
                 

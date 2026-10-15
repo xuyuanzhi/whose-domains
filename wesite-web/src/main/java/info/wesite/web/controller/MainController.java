@@ -36,6 +36,8 @@ import info.wesite.core.entity.DomainWatch;
 import info.wesite.core.entity.MonitorSnapshot;
 import info.wesite.core.entity.TldContent;
 import info.wesite.core.config.UserHolder;
+import info.wesite.core.entity.ApiPlan;
+import info.wesite.core.service.ApiPlanService;
 import info.wesite.core.service.ContactInfoService;
 import info.wesite.core.service.DomainDnsService;
 import info.wesite.core.service.DomainService;
@@ -91,6 +93,8 @@ public class MainController {
 	private DomainWatchService domainWatchService;
 	@Autowired
 	private MonitorSnapshotService monitorSnapshotService;
+	@Autowired
+	private ApiPlanService apiPlanService;
 
 	private static final String DOMAIN_REGEX = "^(?:(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)\\.)+[a-z]{2,}$";
 
@@ -719,6 +723,60 @@ public class MainController {
 	public String apiKeys(Model model) {
 		model.addAttribute(Constants.PAGE_TITLE, "API Keys - Whose.Domains");
 		return "user/api-keys";
+	}
+
+	@Operation(summary = "API 套餐与价格")
+	@GetMapping("/pricing")
+	public String pricing(Model model) {
+		model.addAttribute(Constants.PAGE_TITLE, "API Plans & Pricing - Whose.Domains");
+		model.addAttribute(Constants.PAGE_META_DESC,
+				"Compare Whose.Domains API plans: a free allowance plus configurable Developer and Business tiers for domain intelligence at scale.");
+		model.addAttribute("plans", pricingPlans());
+		return "pricing";
+	}
+
+	private List<java.util.Map<String, Object>> pricingPlans() {
+		List<java.util.Map<String, Object>> cards = new java.util.ArrayList<>();
+		if (apiPlanService == null) {
+			return cards;
+		}
+		List<ApiPlan> plans = apiPlanService.list(Wrappers.<ApiPlan>lambdaQuery()
+				.eq(ApiPlan::getStatus, ApiPlan.STATUS_ACTIVE)
+				.orderByAsc(ApiPlan::getSortOrder));
+		for (ApiPlan plan : plans) {
+			java.util.Map<String, Object> card = new java.util.LinkedHashMap<>();
+			card.put("code", plan.getCode());
+			card.put("name", plan.getName());
+			card.put("description", plan.getDescription());
+			card.put("priceCents", plan.getPriceCents() == null ? 0 : plan.getPriceCents());
+			card.put("currency", plan.getCurrency());
+			card.put("billingPeriod", plan.getBillingPeriod());
+			card.put("dailyLimit", plan.getDailyRequestLimit());
+			card.put("monthlyLimit", plan.getMonthlyRequestLimit());
+			card.put("maxDomainsPerBatch", plan.getMaxDomainsPerBatch());
+			card.put("requestsPerMinute", plan.getRequestsPerMinute());
+			card.put("maxActiveKeys", plan.getMaxActiveKeys());
+			cards.add(card);
+		}
+		return cards;
+	}
+
+	@Operation(summary = "API 用量页面")
+	@GetMapping("/user/usage")
+	@info.wesite.core.config.AccessControl(level = info.wesite.core.config.AccessControl.Level.SESSION)
+	public String usage(Model model) {
+		model.addAttribute(Constants.PAGE_TITLE, "API Usage & Plan - Whose.Domains");
+		model.addAttribute(Constants.PAGE_META_DESC, "Review your API plan, remaining daily and monthly allowance, and recent usage.");
+		return "user/usage";
+	}
+
+	@Operation(summary = "AI 连接说明")
+	@GetMapping("/ai-connection")
+	public String aiConnection(Model model) {
+		model.addAttribute(Constants.PAGE_TITLE, "Connect Whose.Domains to AI assistants via MCP");
+		model.addAttribute(Constants.PAGE_META_DESC,
+				"Connect ChatGPT and other MCP-capable assistants to Whose.Domains domain intelligence: check_domain, check_domains and get_domain_info tools.");
+		return "ai_connection";
 	}
 
 	private void addMonitorEvidence(ModelAndView model, String domainName) {

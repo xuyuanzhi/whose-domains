@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+<header th:replace="~{template::template_header}"></header>
+
+<main class="ai-connection-page">
+    <section class="hero">
+        <div class="container">
+            <div class="hero-content">
+                <h1>Connect to AI assistants</h1>
+                <p>Whose.Domains exposes a read-only Model Context Protocol (MCP) endpoint, so ChatGPT and other MCP-capable assistants can look up domain registration data on your behalf.</p>
+            </div>
+        </div>
+    </section>
+
+    <div class="container" style="max-width:900px; padding-bottom:60px;">
+        <div style="background:rgba(0,229,255,0.05); border-left:4px solid var(--primary); padding:15px 20px; border-radius:0 8px 8px 0; margin-bottom:30px; font-size:14px;">
+            <b>MCP endpoint:</b> <code style="background:rgba(0,229,255,0.1); padding:2px 6px; border-radius:3px;">https://whose.domains/mcp</code><br/>
+            <b>Transport:</b> Streamable HTTP<br/>
+            <b>Authentication:</b> none (anonymous, read-only, rate limited)
+        </div>
+
+        <section class="api-section" style="margin-bottom:35px;">
+            <h2 style="font-size:20px;">Tools</h2>
+            <ul style="line-height:2; font-size:14px;">
+                <li><code>check_domain</code> — registration status for a single domain.</li>
+                <li><code>check_domains</code> — a small batch of domains in one call.</li>
+                <li><code>get_domain_info</code> — full registration detail (registrar, dates, name servers, registry statuses, WHOIS/RDAP endpoints).</li>
+            </ul>
+            <p style="font-size:14px; color:#7a8ba0;">Status values: <code>registered</code>, <code>available</code>, <code>unregistered_candidate</code>, <code>reserved</code>, <code>unknown</code>. A missing DNS record or a failed lookup never means a domain is available — only <code>available</code> means a confirmed registrable name, and this service currently reports <code>unregistered_candidate</code> when a registry simply has no record.</p>
+        </section>
+
+        <section class="api-section" style="margin-bottom:35px;">
+            <h2 style="font-size:20px;">Connect in ChatGPT</h2>
+            <ol style="line-height:2; font-size:14px;">
+                <li>Open <b>Settings → Apps &amp; Connectors → Advanced settings</b> and enable <b>Developer mode</b>.</li>
+                <li>Choose <b>Create</b> and enter a name, for example “Whose.Domains”.</li>
+                <li>Set the MCP server URL to <code>https://whose.domains/mcp</code> and select <b>No authentication</b>.</li>
+                <li>Scan the tools and start a conversation; ask the assistant to check a domain.</li>
+            </ol>
+            <p style="font-size:13px; color:#c9a227;"><i class="fas fa-circle-info"></i> This connector is currently usable as a custom connection only. It has not been submitted to, or approved for, the public ChatGPT app directory.</p>
+        </section>
+
+        <section class="api-section">
+            <h2 style="font-size:20px;">Test locally</h2>
+            <p style="font-size:14px; color:#7a8ba0;">Use the MCP Inspector against a local instance:</p>
+            <code style="background:rgba(255,255,255,0.04); padding:12px 16px; display:block; border-radius:6px; font-size:13px; white-space:pre; overflow-x:auto;">npx @modelcontextprotocol/inspector
+# Streamable HTTP -> http://localhost:8080/mcp</code>
+            <p style="margin-top:20px;"><a href="/api-docs" style="color:var(--primary);">REST API documentation</a> · <a href="/pricing" style="color:var(--primary);">Plans &amp; pricing</a></p>
+        </section>
+    </div>
+</main>
+
+<footer th:replace="~{template::template_footer}"></footer>
+</body>
+</html>

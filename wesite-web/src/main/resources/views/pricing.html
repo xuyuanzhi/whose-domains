@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{template::template_head}"></head>
+<body>
+<header th:replace="~{template::template_header}"></header>
+
+<main class="pricing-page">
+    <section class="hero">
+        <div class="container">
+            <div class="hero-content">
+                <h1>API Plans &amp; Pricing</h1>
+                <p>Start free, then scale with Developer and Business plans for domain intelligence. Each plan sets the request allowance shared across every API key on your account.</p>
+            </div>
+        </div>
+    </section>
+
+    <div class="container" style="max-width:1100px; padding-bottom:60px;">
+        <div id="pricingGrid" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:20px;">
+            <article class="pricing-card" th:each="plan : ${plans}" th:attr="data-plan-code=${plan.code}"
+                     style="background:var(--card-bg); border-radius:12px; padding:24px; border:1px solid var(--glass-border);">
+                <h2 style="font-size:20px;" th:text="${plan.name}">Free</h2>
+                <p style="font-size:28px; font-weight:700; margin:8px 0;">
+                    <span th:if="${plan.priceCents == 0}">Free</span>
+                    <span th:unless="${plan.priceCents == 0}" th:text="'$' + ${plan.priceCents / 100}">$9</span>
+                    <small th:if="${plan.billingPeriod == 'MONTHLY'}" style="font-size:14px; font-weight:400; color:#7a8ba0;"> / month</small>
+                </p>
+                <p style="color:#7a8ba0; font-size:14px;" th:text="${plan.description}">Description</p>
+                <ul style="list-style:none; padding:0; margin:16px 0; line-height:2; font-size:14px;">
+                    <li th:text="${plan.dailyLimit} + ' requests/day'">100 requests/day</li>
+                    <li th:text="${plan.monthlyLimit} + ' requests/month'">3000 requests/month</li>
+                    <li th:text="'Up to ' + ${plan.maxDomainsPerBatch} + ' domains per batch'">Up to 10 domains per batch</li>
+                    <li th:text="${plan.requestsPerMinute} + ' requests/min'">120 requests/min</li>
+                    <li th:text="${plan.maxActiveKeys} + ' active API keys'">3 active API keys</li>
+                </ul>
+                <a href="/user/api-keys" class="api-key-button api-key-button--primary">Get started</a>
+            </article>
+        </div>
+
+        <div id="pricingEmpty" th:if="${#lists.isEmpty(plans)}"
+             style="background:var(--card-bg); border-radius:12px; padding:24px; color:#7a8ba0;">
+            Plan information is being updated. Please check back soon.
+        </div>
+
+        <p style="margin-top:30px; color:#7a8ba0; font-size:13px;">Plan prices and allowances are configured by the operator. Paid plans are arranged directly with support; this page does not process payments. Figures shown are indicative.</p>
+    </div>
+</main>
+
+<footer th:replace="~{template::template_footer}"></footer>
+</body>
+</html>
