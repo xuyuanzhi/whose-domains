@@ -87,6 +87,20 @@ class UserControllerGoogleBindingTest {
     }
 
     @Test
+    void emailLoginReturnsToMcpContinuationWithTheSiteCookie() throws Exception {
+        String target = "/mcp/authorize/continue/" + "a".repeat(43);
+        EmailLoginLink link = validLink(target);
+        User user = activeUser("email-user");
+        stubValidLink(link);
+        when(emailLoginCompletionService.complete(EMAIL, null)).thenReturn(user);
+        when(authCookieService.create(user)).thenReturn(authCookie);
+        mockMvc.perform(get("/user/verify-email").param("token", TOKEN))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl(target))
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, authCookie.toString()));
+    }
+
+    @Test
     void completesAnExistingUsersPendingBindingAfterAtomicallyConsumingTheLink() throws Exception {
         EmailLoginLink link = validLink("/user/watchlist?login=google_bind_required");
         User user = activeUser("email-user");

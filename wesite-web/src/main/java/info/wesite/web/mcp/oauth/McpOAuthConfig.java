@@ -8,11 +8,13 @@ import java.security.KeyPairGenerator;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -25,6 +27,16 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtClaimsSet;
+import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
+import org.springframework.security.oauth2.jwt.JwsHeader;
+import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
+import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
+import org.springframework.security.oauth2.jwt.JwtValidators;
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2Error;
+import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationConsentService;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.client.InMemoryRegisteredClientRepository;
@@ -40,8 +52,8 @@ import org.springframework.security.oauth2.server.authorization.settings.TokenSe
 import org.springframework.security.oauth2.server.authorization.token.JwtEncodingContext;
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenCustomizer;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.savedrequest.NullRequestCache;
+import org.springframework.security.web.context.SecurityContextHolderFilter;
 import org.springframework.security.web.context.NullSecurityContextRepository;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.web.util.matcher.MediaTypeRequestMatcher;
@@ -57,8 +69,8 @@ import com.nimbusds.jose.proc.SecurityContext;
 /**
  * OAuth 2.1 authorization server + JWT resource server for the MCP endpoint.
  *
- * <p>The authorization server uses non-colliding endpoints ({@code /mcp-oauth/*}) so it never
- * clashes with the existing Google login flow, requires PKCE, and authenticates the resource owner
+ * <p>The authorization server uses the standard {@code /oauth2/*} endpoints in its own filter
+ * chain, requires PKCE, and authenticates the resource owner
  * with the existing Whose.Domains session cookie. The resource server validates bearer tokens on
  * {@code /mcp} while still allowing anonymous (free-tier) access.</p>
  *
@@ -78,19 +90,27 @@ public class McpOAuthConfig {
         http.getConfigurer(OAuth2AuthorizationServerConfigurer.class)
                 .authorizationEndpoint(Customizer.withDefaults())
                 .tokenEndpoint(Customizer.withDefaults());
-        http.addFilterBefore(new CookieAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class)
+        McpOAuthLoginContinuation continuations = new McpOAuthLoginContinuation();
+        http.securityMatcher(new OrRequestMatcher(
+                http.getConfigurer(OAuth2AuthorizationServerConfigurer.class).getEndpointsMatcher(),
+                PathPatternRequestMatcher.withDefaults().matcher(McpOAuthLoginContinuation.PREFIX + "**")));
+        http.requestCache(cache -> cache.requestCache(new NullRequestCache()));
+        // Resolve the site cookie before the authorization endpoint examines the principal.
+        http.addFilterAfter(new CookieAuthenticationFilter(), SecurityContextHolderFilter.class)
+                .addFilterAfter(new McpOAuthLoginContinuation.ContinuationFilter(continuations), CookieAuthenticationFilter.class)
                 .exceptionHandling(exceptions -> exceptions.defaultAuthenticationEntryPointFor(
-                        new LoginUrlAuthenticationEntryPoint("/login"),
+                        continuations,
                         new MediaTypeRequestMatcher(MediaType.TEXT_HTML)));
         return http.build();
     }
 
     @Bean
     @Order(1)
-    SecurityFilterChain mcpResourceServerSecurityFilterChain(HttpSecurity http) throws Exception {
+    SecurityFilterChain mcpResourceServerSecurityFilterChain(HttpSecurity http,
+            @Value("${wesite.mcp.endpoint:/mcp}") String endpoint) throws Exception {
         PathPatternRequestMatcher.Builder paths = PathPatternRequestMatcher.withDefaults();
         http.securityMatcher(new OrRequestMatcher(
-                        paths.matcher("/mcp"),
+                        paths.matcher(endpoint),
                         paths.matcher("/.well-known/oauth-protected-resource")))
                 .authorizeHttpRequests(authorize -> authorize.anyRequest().permitAll())
                 .oauth2ResourceServer(resourceServer -> resourceServer.jwt(Customizer.withDefaults()))
@@ -146,9 +166,7 @@ public class McpOAuthConfig {
 
     @Bean
     AuthorizationServerSettings authorizationServerSettings(McpOAuthProperties properties) {
-        // Use the SDK defaults (/oauth2/authorize, /oauth2/token, /oauth2/jwks). Custom paths only
-        // affect the metadata document, not the endpoint filters, so overriding them breaks the
-        // flow; the default paths do not clash with Google login because this chain runs first.
+        // The standard authorization-server paths do not overlap Google client login endpoints.
         return AuthorizationServerSettings.builder()
                 .issuer(properties.getIssuer())
                 .build();
@@ -159,11 +177,22 @@ public class McpOAuthConfig {
         if (StringUtils.hasText(properties.getJwkFile())) {
             Path path = Path.of(properties.getJwkFile());
             if (Files.isRegularFile(path)) {
-                JWKSet jwkSet = JWKSet.parse(Files.readString(path, StandardCharsets.UTF_8));
-                return new ImmutableJWKSet<>(jwkSet);
+                try {
+                    JWKSource<SecurityContext> source = new ImmutableJWKSet<>(
+                            JWKSet.parse(Files.readString(path, StandardCharsets.UTF_8)));
+                    // Exercise the same RS256 selection/signing path used to issue access tokens.
+                    Instant now = Instant.now();
+                    String probe = new NimbusJwtEncoder(source).encode(JwtEncoderParameters.from(
+                            JwsHeader.with(SignatureAlgorithm.RS256).build(),
+                            JwtClaimsSet.builder().subject("signing-key-validation")
+                                    .issuedAt(now).expiresAt(now.plusSeconds(60)).build())).getTokenValue();
+                    OAuth2AuthorizationServerConfiguration.jwtDecoder(source).decode(probe);
+                    return source;
+                } catch (Exception exception) {
+                    throw new IllegalStateException("Configured MCP OAuth key file must contain a usable RS256 signing private key", exception);
+                }
             }
-            log.warn("Configured wesite.mcp.oauth.jwk-file '{}' does not exist; generating an ephemeral key",
-                    properties.getJwkFile());
+            throw new IllegalStateException("Configured MCP OAuth signing key file does not exist or is not a regular file");
         }
         KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
         generator.initialize(2048);
@@ -178,8 +207,24 @@ public class McpOAuthConfig {
     }
 
     @Bean
-    JwtDecoder jwtDecoder(JWKSource<SecurityContext> jwkSource) {
-        return OAuth2AuthorizationServerConfiguration.jwtDecoder(jwkSource);
+    JwtDecoder jwtDecoder(JWKSource<SecurityContext> jwkSource, McpOAuthProperties properties) {
+        NimbusJwtDecoder decoder = (NimbusJwtDecoder) OAuth2AuthorizationServerConfiguration.jwtDecoder(jwkSource);
+        decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
+                JwtValidators.createDefaultWithIssuer(properties.getIssuer()),
+                jwt -> {
+                    Object claim = jwt.getClaims().get("scope");
+                    java.util.Collection<?> scopes = claim instanceof String value
+                            ? java.util.Arrays.asList(value.split("\\s+"))
+                            : claim instanceof java.util.Collection<?> values ? values : List.of();
+                    if (jwt.getAudience() == null || !jwt.getAudience().contains(properties.getResource())
+                            || jwt.getExpiresAt() == null || !StringUtils.hasText(jwt.getSubject())
+                            || properties.getScopes().stream().noneMatch(scopes::contains)) {
+                        return OAuth2TokenValidatorResult.failure(new OAuth2Error("invalid_token",
+                                "Token must identify an account and authorize this MCP resource and scope", null));
+                    }
+                    return OAuth2TokenValidatorResult.success();
+                }));
+        return decoder;
     }
 
     @Bean

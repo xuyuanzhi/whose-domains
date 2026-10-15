@@ -139,6 +139,17 @@ class GoogleOAuth2ReturnTargetFlowTest {
                 GoogleOAuth2AuthorizationRequestRepository.consumeReturnTarget(callback));
     }
 
+    @Test
+    void mcpContinuationSurvivesGoogleStateConsumptionAndSessionInvalidation() {
+        String target = "/mcp/authorize/continue/" + "a".repeat(43);
+        OAuth2AuthorizationRequest authorization = start(target);
+        MockHttpServletRequest callback = callback(authorization.getState());
+        repository.removeAuthorizationRequest(callback, new MockHttpServletResponse());
+        session.invalidate();
+        assertEquals(Optional.of(target),
+                GoogleOAuth2AuthorizationRequestRepository.consumeReturnTarget(callback));
+    }
+
     private OAuth2AuthorizationRequest start(String returnTo) {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/login/google");
         request.setServletPath("/login/google");

@@ -75,18 +75,20 @@ class EmailLoginServiceTest {
                 () -> service.request("person@example.com", "/" + "界".repeat(500)));
     }
 
-    @Test
-    void storesAnArbitraryValidatedLocalRedirectPath() {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {
+            "/user/api-keys?tab=active", "/mcp/authorize/continue/abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG"})
+    void storesAnArbitraryValidatedLocalRedirectPath(String target) {
         EmailLoginLinkService links = mock(EmailLoginLinkService.class);
         MailSender mailSender = mock(MailSender.class);
         when(links.count(any())).thenReturn(0L, 0L);
         when(mailSender.send(any())).thenReturn(MailSendResult.ok());
         ArgumentCaptor<EmailLoginLink> savedLink = ArgumentCaptor.forClass(EmailLoginLink.class);
 
-        service(links, mailSender).request("person@example.com", "/user/api-keys?tab=active");
+        service(links, mailSender).request("person@example.com", target);
 
         org.mockito.Mockito.verify(links).save(savedLink.capture());
-        assertEquals("/user/api-keys?tab=active", savedLink.getValue().getRedirectPath());
+        assertEquals(target, savedLink.getValue().getRedirectPath());
     }
 
     @Test

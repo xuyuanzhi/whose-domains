@@ -106,3 +106,16 @@ wesite.mail.send-rate-per-second=2
 wesite.notification-delivery.immediate-enabled=${WESITE_NOTIFICATION_DELIVERY_IMMEDIATE_ENABLED:false}
 wesite.notification-delivery.digest-enabled=${WESITE_NOTIFICATION_DELIVERY_DIGEST_ENABLED:false}
 wesite.retention.reporting-zone=${WESITE_RETENTION_REPORTING_ZONE:Asia/Shanghai}
+
+# MCP / ChatGPT OAuth: enable only after the exact client callback has been registered.
+# Generate/store the private JWK Set on the server outside the release JAR and Git.
+# A configured key file that is missing prevents startup when OAuth is enabled.
+wesite.mcp.enabled=${WESITE_MCP_ENABLED:false}
+wesite.mcp.oauth.enabled=${WESITE_MCP_OAUTH_ENABLED:false}
+wesite.mcp.oauth.issuer=${WESITE_MCP_OAUTH_ISSUER:https://whose.domains}
+wesite.mcp.oauth.resource=${WESITE_MCP_OAUTH_RESOURCE:https://whose.domains/mcp}
+wesite.mcp.oauth.client-id=${WESITE_MCP_OAUTH_CLIENT_ID:chatgpt}
+wesite.mcp.oauth.client-secret=${WESITE_MCP_OAUTH_CLIENT_SECRET:}
+wesite.mcp.oauth.redirect-uris=${WESITE_MCP_OAUTH_REDIRECT_URIS:}
+wesite.mcp.oauth.scopes=${WESITE_MCP_OAUTH_SCOPES:domain.read}
+wesite.mcp.oauth.jwk-file=${WESITE_MCP_OAUTH_JWK_FILE:/usr/java/config/web/mcp-signing.jwks.json}
