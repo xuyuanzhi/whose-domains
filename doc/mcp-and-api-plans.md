@@ -164,8 +164,20 @@ handshake directly:
 
 ```bash
 npx @modelcontextprotocol/inspector     # Streamable HTTP -> http://localhost:18080/mcp
+
+# pwsh (PowerShell 7) if available:
 pwsh scripts/check-mcp.ps1 -BaseUrl http://localhost:18080 -Domain example.com
+# Windows PowerShell 5.1 fallback:
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check-mcp.ps1 -BaseUrl http://localhost:18080 -Domain example.com
 ```
 
 `check-mcp.ps1` calls `initialize`, `notifications/initialized`, `tools/list` and `tools/call`, so a
 passing run proves a client can connect and invoke the tools against a live server.
+
+### Verified live
+
+This flow was executed against the packaged app (dev profile, MCP enabled, port 18080) with MySQL
+and Redis running. `initialize` reported server `whose-domains 1.0.0` (protocol `2025-06-18`), all
+three tools were listed, and `check_domain`, `check_domains` and `get_domain_info` each returned
+`{"status":"registered","source":"database", ...}` for `example.com`. Redis-backed anonymous quota
+and per-IP rate limiting were active during the calls.

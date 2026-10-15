@@ -25,9 +25,10 @@ function Send-JsonRpc {
     }
     if ($SessionId) { $headers['Mcp-Session-Id'] = $SessionId }
     $body = $Payload | ConvertTo-Json -Depth 12 -Compress
-    $response = Invoke-WebRequest -Uri $endpoint -Method Post -Headers $headers -Body $body
+    $response = Invoke-WebRequest -Uri $endpoint -Method Post -Headers $headers -Body $body -UseBasicParsing
     $session = $null
-    if ($response.Headers.ContainsKey('Mcp-Session-Id')) { $session = $response.Headers['Mcp-Session-Id'] }
+    $sessionHeader = $response.Headers['Mcp-Session-Id']
+    if ($sessionHeader) { $session = @($sessionHeader)[0] }
     [pscustomobject]@{ Text = $response.Content; SessionId = $session }
 }
 
